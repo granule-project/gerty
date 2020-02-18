@@ -23,6 +23,7 @@ instance PrettyPrint ex => PrettyPrint (Expr ex) where
     isLexicallyAtomic _       = False
 
     pprint (Abs var Nothing e)  = "\\" ++ var ++ " -> " ++ pprint e
+    pprint TypeTy{}             = "type"
     pprint (Abs var (Just t) e) = "\\ (" ++ var ++ " : " ++ pprint t ++ ") -> " ++ pprint e
     pprint (App (Abs var mt e1) e2) =
       bracket_pprint (Abs var mt e1) ++ " " ++ bracket_pprint e2
@@ -76,5 +77,4 @@ instance PrettyPrint Type where
     pprint (SumTy tyA tyB) =
       bracket_pprint tyA ++ " + " ++ bracket_pprint tyB
     pprint (TyVar var) = var
-    pprint (TypeTy l)  = "type"
     pprint (Forall var t) = "forall " ++ var ++ " . " ++ pprint t

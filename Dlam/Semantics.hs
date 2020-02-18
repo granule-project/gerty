@@ -83,6 +83,7 @@ multiStep' step t n =
 
 fullBeta :: (Semantic ext) => Reducer (Expr ext)
 fullBeta (Var _) = Nothing
+fullBeta TypeTy{} = Nothing
 fullBeta (App (Abs x _ e) e') = beta e x e'
 -- Poly beta
 fullBeta (App (TyAbs alpha e) (TyEmbed t)) = beta e alpha (TyEmbed t)
@@ -103,6 +104,7 @@ fullBeta (GenLet x e' e) = beta e x e'
 
 callByName :: (Semantic ext) => Reducer (Expr ext)
 callByName (Var _) = Nothing
+callByName TypeTy{} = Nothing
 callByName (App (Abs x _ e) e') = beta e x e'
 -- Poly beta
 callByName (App (TyAbs var e) (TyEmbed t)) = beta e var (TyEmbed t)
@@ -118,6 +120,7 @@ callByName (GenLet x e' e) = beta e x e'
 
 callByValue :: (Semantic ext) => Reducer (Expr ext)
 callByValue (Var _) = Nothing
+callByValue TypeTy{} = Nothing
 callByValue (App (Abs x _ e) e') | isValue e' = beta e x e'
 -- Poly beta
 callByValue (App (TyAbs var e) (TyEmbed t)) = beta e var (TyEmbed t)
@@ -163,6 +166,8 @@ substituteExpr :: Expr PCF -> (Identifier, Expr PCF) -> Expr PCF
 substituteExpr (Var y) (x, e')
   | x == y = e'
   | otherwise = Var y
+
+substituteExpr t@TypeTy{} _ = t
 
 substituteExpr (App e1 e2) s =
   App (substituteExpr e1 s) (substituteExpr e2 s)
@@ -252,8 +257,6 @@ substituteType (SumTy t1 t2) s =
 substituteType (TyVar var) (varS, t)
   | var == varS  = t
   | otherwise    = TyVar var
-
-substituteType t@(TypeTy{}) _ = t
 
 substituteType (Forall var t) s =
   let (var', t') = substitute_binding var t s in Forall var' t'

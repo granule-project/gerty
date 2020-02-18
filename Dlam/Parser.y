@@ -97,6 +97,8 @@ Expr :: { [Option] -> Expr PCF }
        then GenLet (symString $2) ($4 opts) ($6 opts)
        else App (Abs (symString $2) Nothing ($6 opts)) ($4 opts) }
 
+  | type { \opts -> TypeTy 0 }
+
   | '\\' '(' VAR ':' Type ')' '->' Expr
     { \opts -> Abs (symString $3) (Just ($5 opts)) ($8 opts) }
 
@@ -161,7 +163,6 @@ Type
   | '(' VAR ':' Type ')' '->' Type { \opts -> FunTy (pure $ symString $2) ($4 opts) ($7 opts) }
   | Type '*' Type    { \opts -> ProdTy ($1 opts) ($3 opts) }
   | Type '+' Type    { \opts -> SumTy ($1 opts) ($3 opts) }
-  | type             { \opts -> TypeTy 0 }
   | forall VAR '.' Type { \opts ->
                             if isPoly opts
                               then Forall (symString $2) ($4 opts)
