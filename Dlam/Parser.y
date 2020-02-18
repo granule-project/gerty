@@ -38,8 +38,6 @@ import Dlam.Options
     ')'     { TokenRParen _ }
     ':'     { TokenSig _ }
     '?'     { TokenHole _ }
-    '*'     { TokenProd _ }
-    '+'     { TokenSum _ }
     '.'     { TokenDot _ }
     '@'     { TokenAt _ }
 
@@ -99,8 +97,6 @@ Expr :: { [Option] -> Expr NoExt }
 Type :: { [Option] -> Type }
 Type
   : TypeAtom         { $1 }
-  | Type '*' Type    { \opts -> ProdTy ($1 opts) ($3 opts) }
-  | Type '+' Type    { \opts -> SumTy ($1 opts) ($3 opts) }
   | forall VAR '.' Type { \opts ->
                             if isPoly opts
                               then Forall (symString $2) ($4 opts)
@@ -108,7 +104,7 @@ Type
 
 TypeAtom :: { [Option] -> Type }
 TypeAtom
-  : CONSTR           { \opts -> if constrString $1 == "Nat" then NatTy else error $ "Unknown type constructor " ++ constrString $1 }
+  : CONSTR           { \opts -> error $ "Unknown type constructor " ++ constrString $1 }
   | VAR              { \opts ->
                           if isPoly opts
                             then TyVar (symString $1)

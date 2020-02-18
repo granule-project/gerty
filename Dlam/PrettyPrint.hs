@@ -49,14 +49,8 @@ instance PrettyPrint NoExt where
   pprint _ = undefined
 
 instance PrettyPrint Type where
-    isLexicallyAtomic NatTy = True
     isLexicallyAtomic (TyVar _) = True
     isLexicallyAtomic _     = False
 
-    pprint NatTy = "Nat"
-    pprint (ProdTy tyA tyB) =
-      bracket_pprint tyA ++ " * " ++ bracket_pprint tyB
-    pprint (SumTy tyA tyB) =
-      bracket_pprint tyA ++ " + " ++ bracket_pprint tyB
     pprint (TyVar var) = var
     pprint (Forall var t) = "forall " ++ var ++ " . " ++ pprint t

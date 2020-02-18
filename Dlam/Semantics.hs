@@ -182,14 +182,6 @@ instance Substitutable Type where
 substituteType :: Type -> (Identifier, Type) -> Type
 
 
-substituteType NatTy s = NatTy
-
-substituteType (ProdTy t1 t2) s =
-  ProdTy (substituteType t1 s) (substituteType t2 s)
-
-substituteType (SumTy t1 t2) s =
-  SumTy (substituteType t1 s) (substituteType t2 s)
-
 -- Actual substitution happening here
 substituteType (TyVar var) (varS, t)
   | var == varS  = t
