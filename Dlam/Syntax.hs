@@ -68,7 +68,7 @@ isNatVal _           = False
 
 data Type =
   -- Simply-typed lambda calculus
-    FunTy Type Type  -- A -> B
+    FunTy (Maybe Identifier) Type Type  -- (x : A) -> B and A -> B
 
   -- PCF types
   | NatTy            -- Nat
@@ -129,14 +129,17 @@ instance Term (Expr PCF) where
   mkVar = Var
 
 instance Term Type where
-  boundVars (FunTy t1 t2)  = boundVars t1 `Set.union` boundVars t2
+  boundVars (FunTy Nothing t1 t2)    = boundVars t1 `Set.union` boundVars t2
+  boundVars (FunTy (Just var) t1 t2) =
+    Set.singleton var `Set.union` boundVars t1 `Set.union` boundVars t2
   boundVars (ProdTy t1 t2) = boundVars t1 `Set.union` boundVars t2
   boundVars (SumTy t1 t2)  = boundVars t1 `Set.union` boundVars t2
   boundVars NatTy          = Set.empty
   boundVars (TyVar var)    = Set.empty
   boundVars (Forall var t) = var `Set.insert` boundVars t
 
-  freeVars (FunTy t1 t2)  = freeVars t1 `Set.union` freeVars t2
+  freeVars (FunTy Nothing t1 t2)  = freeVars t1 `Set.union` freeVars t2
+  freeVars (FunTy (Just var) t1 t2) = freeVars t1 `Set.union` (var `Set.delete` freeVars t2)
   freeVars (ProdTy t1 t2) = freeVars t1 `Set.union` freeVars t2
   freeVars (SumTy t1 t2)  = freeVars t1 `Set.union` freeVars t2
   freeVars NatTy          = Set.empty

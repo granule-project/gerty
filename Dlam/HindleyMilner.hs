@@ -33,13 +33,13 @@ infer :: Context -> Expr PCF -> Int -> (Substitution, Type, Int)
 infer ctxt (Abs var _ e) fv =
   let alpha     = "a" ++ show fv
       (s , tyB , fv') = infer ((var , ForallTy [] (TyVar alpha)) : ctxt) e (fv+1)
-  in (s, FunTy (s alpha) tyB, fv')
+  in (s, FunTy Nothing (s alpha) tyB, fv')
 
 infer ctxt (App e1 e2) fv =
   let (s1, t1, fv') = infer ctxt e1 fv
       (s2, t2, fv'') = infer (substitute s1 ctxt) e2 fv'
       alpha          = "a" ++ show fv''
-      s3 = mgu (substitute s2 t1) (FunTy t2 (TyVar alpha))
+      s3 = mgu (substitute s2 t1) (FunTy Nothing t2 (TyVar alpha))
   in (s3 <.> s2 <.> s1, s3 alpha, fv'' + 1)
 
 infer ctxt (Var x) fv =
@@ -61,7 +61,7 @@ infer ctxt (GenLet x e1 e2) fv =
   in (s2 <.> s1, t2, fv'')
 
 infer ctxt (Ext Zero) fv = (idSubst, NatTy, fv)
-infer ctxt (Ext Succ) fv = (idSubst, FunTy NatTy NatTy, fv)
+infer ctxt (Ext Succ) fv = (idSubst, FunTy Nothing NatTy NatTy, fv)
 
 infer ctxt t fv =
   error $ "I don't know how to infer the type of " ++ pprint t
@@ -98,7 +98,7 @@ s2 <.> s1 =
 
 -- Calculate the most general unified of two types
 mgu :: Type -> Type -> Substitution
-mgu (FunTy t1 t2) (FunTy t1' t2') =
+mgu (FunTy Nothing t1 t2) (FunTy Nothing t1' t2') =
   let s = mgu t1 t1'
       s' = mgu (substitute s t2) (substitute s t2')
   in s' <.> s
@@ -122,7 +122,9 @@ class Substitutable t where
 
 instance Substitutable Type where
   substitute subst NatTy = NatTy
-  substitute subst (FunTy t1 t2)  = FunTy (substitute subst t1) (substitute subst t2)
+  substitute subst (FunTy Nothing t1 t2)  = FunTy Nothing (substitute subst t1) (substitute subst t2)
+  substitute subst t@(FunTy (Just var) t1 t2) =
+    error $ "substitution on '" <> pprint t <> "' unsupported"
   substitute subst (ProdTy t1 t2) = ProdTy (substitute subst t1) (substitute subst t2)
   substitute subst (SumTy t1 t2)  = SumTy (substitute subst t1) (substitute subst t2)
   substitute subst (TyVar var)    = subst var

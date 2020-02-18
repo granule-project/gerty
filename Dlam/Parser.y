@@ -156,7 +156,8 @@ Expr :: { [Option] -> Expr PCF }
 Type :: { [Option] -> Type }
 Type
   : TypeAtom         { $1 }
-  | Type '->' Type   { \opts -> FunTy ($1 opts) ($3 opts) }
+  | Type '->' Type   { \opts -> FunTy Nothing ($1 opts) ($3 opts) }
+  | '(' VAR ':' Type ')' '->' Type { \opts -> FunTy (pure $ symString $2) ($4 opts) ($7 opts) }
   | Type '*' Type    { \opts -> ProdTy ($1 opts) ($3 opts) }
   | Type '+' Type    { \opts -> SumTy ($1 opts) ($3 opts) }
   | forall VAR '.' Type { \opts ->

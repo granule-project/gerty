@@ -222,8 +222,12 @@ instance Substitutable Type where
     substitute = substituteType
 
 substituteType :: Type -> (Identifier, Type) -> Type
-substituteType (FunTy t1 t2) s =
-  FunTy (substituteType t1 s) (substituteType t2 s)
+substituteType (FunTy Nothing t1 t2) s =
+  FunTy Nothing (substituteType t1 s) (substituteType t2 s)
+
+substituteType (FunTy (Just var) t1 t2) s@(varS, _)
+  | var == varS = FunTy (Just var) (substituteType t1 s) t2
+  | otherwise   = FunTy (Just var) (substituteType t1 s) (substituteType t2 s)
 
 substituteType NatTy s = NatTy
 

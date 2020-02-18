@@ -67,8 +67,10 @@ instance PrettyPrint Type where
     isLexicallyAtomic _     = False
 
     pprint NatTy = "Nat"
-    pprint (FunTy tyA tyB) =
+    pprint (FunTy Nothing tyA tyB) =
       bracket_pprint tyA ++ " -> " ++ pprint tyB
+    pprint (FunTy (Just var) tyA tyB) =
+      "(" ++ var ++ " : " ++ pprint tyA ++ ") -> " ++ pprint tyB
     pprint (ProdTy tyA tyB) =
       bracket_pprint tyA ++ " * " ++ bracket_pprint tyB
     pprint (SumTy tyA tyB) =

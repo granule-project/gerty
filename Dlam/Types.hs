@@ -52,15 +52,18 @@ G |- (\x -> e) <= A -> B
 
 -}
 -- Curry style
-check gamma (Abs x Nothing expr) (FunTy tyA tyB) =
+check gamma (Abs x Nothing expr) (FunTy Nothing tyA tyB) =
   check ([(x, tyA)] ++ gamma) expr tyB
 
+check gamma _ t@(FunTy (Just _) tyA tyB) =
+  error $ "check on '" <> pprint t <> "' unsupported"
+
 -- Church style
-check gamma (Abs x (Just tyA') expr) (FunTy tyA tyB) | tyA == tyA' =
+check gamma (Abs x (Just tyA') expr) (FunTy Nothing tyA tyB) | tyA == tyA' =
   check ([(x, tyA)] ++ gamma) expr tyB
 
 --- PCF rules
-check gamma (Ext (Fix e)) t = check gamma e (FunTy t t)
+check gamma (Ext (Fix e)) t = check gamma e (FunTy Nothing t t)
 
 check gamma (Ext (NatCase e e1 (x,e2))) t =
   check gamma e NatTy &&
@@ -190,7 +193,9 @@ synth gamma (App e (TyEmbed tau')) =
 synth gamma (App e1 e2) =
   -- Synth the left-hand side
   case synth gamma e1 of
-    Just (FunTy tyA tyB) ->
+    Just t@(FunTy (Just _) tyA tyB) ->
+      error $ "synth on '" <> pprint t <> "' unsupported (App branch)"
+    Just (FunTy Nothing tyA tyB) ->
       -- Check the right-hand side
       if check gamma e2 tyA
         -- Yay!
@@ -208,7 +213,7 @@ synth gamma (Ext Zero) =
   Just NatTy
 
 synth gamma (Ext Succ) =
-  Just (FunTy NatTy NatTy)
+  Just (FunTy Nothing NatTy NatTy)
 
 synth gamma (Ext (NatCase e e1 (x,e2))) =
   if check gamma e NatTy then
@@ -228,9 +233,11 @@ synth gamma (Ext (NatCase e e1 (x,e2))) =
 
 synth gamma (Ext (Fix e)) =
   case synth gamma e of
-    Just (FunTy t1 t2) ->
+    Just t@(FunTy (Just _) t1 t2) ->
+      error $ "synth on '" <> pprint t <> "' unsupported (Ext branch)"
+    Just (FunTy Nothing t1 t2) ->
       if t1 == t2 then Just t1
-      else error $ "Expecting (" ++ pprint e ++ ") to have function type with equal domain/range but got " ++ pprint (FunTy t1 t2)
+      else error $ "Expecting (" ++ pprint e ++ ") to have function type with equal domain/range but got " ++ pprint (FunTy Nothing t1 t2)
     Just t -> error $ "Expecting (" ++ pprint e ++ ") to have function type with equal domain/range but got " ++ pprint t
     Nothing -> error $ "Expecting (" ++ pprint e ++ ") to have function type with equal domain/range"
 
