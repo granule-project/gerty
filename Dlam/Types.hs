@@ -42,7 +42,54 @@ G |- e <= A    check
 **********************************
 -}
 
-check :: Context -> Expr PCF -> Type -> Bool
+class Check ext where
+  checkExt :: Context -> ext -> Type -> Bool
+
+instance Check PCF where
+
+  checkExt gamma (Fix e) t = check gamma e (FunTy Nothing t t)
+
+  checkExt gamma (NatCase e e1 (x,e2)) t =
+    check gamma e NatTy &&
+    check gamma e1 t &&
+    check ([(x,NatTy)] ++ gamma) e2 t
+
+  checkExt gamma (Pair e1 e2) (ProdTy t1 t2) =
+    check gamma e1 t1 &&
+    check gamma e2 t2
+
+  checkExt gamma (Pair _ _) _ = False
+
+  checkExt gamma (Fst e) t =
+    case synth gamma e of
+      Just (ProdTy t1 t2) -> t == t1
+      _ -> False
+
+  checkExt gamma (Snd e) t =
+    case synth gamma e of
+      Just (ProdTy t1 t2) -> t == t2
+      _ -> False
+
+  checkExt gamma (Inl e) (SumTy t1 t2) = check gamma e t1
+  checkExt gamma (Inl e) _ = False
+
+  checkExt gamma (Inr e) (SumTy t1 t2) = check gamma e t2
+  checkExt gamma (Inr e) _ = False
+
+  checkExt gamma (Case e (x,e1) (y,e2)) t =
+    case synth gamma e of
+      Just (SumTy t1 t2) ->
+        check ([(x,t1)] ++ gamma) e1 t &&
+        check ([(y,t2)] ++ gamma) e2 t
+      _ -> False
+
+  checkExt gamma expr tyA =
+    case synth gamma (Ext expr) of
+      Nothing -> False
+      Just tyA' -> tyA == tyA'
+
+
+check :: (Check ext, PrettyPrint ext, Synth ext) => Context -> Expr ext -> Type -> Bool
 
 {--
 
@@ -62,43 +109,7 @@ check gamma _ t@(FunTy (Just _) tyA tyB) =
 check gamma (Abs x (Just tyA') expr) (FunTy Nothing tyA tyB) | tyA == tyA' =
   check ([(x, tyA)] ++ gamma) expr tyB
 
---- PCF rules
-check gamma (Ext (Fix e)) t = check gamma e (FunTy Nothing t t)
-
-check gamma (Ext (NatCase e e1 (x,e2))) t =
-  check gamma e NatTy &&
-  check gamma e1 t &&
-  check ([(x,NatTy)] ++ gamma) e2 t
-
-check gamma (Ext (Pair e1 e2)) (ProdTy t1 t2) =
-  check gamma e1 t1 &&
-  check gamma e2 t2
-
-check gamma (Ext (Pair _ _)) _ = False
-
-check gamma (Ext (Fst e)) t =
-  case synth gamma e of
-    Just (ProdTy t1 t2) -> t == t1
-    _ -> False
-
-check gamma (Ext (Snd e)) t =
-  case synth gamma e of
-    Just (ProdTy t1 t2) -> t == t2
-    _ -> False
-
-check gamma (Ext (Inl e)) (SumTy t1 t2) = check gamma e t1
-check gamma (Ext (Inl e)) _ = False
-
-check gamma (Ext (Inr e)) (SumTy t1 t2) = check gamma e t2
-check gamma (Ext (Inr e)) _ = False
-
-check gamma (Ext (Case e (x,e1) (y,e2))) t =
-  case synth gamma e of
-    Just (SumTy t1 t2) ->
-      check ([(x,t1)] ++ gamma) e1 t &&
-      check ([(y,t2)] ++ gamma) e2 t
-    _ -> False
-
+check gamma (Ext e) t = checkExt gamma e t
 -- Polymorphic lambda calculus
 check gamma (TyAbs alpha e) (Forall alpha' tau)
   | alpha == alpha' =
@@ -133,7 +144,87 @@ Bidirectional synthesis
 **********************************
 -}
 
-synth :: Context -> Expr PCF -> Maybe Type
+class Synth ext where
+  synthExt :: Context -> ext -> Maybe Type
+
+instance Synth PCF where
+  synthExt gamma Zero =
+    Just NatTy
+
+  synthExt gamma Succ =
+    Just (FunTy Nothing NatTy NatTy)
+
+  synthExt gamma (NatCase e e1 (x,e2)) =
+    if check gamma e NatTy then
+      case synth gamma e1 of
+        Just t ->
+          if check ([(x,NatTy)] ++ gamma) e2 t
+            then Just t
+            else error $ "Expecting (" ++ pprint e2 ++ ") to have type " ++ pprint t
+        Nothing ->
+          (case synth ([(x,NatTy)] ++ gamma) e2 of
+            Just t ->
+              if check gamma e1 t
+                then Just t
+                else error $ "Expecting (" ++ pprint e1 ++ ") to have type " ++ pprint t
+            Nothing -> error $ "Could not synth types for " ++ pprint e1 ++ ", " ++ pprint e2)
+    else error $ "Expecting (" ++ pprint e ++ ") to have type " ++ pprint NatTy
+
+  synthExt gamma (Fix e) =
+    case synth gamma e of
+      Just t@(FunTy (Just _) t1 t2) ->
+        error $ "synth on '" <> pprint t <> "' unsupported (Ext branch)"
+      Just (FunTy Nothing t1 t2) ->
+        if t1 == t2 then Just t1
+        else error $ "Expecting (" ++ pprint e ++ ") to have function type with equal domain/range but got " ++ pprint (FunTy Nothing t1 t2)
+      Just t -> error $ "Expecting (" ++ pprint e ++ ") to have function type with equal domain/range but got " ++ pprint t
+      Nothing -> error $ "Expecting (" ++ pprint e ++ ") to have function type with equal domain/range"
+
+  synthExt gamma (Pair e1 e2) =
+    case synth gamma e1 of
+      Just t1 ->
+        case synth gamma e2 of
+          Just t2 -> Just (ProdTy t1 t2)
+          Nothing -> error $ "Could not synth type for " ++ pprint e2
+      Nothing -> error $ "Could not synth type for " ++ pprint e1
+
+  synthExt gamma (Fst e) =
+    case synth gamma e of
+      Just (ProdTy t1 t2) -> Just t1
+      Just t -> error $ "Expecting (" ++ pprint e ++ ") to have product type but got " ++ pprint t
+      Nothing -> error $ "Could not synth type for " ++ pprint e
+
+  synthExt gamma (Snd e) =
+    case synth gamma e of
+      Just (ProdTy t1 t2) -> Just t2
+      Just t -> error $ "Expecting (" ++ pprint e ++ ") to have product type but got " ++ pprint t
+      Nothing -> error $ "Could not synth type for " ++ pprint e
+
+  synthExt gamma (Case e (x,e1) (y,e2)) =
+    case synth gamma e of
+      Just (SumTy t1 t2) -> (
+        case synth ([(x,t1)] ++ gamma) e1 of
+          Just t ->
+            if check ([(y,t2)] ++ gamma) e2 t
+              then Just t
+              else error $ "Expecting (" ++ pprint e2 ++ ") to have type " ++ pprint t
+          Nothing -> (
+            case synth ([(y,t2)] ++ gamma) e2 of
+              Just t ->
+                if check ([(x,t1)] ++ gamma) e1 t
+                  then Just t
+                  else error $ "Expecting (" ++ pprint e1 ++ ") to have type " ++ pprint t
+              Nothing -> error $ "Could not synth types for " ++ pprint e1 ++ ", " ++ pprint e2
+            )
+          )
+      Just t -> error $ "Expecting (" ++ pprint e ++ ") to have sum type but got " ++ pprint t
+      Nothing -> error $ "Could not synth type for " ++ pprint e
+
+  synthExt gamma e =
+     error $ "Cannot synth the type for " ++ pprint e
+
+
+synth :: (Check ext, PrettyPrint ext, Synth ext) => Context -> Expr ext -> Maybe Type
 
 {-
 
@@ -208,79 +299,7 @@ synth gamma (App e1 e2) =
     Nothing ->
       error $ "Expecting (" ++ pprint e1 ++ ") to have function type."
 
--- PCF rules
-synth gamma (Ext Zero) =
-  Just NatTy
-
-synth gamma (Ext Succ) =
-  Just (FunTy Nothing NatTy NatTy)
-
-synth gamma (Ext (NatCase e e1 (x,e2))) =
-  if check gamma e NatTy then
-    case synth gamma e1 of
-      Just t ->
-        if check ([(x,NatTy)] ++ gamma) e2 t
-          then Just t
-          else error $ "Expecting (" ++ pprint e2 ++ ") to have type " ++ pprint t
-      Nothing ->
-        (case synth ([(x,NatTy)] ++ gamma) e2 of
-          Just t ->
-            if check gamma e1 t
-              then Just t
-              else error $ "Expecting (" ++ pprint e1 ++ ") to have type " ++ pprint t
-          Nothing -> error $ "Could not synth types for " ++ pprint e1 ++ ", " ++ pprint e2)
-  else error $ "Expecting (" ++ pprint e ++ ") to have type " ++ pprint NatTy
-
-synth gamma (Ext (Fix e)) =
-  case synth gamma e of
-    Just t@(FunTy (Just _) t1 t2) ->
-      error $ "synth on '" <> pprint t <> "' unsupported (Ext branch)"
-    Just (FunTy Nothing t1 t2) ->
-      if t1 == t2 then Just t1
-      else error $ "Expecting (" ++ pprint e ++ ") to have function type with equal domain/range but got " ++ pprint (FunTy Nothing t1 t2)
-    Just t -> error $ "Expecting (" ++ pprint e ++ ") to have function type with equal domain/range but got " ++ pprint t
-    Nothing -> error $ "Expecting (" ++ pprint e ++ ") to have function type with equal domain/range"
-
-synth gamma (Ext (Pair e1 e2)) =
-  case synth gamma e1 of
-    Just t1 ->
-      case synth gamma e2 of
-        Just t2 -> Just (ProdTy t1 t2)
-        Nothing -> error $ "Could not synth type for " ++ pprint e2
-    Nothing -> error $ "Could not synth type for " ++ pprint e1
-
-synth gamma (Ext (Fst e)) =
-  case synth gamma e of
-    Just (ProdTy t1 t2) -> Just t1
-    Just t -> error $ "Expecting (" ++ pprint e ++ ") to have product type but got " ++ pprint t
-    Nothing -> error $ "Could not synth type for " ++ pprint e
-
-synth gamma (Ext (Snd e)) =
-  case synth gamma e of
-    Just (ProdTy t1 t2) -> Just t2
-    Just t -> error $ "Expecting (" ++ pprint e ++ ") to have product type but got " ++ pprint t
-    Nothing -> error $ "Could not synth type for " ++ pprint e
-
-synth gamma (Ext (Case e (x,e1) (y,e2))) =
-  case synth gamma e of
-    Just (SumTy t1 t2) -> (
-      case synth ([(x,t1)] ++ gamma) e1 of
-        Just t ->
-          if check ([(y,t2)] ++ gamma) e2 t
-            then Just t
-            else error $ "Expecting (" ++ pprint e2 ++ ") to have type " ++ pprint t
-        Nothing -> (
-          case synth ([(y,t2)] ++ gamma) e2 of
-            Just t ->
-              if check ([(x,t1)] ++ gamma) e1 t
-                then Just t
-                else error $ "Expecting (" ++ pprint e1 ++ ") to have type " ++ pprint t
-            Nothing -> error $ "Could not synth types for " ++ pprint e1 ++ ", " ++ pprint e2
-          )
-        )
-    Just t -> error $ "Expecting (" ++ pprint e ++ ") to have sum type but got " ++ pprint t
-    Nothing -> error $ "Could not synth type for " ++ pprint e
-
+synth gamma (Ext e) = synthExt gamma e
 
 {-
 
