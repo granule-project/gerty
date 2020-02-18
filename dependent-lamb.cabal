@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: cef7beb7900687d0b35000e4c472e819da019ba27fe34ee3adb1b83d70227643
+-- hash: a429a898fcd3fec0c696f3ce18f9f8e9bd8d90f635e6d35342e1c6f71b5c955e
 
 name:           dependent-lamb
 version:        0.0.1
@@ -38,6 +38,7 @@ executable dlam
   build-depends:
       array
     , base >=4.10 && <5
+    , containers
     , directory
     , filepath
     , text

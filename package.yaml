@@ -28,6 +28,7 @@ executables:
      - alex
      - happy
     dependencies:
+     - containers
      - directory
      - transformers
      - filepath
