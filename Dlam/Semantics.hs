@@ -13,56 +13,14 @@ class (Substitutable (Expr ext)) => Semantic ext where
   isValue :: Expr ext -> Bool
   reduceExt :: Reducer (Expr ext) -> Reducer (Expr ext)
 
-instance Semantic PCF where
-  isValue Abs{}   = True
-  isValue TyAbs{} = True
-  isValue Var{}   = True
-  isValue e       = isNatVal e
+instance Semantic NoExt where
+  isValue Abs{}    = True
+  isValue TyAbs{}  = True
+  isValue Var{}    = True
+  isValue TypeTy{} = True
+  isValue e       = False
 
-  -- Reducer for the extended PCF syntax
-  -- Fix point
-  reduceExt step (Ext (Fix e)) = return $ App e (Ext $ Fix e)
-
-  -- Beta-rules for Nat
-  reduceExt step (Ext (NatCase (Ext Zero) e1 _)) = Just e1
-
-  reduceExt step (Ext (NatCase (App (Ext Succ) n) _ (x,e2))) = Just $ substitute e2 (x,n)
-
-  -- Congruence for Nat-eliminator
-  reduceExt step (Ext (NatCase e e1 (x,e2))) =
-    (\e' -> Ext (NatCase e' e1 (x,e2))) <$> step e
-
-  -- Congruence for productor constructor
-  reduceExt step (Ext (Pair e1 e2)) =
-    case step e1 of
-      Just e1' -> Just $ Ext $ Pair e1' e2
-      Nothing -> (\e2' -> Ext $ Pair e1 e2') <$> step e2
-
-  -- Beta-rules for products
-  reduceExt step (Ext (Fst (Ext (Pair e1 e2)))) = Just e1
-  reduceExt step (Ext (Snd (Ext (Pair e1 e2)))) = Just e2
-
-  -- Congruence rules for product eliminators
-  reduceExt step (Ext (Fst e)) = (\e' -> Ext $ Fst e') <$> step e
-  reduceExt step (Ext (Snd e)) = (\e' -> Ext $ Snd e') <$> step e
-
-  -- Beta-rules for sum types
-  reduceExt step (Ext (Case (Ext (Inl e)) (x,e1) _)) = Just $ substitute e1 (x,e)
-  reduceExt step (Ext (Case (Ext (Inr e)) _ (y,e2))) = Just $ substitute e2 (y,e)
-
-  -- Congruence for sum eliminator
-  reduceExt step (Ext (Case e (x,e1) (y,e2))) =
-    (\e' -> Ext (Case e' (x,e1) (y,e2))) <$> step e
-
-  -- Congruence for sum constructor
-  reduceExt step (Ext (Inl e)) = (\e' -> Ext $ Inl e') <$> step e
-  reduceExt step (Ext (Inr e)) = (\e' -> Ext $ Inr e') <$> step e
-
-  -- other Ext terms
-  reduceExt step (Ext _) = Nothing
-
-  -- Non Ext terms
-  reduceExt _ _ = error "invalid term"
+  reduceExt _ _ = undefined
 
 
 -- Keep doing small step reductions until normal form reached
@@ -158,11 +116,11 @@ zeta3Ty step x e = (\e' -> TyAbs x e') <$> step e
 class Substitutable e where
   substitute :: e -> (Identifier, e) -> e
 
-instance Substitutable (Expr PCF) where
+instance Substitutable (Expr NoExt) where
   substitute = substituteExpr
 
 -- Syntactic substitution - `substituteExpr e (x, e')` means e[e'/x]
-substituteExpr :: Expr PCF -> (Identifier, Expr PCF) -> Expr PCF
+substituteExpr :: Expr NoExt -> (Identifier, Expr NoExt) -> Expr NoExt
 substituteExpr (Var y) (x, e')
   | x == y = e'
   | otherwise = Var y
@@ -182,33 +140,6 @@ substituteExpr (Sig e t) s = Sig (substituteExpr e s) t
 substituteExpr (GenLet x e1 e2) s =
   let (x' , e2') = substitute_binding x e2 s in GenLet x' (substituteExpr e1 s) e2'
 
--- PCF terms
-substituteExpr (Ext Zero) s = Ext Zero
-substituteExpr (Ext Succ) s = Ext Succ
-
-substituteExpr (Ext (Fix e)) s = Ext $ Fix $ substituteExpr e s
-
-substituteExpr (Ext (NatCase e e1 (y,e2))) s =
-  let e'  = substituteExpr e s
-      e1' = substituteExpr e1 s
-      (y', e2') = substitute_binding y e2 s
-  in Ext $ NatCase e' e1' (y', e2')
-
-substituteExpr (Ext (Pair e1 e2)) s =
-  Ext $ Pair (substituteExpr e1 s) (substituteExpr e2 s)
-
-substituteExpr (Ext (Fst e)) s = Ext $ Fst $ substituteExpr e s
-substituteExpr (Ext (Snd e)) s = Ext $ Snd $ substituteExpr e s
-
-substituteExpr (Ext (Case e (x,e1) (y,e2))) s =
-  let e' = substituteExpr e s
-      (x', e1') = substitute_binding x e1 s
-      (y', e2') = substitute_binding y e2 s
-  in Ext $ Case e' (x', e1') (y', e2')
-
-substituteExpr (Ext (Inl e)) s = Ext $ Inl $ substituteExpr e s
-substituteExpr (Ext (Inr e)) s = Ext $ Inr $ substituteExpr e s
-
 -- Poly
 
 -- Substitute inside types
@@ -217,6 +148,8 @@ substituteExpr (TyEmbed t) (var, TyEmbed t') =
 
 substituteExpr (TyEmbed t) (var, _) =
     TyEmbed t
+
+substituteExpr (Ext _) _ = undefined
 
 substituteExpr (TyAbs y e) s =
   TyAbs y (substituteExpr e s)

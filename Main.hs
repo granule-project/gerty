@@ -55,7 +55,7 @@ main = do
               putStrLn $ ansi_red ++ "Error: " ++ ansi_reset ++ msg
               exitFailure
 
-typeInference :: [Option] -> Expr PCF -> Maybe Type
+typeInference :: [Option] -> Expr NoExt -> Maybe Type
 typeInference _ = synth []
 
 ansi_red, ansi_green, ansi_reset, ansi_bold :: String

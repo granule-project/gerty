@@ -40,27 +40,11 @@ instance PrettyPrint ex => PrettyPrint (Expr ex) where
     -- ML
     pprint (GenLet x e1 e2) = "let " ++ x ++ " = " ++ pprint e1 ++ " in " ++ pprint e2
 
-instance PrettyPrint PCF where
-    isLexicallyAtomic Zero    = True
-    isLexicallyAtomic _       = False
-
-    pprint Zero                   = "zero"
-    pprint Succ                   = "succ"
-    pprint (Fix e)                = "fix " ++ bracket_pprint e
-    pprint (NatCase e e1 (x, e2)) =
-      "natcase " ++ bracket_pprint e ++ " of zero => " ++
-      bracket_pprint e1 ++ " | succ " ++ x ++ " => " ++ bracket_pprint e2
-    pprint (Pair e1 e2)           = "<" ++ pprint e1 ++ ", " ++ pprint e2 ++ ">"
-    pprint (Fst e)                = "fst " ++ bracket_pprint e
-    pprint (Snd e)                = "snd " ++ bracket_pprint e
-    pprint (Inl e)                = "inl " ++ bracket_pprint e
-    pprint (Inr e)                = "inr " ++ bracket_pprint e
-    pprint (Case e (x,e1) (y,e2)) =
-      "case " ++ bracket_pprint e ++ " of inl " ++ x ++ " => " ++
-      bracket_pprint e1 ++ " | inr " ++ y ++ " => " ++ bracket_pprint e2
-
 instance PrettyPrint () where
     pprint () = "()"
+
+instance PrettyPrint NoExt where
+  pprint _ = undefined
 
 instance PrettyPrint Type where
     isLexicallyAtomic NatTy = True
