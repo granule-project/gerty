@@ -5,7 +5,6 @@ import Dlam.Parser      (parseProgram)
 import Dlam.PrettyPrint (pprint)
 import Dlam.Semantics   (multiStep)
 import Dlam.Syntax
-import qualified Dlam.HindleyMilner as HM
 import Dlam.Types
 
 import System.Directory   (doesPathExist)
@@ -57,7 +56,7 @@ main = do
               exitFailure
 
 typeInference :: [Option] -> Expr PCF -> Maybe Type
-typeInference options = if isML options then HM.inferType [] else synth []
+typeInference _ = synth []
 
 ansi_red, ansi_green, ansi_reset, ansi_bold :: String
 ansi_red   = "\ESC[31;1m"
