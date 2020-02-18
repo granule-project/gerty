@@ -122,6 +122,7 @@ class Substitutable t where
 
 instance Substitutable Type where
   substitute subst NatTy = NatTy
+  substitute subst t@(TypeTy{}) = t
   substitute subst (FunTy Nothing t1 t2)  = FunTy Nothing (substitute subst t1) (substitute subst t2)
   substitute subst t@(FunTy (Just var) t1 t2) =
     error $ "substitution on '" <> pprint t <> "' unsupported"

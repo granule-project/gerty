@@ -242,5 +242,7 @@ substituteType (TyVar var) (varS, t)
   | var == varS  = t
   | otherwise    = TyVar var
 
+substituteType t@(TypeTy{}) _ = t
+
 substituteType (Forall var t) s =
   let (var', t') = substitute_binding var t s in Forall var' t'

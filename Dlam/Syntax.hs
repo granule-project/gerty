@@ -63,6 +63,9 @@ isNatVal (Ext Succ)  = True
 isNatVal (App e1 e2) = isNatVal e1 && isNatVal e2
 isNatVal _           = False
 
+-- | Universe level.
+type ULevel = Int
+
 ------------------------------
 -- Type syntax
 
@@ -77,6 +80,7 @@ data Type =
 
   -- Polymorphic lambda calculus
   | TyVar Identifier       -- a
+  | TypeTy ULevel -- Type l
   | Forall Identifier Type -- forall a . A
   deriving (Show, Eq)
 
@@ -136,6 +140,7 @@ instance Term Type where
   boundVars (SumTy t1 t2)  = boundVars t1 `Set.union` boundVars t2
   boundVars NatTy          = Set.empty
   boundVars (TyVar var)    = Set.empty
+  boundVars TypeTy{}       = Set.empty
   boundVars (Forall var t) = var `Set.insert` boundVars t
 
   freeVars (FunTy Nothing t1 t2)  = freeVars t1 `Set.union` freeVars t2
@@ -144,6 +149,7 @@ instance Term Type where
   freeVars (SumTy t1 t2)  = freeVars t1 `Set.union` freeVars t2
   freeVars NatTy          = Set.empty
   freeVars (TyVar var)    = Set.singleton var
+  freeVars TypeTy{}       = Set.empty
   freeVars (Forall var t) = var `Set.delete` freeVars t
 
   mkVar = TyVar

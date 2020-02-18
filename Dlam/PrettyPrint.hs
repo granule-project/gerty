@@ -76,4 +76,5 @@ instance PrettyPrint Type where
     pprint (SumTy tyA tyB) =
       bracket_pprint tyA ++ " + " ++ bracket_pprint tyB
     pprint (TyVar var) = var
+    pprint (TypeTy l)  = "type"
     pprint (Forall var t) = "forall " ++ var ++ " . " ++ pprint t

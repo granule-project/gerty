@@ -35,6 +35,7 @@ import Dlam.Options
     in      { TokenIn  _  }
     zero    { TokenZero _ }
     succ    { TokenSucc _ }
+    type    { TokenType _ }
     VAR     { TokenSym _ _ }
     LANG    { TokenLang _ _ }
     CONSTR  { TokenConstr _ _ }
@@ -160,6 +161,7 @@ Type
   | '(' VAR ':' Type ')' '->' Type { \opts -> FunTy (pure $ symString $2) ($4 opts) ($7 opts) }
   | Type '*' Type    { \opts -> ProdTy ($1 opts) ($3 opts) }
   | Type '+' Type    { \opts -> SumTy ($1 opts) ($3 opts) }
+  | type             { \opts -> TypeTy 0 }
   | forall VAR '.' Type { \opts ->
                             if isPoly opts
                               then Forall (symString $2) ($4 opts)

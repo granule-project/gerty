@@ -44,6 +44,7 @@ tokens :-
   zero                          { \p s -> TokenZero p }
   natcase                       { \p s -> TokenNatCase p }
   case                          { \p s -> TokenCase p }
+  type                          { \p s -> TokenType p }
   of                            { \p s -> TokenOf p }
   fix                           { \p s -> TokenFix p }
   fst                           { \p s -> TokenFst p }
@@ -72,6 +73,7 @@ tokens :-
 
 data Token
   = TokenLang     AlexPosn String
+  | TokenType     AlexPosn
   | TokenCase     AlexPosn
   | TokenNatCase  AlexPosn
   | TokenOf       AlexPosn
