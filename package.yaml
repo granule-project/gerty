@@ -1,0 +1,35 @@
+name: dependent-lamb
+version: '0.0.1'
+synopsis: Minimal, dependently-typed programming language
+author: Ben Moon
+copyright: 2020 authors
+license: BSD3
+dependencies:
+- base >=4.10 && <5
+
+ghc-options:
+- -O0
+- -Wall
+- -Werror
+- -Wcompat
+- -Wincomplete-record-updates
+- -Wincomplete-uni-patterns
+- -Wredundant-constraints
+- -Wno-unused-matches
+- -Wno-name-shadowing
+- -Wno-type-defaults
+
+executables:
+  dlam:
+    main: Main.hs
+    source-dirs: .
+    ghc-options: -main-is Dlam
+    build-tools:
+     - alex
+     - happy
+    dependencies:
+     - directory
+     - transformers
+     - filepath
+     - array
+     - text
