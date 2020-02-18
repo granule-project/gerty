@@ -1,0 +1,4 @@
+lang.pcf
+lang.cbn
+
+(\x -> \y -> x) zero (fix (\x -> x))

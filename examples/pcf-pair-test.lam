@@ -1,0 +1,7 @@
+lang.pcf
+lang.typed
+
+id = (\ x -> x) : Nat -> Nat
+test_pair = < \x -> fst(x), <id (succ zero), succ (succ zero) > > : (Nat * Nat -> Nat) * (Nat * Nat)
+
+(fst(test_pair)) (snd(test_pair)) : Nat

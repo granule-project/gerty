@@ -1,0 +1,7 @@
+lang.pcf
+lang.poly
+lang.typed
+
+id = (/\ a -> (\(x : a) -> x)) : forall a . a -> a
+
+(id @(Nat -> Nat) (id @Nat)) zero

@@ -1,0 +1,97 @@
+-- Some Church numerals
+zero  = \f -> \x -> x
+one   = \f -> \x -> f x
+two   = \f -> \x -> f (f x)
+three = \f -> \x -> f (f (f x))
+four  = \f -> \x -> f (f (f (f x)))
+
+-- Algebraic operations on Church numerals
+succ = \n -> \s -> \z -> s (n s z)
+plus = \n -> \m -> (\f -> \x -> n f (m f x))
+mult = \n -> \m -> (\f -> \x -> n (m f) x)
+
+--------------------------------------------------------------------------------
+
+-- Derivation of pred:
+-- pred n = if n = 0 then 0 else (n - 1)
+-- n = \ s z . s ( ... (s z) ... ) --> need a way of applying s one less time
+
+-- define a wrapper, wrap v f = f v: wrap = \ v -> \ f -> f v
+-- and an unwrapper, unwrap (wrap v) = v:
+--    unwrap = \ (value v) . (value v) id --> unwrap = \ v -> v (\ x -> x)
+
+-- then for some function f, let succf and zerof wrap values as follows:
+--    zerof f x = wrap x, succf f (wrap x) = wrap (f x)
+--    i.e. they insert x into the wrapper and apply the function underneath the wrapper
+--      we can expand these to the following:
+--      zerof = (\f -> \x -> wrap x) = \f -> \x -> (\v -> \h -> h v) x
+--            = \f -> \x -> \h -> h x
+--      succf = \f -> \wx -> wrap (wx f)
+--            = \f -> \wx -> (\v -> \h -> h v) (wx f)
+--            = \f -> \wx -> \h -> h (wx f)
+-- we can see that n (succf f) (zerof f x) = value (f^n x) = value (n f x) for some numeral n
+-- i.e. we can apply a function n times to an argument and insert it into the wrapper
+
+-- now we need to apply a function (n - 1) times and insert into the wrapper
+-- we can do this by introducing a variant of zerof called constf, which satisfies the following:
+-- succf f (constf f x) = wrap x
+--    i.e. it takes one fewer step at the start of our repeated application of f
+--    under the wrapper, but then proceeds as normal
+-- note that succf f (const f x) = \h -> h ((const f x) f), and wrap x = \ f -> f x
+--    therefore const f x = \any -> x i.e. const = \f -> \x -> \any -> x
+-- we can see that
+--    n (succf f) (constf f x) =
+--        if n = 0 then (constf f x = \any -> x) else value ((n-1) f x)
+-- so we have our way of applying f one less time!
+
+-- therefore:
+--  pred n = \s -> \z -> unwrap (n (succf s) (constf s z))
+--         = \s -> \z -> unwrap (value ((n-1) s z))         for n != 0
+--         = \s -> \z -> (n-1) s z                          as required.
+-- for n = 0:
+--  pred 0 = \s -> \z -> unwrap (0 (succf s) (constf s z))
+--         = \s -> \z -> unwrap (constf s z)
+--         = \s -> \z -> (\v -> v (\x -> x)) (\any -> z)
+--         = \s -> \z -> (\any -> z) (\x -> x)
+--         = \s -> \z -> z
+--
+-- Expanding definitions gets us to the definition below.
+
+-- pred and minus
+pred = \n -> \f -> \x -> n (\g -> \h -> h (g f)) (\u -> x) (\u -> u)
+minus = \ m -> \ n -> (n pred) m -- minus m n = if m > n then m - n else 0
+
+-- alternatively, a derivation using pairs:
+pair = \ x -> \ y -> \ z -> z x y
+first = \ p -> p (\ x -> \ y -> x)
+second = \ p -> p (\ x -> \ y -> y)
+
+inc_snd = \ p -> pair (second p) (succ (second p)) -- inc_snd (a,b) = (b,b+1)
+start = pair zero zero
+n_inc = \ n -> n inc_snd start -- n_inc n = if n = 0 then (0,0) else (n-1,n)
+pred_alt = \ n -> first (n_inc n)
+
+--------------------------------------------------------------------------------
+
+-- Useful Boolean logic
+true = \a -> \b -> a
+false = \a -> \b -> b
+and = \ a -> \ b -> a b false
+isZero = \n -> n (\x -> false) true
+leq = \ n -> \ m -> isZero (minus n m) -- n <= m <=> minus n m = 0
+equal = \ n -> \ m -> and (leq n m) (leq m n) -- n = m <=> n <= m and m <= n
+
+-- Curry's fix point (Y combinator)
+y = \r -> (\f -> r (f f)) (\f -> r (f f))
+
+--------------------------------------------------------------------------------
+
+-- Factorial
+fact = y (\fact' -> \n -> isZero n one (mult n (fact' (pred n))))
+
+-- Fibonacci (get Fibonacci number at index n)
+fib = y (\fib' -> \n -> isZero n zero (isZero (pred n) one (plus (fib' (pred n)) (fib' (pred (pred n))))))
+
+--------------------------------------------------------------------------------
+
+fib (plus two four)
