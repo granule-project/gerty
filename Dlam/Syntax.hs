@@ -7,6 +7,24 @@ import qualified Data.Set as Set
 
 type Identifier = String
 
+newtype Abstraction ext = Abst { getAbst :: (Identifier, Expr ext, Expr ext) }
+  deriving Show
+
+-- | Variable bound in the abstraction.
+absVar :: Abstraction ex -> Identifier
+absVar (Abst (v, _, _)) = v
+
+-- | Type of the bound variable in the abstraction.
+absTy :: Abstraction ex -> Expr ex
+absTy (Abst (_, t, _)) = t
+
+-- | Target expression of the abstraction.
+absTarget :: Abstraction ex -> Expr ex
+absTarget (Abst (_, _, t)) = t
+
+mkAbs :: Identifier -> Expr ext -> Expr ext -> Abstraction ext
+mkAbs v e1 e2 = Abst (v, e1, e2)
+
 -- Abstract-syntax tree for LambdaCore
 -- parameterised by an additional type `ex`
 -- used to represent the abstract syntax
@@ -17,6 +35,9 @@ data Expr ex where
 
   -- | Type universe.
   TypeTy :: ULevel -> Expr ex
+
+  -- | Dependent function type.
+  FunTy :: Abstraction ex -> Expr ex
 
   Abs :: Identifier -> Maybe Type -> Expr ex -> Expr ex
                                           -- \x -> e  [λ x . e] (Curry style)
@@ -44,11 +65,8 @@ type ULevel = Int
 -- Type syntax
 
 data Type =
-  -- Simply-typed lambda calculus
-    FunTy (Maybe Identifier) Type Type  -- (x : A) -> B and A -> B
-
   -- PCF types
-  | NatTy            -- Nat
+    NatTy            -- Nat
   | ProdTy Type Type -- A * B
   | SumTy Type Type  -- A + B
 
@@ -72,6 +90,8 @@ instance Show NoExt where
 
 instance Term (Expr NoExt) where
   boundVars (Abs var _ e)                = var `Set.insert` boundVars e
+  boundVars (FunTy ab)                   =
+    absVar ab `Set.insert` boundVars (absTarget ab)
   boundVars (TyAbs var e)                = var `Set.insert` boundVars e
   boundVars (TyEmbed t)                  = boundVars t
   boundVars (App e1 e2)                  = boundVars e1 `Set.union` boundVars e2
@@ -81,6 +101,8 @@ instance Term (Expr NoExt) where
   boundVars (GenLet var e1 e2)           = var `Set.insert` (boundVars e1 `Set.union` boundVars e2)
   boundVars (Ext _)                      = Set.empty
 
+  freeVars (FunTy ab)                    =
+    Set.delete (absVar ab) (freeVars (absTarget ab))
   freeVars (Abs var _ e)                 = Set.delete var (freeVars e)
   freeVars (TyAbs var e)                 = Set.delete var (freeVars e)
   freeVars (TyEmbed t)                   = freeVars t
@@ -94,17 +116,12 @@ instance Term (Expr NoExt) where
   mkVar = Var
 
 instance Term Type where
-  boundVars (FunTy Nothing t1 t2)    = boundVars t1 `Set.union` boundVars t2
-  boundVars (FunTy (Just var) t1 t2) =
-    Set.singleton var `Set.union` boundVars t1 `Set.union` boundVars t2
   boundVars (ProdTy t1 t2) = boundVars t1 `Set.union` boundVars t2
   boundVars (SumTy t1 t2)  = boundVars t1 `Set.union` boundVars t2
   boundVars NatTy          = Set.empty
   boundVars (TyVar var)    = Set.empty
   boundVars (Forall var t) = var `Set.insert` boundVars t
 
-  freeVars (FunTy Nothing t1 t2)  = freeVars t1 `Set.union` freeVars t2
-  freeVars (FunTy (Just var) t1 t2) = freeVars t1 `Set.union` (var `Set.delete` freeVars t2)
   freeVars (ProdTy t1 t2) = freeVars t1 `Set.union` freeVars t2
   freeVars (SumTy t1 t2)  = freeVars t1 `Set.union` freeVars t2
   freeVars NatTy          = Set.empty

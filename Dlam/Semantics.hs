@@ -41,6 +41,7 @@ multiStep' step t n =
 
 fullBeta :: (Semantic ext) => Reducer (Expr ext)
 fullBeta (Var _) = Nothing
+fullBeta (FunTy ab) = Nothing
 fullBeta TypeTy{} = Nothing
 fullBeta (App (Abs x _ e) e') = beta e x e'
 -- Poly beta
@@ -62,6 +63,7 @@ fullBeta (GenLet x e' e) = beta e x e'
 
 callByName :: (Semantic ext) => Reducer (Expr ext)
 callByName (Var _) = Nothing
+callByName (FunTy ab) = Nothing
 callByName TypeTy{} = Nothing
 callByName (App (Abs x _ e) e') = beta e x e'
 -- Poly beta
@@ -78,6 +80,7 @@ callByName (GenLet x e' e) = beta e x e'
 
 callByValue :: (Semantic ext) => Reducer (Expr ext)
 callByValue (Var _) = Nothing
+callByValue (FunTy ab) = Nothing
 callByValue TypeTy{} = Nothing
 callByValue (App (Abs x _ e) e') | isValue e' = beta e x e'
 -- Poly beta
@@ -125,6 +128,12 @@ substituteExpr (Var y) (x, e')
   | x == y = e'
   | otherwise = Var y
 
+substituteExpr (FunTy ab) s@(varS, _)
+  | absVar ab == varS =
+    FunTy (mkAbs (absVar ab) (substituteExpr (absTy ab) s) (absTarget ab))
+  | otherwise   =
+    FunTy (mkAbs (absVar ab) (substituteExpr (absTy ab) s) (substituteExpr (absTarget ab) s))
+
 substituteExpr t@TypeTy{} _ = t
 
 substituteExpr (App e1 e2) s =
@@ -171,12 +180,7 @@ instance Substitutable Type where
     substitute = substituteType
 
 substituteType :: Type -> (Identifier, Type) -> Type
-substituteType (FunTy Nothing t1 t2) s =
-  FunTy Nothing (substituteType t1 s) (substituteType t2 s)
 
-substituteType (FunTy (Just var) t1 t2) s@(varS, _)
-  | var == varS = FunTy (Just var) (substituteType t1 s) t2
-  | otherwise   = FunTy (Just var) (substituteType t1 s) (substituteType t2 s)
 
 substituteType NatTy s = NatTy
 

@@ -60,15 +60,9 @@ G |- (\x -> e) <= A -> B
 
 -}
 -- Curry style
-check gamma (Abs x Nothing expr) (FunTy Nothing tyA tyB) =
-  check ([(x, tyA)] ++ gamma) expr tyB
 
-check gamma _ t@(FunTy (Just _) tyA tyB) =
-  error $ "check on '" <> pprint t <> "' unsupported"
 
 -- Church style
-check gamma (Abs x (Just tyA') expr) (FunTy Nothing tyA tyB) | tyA == tyA' =
-  check ([(x, tyA)] ++ gamma) expr tyB
 
 check gamma (Ext e) t = checkExt gamma e t
 -- Polymorphic lambda calculus
@@ -173,14 +167,6 @@ synth gamma (App e (TyEmbed tau')) =
 synth gamma (App e1 e2) =
   -- Synth the left-hand side
   case synth gamma e1 of
-    Just t@(FunTy (Just _) tyA tyB) ->
-      error $ "synth on '" <> pprint t <> "' unsupported (App branch)"
-    Just (FunTy Nothing tyA tyB) ->
-      -- Check the right-hand side
-      if check gamma e2 tyA
-        -- Yay!
-        then Just tyB
-        else error $ "Expecting (" ++ pprint e2 ++ ") to have type " ++ pprint tyA
 
     Just t ->
       error $ "Expecting (" ++ pprint e1 ++ ") to have function type but got " ++ pprint t

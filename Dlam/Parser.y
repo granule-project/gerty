@@ -76,6 +76,9 @@ Expr :: { [Option] -> Expr NoExt }
        then GenLet (symString $2) ($4 opts) ($6 opts)
        else App (Abs (symString $2) Nothing ($6 opts)) ($4 opts) }
 
+  | Expr '->' Expr   { \opts -> FunTy (mkAbs "_" ($1 opts) ($3 opts)) }
+  | '(' VAR ':' Expr ')' '->' Expr { \opts -> FunTy (mkAbs (symString $2) ($4 opts) ($7 opts)) }
+
   | type { \opts -> TypeTy 0 }
 
   | '\\' '(' VAR ':' Type ')' '->' Expr
@@ -96,8 +99,6 @@ Expr :: { [Option] -> Expr NoExt }
 Type :: { [Option] -> Type }
 Type
   : TypeAtom         { $1 }
-  | Type '->' Type   { \opts -> FunTy Nothing ($1 opts) ($3 opts) }
-  | '(' VAR ':' Type ')' '->' Type { \opts -> FunTy (pure $ symString $2) ($4 opts) ($7 opts) }
   | Type '*' Type    { \opts -> ProdTy ($1 opts) ($3 opts) }
   | Type '+' Type    { \opts -> SumTy ($1 opts) ($3 opts) }
   | forall VAR '.' Type { \opts ->
