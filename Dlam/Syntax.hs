@@ -1,5 +1,6 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE StandaloneDeriving #-}
 
 module Dlam.Syntax where
 
@@ -9,6 +10,8 @@ type Identifier = String
 
 newtype Abstraction ext = Abst { getAbst :: (Identifier, Expr ext, Expr ext) }
   deriving Show
+
+deriving instance (Eq ext) => Eq (Abstraction ext)
 
 -- | Variable bound in the abstraction.
 absVar :: Abstraction ex -> Identifier
@@ -39,13 +42,13 @@ data Expr ex where
   -- | Dependent function type.
   FunTy :: Abstraction ex -> Expr ex
 
-  Abs :: Identifier -> Maybe Type -> Expr ex -> Expr ex
+  Abs :: Identifier -> Maybe (Expr ex) -> Expr ex -> Expr ex
                                           -- \x -> e  [λ x . e] (Curry style)
                                           -- or
                                           -- \(x : A) -> e (Church style)
   App :: Expr ex ->  Expr ex   -> Expr ex -- e1 e2
 
-  Sig :: Expr ex -> Type       -> Expr ex -- e : A
+  Sig :: Expr ex -> Expr ex       -> Expr ex -- e : A
 
   -- Poly
   TyAbs   :: Identifier -> Expr ex -> Expr ex -- /\ a -> e
@@ -57,6 +60,8 @@ data Expr ex where
   -- | AST extensions.
   Ext :: ex -> Expr ex
   deriving Show
+
+deriving instance (Eq ext) => Eq (Expr ext)
 
 -- | Universe level.
 type ULevel = Int
@@ -79,6 +84,9 @@ class Term t where
 
 -- | For minimal language with no extensions.
 data NoExt
+
+instance Eq NoExt where
+  _ == _ = True
 
 instance Show NoExt where
   show _ = undefined

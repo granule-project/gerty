@@ -79,7 +79,7 @@ Expr :: { [Option] -> Expr NoExt }
 
   | type { \opts -> TypeTy 0 }
 
-  | '\\' '(' VAR ':' Type ')' '->' Expr
+  | '\\' '(' VAR ':' Expr ')' '->' Expr
     { \opts -> Abs (symString $3) (Just ($5 opts)) ($8 opts) }
 
   | '\\' VAR '->' Expr
@@ -88,7 +88,7 @@ Expr :: { [Option] -> Expr NoExt }
   | Lam VAR '->' Expr
     { \opts -> TyAbs (symString $2) ($4 opts) }
 
-  | Expr ':' Type  { \opts -> Sig ($1 opts) ($3 opts) }
+  | Expr ':' Expr  { \opts -> Sig ($1 opts) ($3 opts) }
 
   | Juxt
     { $1 }

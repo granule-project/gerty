@@ -1,8 +1,9 @@
+{-# LANGUAGE FlexibleContexts #-}
 module Dlam.Types where
 
 import Dlam.Syntax
 import Dlam.PrettyPrint
-import Dlam.Semantics (substituteType)
+import Dlam.Semantics (substitute, Substitutable)
 
 import Data.Maybe (mapMaybe)
 import Data.List (intercalate)
@@ -32,7 +33,7 @@ abs ------------------------
 -}
 
 -- Represent contexts as lists
-type Context = [(Identifier, Type)]
+type Context ext = [(Identifier, Expr ext)]
 
 {-
 
@@ -42,15 +43,15 @@ G |- e <= A    check
 **********************************
 -}
 
-class Check ext where
-  checkExt :: Context -> ext -> Type -> Bool
+class (Substitutable (Expr ext), Term (Expr ext), Eq ext) => Check ext where
+  checkExt :: Context ext -> ext -> Expr ext -> Bool
 
 
 instance Check NoExt where
   checkExt _ _ _ = False
 
 
-check :: (Check ext, PrettyPrint ext, Synth ext) => Context -> Expr ext -> Type -> Bool
+check :: (Check ext, PrettyPrint ext, Synth ext) => Context ext -> Expr ext -> Expr ext -> Bool
 
 {--
 
@@ -66,18 +67,18 @@ G |- (\x -> e) <= A -> B
 
 check gamma (Ext e) t = checkExt gamma e t
 -- Polymorphic lambda calculus
-check gamma (TyAbs alpha e) (Forall alpha' tau)
-  | alpha == alpha' =
+check gamma (TyAbs alpha e) (FunTy ab)
+  | alpha == absVar ab =
     -- find all free variables in gamma which have alpha free inside of their type assumption
     case mapMaybe (\(id, t) -> if alpha `elem` freeVars t then Just id else Nothing) gamma of
       -- side condition is true
-      [] -> check gamma e tau
+      [] -> check gamma e (absTarget ab)
       vars -> error $ "Free variables " <> intercalate "," vars
                   <> " use bound type variable `" <> alpha <> "`"
 
   | otherwise =
     error $ "Term-level type abstraction on `" <> alpha
-          <> "` does not match name of type abstraction `" <> alpha' <> "`"
+          <> "` does not match name of type abstraction `" <> absVar ab <> "`"
 
 {--
 
@@ -100,14 +101,14 @@ Bidirectional synthesis
 -}
 
 class Synth ext where
-  synthExt :: Context -> ext -> Maybe Type
+  synthExt :: Context ext -> ext -> Maybe (Expr ext)
 
 
 instance Synth NoExt where
   synthExt _ _ = Nothing
 
 
-synth :: (Check ext, PrettyPrint ext, Synth ext) => Context -> Expr ext -> Maybe Type
+synth :: (Check ext, PrettyPrint ext, Synth ext) => Context ext -> Expr ext -> Maybe (Expr ext)
 
 {-
 
@@ -150,9 +151,9 @@ synth gamma (Abs x (Just tyA) e) =
   synth ((x, tyA) : gamma) e
 
 -- Type checking a type speciaisation
-synth gamma (App e (TyEmbed tau')) =
+synth gamma (App e tau') =
   case synth gamma e of
-    Just (Forall alpha tau) -> Just $ substituteType tau (alpha, tau')
+    Just (FunTy ab) -> Just $ substitute (absTarget ab) (absVar ab, tau')
     Just t -> error $ "Expecting polymorphic type but got `" <> pprint t <> "`"
     Nothing -> error $ "Expecting polymorphic type but didn't get anything."
 
@@ -163,16 +164,6 @@ synth gamma (App e (TyEmbed tau')) =
   G |- e1 e2 => B
 
 -}
-
-synth gamma (App e1 e2) =
-  -- Synth the left-hand side
-  case synth gamma e1 of
-
-    Just t ->
-      error $ "Expecting (" ++ pprint e1 ++ ") to have function type but got " ++ pprint t
-
-    Nothing ->
-      error $ "Expecting (" ++ pprint e1 ++ ") to have function type."
 
 synth gamma (Ext e) = synthExt gamma e
 
