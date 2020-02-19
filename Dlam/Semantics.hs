@@ -24,7 +24,6 @@ instance Semantic NoExt where
 
 -- Keep doing small step reductions until normal form reached
 multiStep :: (Semantic ext) => [Option] -> Expr ext -> (Expr ext, Int)
-multiStep opts e | isCBV opts = multiStep' callByValue e 0
 multiStep _    e              = multiStep' fullBeta e 0
 
 type Reducer a = a -> Maybe a
@@ -54,22 +53,6 @@ fullBeta (Ext e) = reduceExt fullBeta (Ext e)
 -- ML
 fullBeta (GenLet x e' e) = beta e x e'
 
-
-callByValue :: (Semantic ext) => Reducer (Expr ext)
-callByValue (Var _) = Nothing
-callByValue (FunTy ab) = Nothing
-callByValue TypeTy{} = Nothing
-callByValue (App (Abs x _ e) e') | isValue e' = beta e x e'
--- Poly beta
-callByValue (App e1 e2) | isValue e1 = zeta2 callByValue e1 e2
-callByValue (App e1 e2) = zeta1 callByValue e1 e2
-callByValue (Abs x _ e) = Nothing
-callByValue (Sig e _)   = Just e
-callByValue (Ext e)     = reduceExt callByValue (Ext e)
--- ML
-callByValue (GenLet x e' e)
-  | isValue e' = beta e x e'
-  | otherwise = (callByValue e') >>= (\e' -> return $ GenLet x e' e)
 
 -- Base case
 beta :: (Substitutable t) => t -> Identifier -> t -> Maybe t

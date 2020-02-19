@@ -106,7 +106,6 @@ Atom :: { [Option] -> Expr NoExt }
 
 readOption :: Token -> ReaderT String (Either String) Option
 readOption (TokenLang _ x) | x == "lang.ml"    = return ML
-readOption (TokenLang _ x) | x == "lang.cbv"   = return CBV
 readOption (TokenLang _ x) = lift . Left $ "Unknown language option: " <> x
 readOption _ = lift . Left $ "Wrong token for language"
 
