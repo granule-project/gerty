@@ -94,18 +94,10 @@ Expr :: { [Option] -> Expr NoExt }
 Type :: { [Option] -> Type }
 Type
   : TypeAtom         { $1 }
-  | forall VAR '.' Type { \opts ->
-                            if isPoly opts
-                              then Forall (symString $2) ($4 opts)
-                              else error "Type quantification not supported in simple types; try lang.poly. " }
 
 TypeAtom :: { [Option] -> Type }
 TypeAtom
   : CONSTR           { \opts -> error $ "Unknown type constructor " ++ constrString $1 }
-  | VAR              { \opts ->
-                          if isPoly opts
-                            then TyVar (symString $1)
-                            else error "Type variables not supported in simple types; try lang.poly." }
   | '(' Type ')'     { \opts -> $2 opts }
 
 Juxt :: { [Option] -> Expr NoExt }
@@ -124,7 +116,6 @@ Atom :: { [Option] -> Expr NoExt }
 
 readOption :: Token -> ReaderT String (Either String) Option
 readOption (TokenLang _ x) | x == "lang.ml"    = return ML
-readOption (TokenLang _ x) | x == "lang.poly"  = return Poly
 readOption (TokenLang _ x) | x == "lang.cbv"   = return CBV
 readOption (TokenLang _ x) | x == "lang.cbn"   = return CBN
 readOption (TokenLang _ x) = lift . Left $ "Unknown language option: " <> x

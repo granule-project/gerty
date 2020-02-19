@@ -6,7 +6,7 @@ import Control.Monad.Trans.Class (lift)
 ------------------------------
 -- Language options that `lcore` accepts in files
 
-data Option = CBV | CBN | Poly | ML
+data Option = CBV | CBN | ML
   deriving (Eq, Show)
 
 -- Some helpers
@@ -18,9 +18,6 @@ isCBN options = elem CBN options
 
 isFullBeta :: [Option] -> Bool
 isFullBeta options = not (isCBV options) && not (isCBN options)
-
-isPoly :: [Option] -> Bool
-isPoly options = elem Poly options
 
 isML :: [Option] -> Bool
 isML options = elem ML options
