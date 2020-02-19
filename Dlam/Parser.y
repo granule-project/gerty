@@ -98,6 +98,7 @@ Juxt :: { [Option] -> Expr NoExt }
 Atom :: { [Option] -> Expr NoExt }
   : '(' Expr ')'              { $2 }
   | VAR                       { \opts -> Var $ symString $1 }
+  | type                      { \opts -> TypeTy 0 }
 
   -- For later
   -- | '?' { Hole }
