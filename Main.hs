@@ -31,7 +31,7 @@ main = do
               putStrLn $ "\n " <> ansi_bold <> "AST: " <> ansi_reset <> show ast
 
               -- Pretty print
-              putStrLn $ "\n " <> ansi_bold <> "Pretty: " <> ansi_reset <> pprint ast
+              putStrLn $ "\n " <> ansi_bold <> "Pretty:\n" <> ansi_reset <> pprint ast
 
               -- Typing
 {-
