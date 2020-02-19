@@ -38,7 +38,6 @@ instance PrettyPrint ex => PrettyPrint (Expr ex) where
     pprint (Ext e) = pprint e
     -- Poly
     pprint (TyAbs var e) = "/\\" ++ var ++ " -> " ++ pprint e
-    pprint (TyEmbed t) = "@" ++ bracket_pprint t
     -- ML
     pprint (GenLet x e1 e2) = "let " ++ x ++ " = " ++ pprint e1 ++ " in " ++ pprint e2
 

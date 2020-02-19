@@ -119,11 +119,6 @@ Atom :: { [Option] -> Expr NoExt }
   : '(' Expr ')'              { $2 }
   | VAR                       { \opts -> Var $ symString $1 }
 
-  | '@' TypeAtom
-    { \opts ->
-        if isPoly opts
-          then TyEmbed ($2 opts)
-          else error "Cannot embed a type as a term; try lang.poly" }
 
   -- For later
   -- | '?' { Hole }

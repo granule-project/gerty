@@ -52,7 +52,6 @@ data Expr ex where
 
   -- Poly
   TyAbs   :: Identifier -> Expr ex -> Expr ex -- /\ a -> e
-  TyEmbed :: Type                  -> Expr ex -- @A
 
   -- ML
   GenLet :: Identifier -> Expr ex -> Expr ex -> Expr ex -- let x = e1 in e2 (ML-style polymorphism)
@@ -96,7 +95,6 @@ instance Term (Expr NoExt) where
   boundVars (FunTy ab)                   =
     absVar ab `Set.insert` boundVars (absTarget ab)
   boundVars (TyAbs var e)                = var `Set.insert` boundVars e
-  boundVars (TyEmbed t)                  = boundVars t
   boundVars (App e1 e2)                  = boundVars e1 `Set.union` boundVars e2
   boundVars (Var var)                    = Set.empty
   boundVars (Sig e _)                    = boundVars e
@@ -108,7 +106,6 @@ instance Term (Expr NoExt) where
     Set.delete (absVar ab) (freeVars (absTarget ab))
   freeVars (Abs var _ e)                 = Set.delete var (freeVars e)
   freeVars (TyAbs var e)                 = Set.delete var (freeVars e)
-  freeVars (TyEmbed t)                   = freeVars t
   freeVars (App e1 e2)                   = freeVars e1 `Set.union` freeVars e2
   freeVars (Var var)                     = Set.singleton var
   freeVars (Sig e _)                     = freeVars e

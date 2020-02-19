@@ -45,7 +45,6 @@ fullBeta (FunTy ab) = Nothing
 fullBeta TypeTy{} = Nothing
 fullBeta (App (Abs x _ e) e') = beta e x e'
 -- Poly beta
-fullBeta (App (TyAbs alpha e) (TyEmbed t)) = beta e alpha (TyEmbed t)
 fullBeta (App e1 e2) =
   -- Prefer fully zeta1 reducing before zeta2 reducing
   case zeta1 fullBeta e1 e2 of
@@ -56,7 +55,6 @@ fullBeta (Sig e _) = Just e
 fullBeta (Ext e) = reduceExt fullBeta (Ext e)
 -- Poly
 fullBeta (TyAbs x e) = zeta3Ty fullBeta x e
-fullBeta (TyEmbed t) = Nothing
 -- ML
 fullBeta (GenLet x e' e) = beta e x e'
 
@@ -67,14 +65,12 @@ callByName (FunTy ab) = Nothing
 callByName TypeTy{} = Nothing
 callByName (App (Abs x _ e) e') = beta e x e'
 -- Poly beta
-callByName (App (TyAbs var e) (TyEmbed t)) = beta e var (TyEmbed t)
 callByName (App e1 e2) = zeta1 callByName e1 e2
 callByName (Abs x _ e) = Nothing
 callByName (Sig e _)   = Just e
 callByName (Ext e)    = reduceExt callByName (Ext e)
 -- Poly
 callByName (TyAbs x e) = Nothing
-callByName (TyEmbed t) = Nothing
 -- ML
 callByName (GenLet x e' e) = beta e x e'
 
@@ -84,7 +80,6 @@ callByValue (FunTy ab) = Nothing
 callByValue TypeTy{} = Nothing
 callByValue (App (Abs x _ e) e') | isValue e' = beta e x e'
 -- Poly beta
-callByValue (App (TyAbs var e) (TyEmbed t)) = beta e var (TyEmbed t)
 callByValue (App e1 e2) | isValue e1 = zeta2 callByValue e1 e2
 callByValue (App e1 e2) = zeta1 callByValue e1 e2
 callByValue (Abs x _ e) = Nothing
@@ -92,7 +87,6 @@ callByValue (Sig e _)   = Just e
 callByValue (Ext e)     = reduceExt callByValue (Ext e)
 -- Poly
 callByValue (TyAbs x e) = Nothing
-callByValue (TyEmbed t) = Nothing
 -- ML
 callByValue (GenLet x e' e)
   | isValue e' = beta e x e'
@@ -150,13 +144,6 @@ substituteExpr (GenLet x e1 e2) s =
   let (x' , e2') = substitute_binding x e2 s in GenLet x' (substituteExpr e1 s) e2'
 
 -- Poly
-
--- Substitute inside types
-substituteExpr (TyEmbed t) (var, TyEmbed t') =
-  TyEmbed (substituteType t (var, t'))
-
-substituteExpr (TyEmbed t) (var, _) =
-    TyEmbed t
 
 substituteExpr (Ext _) _ = undefined
 
