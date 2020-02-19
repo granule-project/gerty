@@ -1,77 +1,12 @@
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE FlexibleContexts #-}
 
 module Dlam.Semantics
-  ( Semantic(..)
-  , Substitutable(..)
-  , multiStep
+  ( Substitutable(..)
   ) where
 
 import Dlam.Syntax
-import Dlam.Options
 
 import qualified Data.Set as Set
-
--- | Class for theories which support reductions and values.
-class (Substitutable (Expr ext)) => Semantic ext where
-  isValue :: Expr ext -> Bool
-  reduceExt :: Reducer (Expr ext) -> Reducer (Expr ext)
-
-instance Semantic NoExt where
-  isValue Abs{}    = True
-  isValue Var{}    = True
-  isValue TypeTy{} = True
-  isValue e       = False
-
-  reduceExt _ _ = undefined
-
-
--- Keep doing small step reductions until normal form reached
-multiStep :: (Semantic ext) => [Option] -> Expr ext -> (Expr ext, Int)
-multiStep _    e              = multiStep' fullBeta e 0
-
-type Reducer a = a -> Maybe a
-
-multiStep' :: Reducer (Expr ext) -> Expr ext -> Int -> (Expr ext, Int)
-multiStep' step t n =
-  case step t of
-    -- Normal form reached
-    Nothing -> (t, n)
-    -- Can do more reduction
-    Just t' -> multiStep' step t' (n+1)
-
-fullBeta :: (Semantic ext) => Reducer (Expr ext)
-fullBeta (Var _) = Nothing
-fullBeta (FunTy ab) = Nothing
-fullBeta TypeTy{} = Nothing
-fullBeta (App (Abs x _ e) e') = beta e x e'
--- Poly beta
-fullBeta (App e1 e2) =
-  -- Prefer fully zeta1 reducing before zeta2 reducing
-  case zeta1 fullBeta e1 e2 of
-    Just e -> Just e
-    Nothing -> zeta2 fullBeta e1 e2
-fullBeta (Abs x _ e) = zeta3 fullBeta x e
-fullBeta (Sig e _) = Just e
-fullBeta (Ext e) = reduceExt fullBeta (Ext e)
--- ML
-fullBeta (GenLet x e' e) = beta e x e'
-
-
--- Base case
-beta :: (Substitutable t) => t -> Identifier -> t -> Maybe t
-beta e x e' = Just (substitute e (x, e'))
-
--- Inductive rules
-zeta1 :: Reducer (Expr ext) -> Expr ext -> Expr ext -> Maybe (Expr ext)
-zeta1 step e1 e2 = (\e1' -> App e1' e2) <$> step e1
-
-zeta2 :: Reducer (Expr ext)  -> Expr ext -> Expr ext -> Maybe (Expr ext)
-zeta2 step e1 e2 = (\e2' -> App e1 e2') <$> step e2
-
-zeta3 :: Reducer (Expr ext)  -> Identifier -> Expr ext -> Maybe (Expr ext)
-zeta3 step x e = (\e' -> Abs x Nothing e') <$> step e
-
 
 class Substitutable e where
   substitute :: e -> (Identifier, e) -> e
