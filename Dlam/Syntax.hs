@@ -28,6 +28,9 @@ absExpr (Abst (_, _, t)) = t
 mkAbs :: Identifier -> Expr ext -> Expr ext -> Abstraction ext
 mkAbs v e1 e2 = Abst (v, e1, e2)
 
+-- | Universe level.
+type ULevel = Int
+
 -- Abstract-syntax tree for LambdaCore
 -- parameterised by an additional type `ex`
 -- used to represent the abstract syntax
@@ -58,9 +61,6 @@ data Expr ex where
   deriving Show
 
 deriving instance (Eq ext) => Eq (Expr ext)
-
--- | Universe level.
-type ULevel = Int
 
 ----------------------------
 
