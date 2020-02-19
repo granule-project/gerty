@@ -127,7 +127,6 @@ Atom :: { [Option] -> Expr NoExt }
 
 readOption :: Token -> ReaderT String (Either String) Option
 readOption (TokenLang _ x) | x == "lang.ml"    = return ML
-readOption (TokenLang _ x) | x == "lang.typed" = return Typed
 readOption (TokenLang _ x) | x == "lang.poly"  = return Poly
 readOption (TokenLang _ x) | x == "lang.cbv"   = return CBV
 readOption (TokenLang _ x) | x == "lang.cbn"   = return CBN

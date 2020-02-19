@@ -10,7 +10,6 @@ import Dlam.Types
 import System.Directory   (doesPathExist)
 import System.Environment (getArgs)
 import System.Exit
-import Control.Monad      (when)
 
 main :: IO ()
 main = do
@@ -44,13 +43,12 @@ main = do
               putStrLn $ "\n " <> ansi_bold <> "Normal form: " <> ansi_reset <> pprint normalForm
 
               -- Typing
-              when (isTyped options)
-                (case typeInference options ast of
-                   Nothing -> putStrLn $ "\n " <> ansi_bold <> ansi_red
-                                               <> "Not well-typed.\n" <> ansi_reset
-                   Just ty -> putStrLn $ "\n " <> ansi_bold <> ansi_green
-                                               <> "Well-typed " <> ansi_reset
-                                               <> ansi_bold <> "as " <> ansi_reset <>pprint ty)
+              case typeInference options ast of
+                 Nothing -> putStrLn $ "\n " <> ansi_bold <> ansi_red
+                                             <> "Not well-typed.\n" <> ansi_reset
+                 Just ty -> putStrLn $ "\n " <> ansi_bold <> ansi_green
+                                             <> "Well-typed " <> ansi_reset
+                                             <> ansi_bold <> "as " <> ansi_reset <>pprint ty
             Left msg -> do
               putStrLn $ ansi_red ++ "Error: " ++ ansi_reset ++ msg
               exitFailure
