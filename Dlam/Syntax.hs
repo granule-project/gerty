@@ -12,9 +12,25 @@ module Dlam.Syntax
   , absTy
   , absExpr
   , fresh_var
+  , AST(..)
+  , Stmt(..)
   ) where
 
 import qualified Data.Set as Set
+
+----------------
+-- Statements --
+----------------
+
+newtype AST e = AST [Stmt e]
+  deriving Show
+
+data Stmt e =
+  -- | Assignment to a name.
+    StmtAssign String (Expr e)
+  -- | Type assignment.
+  | StmtType String (Expr e)
+  deriving Show
 
 type Identifier = String
 

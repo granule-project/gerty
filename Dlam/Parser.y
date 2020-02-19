@@ -48,24 +48,25 @@ import Dlam.Options
 %left '*'
 %%
 
-Program :: { (Expr NoExt, [Option]) }
-  : LangOpts Defs  { ($2 $1, $1) }
+Program :: { (AST NoExt, [Option]) }
+  : LangOpts Stmts  { (AST ($2 $1), $1) }
 
 LangOpts :: { [Option] }
   : LANG NL LangOpts    {% (readOption $1) >>= (\opt -> addOption opt $3) }
   | LANG                {% readOption $1 >>= (return . (:[])) }
   | {- empty -}         { [] }
 
-Defs :: { [Option] -> Expr NoExt }
-  : Def NL Defs           { \opts -> ($1 opts) ($3 opts) }
-  | Expr                  { \opts -> $1 opts }
+Stmts :: { [Option] -> [Stmt NoExt] }
+  : Stmt NL Stmts { \opts -> ($1 opts) : ($3 opts) }
+  | Stmt          { \opts -> pure ($1 opts) }
+
+Stmt :: { [Option] -> Stmt NoExt }
+  : VAR ':' Expr { \opts -> StmtType (symString $1) ($3 opts) }
+  | VAR '=' Expr { \opts -> StmtAssign (symString $1) ($3 opts) }
 
 NL :: { () }
   : nl NL                     { }
   | nl                        { }
-
-Def :: { [Option] -> Expr NoExt -> Expr NoExt }
-  : VAR '=' Expr { \opts -> \program -> App (Abs (symString $1) Nothing program) ($3 opts) }
 
 Expr :: { [Option] -> Expr NoExt }
   : let VAR '=' Expr in Expr
@@ -118,7 +119,7 @@ parseError t  =  do
                         <> ": parse error"
   where (l, c) = getPos (head t)
 
-parseProgram :: FilePath -> String -> Either String (Expr NoExt, [Option])
+parseProgram :: FilePath -> String -> Either String (AST NoExt, [Option])
 parseProgram file input = runReaderT (program $ scanTokens input) file
 
 }
