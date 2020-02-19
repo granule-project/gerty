@@ -124,9 +124,9 @@ substituteExpr (Var y) (x, e')
 
 substituteExpr (FunTy ab) s@(varS, _)
   | absVar ab == varS =
-    FunTy (mkAbs (absVar ab) (substituteExpr (absTy ab) s) (absTarget ab))
+    FunTy (mkAbs (absVar ab) (substituteExpr (absTy ab) s) (absExpr ab))
   | otherwise   =
-    FunTy (mkAbs (absVar ab) (substituteExpr (absTy ab) s) (substituteExpr (absTarget ab) s))
+    FunTy (mkAbs (absVar ab) (substituteExpr (absTy ab) s) (substituteExpr (absExpr ab) s))
 
 substituteExpr t@TypeTy{} _ = t
 

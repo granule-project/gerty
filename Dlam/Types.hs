@@ -72,7 +72,7 @@ check gamma (TyAbs alpha e) (FunTy ab)
     -- find all free variables in gamma which have alpha free inside of their type assumption
     case mapMaybe (\(id, t) -> if alpha `elem` freeVars t then Just id else Nothing) gamma of
       -- side condition is true
-      [] -> check gamma e (absTarget ab)
+      [] -> check gamma e (absExpr ab)
       vars -> error $ "Free variables " <> intercalate "," vars
                   <> " use bound type variable `" <> alpha <> "`"
 
@@ -153,7 +153,7 @@ synth gamma (Abs x (Just tyA) e) =
 -- Type checking a type speciaisation
 synth gamma (App e tau') =
   case synth gamma e of
-    Just (FunTy ab) -> Just $ substitute (absTarget ab) (absVar ab, tau')
+    Just (FunTy ab) -> Just $ substitute (absExpr ab) (absVar ab, tau')
     Just t -> error $ "Expecting polymorphic type but got `" <> pprint t <> "`"
     Nothing -> error $ "Expecting polymorphic type but didn't get anything."
 

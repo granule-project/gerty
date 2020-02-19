@@ -22,8 +22,8 @@ absTy :: Abstraction ex -> Expr ex
 absTy (Abst (_, t, _)) = t
 
 -- | Target expression of the abstraction.
-absTarget :: Abstraction ex -> Expr ex
-absTarget (Abst (_, _, t)) = t
+absExpr :: Abstraction ex -> Expr ex
+absExpr (Abst (_, _, t)) = t
 
 mkAbs :: Identifier -> Expr ext -> Expr ext -> Abstraction ext
 mkAbs v e1 e2 = Abst (v, e1, e2)
@@ -93,7 +93,7 @@ instance Show NoExt where
 instance Term (Expr NoExt) where
   boundVars (Abs var _ e)                = var `Set.insert` boundVars e
   boundVars (FunTy ab)                   =
-    absVar ab `Set.insert` boundVars (absTarget ab)
+    absVar ab `Set.insert` boundVars (absExpr ab)
   boundVars (TyAbs var e)                = var `Set.insert` boundVars e
   boundVars (App e1 e2)                  = boundVars e1 `Set.union` boundVars e2
   boundVars (Var var)                    = Set.empty
@@ -103,7 +103,7 @@ instance Term (Expr NoExt) where
   boundVars (Ext _)                      = Set.empty
 
   freeVars (FunTy ab)                    =
-    Set.delete (absVar ab) (freeVars (absTarget ab))
+    Set.delete (absVar ab) (freeVars (absExpr ab))
   freeVars (Abs var _ e)                 = Set.delete var (freeVars e)
   freeVars (TyAbs var e)                 = Set.delete var (freeVars e)
   freeVars (App e1 e2)                   = freeVars e1 `Set.union` freeVars e2

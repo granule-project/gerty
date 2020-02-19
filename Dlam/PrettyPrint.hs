@@ -26,7 +26,7 @@ instance PrettyPrint ex => PrettyPrint (Expr ex) where
     pprint TypeTy{}             = "type"
     pprint (Abs var (Just t) e) = "\\ (" ++ var ++ " : " ++ pprint t ++ ") -> " ++ pprint e
     pprint (FunTy ab) =
-      "(" ++ absVar ab ++ " : " ++ pprint (absTy ab) ++ ") -> " ++ pprint (absTarget ab)
+      "(" ++ absVar ab ++ " : " ++ pprint (absTy ab) ++ ") -> " ++ pprint (absExpr ab)
     pprint (App (Abs var mt e1) e2) =
       bracket_pprint (Abs var mt e1) ++ " " ++ bracket_pprint e2
     pprint (App (Sig e1 t) e2) =
