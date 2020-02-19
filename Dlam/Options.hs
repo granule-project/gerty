@@ -1,4 +1,10 @@
-module Dlam.Options where
+module Dlam.Options
+  ( Option(..)
+  , isFullBeta
+  , isML
+  , addOption
+  , showReducer
+  ) where
 
 import Control.Monad.Trans.Reader
 
@@ -14,9 +20,6 @@ isFullBeta options = True
 
 isML :: [Option] -> Bool
 isML options = elem ML options
-
-language :: [Option] -> String
-language options = if isML options then "ML" else "lambda"
 
 -- Builds up a the language option list and checks for conflicting options
 addOption :: Option -> [Option] -> ReaderT String (Either String) [Option]

@@ -1,7 +1,11 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
 
-module Dlam.Semantics where
+module Dlam.Semantics
+  ( Semantic(..)
+  , Substitutable(..)
+  , multiStep
+  ) where
 
 import Dlam.Syntax
 import Dlam.Options

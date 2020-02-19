@@ -1,4 +1,6 @@
-module Dlam.Helpers where
+module Dlam.Helpers
+  ( todo
+  ) where
 
 -- A helper for showing which bits are not done yet
 todo :: String -> a

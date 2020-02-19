@@ -5,7 +5,9 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FunctionalDependencies #-}
 
-module Dlam.FirstParameter where
+module Dlam.FirstParameter
+  ( FirstParameter(..)
+  ) where
 
 import GHC.Generics
 

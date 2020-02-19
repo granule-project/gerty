@@ -1,7 +1,9 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-module Dlam.PrettyPrint where
+module Dlam.PrettyPrint
+  ( PrettyPrint(..)
+  ) where
 
 import Dlam.Syntax
 

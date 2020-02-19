@@ -1,5 +1,8 @@
 {-# LANGUAGE FlexibleContexts #-}
-module Dlam.Types where
+module Dlam.Types
+  ( Check(..)
+  , synth
+  ) where
 
 import Dlam.Syntax
 import Dlam.PrettyPrint

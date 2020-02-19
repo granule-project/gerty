@@ -2,7 +2,17 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE StandaloneDeriving #-}
 
-module Dlam.Syntax where
+module Dlam.Syntax
+  ( Expr(..)
+  , Identifier
+  , NoExt
+  , Term(..)
+  , mkAbs
+  , absVar
+  , absTy
+  , absExpr
+  , fresh_var
+  ) where
 
 import qualified Data.Set as Set
 
