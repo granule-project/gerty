@@ -44,10 +44,3 @@ instance PrettyPrint () where
 
 instance PrettyPrint NoExt where
   pprint _ = undefined
-
-instance PrettyPrint Type where
-    isLexicallyAtomic (TyVar _) = True
-    isLexicallyAtomic _     = False
-
-    pprint (TyVar var) = var
-    pprint (Forall var t) = "forall " ++ var ++ " . " ++ pprint t

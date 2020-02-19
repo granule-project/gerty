@@ -91,15 +91,6 @@ Expr :: { [Option] -> Expr NoExt }
     { $1 }
 
 
-Type :: { [Option] -> Type }
-Type
-  : TypeAtom         { $1 }
-
-TypeAtom :: { [Option] -> Type }
-TypeAtom
-  : CONSTR           { \opts -> error $ "Unknown type constructor " ++ constrString $1 }
-  | '(' Type ')'     { \opts -> $2 opts }
-
 Juxt :: { [Option] -> Expr NoExt }
   : Juxt Atom                 { \opts -> App ($1 opts) ($2 opts) }
   | Atom                      { $1 }
@@ -107,7 +98,6 @@ Juxt :: { [Option] -> Expr NoExt }
 Atom :: { [Option] -> Expr NoExt }
   : '(' Expr ')'              { $2 }
   | VAR                       { \opts -> Var $ symString $1 }
-
 
   -- For later
   -- | '?' { Hole }

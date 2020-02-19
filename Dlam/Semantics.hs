@@ -149,17 +149,3 @@ substitute_binding x e (y,e')
     let x' = fresh_var x (freeVars e `Set.union` freeVars e')
     in (x', substitute (substitute e (x, mkVar x')) (y, e'))
   | otherwise = (x, substitute e (y,e'))
-
-instance Substitutable Type where
-    substitute = substituteType
-
-substituteType :: Type -> (Identifier, Type) -> Type
-
-
--- Actual substitution happening here
-substituteType (TyVar var) (varS, t)
-  | var == varS  = t
-  | otherwise    = TyVar var
-
-substituteType (Forall var t) s =
-  let (var', t') = substitute_binding var t s in Forall var' t'

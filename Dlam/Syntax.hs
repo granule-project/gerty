@@ -62,15 +62,6 @@ deriving instance (Eq ext) => Eq (Expr ext)
 -- | Universe level.
 type ULevel = Int
 
-------------------------------
--- Type syntax
-
-data Type =
-  -- Polymorphic lambda calculus
-    TyVar Identifier       -- a
-  | Forall Identifier Type -- forall a . A
-  deriving (Show, Eq)
-
 ----------------------------
 
 class Term t where
@@ -109,15 +100,6 @@ instance Term (Expr NoExt) where
   freeVars (Ext _)                       = Set.empty
 
   mkVar = Var
-
-instance Term Type where
-  boundVars (TyVar var)    = Set.empty
-  boundVars (Forall var t) = var `Set.insert` boundVars t
-
-  freeVars (TyVar var)    = Set.singleton var
-  freeVars (Forall var t) = var `Set.delete` freeVars t
-
-  mkVar = TyVar
 
   ----------------------------
 -- Fresh variable with respect to a set of variables
