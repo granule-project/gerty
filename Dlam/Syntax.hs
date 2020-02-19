@@ -50,9 +50,6 @@ data Expr ex where
 
   Sig :: Expr ex -> Expr ex       -> Expr ex -- e : A
 
-  -- Poly
-  TyAbs   :: Identifier -> Expr ex -> Expr ex -- /\ a -> e
-
   -- ML
   GenLet :: Identifier -> Expr ex -> Expr ex -> Expr ex -- let x = e1 in e2 (ML-style polymorphism)
 
@@ -94,7 +91,6 @@ instance Term (Expr NoExt) where
   boundVars (Abs var _ e)                = var `Set.insert` boundVars e
   boundVars (FunTy ab)                   =
     absVar ab `Set.insert` boundVars (absExpr ab)
-  boundVars (TyAbs var e)                = var `Set.insert` boundVars e
   boundVars (App e1 e2)                  = boundVars e1 `Set.union` boundVars e2
   boundVars (Var var)                    = Set.empty
   boundVars (Sig e _)                    = boundVars e
@@ -105,7 +101,6 @@ instance Term (Expr NoExt) where
   freeVars (FunTy ab)                    =
     Set.delete (absVar ab) (freeVars (absExpr ab))
   freeVars (Abs var _ e)                 = Set.delete var (freeVars e)
-  freeVars (TyAbs var e)                 = Set.delete var (freeVars e)
   freeVars (App e1 e2)                   = freeVars e1 `Set.union` freeVars e2
   freeVars (Var var)                     = Set.singleton var
   freeVars (Sig e _)                     = freeVars e

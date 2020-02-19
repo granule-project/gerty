@@ -5,9 +5,6 @@ import Dlam.Syntax
 import Dlam.PrettyPrint
 import Dlam.Semantics (substitute, Substitutable)
 
-import Data.Maybe (mapMaybe)
-import Data.List (intercalate)
-
 {-
 
 *************************************************************
@@ -66,19 +63,6 @@ G |- (\x -> e) <= A -> B
 -- Church style
 
 check gamma (Ext e) t = checkExt gamma e t
--- Polymorphic lambda calculus
-check gamma (TyAbs alpha e) (FunTy ab)
-  | alpha == absVar ab =
-    -- find all free variables in gamma which have alpha free inside of their type assumption
-    case mapMaybe (\(id, t) -> if alpha `elem` freeVars t then Just id else Nothing) gamma of
-      -- side condition is true
-      [] -> check gamma e (absExpr ab)
-      vars -> error $ "Free variables " <> intercalate "," vars
-                  <> " use bound type variable `" <> alpha <> "`"
-
-  | otherwise =
-    error $ "Term-level type abstraction on `" <> alpha
-          <> "` does not match name of type abstraction `" <> absVar ab <> "`"
 
 {--
 

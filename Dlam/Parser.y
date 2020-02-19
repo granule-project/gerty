@@ -85,9 +85,6 @@ Expr :: { [Option] -> Expr NoExt }
   | '\\' VAR '->' Expr
     { \opts -> Abs (symString $2) Nothing ($4 opts) }
 
-  | Lam VAR '->' Expr
-    { \opts -> TyAbs (symString $2) ($4 opts) }
-
   | Expr ':' Expr  { \opts -> Sig ($1 opts) ($3 opts) }
 
   | Juxt

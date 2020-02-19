@@ -15,7 +15,6 @@ class (Substitutable (Expr ext)) => Semantic ext where
 
 instance Semantic NoExt where
   isValue Abs{}    = True
-  isValue TyAbs{}  = True
   isValue Var{}    = True
   isValue TypeTy{} = True
   isValue e       = False
@@ -53,8 +52,6 @@ fullBeta (App e1 e2) =
 fullBeta (Abs x _ e) = zeta3 fullBeta x e
 fullBeta (Sig e _) = Just e
 fullBeta (Ext e) = reduceExt fullBeta (Ext e)
--- Poly
-fullBeta (TyAbs x e) = zeta3Ty fullBeta x e
 -- ML
 fullBeta (GenLet x e' e) = beta e x e'
 
@@ -69,8 +66,6 @@ callByName (App e1 e2) = zeta1 callByName e1 e2
 callByName (Abs x _ e) = Nothing
 callByName (Sig e _)   = Just e
 callByName (Ext e)    = reduceExt callByName (Ext e)
--- Poly
-callByName (TyAbs x e) = Nothing
 -- ML
 callByName (GenLet x e' e) = beta e x e'
 
@@ -85,8 +80,6 @@ callByValue (App e1 e2) = zeta1 callByValue e1 e2
 callByValue (Abs x _ e) = Nothing
 callByValue (Sig e _)   = Just e
 callByValue (Ext e)     = reduceExt callByValue (Ext e)
--- Poly
-callByValue (TyAbs x e) = Nothing
 -- ML
 callByValue (GenLet x e' e)
   | isValue e' = beta e x e'
@@ -105,9 +98,6 @@ zeta2 step e1 e2 = (\e2' -> App e1 e2') <$> step e2
 
 zeta3 :: Reducer (Expr ext)  -> Identifier -> Expr ext -> Maybe (Expr ext)
 zeta3 step x e = (\e' -> Abs x Nothing e') <$> step e
-
-zeta3Ty :: Reducer (Expr ext)  -> Identifier -> Expr ext -> Maybe (Expr ext)
-zeta3Ty step x e = (\e' -> TyAbs x e') <$> step e
 
 
 class Substitutable e where
@@ -146,9 +136,6 @@ substituteExpr (GenLet x e1 e2) s =
 -- Poly
 
 substituteExpr (Ext _) _ = undefined
-
-substituteExpr (TyAbs y e) s =
-  TyAbs y (substituteExpr e s)
 
 
 -- substitute_binding x e (y,e') substitutes e' into e for y,
