@@ -32,7 +32,7 @@ unknownIdentifierErr x = error $ "unknown identifier " <> show x
 -------------------------
 
 
-normalise :: (PrettyPrint e, Monad m, HasBinders m Identifier v, HasTyVal v (Maybe (Expr e)) t) => Expr e -> m (Expr e)
+normalise :: (PrettyPrint e, Monad m, HasBinders m Identifier v, HasTyVal v (Maybe (Expr e)) (Expr e)) => Expr e -> m (Expr e)
 normalise (Var x) = do
   val <- getBinderValue x
   case val of
@@ -41,6 +41,11 @@ normalise (Var x) = do
     Just Nothing  -> pure $ Var x
     Just (Just e) -> normalise e
 normalise r@TypeTy{} = pure r
+normalise (FunTy ab) = FunTy <$> normaliseAbs ab
+  where normaliseAbs ab = do
+          t <- normalise (absTy ab)
+          e <- withBinding (absVar ab, (fromTyVal (Nothing, t))) (normalise (absExpr ab))
+          pure (mkAbs (absVar ab) t e)
 normalise e = error $ "normalise does not yet support '" <> pprint e <> "'"
 
 
@@ -50,7 +55,7 @@ normalise e = error $ "normalise does not yet support '" <> pprint e <> "'"
 
 
 -- | Check if two expressions are equal.
-equalExprs :: (PrettyPrint e, Monad m, Eq e, Substitutable m Identifier (Expr e), HasBinders m Identifier v, HasTyVal v (Maybe (Expr e)) t) => Expr e -> Expr e -> m Bool
+equalExprs :: (PrettyPrint e, Monad m, Eq e, Substitutable m Identifier (Expr e), HasBinders m Identifier v, HasTyVal v (Maybe (Expr e)) (Expr e)) => Expr e -> Expr e -> m Bool
 equalExprs e1 e2 = do
   ne1 <- normalise e1
   ne2 <- normalise e2
