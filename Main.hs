@@ -6,7 +6,7 @@ module Dlam where
 import Control.Monad.State
 import Control.Monad.Trans.Maybe
 
-import Dlam.Binders (HasBinders(..))
+import Dlam.Binders (HasBinders(..), HasTyVal(..))
 import Dlam.Parser      (parseProgram)
 import Dlam.PrettyPrint (pprint)
 import Dlam.Syntax
@@ -16,23 +16,25 @@ import System.Directory   (doesPathExist)
 import System.Environment (getArgs)
 import System.Exit
 
+newtype BindV e = BindV { getBindV :: (Maybe (Expr e), Expr e) }
+
 newtype Prog a =
-  Prog { runProg :: MaybeT (State [(Identifier, (Maybe (Expr NoExt), Expr NoExt))]) a }
+  Prog { runProg :: MaybeT (State [(Identifier, BindV NoExt)]) a }
   deriving ( Applicative, Functor, Monad
-           , MonadState [(Identifier, (Maybe (Expr NoExt), Expr NoExt))])
+           , MonadState [(Identifier, BindV NoExt)])
 
 -- Example instance where identifiers are mapped to types
 -- and (optional) definitions via a list.
-instance HasBinders Prog Identifier (Maybe (Expr NoExt)) (Expr NoExt) where
-  getBinderType x = do
-    st <- get
-    pure $ snd <$> lookup x st
-  getBinderValue x = do
-    st <- get
-    pure $ fst <$> lookup x st
+instance HasBinders Prog Identifier (BindV NoExt) where
+  getBinder x = lookup x <$> get
   setBinder x e = do
     st <- get
     put ((x, e) : st)
+
+instance HasTyVal (BindV e) (Maybe (Expr e)) (Expr e) where
+  toVal = fst . getBindV
+  toTy  = snd . getBindV
+  fromTyVal = BindV
 
 main :: IO ()
 main = do
