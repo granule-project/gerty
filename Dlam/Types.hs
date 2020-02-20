@@ -160,8 +160,8 @@ checkOrInferType t expr@(App e1 e2) = do
             FunTy ab -> pure ab
             -- TODO: improve error system (2020-02-20)
             t        -> error $ "Inferred a type '" <> pprint t <> "' for '" <> pprint e <> "' when a function type was expected."
-checkOrInferType Wild (Abs x Nothing e) = do
-  checkOrInferType (FunTy (mkAbs x Wild Wild)) e
+checkOrInferType Wild expr@(Abs x Nothing _) = do
+  checkOrInferType (FunTy (mkAbs x Wild Wild)) expr
 checkOrInferType Wild expr@(Abs x (Just t) _) = do
   checkOrInferType (FunTy (mkAbs x t Wild)) expr
 checkOrInferType Wild (TypeTy l) = pure (TypeTy (succ l))
