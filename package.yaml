@@ -15,7 +15,6 @@ ghc-options:
 - -Wincomplete-record-updates
 - -Wincomplete-uni-patterns
 - -Wredundant-constraints
-- -Wno-unused-matches
 - -Wno-name-shadowing
 - -Wno-type-defaults
 

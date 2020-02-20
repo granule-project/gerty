@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 725263b70c225bcd965cc0f3c4b3723ec13811b41f3ae714711db49844eddac1
+-- hash: 449ce3f6053a6b1bf1027c31b8afc369f9a9b92dfa7b84dab83d07d4a36627d8
 
 name:           dependent-lamb
 version:        0.0.1
@@ -31,7 +31,7 @@ executable dlam
       Paths_dependent_lamb
   hs-source-dirs:
       ./.
-  ghc-options: -O0 -Wall -Werror -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns -Wredundant-constraints -Wno-unused-matches -Wno-name-shadowing -Wno-type-defaults -main-is Dlam
+  ghc-options: -O0 -Wall -Werror -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns -Wredundant-constraints -Wno-name-shadowing -Wno-type-defaults -main-is Dlam
   build-tools:
       alex
     , happy
