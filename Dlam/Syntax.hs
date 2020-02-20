@@ -54,7 +54,7 @@ normaliseAST (AST ((StmtType v t):(StmtAssign v' e):sts))
   | otherwise = error $ "type declaration for '" <> v <> "' followed by an assignment to '" <> v' <> "'"
 normaliseAST (AST ((StmtAssign v e):sts)) =
   let (NAST xs) = normaliseAST (AST sts) in NAST ((Decl v Nothing e) : xs)
-normaliseAST (AST [StmtType v t]) =
+normaliseAST (AST [StmtType v _]) =
   error $ "expected an assignment to '" <> v <> "' but reached end of file"
 normaliseAST (AST ((StmtType v _):(StmtType _ _):_)) =
   error $ "expected an assignment to '" <> v <> "' but got another type assignment"
@@ -140,7 +140,7 @@ instance Term (Expr NoExt) where
   boundVars (FunTy ab)                   =
     absVar ab `Set.insert` boundVars (absExpr ab)
   boundVars (App e1 e2)                  = boundVars e1 `Set.union` boundVars e2
-  boundVars (Var var)                    = Set.empty
+  boundVars (Var _)                      = Set.empty
   boundVars (Sig e _)                    = boundVars e
   boundVars TypeTy{}                     = Set.empty
   boundVars (GenLet var e1 e2)           = var `Set.insert` (boundVars e1 `Set.union` boundVars e2)
