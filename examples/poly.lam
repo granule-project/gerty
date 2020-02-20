@@ -1,7 +1,5 @@
-lang.pcf
-lang.poly
-lang.typed
+idExplicit : (a : type 1) -> (x : a) -> a
+idExplicit = \(a : type 1) -> \(x : a) -> x
 
-id = (/\ a -> (\(x : a) -> x)) : forall a . a -> a
-
-(id @(Nat -> Nat) (id @Nat)) zero
+id : (a : type) -> (x : a) -> a
+id = \a -> \x -> x
