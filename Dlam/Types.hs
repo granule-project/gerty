@@ -69,7 +69,8 @@ equalExprs e1 e2 = do
     (_, _) -> pure False
   where equalAbs ab1 ab2 = do
           e2s <- substitute (absVar ab2, Var (absVar ab1)) (absExpr ab2)
-          (&&) <$> equalExprs (absTy ab1) (absTy ab2) <*> equalExprs (absExpr ab1) e2s
+          withBinding (absVar ab1, (fromTyVal (Nothing, absTy ab1))) $
+            (&&) <$> equalExprs (absTy ab1) (absTy ab2) <*> equalExprs (absExpr ab1) e2s
 
 
 -- | Attempt to infer the types of a definition, and check this against the declared
