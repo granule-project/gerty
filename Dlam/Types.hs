@@ -114,8 +114,9 @@ inferType (Var x) = do
     Just t  -> pure t
 inferType (FunTy ab) = do
   k1 <- inferUniverseLevel (absTy ab)
-  k2 <- inferUniverseLevel (absExpr ab)
-  pure $ TypeTy (max k1 k2)
+  withBinding (absVar ab, (fromTyVal (Nothing, absTy ab))) $ do
+    k2 <- inferUniverseLevel (absExpr ab)
+    pure $ TypeTy (max k1 k2)
 inferType (Abs x (Just tyX) e) = do
   _ <- inferUniverseLevel tyX
   withBinding (x, (fromTyVal (Nothing, tyX))) $ do
