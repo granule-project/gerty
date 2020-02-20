@@ -101,7 +101,7 @@ inferUniverseLevel e = do
   case norm of
     TypeTy l -> pure l
     -- TODO: improve error system (2020-02-20)
-    e'       -> error $ "expected '" <> pprint e <> "' to be a type, but instead it had type '" <> pprint norm <> "'"
+    _        -> error $ "expected '" <> pprint e <> "' to be a type, but instead it had type '" <> pprint norm <> "'"
 
 
 inferType :: (PrettyPrint ext, Show ext, Monad m, Substitutable m Identifier (Expr ext), HasBinders m Identifier v, HasTyVal v (Maybe (Expr ext)) (Expr ext)) => Expr ext -> m (Expr ext)
