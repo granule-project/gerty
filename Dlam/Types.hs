@@ -213,5 +213,5 @@ inferType (Var x) = do
     -- TODO: update this to use a better error system (2020-02-19)
     Nothing -> error $ "unknown identifier " <> show x
     Just t  -> pure t
-inferType r@(TypeTy{}) = pure r
+inferType (TypeTy l) = pure $ TypeTy (succ l)
 inferType e = error $ "type inference not implemented for '" <> pprint e <> "' (" <> show e <> ")"
