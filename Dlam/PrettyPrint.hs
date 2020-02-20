@@ -42,6 +42,7 @@ instance PrettyPrint ex => PrettyPrint (Expr ex) where
     pprint (Ext e) = pprint e
     -- ML
     pprint (GenLet x e1 e2) = "let " ++ x ++ " = " ++ pprint e1 ++ " in " ++ pprint e2
+    pprint Wild = "_"
 
 instance (PrettyPrint e) => PrettyPrint (NAST e) where
   pprint (NAST sts) = concat . intersperse "\n\n" $ fmap pprint sts

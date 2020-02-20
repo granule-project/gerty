@@ -33,6 +33,7 @@ unknownIdentifierErr x = error $ "unknown identifier " <> show x
 
 
 normalise :: (PrettyPrint e, Monad m, HasBinders m Identifier v, HasTyVal v (Maybe (Expr e)) (Expr e)) => Expr e -> m (Expr e)
+normalise Wild = pure Wild
 normalise (Var x) = do
   val <- getBinderValue x
   case val of
@@ -66,6 +67,9 @@ equalExprs e1 e2 = do
     (FunTy ab1, FunTy ab2) -> equalAbs ab1 ab2
     (Abs x (Just t1) e1, Abs y (Just t2) e2) ->
       equalAbs (mkAbs x t1 e1) (mkAbs y t2 e2)
+    -- Wilds always match.
+    (Wild, _) -> pure True
+    (_, Wild) -> pure True
     (_, _) -> pure False
   where equalAbs ab1 ab2 = do
           e2s <- substitute (absVar ab2, Var (absVar ab1)) (absExpr ab2)
@@ -78,14 +82,10 @@ equalExprs e1 e2 = do
 doNStmtInference :: (PrettyPrint e, Show e, Monad m, Substitutable m Identifier (Expr e), HasBinders m Identifier v, HasTyVal v (Maybe (Expr e)) (Expr e)) => NStmt e -> m (NStmt e)
 doNStmtInference r@(Decl v (Just t) e) = do
   setBinder (mkIdent v) (fromTyVal ((Just e), t))
-  exprTy <- inferType e
-  typesEqual <- equalExprs exprTy t
-  if typesEqual
-  then pure r
-  -- TODO: improve error system (2020-02-20)
-  else error $ "for definition of '" <> v <> "', the type of '" <> pprint e <> "' was found to be '" <> pprint exprTy <> "' but the expected type was '" <> pprint t <> "'"
+  _ <- checkOrInferType t e
+  pure r
 doNStmtInference (Decl v Nothing e) = do
-  exprTy <- inferType e
+  exprTy <- checkOrInferType Wild e
   setBinder (mkIdent v) (fromTyVal (Just e, exprTy))
   pure (Decl v (Just exprTy) e)
 
@@ -97,7 +97,7 @@ doNASTInference (NAST ds) = fmap NAST $ mapM doNStmtInference ds
 
 inferUniverseLevel :: (Monad m, Show e, PrettyPrint e, Substitutable m Identifier (Expr e), HasBinders m Identifier v, HasTyVal v (Maybe (Expr e)) (Expr e)) => Expr e -> m Int
 inferUniverseLevel e = do
-  u <- inferType e
+  u <- checkOrInferType Wild e
   norm <- normalise u
   case norm of
     TypeTy l -> pure l
@@ -105,37 +105,65 @@ inferUniverseLevel e = do
     _        -> error $ "expected '" <> pprint e <> "' to be a type, but instead it had type '" <> pprint norm <> "'"
 
 
-inferType :: (PrettyPrint ext, Show ext, Monad m, Substitutable m Identifier (Expr ext), HasBinders m Identifier v, HasTyVal v (Maybe (Expr ext)) (Expr ext)) => Expr ext -> m (Expr ext)
-inferType (Var x) = do
-  ty <- getBinderType x
-  case ty of
+tyMismatch :: (PrettyPrint e) => Expr e -> Expr e -> Expr e -> m a
+tyMismatch expr tyExpected tyActual =
+  error $ "Error when checking the type of '" <> pprint expr <> "', expected '" <> pprint tyExpected <> "' but got '" <> pprint tyActual <> "'"
+
+
+ensureEqualTypes :: (PrettyPrint e, Monad m, Substitutable m Identifier (Expr e), HasBinders m Identifier v, HasTyVal v (Maybe (Expr e)) (Expr e)) =>
+  Expr e -> Expr e -> Expr e -> m (Expr e)
+ensureEqualTypes expr tyExpected tyActual = do
+  typesEqual <- equalExprs tyActual tyExpected
+  if typesEqual then pure tyActual
+  else tyMismatch expr tyExpected tyActual
+
+
+-- | 'checkOrInferType ty ex' checks that the type of 'ex' matches 'ty', or infers
+-- | it 'ty' is a wild. Evaluates to the calculated type.
+checkOrInferType :: (PrettyPrint ext, Show ext, Monad m, Substitutable m Identifier (Expr ext), HasBinders m Identifier v, HasTyVal v (Maybe (Expr ext)) (Expr ext)) =>
+  Expr ext -> Expr ext -> m (Expr ext)
+checkOrInferType t expr@(Var x) = do
+  xTy <- getBinderType x
+  case xTy of
     -- TODO: update this to use a better error system (2020-02-19)
     Nothing -> unknownIdentifierErr x
-    Just t  -> pure t
-inferType (FunTy ab) = do
+    Just t'  -> do
+      typesEqual <- equalExprs t t'
+      if typesEqual then pure t'
+      else tyMismatch expr t t'
+checkOrInferType t@(TypeTy l) expr@(TypeTy l')
+  | l == succ l' = pure t
+  | otherwise    = tyMismatch expr (TypeTy (succ l')) t
+checkOrInferType t expr@(FunTy ab) = do
   k1 <- inferUniverseLevel (absTy ab)
   withBinding (absVar ab, (fromTyVal (Nothing, absTy ab))) $ do
     k2 <- inferUniverseLevel (absExpr ab)
-    pure $ TypeTy (max k1 k2)
-inferType (Abs x (Just tyX) e) = do
+    ensureEqualTypes expr t (TypeTy (max k1 k2))
+checkOrInferType (FunTy ab) expr@(Abs x (Just tyX) e) = do
+  _ <- ensureEqualTypes expr (absTy ab) tyX
   _ <- inferUniverseLevel tyX
   withBinding (x, (fromTyVal (Nothing, tyX))) $ do
-    te <- inferType e
+    te <- checkOrInferType (absExpr ab) e
     pure $ FunTy (mkAbs x tyX te)
-inferType (App e1 e2) = do
+checkOrInferType (FunTy ab) (Abs x Nothing e) =
+  checkOrInferType (FunTy ab) (Abs x (Just (absTy ab)) e)
+checkOrInferType t expr@(App e1 e2) = do
   ab <- inferFunTy e1
   withBinding (absVar ab, (fromTyVal (Nothing, absTy ab))) $ do
-    argTy <- inferType e2
-    typesEqual <- equalExprs (absTy ab) argTy
-    if typesEqual
-    then substitute (absVar ab, e2) (absExpr ab)
-    -- TODO: improve error system (2020-02-20)
-    else error $ "In an application, the type of '" <> pprint e2 <> "' was found to be '" <> pprint argTy <> "' but the expected type was '" <> pprint (absTy ab) <> "'"
+    argTy <- checkOrInferType (absTy ab) e2
+    _ <- ensureEqualTypes e1 (absTy ab) argTy
+    appTy <- substitute (absVar ab, e2) (absExpr ab)
+    ensureEqualTypes expr t appTy
   where inferFunTy e = do
-          t <- inferType e >>= normalise
+          t <- checkOrInferType Wild e >>= normalise
           case t of
             FunTy ab -> pure ab
             -- TODO: improve error system (2020-02-20)
             t        -> error $ "Inferred a type '" <> pprint t <> "' for '" <> pprint e <> "' when a function type was expected."
-inferType (TypeTy l) = pure $ TypeTy (succ l)
-inferType e = error $ "type inference not implemented for '" <> pprint e <> "' (" <> show e <> ")"
+checkOrInferType Wild (Abs x Nothing e) = do
+  checkOrInferType (FunTy (mkAbs x Wild Wild)) e
+checkOrInferType Wild expr@(Abs x (Just t) _) = do
+  checkOrInferType (FunTy (mkAbs x t Wild)) expr
+checkOrInferType Wild (TypeTy l) = pure (TypeTy (succ l))
+checkOrInferType t e =
+  error $ "Error when checking '" <> pprint e <> "' has type '" <> pprint t <> "'"
