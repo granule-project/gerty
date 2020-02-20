@@ -14,6 +14,9 @@ module Dlam.Syntax
   , fresh_var
   , AST(..)
   , Stmt(..)
+  , NAST(..)
+  , NStmt(..)
+  , normaliseAST
   ) where
 
 import qualified Data.Set as Set
@@ -31,6 +34,28 @@ data Stmt e =
   -- | Type assignment.
   | StmtType String (Expr e)
   deriving Show
+
+newtype NAST e = NAST [NStmt e]
+  deriving Show
+
+data NStmt e =
+  -- | An assignment with an optional type, and mandatory definition.
+  Decl String (Maybe (Expr e)) (Expr e)
+  deriving Show
+
+-- | Normalise the raw AST into a form appropriate for further analyses.
+-- TODO: add a better error system (2020-02-19)
+normaliseAST :: AST e -> NAST e
+normaliseAST (AST []) = NAST []
+normaliseAST (AST ((StmtType v t):(StmtAssign v' e):sts))
+  | v == v' = let (NAST xs) = normaliseAST (AST sts) in NAST ((Decl v (Just t) e):xs)
+  | otherwise = error $ "type declaration for '" <> v <> "' followed by an assignment to '" <> v' <> "'"
+normaliseAST (AST ((StmtAssign v e):sts)) =
+  let (NAST xs) = normaliseAST (AST sts) in NAST ((Decl v Nothing e) : xs)
+normaliseAST (AST [StmtType v t]) =
+  error $ "expected an assignment to '" <> v <> "' but reached end of file"
+normaliseAST (AST ((StmtType v _):(StmtType _ _):_)) =
+  error $ "expected an assignment to '" <> v <> "' but got another type assignment"
 
 type Identifier = String
 

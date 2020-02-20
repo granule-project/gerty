@@ -33,6 +33,12 @@ main = do
               -- Pretty print
               putStrLn $ "\n " <> ansi_bold <> "Pretty:\n" <> ansi_reset <> pprint ast
 
+              let nast = normaliseAST ast
+              putStrLn $ "\n " <> ansi_bold <> "NAST: " <> ansi_reset <> show nast
+
+              -- Pretty print
+              putStrLn $ "\n " <> ansi_bold <> "Pretty (NAST):\n" <> ansi_reset <> pprint nast
+
               -- Typing
 {-
               case typeInference options ast of

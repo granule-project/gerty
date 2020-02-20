@@ -50,6 +50,13 @@ instance (PrettyPrint e) => PrettyPrint (Stmt e) where
   pprint (StmtAssign v e) = v <> " = " <> pprint e
   pprint (StmtType v t) = v <> " : " <> pprint t
 
+instance (PrettyPrint e) => PrettyPrint (NAST e) where
+  pprint (NAST sts) = concat . intersperse "\n\n" $ fmap pprint sts
+
+instance (PrettyPrint e) => PrettyPrint (NStmt e) where
+  pprint (Decl v Nothing e) = v <> " = " <> pprint e
+  pprint (Decl v (Just t) e) = v <> " : " <> pprint t <> "\n" <> v <> " = " <> pprint e
+
 instance PrettyPrint () where
     pprint () = "()"
 
