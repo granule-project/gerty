@@ -10,6 +10,9 @@ import Dlam.Binders
   , getBinderType
   , withBinding
   )
+import Dlam.Substitution
+  ( Substitutable(substitute)
+  )
 import Dlam.Syntax
 import Dlam.PrettyPrint
 
@@ -46,18 +49,32 @@ normalise e = error $ "normalise does not yet support '" <> pprint e <> "'"
 ------------------------------
 
 
--- | Check if two types are equal.
-equalTypes :: (Eq e) => Expr e -> Expr e -> Bool
-equalTypes = (==)
+-- | Check if two expressions are equal.
+equalExprs :: (PrettyPrint e, Monad m, Eq e, Substitutable m Identifier (Expr e), HasBinders m Identifier v, HasTyVal v (Maybe (Expr e)) t) => Expr e -> Expr e -> m Bool
+equalExprs e1 e2 = do
+  ne1 <- normalise e1
+  ne2 <- normalise e2
+  case (ne1, ne2) of
+    (Var v1, Var v2) -> pure (v1 == v2)
+    (App f1 v1, App f2 v2) -> (&&) <$> equalExprs f1 f2 <*> equalExprs v1 v2
+    (TypeTy l1, TypeTy l2) -> pure (l1 == l2)
+    (FunTy ab1, FunTy ab2) -> equalAbs ab1 ab2
+    (Abs x (Just t1) ab1, Abs y (Just t2) e2) ->
+      equalAbs (mkAbs x t1 e1) (mkAbs y t2 e2)
+    (_, _) -> pure False
+  where equalAbs ab1 ab2 = do
+          e2s <- substitute (absVar ab2, Var (absVar ab1)) (absExpr ab2)
+          (&&) <$> equalExprs (absTy ab1) (absTy ab2) <*> equalExprs (absExpr ab1) e2s
 
 
 -- | Attempt to infer the types of a definition, and check this against the declared
 -- | type, if any.
-doNStmtInference :: (Eq e, PrettyPrint e, Show e, Monad m, HasBinders m Identifier v, HasTyVal v (Maybe (Expr e)) (Expr e)) => NStmt e -> m (NStmt e)
+doNStmtInference :: (Eq e, PrettyPrint e, Show e, Monad m, Substitutable m Identifier (Expr e), HasBinders m Identifier v, HasTyVal v (Maybe (Expr e)) (Expr e)) => NStmt e -> m (NStmt e)
 doNStmtInference r@(Decl v (Just t) e) = do
   setBinder (mkIdent v) (fromTyVal ((Just e), t))
   exprTy <- inferType e
-  if equalTypes exprTy t
+  typesEqual <- equalExprs exprTy t
+  if typesEqual
   then pure r
   -- TODO: improve error system (2020-02-20)
   else error $ "for definition of '" <> v <> "', the type of '" <> pprint e <> "' was found to be '" <> pprint exprTy <> "' but the expected type was '" <> pprint t <> "'"
@@ -68,11 +85,11 @@ doNStmtInference (Decl v Nothing e) = do
 
 -- | Attempt to infer the types of each definition in the AST, failing if a type
 -- | mismatch is found.
-doNASTInference :: (Eq e, PrettyPrint e, Show e, Monad m, HasBinders m Identifier v, HasTyVal v (Maybe (Expr e)) (Expr e)) => NAST e -> m (NAST e)
+doNASTInference :: (Eq e, PrettyPrint e, Show e, Monad m, Substitutable m Identifier (Expr e), HasBinders m Identifier v, HasTyVal v (Maybe (Expr e)) (Expr e)) => NAST e -> m (NAST e)
 doNASTInference (NAST ds) = fmap NAST $ mapM doNStmtInference ds
 
 
-inferUniverseLevel :: (Monad m, Show e, PrettyPrint e, HasBinders m Identifier v, HasTyVal v (Maybe (Expr e)) (Expr e)) => Expr e -> m Int
+inferUniverseLevel :: (Monad m, Show e, PrettyPrint e, Substitutable m Identifier (Expr e), HasBinders m Identifier v, HasTyVal v (Maybe (Expr e)) (Expr e)) => Expr e -> m Int
 inferUniverseLevel e = do
   u <- inferType e
   norm <- normalise u
@@ -82,7 +99,7 @@ inferUniverseLevel e = do
     e'       -> error $ "expected '" <> pprint e <> "' to be a type, but instead it had type '" <> pprint norm <> "'"
 
 
-inferType :: (PrettyPrint ext, Show ext, Monad m, HasBinders m Identifier v, HasTyVal v (Maybe (Expr ext)) (Expr ext)) => Expr ext -> m (Expr ext)
+inferType :: (PrettyPrint ext, Show ext, Monad m, Substitutable m Identifier (Expr ext), HasBinders m Identifier v, HasTyVal v (Maybe (Expr ext)) (Expr ext)) => Expr ext -> m (Expr ext)
 inferType (Var x) = do
   ty <- getBinderType x
   case ty of

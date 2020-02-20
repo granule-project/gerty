@@ -18,6 +18,7 @@ module Dlam.Syntax
   , NAST(..)
   , NStmt(..)
   , normaliseAST
+  , Abstraction
   ) where
 
 import qualified Data.Set as Set

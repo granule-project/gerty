@@ -10,6 +10,7 @@ import Data.Foldable (toList)
 import Dlam.Binders (HasBinders(..), HasTyVal(..))
 import Dlam.Parser      (parseProgram)
 import Dlam.PrettyPrint (pprint)
+import Dlam.Substitution (Substitutable(..), substAbs, Freshenable(..))
 import Dlam.Syntax
 import Dlam.Types
 
@@ -40,6 +41,31 @@ instance HasTyVal (BindV e) (Maybe (Expr e)) (Expr e) where
   toVal = fst . getBindV
   toTy  = snd . getBindV
   fromTyVal = BindV
+
+
+instance Freshenable Prog Identifier where
+  -- TODO: update this to actually do freshening (2020-02-20)
+  freshen v = pure v
+
+
+instance Substitutable Prog Identifier (Expr NoExt) where
+  substitute (v, e) (Var x)
+    | v == x    = pure e
+    | otherwise = pure (Var x)
+  substitute _ r@TypeTy{} = pure r
+  substitute s (FunTy abs) = FunTy <$> substAbs s abs
+  substitute s@(v,_) (Abs x (Just t) e) = do
+    t' <- substitute s t
+    e' <- if v == x then pure e else substitute s e
+    pure (Abs x (Just t') e')
+  substitute s@(v,_) (Abs x Nothing e) = do
+    e' <- if v == x then pure e else substitute s e
+    pure (Abs x Nothing e')
+  substitute s (App e1 e2) = do
+    e1' <- substitute s e1
+    e2' <- substitute s e2
+    pure (App e1' e2')
+  substitute _ e = error $ "substitution not yet defined for '" <> pprint e <> "'"
 
 main :: IO ()
 main = do
