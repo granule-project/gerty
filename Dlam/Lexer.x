@@ -24,6 +24,7 @@ $alphanum  = [$alpha $digit \_]
 @sym    = $lower ($alphanum | \')*
 @constr = ($upper ($alphanum | \')* | \(\))
 @int    = \-? $digit+
+@nat    = $digit+
 @charLiteral = \' ([\\.]|[^\']| . ) \'
 @stringLiteral = \"(\\.|[^\"]|\n)*\"
 
@@ -35,6 +36,7 @@ tokens :-
   $eol+                         { \p s -> TokenNL p }
   $white+                       ;
   "--".*                        ;
+  @nat                          { \p s -> TokenNat p (read s) }
   @constr                       { \p s -> TokenConstr p s }
   lang\.@langPrag               { \p s -> TokenLang p s }
   forall                        { \p _ -> TokenForall p }
@@ -107,6 +109,7 @@ data Token
   | TokenForall   AlexPosn
   | TokenDot      AlexPosn
   | TokenAt       AlexPosn
+  | TokenNat      AlexPosn Int
   deriving (Eq, Show, Generic)
 
 symString :: Token -> String

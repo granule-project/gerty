@@ -27,7 +27,7 @@ instance PrettyPrint ex => PrettyPrint (Expr ex) where
     isLexicallyAtomic _       = False
 
     pprint (Abs var Nothing e)  = "\\" ++ var ++ " -> " ++ pprint e
-    pprint TypeTy{}             = "type"
+    pprint (TypeTy l)             = "type " <> show l
     pprint (Abs var (Just t) e) = "\\ (" ++ var ++ " : " ++ pprint t ++ ") -> " ++ pprint e
     pprint (FunTy ab) =
       "(" ++ absVar ab ++ " : " ++ pprint (absTy ab) ++ ") -> " ++ pprint (absExpr ab)

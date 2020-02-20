@@ -29,6 +29,7 @@ import Dlam.Options
     VAR     { TokenSym _ _ }
     LANG    { TokenLang _ _ }
     CONSTR  { TokenConstr _ _ }
+    NAT     { TokenNat _ _ }
     forall  { TokenForall _ }
     '\\'    { TokenLambda _ }
     Lam     { TokenTyLambda _ }
@@ -79,6 +80,7 @@ Expr :: { [Option] -> Expr NoExt }
   | '(' VAR ':' Expr ')' '->' Expr { \opts -> FunTy (mkAbs (symString $2) ($4 opts) ($7 opts)) }
 
   | type { \opts -> TypeTy 0 }
+  | type NAT { \opts -> TypeTy (natTokenToInt $2) }
 
   | '\\' '(' VAR ':' Expr ')' '->' Expr
     { \opts -> Abs (symString $3) (Just ($5 opts)) ($8 opts) }
@@ -121,5 +123,8 @@ parseError t  =  do
 
 parseProgram :: FilePath -> String -> Either String (AST NoExt, [Option])
 parseProgram file input = runReaderT (program $ scanTokens input) file
+
+natTokenToInt :: Token -> Int
+natTokenToInt (TokenNat _ x) = x
 
 }
