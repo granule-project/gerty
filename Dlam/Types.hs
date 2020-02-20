@@ -64,7 +64,7 @@ equalExprs e1 e2 = do
     (App f1 v1, App f2 v2) -> (&&) <$> equalExprs f1 f2 <*> equalExprs v1 v2
     (TypeTy l1, TypeTy l2) -> pure (l1 == l2)
     (FunTy ab1, FunTy ab2) -> equalAbs ab1 ab2
-    (Abs x (Just t1) ab1, Abs y (Just t2) e2) ->
+    (Abs x (Just t1) e1, Abs y (Just t2) e2) ->
       equalAbs (mkAbs x t1 e1) (mkAbs y t2 e2)
     (_, _) -> pure False
   where equalAbs ab1 ab2 = do
