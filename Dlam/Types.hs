@@ -18,6 +18,23 @@ unknownIdentifierErr :: Identifier -> m a
 unknownIdentifierErr x = error $ "unknown identifier " <> show x
 
 
+-------------------------
+----- Normalisation -----
+-------------------------
+
+
+normalise :: (PrettyPrint e, Monad m, HasBinders m Identifier (Maybe (Expr e)) t) => Expr e -> m (Expr e)
+normalise (Var x) = do
+  val <- getBinderValue x
+  case val of
+    -- TODO: improve error system (2020-02-20)
+    Nothing -> unknownIdentifierErr x
+    Just Nothing  -> pure $ Var x
+    Just (Just e) -> normalise e
+normalise r@TypeTy{} = pure r
+normalise e = error $ "normalise does not yet support '" <> pprint e <> "'"
+
+
 ------------------------------
 ----- AST Type Inference -----
 ------------------------------
@@ -49,6 +66,16 @@ doNASTInference :: (Eq e, PrettyPrint e, Show e, Monad m, HasBinders m Identifie
 doNASTInference (NAST ds) = fmap NAST $ mapM doNStmtInference ds
 
 
+inferUniverseLevel :: (Monad m, Show e, PrettyPrint e, HasBinders m Identifier (Maybe (Expr e)) (Expr e)) => Expr e -> m Int
+inferUniverseLevel e = do
+  u <- inferType e
+  norm <- normalise u
+  case norm of
+    TypeTy l -> pure l
+    -- TODO: improve error system (2020-02-20)
+    e'       -> error $ "expected '" <> pprint e <> "' to be a type, but instead it had type '" <> pprint norm <> "'"
+
+
 inferType :: (PrettyPrint ext, Show ext, Monad m, HasBinders m Identifier (Maybe (Expr ext)) (Expr ext)) => Expr ext -> m (Expr ext)
 inferType (Var x) = do
   ty <- getBinderType x
@@ -56,5 +83,9 @@ inferType (Var x) = do
     -- TODO: update this to use a better error system (2020-02-19)
     Nothing -> unknownIdentifierErr x
     Just t  -> pure t
+inferType (FunTy ab) = do
+  k1 <- inferUniverseLevel (absTy ab)
+  k2 <- inferUniverseLevel (absExpr ab)
+  pure $ TypeTy (max k1 k2)
 inferType (TypeTy l) = pure $ TypeTy (succ l)
 inferType e = error $ "type inference not implemented for '" <> pprint e <> "' (" <> show e <> ")"
