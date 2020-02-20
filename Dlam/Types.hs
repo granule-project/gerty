@@ -8,6 +8,16 @@ import Dlam.Syntax
 import Dlam.PrettyPrint
 
 
+-------------------
+----- Helpers -----
+-------------------
+
+
+-- | Indicate that an identifier is not known to be defined.
+unknownIdentifierErr :: Identifier -> m a
+unknownIdentifierErr x = error $ "unknown identifier " <> show x
+
+
 ------------------------------
 ----- AST Type Inference -----
 ------------------------------
@@ -44,7 +54,7 @@ inferType (Var x) = do
   ty <- getBinderType x
   case ty of
     -- TODO: update this to use a better error system (2020-02-19)
-    Nothing -> error $ "unknown identifier " <> show x
+    Nothing -> unknownIdentifierErr x
     Just t  -> pure t
 inferType (TypeTy l) = pure $ TypeTy (succ l)
 inferType e = error $ "type inference not implemented for '" <> pprint e <> "' (" <> show e <> ")"
