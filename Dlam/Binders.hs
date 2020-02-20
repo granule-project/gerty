@@ -12,8 +12,8 @@ class HasBinders m n v | m -> n, m -> v where
   getBinder :: n -> m (Maybe v)
   -- | Set the value and type for a given binder.
   setBinder :: n -> v -> m ()
-  -- | Execute the action with the given bindings active,
-  withBindings :: (Foldable f) => f (n, v) -> m a -> m a
+  -- | Execute the action, restoring bindings to their original value afterwards.
+  preservingBindings :: m a -> m a
 
 
 class HasTyVal v e t | v -> e, v -> t where
@@ -31,5 +31,5 @@ getBinderValue = (fmap . fmap) toVal . getBinder
 
 -- | Execute the given action with a given binding active,
 -- | and restore the binding afterwards.
-withBinding :: (HasBinders m n v) => (n, v) -> m a -> m a
-withBinding b = withBindings [b]
+withBinding :: (Monad m, HasBinders m n v) => (n, v) -> m a -> m a
+withBinding (n, v) m = preservingBindings $ setBinder n v >> m

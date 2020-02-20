@@ -5,7 +5,6 @@ module Dlam where
 
 import Control.Monad.State
 import Control.Monad.Trans.Maybe
-import Data.Foldable (toList)
 
 import Dlam.Binders (HasBinders(..), HasTyVal(..))
 import Dlam.Parser      (parseProgram)
@@ -32,10 +31,7 @@ instance HasBinders Prog Identifier (BindV NoExt) where
   setBinder x e = do
     st <- get
     put ((x, e) : st)
-  withBindings bs m = do
-    old <- get
-    put (toList bs)
-    m <* put old
+  preservingBindings m = get >>= \old -> m <* put old
 
 instance HasTyVal (BindV e) (Maybe (Expr e)) (Expr e) where
   toVal = fst . getBindV
