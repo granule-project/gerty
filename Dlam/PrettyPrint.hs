@@ -5,6 +5,8 @@ module Dlam.PrettyPrint
   ( PrettyPrint(..)
   ) where
 
+import Data.List (intersperse)
+
 import Dlam.Syntax
 
 -- Pretty print terms
@@ -42,8 +44,7 @@ instance PrettyPrint ex => PrettyPrint (Expr ex) where
     pprint (GenLet x e1 e2) = "let " ++ x ++ " = " ++ pprint e1 ++ " in " ++ pprint e2
 
 instance (PrettyPrint e) => PrettyPrint (AST e) where
-  pprint (AST []) = ""
-  pprint (AST (st : sts)) = pprint st <> "\n" <> pprint (AST sts)
+  pprint (AST sts) = concat . intersperse "\n" $ fmap pprint sts
 
 instance (PrettyPrint e) => PrettyPrint (Stmt e) where
   pprint (StmtAssign v e) = v <> " = " <> pprint e
