@@ -3,7 +3,13 @@ module Dlam.Types
   ( doNASTInference
   ) where
 
-import Dlam.Binders (HasBinders(..), HasTyVal(fromTyVal), getBinderValue, getBinderType)
+import Dlam.Binders
+  ( HasBinders(..)
+  , HasTyVal(fromTyVal)
+  , getBinderValue
+  , getBinderType
+  , withBinding
+  )
 import Dlam.Syntax
 import Dlam.PrettyPrint
 
@@ -87,5 +93,10 @@ inferType (FunTy ab) = do
   k1 <- inferUniverseLevel (absTy ab)
   k2 <- inferUniverseLevel (absExpr ab)
   pure $ TypeTy (max k1 k2)
+inferType (Abs x (Just tyX) e) = do
+  _ <- inferUniverseLevel tyX
+  withBinding (x, (fromTyVal (Nothing, tyX))) $ do
+    te <- inferType e
+    pure $ FunTy (mkAbs x tyX te)
 inferType (TypeTy l) = pure $ TypeTy (succ l)
 inferType e = error $ "type inference not implemented for '" <> pprint e <> "' (" <> show e <> ")"
