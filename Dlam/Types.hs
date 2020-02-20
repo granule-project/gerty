@@ -122,5 +122,20 @@ inferType (Abs x (Just tyX) e) = do
   withBinding (x, (fromTyVal (Nothing, tyX))) $ do
     te <- inferType e
     pure $ FunTy (mkAbs x tyX te)
+inferType (App e1 e2) = do
+  ab <- inferFunTy e1
+  withBinding (absVar ab, (fromTyVal (Nothing, absTy ab))) $ do
+    argTy <- inferType e2
+    typesEqual <- equalExprs (absTy ab) argTy
+    if typesEqual
+    then substitute (absVar ab, e2) (absExpr ab)
+    -- TODO: improve error system (2020-02-20)
+    else error $ "In an application, the type of '" <> pprint e2 <> "' was found to be '" <> pprint argTy <> "' but the expected type was '" <> pprint (absTy ab) <> "'"
+  where inferFunTy e = do
+          t <- inferType e >>= normalise
+          case t of
+            FunTy ab -> pure ab
+            -- TODO: improve error system (2020-02-20)
+            t        -> error $ "Inferred a type '" <> pprint t <> "' for '" <> pprint e <> "' when a function type was expected."
 inferType (TypeTy l) = pure $ TypeTy (succ l)
 inferType e = error $ "type inference not implemented for '" <> pprint e <> "' (" <> show e <> ")"
