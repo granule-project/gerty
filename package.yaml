@@ -30,6 +30,7 @@ executables:
     dependencies:
      - containers
      - directory
+     - mtl
      - transformers
      - filepath
      - array

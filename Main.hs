@@ -1,5 +1,12 @@
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 module Dlam where
 
+import Control.Monad.State
+import Control.Monad.Trans.Maybe
+
+import Dlam.Binders (HasBinders(..))
 import Dlam.Options
 import Dlam.Parser      (parseProgram)
 import Dlam.PrettyPrint (pprint)
@@ -9,6 +16,24 @@ import Dlam.Types
 import System.Directory   (doesPathExist)
 import System.Environment (getArgs)
 import System.Exit
+
+newtype Prog a =
+  Prog { runProg :: MaybeT (State [(Identifier, (Maybe (Expr NoExt), Expr NoExt))]) a }
+  deriving ( Applicative, Functor, Monad
+           , MonadState [(Identifier, (Maybe (Expr NoExt), Expr NoExt))])
+
+-- Example instance where identifiers are mapped to types
+-- and (optional) definitions via a list.
+instance HasBinders Prog Identifier (Maybe (Expr NoExt)) (Expr NoExt) where
+  getBinderType x = do
+    st <- get
+    pure $ snd <$> lookup x st
+  getBinderValue x = do
+    st <- get
+    pure $ fst <$> lookup x st
+  setBinder x e = do
+    st <- get
+    put ((x, e) : st)
 
 main :: IO ()
 main = do
@@ -36,6 +61,12 @@ main = do
               putStrLn $ "\n " <> ansi_bold <> "Pretty:\n" <> ansi_reset <> pprint nast
 
               -- Typing
+              case evalState (runMaybeT (runProg (doNASTInference nast))) [] of
+
+                 Nothing -> putStrLn "could not infer type"
+                 Just nastInfed  ->
+                   putStrLn $ "\n " <> ansi_bold <> "NAST after inference:\n" <> ansi_reset <> pprint nastInfed
+
 {-
               case typeInference options ast of
                  Nothing -> putStrLn $ "\n " <> ansi_bold <> ansi_red

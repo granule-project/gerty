@@ -5,6 +5,7 @@
 module Dlam.Syntax
   ( Expr(..)
   , Identifier
+  , mkIdent
   , NoExt
   , Term(..)
   , mkAbs
@@ -58,6 +59,10 @@ normaliseAST (AST ((StmtType v _):(StmtType _ _):_)) =
   error $ "expected an assignment to '" <> v <> "' but got another type assignment"
 
 type Identifier = String
+
+-- | Create a new identifier from a (syntactic) string.
+mkIdent :: String -> Identifier
+mkIdent s = s
 
 newtype Abstraction ext = Abst { getAbst :: (Identifier, Expr ext, Expr ext) }
   deriving Show
