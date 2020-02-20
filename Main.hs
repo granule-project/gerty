@@ -7,7 +7,6 @@ import Control.Monad.State
 import Control.Monad.Trans.Maybe
 
 import Dlam.Binders (HasBinders(..))
-import Dlam.Options
 import Dlam.Parser      (parseProgram)
 import Dlam.PrettyPrint (pprint)
 import Dlam.Syntax
@@ -67,20 +66,9 @@ main = do
                  Just nastInfed  ->
                    putStrLn $ "\n " <> ansi_bold <> "NAST after inference:\n" <> ansi_reset <> pprint nastInfed
 
-{-
-              case typeInference options ast of
-                 Nothing -> putStrLn $ "\n " <> ansi_bold <> ansi_red
-                                             <> "Not well-typed.\n" <> ansi_reset
-                 Just ty -> putStrLn $ "\n " <> ansi_bold <> ansi_green
-                                             <> "Well-typed " <> ansi_reset
-                                             <> ansi_bold <> "as " <> ansi_reset <>pprint ty
- -}
             Left msg -> do
               putStrLn $ ansi_red ++ "Error: " ++ ansi_reset ++ msg
               exitFailure
-
-typeInference :: [Option] -> Expr NoExt -> Maybe (Expr NoExt)
-typeInference _ = synth []
 
 ansi_red, ansi_green, ansi_reset, ansi_bold :: String
 ansi_red   = "\ESC[31;1m"
