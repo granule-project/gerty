@@ -211,36 +211,33 @@ checkOrInferType t@(FunTy abT) expr@(Abs abE) =
 -------------------------
 checkOrInferType t@App{} expr = do
   t' <- normalise t
-  case t' of
+  expr' <- normalise expr
+  case (t', expr') of
     -- TODO: improve error system (2020-02-21)
-    App (Builtin TypeTy) l -> do
-      expr' <- normalise expr
-      case expr' of
-        (App (Builtin TypeTy) l') -> do
-          -- checkOrInferType t@(TypeTy l) expr@(TypeTy l') = do
-          ln <- normalise l
-          ln' <- normalise l'
-          case (ln, ln') of
-            (LitLevel n, LitLevel n') ->
-              -- TODO: replace with ensureEqualTypes (2020-02-21)
-              if n == succ n' then pure t' else tyMismatch expr t (App typeTy (LitLevel (succ n')))
-            (LitLevel{}, _) ->
-              error $ concat [ "When checking the expression '", pprint expr
-                             , "' against the type '", pprint t
-                             , "' I was expecting '", pprint ln'
-                             , "' to be a level, but I couldn't determine that it was."]
-            (_, LitLevel{}) ->
-              error $ concat [ "When checking the expression '", pprint expr
-                             , "' against the type '", pprint t
-                             , "' I was expecting '", pprint ln
-                             , "' to be a level, but I couldn't determine that it was."]
-            (_, _) ->
-              error $ concat [ "When checking the expression '", pprint expr
-                             , "' against the type '", pprint t
-                             , "' I was expecting '", pprint ln, "' and '", pprint ln'
-                             , "' to be levels, but I couldn't determine that they were."]
-        _ -> error $ "Don't yet know how to check the type of '" <> pprint expr <> "' against the application '" <> pprint t <> "'"
-    App{} -> error $ "Don't yet know how to check the type of '" <> pprint expr <> "' against the application '" <> pprint t <> "'"
+    (App (Builtin TypeTy) l, App (Builtin TypeTy) l') -> do
+      ln <- normalise l
+      ln' <- normalise l'
+      case (ln, ln') of
+        (Wild, LitLevel{}) -> checkOrInferType Wild expr'
+        (LitLevel n, LitLevel n') ->
+          -- TODO: replace with ensureEqualTypes (2020-02-21)
+          if n == succ n' then pure t' else tyMismatch expr t (App typeTy (LitLevel (succ n')))
+        (LitLevel{}, _) ->
+          error $ concat [ "When checking the expression '", pprint expr
+                         , "' against the type '", pprint t
+                         , "' I was expecting '", pprint ln'
+                         , "' to be a level, but I couldn't determine that it was."]
+        (_, LitLevel{}) ->
+          error $ concat [ "When checking the expression '", pprint expr
+                         , "' against the type '", pprint t
+                         , "' I was expecting '", pprint ln
+                         , "' to be a level, but I couldn't determine that it was."]
+        (_, _) ->
+          error $ concat [ "When checking the expression '", pprint expr
+                         , "' against the type '", pprint t
+                         , "' I was expecting '", pprint ln, "' and '", pprint ln'
+                         , "' to be levels, but I couldn't determine that they were."]
+    (App{}, _) -> error $ "Don't yet know how to check the type of '" <> pprint expr <> "' against the application '" <> pprint t <> "'"
     _     -> checkOrInferType t' expr
 ----------------------------
 -- Application expression --
