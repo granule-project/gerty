@@ -36,6 +36,7 @@ instance PrettyPrint ex => PrettyPrint (Expr ex) where
       bracket_pprint abs ++ " " ++ bracket_pprint e2
     pprint (App (Sig e1 t) e2) =
       bracket_pprint (Sig e1 t) ++ " " ++ bracket_pprint e2
+    pprint (App e1@App{} e2) = bracket_pprint e1 ++ " " ++ bracket_pprint e2
     pprint (App e1 e2) = pprint e1 ++ " " ++ bracket_pprint e2
     pprint (Var var) = pprint var
     pprint (Sig e t) = bracket_pprint e ++ " : " ++ pprint t
