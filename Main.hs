@@ -69,6 +69,7 @@ instance Substitutable Prog Identifier (Expr NoExt) where
     pure (App e1' e2')
   substitute _ e@Builtin{} = pure e
   substitute _ e@LitLevel{} = pure e
+  substitute _ e@Wild{} = pure e
   substitute _ e = error $ "substitution not yet defined for '" <> pprint e <> "'"
 
 main :: IO ()
