@@ -32,6 +32,7 @@ unknownIdentifierErr x = error $ "unknown identifier " <> show x
 -------------------------
 
 
+-- | Normalise an abstraction via a series of reductions.
 normaliseAbs :: (Substitutable m Identifier (Expr e), PrettyPrint e, Monad m, HasBinders m Identifier v, HasTyVal v (Maybe (Expr e)) (Expr e)) => Abstraction e -> m (Abstraction e)
 normaliseAbs ab = do
   t <- normalise (absTy ab)
@@ -39,6 +40,7 @@ normaliseAbs ab = do
   pure (mkAbs (absVar ab) t e)
 
 
+-- | Normalise the expression via a series of reductions.
 normalise :: (Substitutable m Identifier (Expr e), PrettyPrint e, Monad m, HasBinders m Identifier v, HasTyVal v (Maybe (Expr e)) (Expr e)) => Expr e -> m (Expr e)
 normalise Wild = pure Wild
 normalise (Var x) = do
@@ -68,7 +70,7 @@ normalise e = error $ "normalise does not yet support '" <> pprint e <> "'"
 ------------------------------
 
 
--- | Check if two expressions are equal.
+-- | Check if two expressions are equal under normalisation.
 equalExprs :: (PrettyPrint e, Monad m, Substitutable m Identifier (Expr e), HasBinders m Identifier v, HasTyVal v (Maybe (Expr e)) (Expr e)) => Expr e -> Expr e -> m Bool
 equalExprs e1 e2 = do
   ne1 <- normalise e1
@@ -108,6 +110,7 @@ doNASTInference :: (PrettyPrint e, Show e, Monad m, Substitutable m Identifier (
 doNASTInference (NAST ds) = fmap NAST $ mapM doNStmtInference ds
 
 
+-- | Infer a level for the given type.
 inferUniverseLevel :: (Monad m, Show e, PrettyPrint e, Substitutable m Identifier (Expr e), HasBinders m Identifier v, HasTyVal v (Maybe (Expr e)) (Expr e)) => Expr e -> m Int
 inferUniverseLevel e = do
   u <- checkOrInferType Wild e
@@ -118,11 +121,15 @@ inferUniverseLevel e = do
     _        -> error $ "expected '" <> pprint e <> "' to be a type, but instead it had type '" <> pprint norm <> "'"
 
 
+-- | 'tyMismatch expr tyExpected tyActual' generates failure, indicating
+-- | that an expression was found to have a type that differs from expected.
 tyMismatch :: (PrettyPrint e) => Expr e -> Expr e -> Expr e -> m a
 tyMismatch expr tyExpected tyActual =
   error $ "Error when checking the type of '" <> pprint expr <> "', expected '" <> pprint tyExpected <> "' but got '" <> pprint tyActual <> "'"
 
 
+-- | 'ensureEqualTypes expr tyExpected tyActual' checks that 'tyExpected' and 'tyActual'
+-- | represent the same type (under normalisation), and fails if they differ.
 ensureEqualTypes :: (PrettyPrint e, Monad m, Substitutable m Identifier (Expr e), HasBinders m Identifier v, HasTyVal v (Maybe (Expr e)) (Expr e)) =>
   Expr e -> Expr e -> Expr e -> m (Expr e)
 ensureEqualTypes expr tyExpected tyActual = do
