@@ -1,5 +1,5 @@
-idExplicit : (a : type 1) -> (x : a) -> a
-idExplicit = \(a : type 1) -> \(x : a) -> x
+idExplicit : (l : Level) -> (a : Type l) -> (x : a) -> a
+idExplicit = \(l : Level) -> \(a : Type l) -> \(x : a) -> x
 
-id : (a : type) -> (x : a) -> a
-id = \a -> \x -> x
+id : (l : Level) -> (a : Type l) -> (x : a) -> a
+id = \l -> \a -> \x -> x
