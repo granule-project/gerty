@@ -32,7 +32,14 @@ unknownIdentifierErr x = error $ "unknown identifier " <> show x
 -------------------------
 
 
-normalise :: (PrettyPrint e, Monad m, HasBinders m Identifier v, HasTyVal v (Maybe (Expr e)) (Expr e)) => Expr e -> m (Expr e)
+normaliseAbs :: (Substitutable m Identifier (Expr e), PrettyPrint e, Monad m, HasBinders m Identifier v, HasTyVal v (Maybe (Expr e)) (Expr e)) => Abstraction e -> m (Abstraction e)
+normaliseAbs ab = do
+  t <- normalise (absTy ab)
+  e <- withBinding (absVar ab, (fromTyVal (Nothing, t))) (normalise (absExpr ab))
+  pure (mkAbs (absVar ab) t e)
+
+
+normalise :: (Substitutable m Identifier (Expr e), PrettyPrint e, Monad m, HasBinders m Identifier v, HasTyVal v (Maybe (Expr e)) (Expr e)) => Expr e -> m (Expr e)
 normalise Wild = pure Wild
 normalise (Var x) = do
   val <- getBinderValue x
@@ -43,10 +50,16 @@ normalise (Var x) = do
     Just (Just e) -> normalise e
 normalise r@TypeTy{} = pure r
 normalise (FunTy ab) = FunTy <$> normaliseAbs ab
-  where normaliseAbs ab = do
-          t <- normalise (absTy ab)
-          e <- withBinding (absVar ab, (fromTyVal (Nothing, t))) (normalise (absExpr ab))
-          pure (mkAbs (absVar ab) t e)
+normalise (Abs x (Just xTy) expr) = do
+  abs <- normaliseAbs (mkAbs x xTy expr)
+  pure $ Abs (absVar abs) (Just (absTy abs)) (absExpr abs)
+normalise (App e1 e2) = do
+  e1' <- normalise e1
+  e2' <- normalise e2
+  case e1' of
+    -- (\x -> e) e' ----> [e'/x] e
+    (Abs x _ xE) -> substitute (x, e2') xE >>= normalise
+    _              -> pure $ App e1' e2'
 normalise e = error $ "normalise does not yet support '" <> pprint e <> "'"
 
 
@@ -147,6 +160,12 @@ checkOrInferType (FunTy ab) expr@(Abs x (Just tyX) e) = do
     pure $ FunTy (mkAbs x tyX te)
 checkOrInferType (FunTy ab) (Abs x Nothing e) =
   checkOrInferType (FunTy ab) (Abs x (Just (absTy ab)) e)
+checkOrInferType t@App{} e = do
+  t' <- normalise t
+  case t' of
+    -- TODO: improve error system (2020-02-21)
+    App{} -> error $ "Don't yet know how to check the type of '" <> pprint e <> "' against the application '" <> pprint t <> "'"
+    _     -> checkOrInferType t' e
 checkOrInferType t expr@(App e1 e2) = do
   ab <- inferFunTy e1
   withBinding (absVar ab, (fromTyVal (Nothing, absTy ab))) $ do
