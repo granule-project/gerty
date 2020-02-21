@@ -67,6 +67,7 @@ normalise (App e1 e2) = do
     -- (\x -> e) e' ----> [e'/x] e
     (Abs x _ xE) -> substitute (x, e2') xE >>= normalise
     _              -> pure $ App e1' e2'
+normalise (Builtin LZero) = pure $ LitLevel 0
 normalise e@Builtin{} = pure e
 normalise e@LitLevel{} = pure e
 normalise e = error $ "normalise does not yet support '" <> pprint e <> "'"
