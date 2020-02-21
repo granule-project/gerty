@@ -51,9 +51,9 @@ normalise (Var x) = do
     Just Nothing  -> pure $ Var x
     Just (Just e) -> normalise e
 normalise (FunTy ab) = FunTy <$> normaliseAbs ab
-normalise (Abs x (Just xTy) expr) = do
+normalise (Abs x xTy expr) = do
   abs <- normaliseAbs (mkAbs x xTy expr)
-  pure $ Abs (absVar abs) (Just (absTy abs)) (absExpr abs)
+  pure $ Abs (absVar abs) (absTy abs) (absExpr abs)
 normalise (App e1 e2) = do
   e1' <- normalise e1
   e2' <- normalise e2
@@ -91,7 +91,7 @@ equalExprs e1 e2 = do
     (Var v1, Var v2) -> pure (v1 == v2)
     (App f1 v1, App f2 v2) -> (&&) <$> equalExprs f1 f2 <*> equalExprs v1 v2
     (FunTy ab1, FunTy ab2) -> equalAbs ab1 ab2
-    (Abs x (Just t1) e1, Abs y (Just t2) e2) ->
+    (Abs x t1 e1, Abs y t2 e2) ->
       equalAbs (mkAbs x t1 e1) (mkAbs y t2 e2)
     -- Wilds always match.
     (Wild, _) -> pure True
@@ -174,14 +174,14 @@ checkOrInferType t expr@(FunTy ab) = do
   withBinding (absVar ab, (fromTyVal (Nothing, absTy ab))) $ do
     k2 <- inferUniverseLevel (absExpr ab)
     normalise (lmaxApp k1 k2) >>= ensureEqualTypes expr t . mkUnivTy
-checkOrInferType (FunTy ab) expr@(Abs x (Just tyX) e) = do
+checkOrInferType (FunTy ab) (Abs x Wild e) =
+  checkOrInferType (FunTy ab) (Abs x (absTy ab) e)
+checkOrInferType (FunTy ab) expr@(Abs x tyX e) = do
   _ <- ensureEqualTypes expr (absTy ab) tyX
   _ <- inferUniverseLevel tyX
   withBinding (x, (fromTyVal (Nothing, tyX))) $ do
     te <- checkOrInferType (absExpr ab) e
     pure $ FunTy (mkAbs x tyX te)
-checkOrInferType (FunTy ab) (Abs x Nothing e) =
-  checkOrInferType (FunTy ab) (Abs x (Just (absTy ab)) e)
 checkOrInferType t@App{} expr = do
   t' <- normalise t
   case t' of
@@ -232,10 +232,10 @@ checkOrInferType t expr@(App e1 e2) = do
             FunTy ab -> pure ab
             -- TODO: improve error system (2020-02-20)
             t        -> error $ "Inferred a type '" <> pprint t <> "' for '" <> pprint e <> "' when a function type was expected."
-checkOrInferType Wild expr@(Abs x Nothing _) = do
+checkOrInferType Wild expr@(Abs x Wild _) = do
   checkOrInferType (FunTy (mkAbs x Wild Wild)) expr
 checkOrInferType t expr@LitLevel{} = ensureEqualTypes expr t levelTy
-checkOrInferType Wild expr@(Abs x (Just t) _) = do
+checkOrInferType Wild expr@(Abs x t _) = do
   checkOrInferType (FunTy (mkAbs x t Wild)) expr
 checkOrInferType t e =
   error $ "Error when checking '" <> pprint e <> "' has type '" <> pprint t <> "'"

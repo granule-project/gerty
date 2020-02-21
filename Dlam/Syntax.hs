@@ -112,10 +112,7 @@ data Expr ex where
   -- | Dependent function type.
   FunTy :: Abstraction ex -> Expr ex
 
-  Abs :: Identifier -> Maybe (Expr ex) -> Expr ex -> Expr ex
-                                          -- \x -> e  [λ x . e] (Curry style)
-                                          -- or
-                                          -- \(x : A) -> e (Church style)
+  Abs :: Identifier -> Expr ex -> Expr ex -> Expr ex
   App :: Expr ex ->  Expr ex   -> Expr ex -- e1 e2
 
   Sig :: Expr ex -> Expr ex       -> Expr ex -- e : A

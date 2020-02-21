@@ -62,13 +62,10 @@ instance Substitutable Prog Identifier (Expr NoExt) where
     | v == x    = pure e
     | otherwise = pure (Var x)
   substitute s (FunTy abs) = FunTy <$> substAbs s abs
-  substitute s@(v,_) (Abs x (Just t) e) = do
+  substitute s@(v,_) (Abs x t e) = do
     t' <- substitute s t
     e' <- if v == x then pure e else substitute s e
-    pure (Abs x (Just t') e')
-  substitute s@(v,_) (Abs x Nothing e) = do
-    e' <- if v == x then pure e else substitute s e
-    pure (Abs x Nothing e')
+    pure (Abs x t' e')
   substitute s (App e1 e2) = do
     e1' <- substitute s e1
     e2' <- substitute s e2
