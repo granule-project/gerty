@@ -29,7 +29,6 @@ import Dlam.Options
     type    { TokenType _ }
     VAR     { TokenSym _ _ }
     LANG    { TokenLang _ _ }
-    CONSTR  { TokenConstr _ _ }
     NAT     { TokenNat _ _ }
     forall  { TokenForall _ }
     '\\'    { TokenLambda _ }

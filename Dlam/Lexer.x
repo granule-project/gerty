@@ -4,8 +4,12 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE DeriveGeneric #-}
 
-module Dlam.Lexer (Token(..),scanTokens,symString
-                 ,getPos, constrString) where
+module Dlam.Lexer
+  ( Token(..)
+  , scanTokens
+  , symString
+  , getPos
+  ) where
 
 import Data.Text (Text)
 import Dlam.FirstParameter
@@ -19,10 +23,10 @@ $digit  = 0-9
 $alpha  = [a-zA-Z\_\-\=]
 $lower  = [a-z]
 $upper  = [A-Z]
+$letter = [a-zA-Z]
 $eol    = [\n]
 $alphanum  = [$alpha $digit \_]
-@sym    = $lower ($alphanum | \')*
-@constr = ($upper ($alphanum | \')* | \(\))
+@sym    = $letter ($alphanum | \')*
 @int    = \-? $digit+
 @nat    = $digit+
 @charLiteral = \' ([\\.]|[^\']| . ) \'
@@ -37,7 +41,6 @@ tokens :-
   $white+                       ;
   "--".*                        ;
   @nat                          { \p s -> TokenNat p (read s) }
-  @constr                       { \p s -> TokenConstr p s }
   lang\.@langPrag               { \p s -> TokenLang p s }
   forall                        { \p _ -> TokenForall p }
   let                           { \p s -> TokenLet p }
@@ -94,7 +97,6 @@ data Token
   | TokenLParen   AlexPosn
   | TokenRParen   AlexPosn
   | TokenNL       AlexPosn
-  | TokenConstr   AlexPosn String
   | TokenSig      AlexPosn
   | TokenEquiv    AlexPosn
   | TokenHole     AlexPosn
@@ -117,9 +119,6 @@ data Token
 symString :: Token -> String
 symString (TokenSym _ x) = x
 symString _ = error "Not a symbol"
-
-constrString :: Token -> String
-constrString (TokenConstr _ x) = x
 
 scanTokens = alexScanTokens >>= (return . trim)
 
