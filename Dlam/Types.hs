@@ -110,7 +110,7 @@ equalExprs e1 e2 = do
 
 -- | Attempt to infer the types of a definition, and check this against the declared
 -- | type, if any.
-doNStmtInference :: (PrettyPrint e, Show e, Monad m, Substitutable m Identifier (Expr e), HasBinders m Identifier v, HasTyVal v (Maybe (Expr e)) (Expr e)) => NStmt e -> m (NStmt e)
+doNStmtInference :: (PrettyPrint e, Monad m, Substitutable m Identifier (Expr e), HasBinders m Identifier v, HasTyVal v (Maybe (Expr e)) (Expr e)) => NStmt e -> m (NStmt e)
 doNStmtInference (Decl v t e) = do
   setBinder (mkIdent v) (fromTyVal (Just e, t))
   exprTy <- checkOrInferType t e
@@ -119,12 +119,12 @@ doNStmtInference (Decl v t e) = do
 
 -- | Attempt to infer the types of each definition in the AST, failing if a type
 -- | mismatch is found.
-doNASTInference :: (PrettyPrint e, Show e, Monad m, Substitutable m Identifier (Expr e), HasBinders m Identifier v, HasTyVal v (Maybe (Expr e)) (Expr e)) => NAST e -> m (NAST e)
+doNASTInference :: (PrettyPrint e, Monad m, Substitutable m Identifier (Expr e), HasBinders m Identifier v, HasTyVal v (Maybe (Expr e)) (Expr e)) => NAST e -> m (NAST e)
 doNASTInference (NAST ds) = fmap NAST $ mapM doNStmtInference ds
 
 
 -- | Infer a level for the given type.
-inferUniverseLevel :: (Monad m, Show e, PrettyPrint e, Substitutable m Identifier (Expr e), HasBinders m Identifier v, HasTyVal v (Maybe (Expr e)) (Expr e)) => Expr e -> m (Expr e)
+inferUniverseLevel :: (Monad m, PrettyPrint e, Substitutable m Identifier (Expr e), HasBinders m Identifier v, HasTyVal v (Maybe (Expr e)) (Expr e)) => Expr e -> m (Expr e)
 inferUniverseLevel e = do
   u <- checkOrInferType Wild e
   norm <- normalise u
@@ -153,7 +153,7 @@ ensureEqualTypes expr tyExpected tyActual = do
 
 -- | 'checkOrInferType ty ex' checks that the type of 'ex' matches 'ty', or infers
 -- | it 'ty' is a wild. Evaluates to the calculated type.
-checkOrInferType :: (PrettyPrint ext, Show ext, Monad m, Substitutable m Identifier (Expr ext), HasBinders m Identifier v, HasTyVal v (Maybe (Expr ext)) (Expr ext)) =>
+checkOrInferType :: (PrettyPrint ext, Monad m, Substitutable m Identifier (Expr ext), HasBinders m Identifier v, HasTyVal v (Maybe (Expr ext)) (Expr ext)) =>
   Expr ext -> Expr ext -> m (Expr ext)
 --------------
 -- Builtins --
