@@ -32,18 +32,20 @@ builtins = [ (mkIdent "Type",  BindV (Just typeTy, typeTyTY))
            , (mkIdent "lsuc", BindV (Just lsuc, lsucTY))
            ]
 
+type ProgState = (Int, Context)
+
 newtype Prog a =
-  Prog { runProg :: MaybeT (State Context) a }
+  Prog { runProg :: MaybeT (State ProgState) a }
   deriving ( Applicative, Functor, Monad
-           , MonadState [(Identifier, BindV NoExt)])
+           , MonadState ProgState)
 
 -- Example instance where identifiers are mapped to types
 -- and (optional) definitions via a list.
 instance HasBinders Prog Identifier (BindV NoExt) where
-  getBindings = M.fromList <$> get
+  getBindings = M.fromList . snd <$> get
   setBinder x e = do
-    st <- get
-    put ((x, e) : st)
+    (count, ctx) <- get
+    put (count, ((x, e) : ctx))
   preservingBindings m = get >>= \old -> m <* put old
 
 instance HasTyVal (BindV e) (Maybe (Expr e)) (Expr e) where
@@ -54,7 +56,13 @@ instance HasTyVal (BindV e) (Maybe (Expr e)) (Expr e) where
 
 instance Freshenable Prog Identifier where
   -- TODO: update this to actually do freshening (2020-02-20)
-  freshen v = pure v
+  freshen v = do
+    (count, ctx) <- get
+    put (count + 1, ctx)
+    pure $ case v of
+      Ignore -> GenIdent ("_", count)
+      Ident v -> GenIdent (v, count)
+      GenIdent (v, _) -> GenIdent (v, count)
 
 
 instance Substitutable Prog Identifier (Expr NoExt) where
@@ -98,7 +106,7 @@ main = do
               putStrLn $ "\n " <> ansi_bold <> "Pretty:\n" <> ansi_reset <> pprint nast
 
               -- Typing
-              case evalState (runMaybeT (runProg (doNASTInference nast))) builtins of
+              case evalState (runMaybeT (runProg (doNASTInference nast))) (0, builtins) of
 
                  Nothing -> putStrLn "could not infer type"
                  Just nastInfed  ->
