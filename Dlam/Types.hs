@@ -194,7 +194,7 @@ checkOrInferType t@(FunTy abT) expr@(Abs abE) =
     Wild ->
       case absTy abT of
         Wild -> error $ concat
-                [ "Unable to determine a type for '", absVar abE
+                [ "Unable to determine a type for '", pprint (absVar abE)
                 , "' in the expression '", pprint expr, "'"]
         ty -> checkOrInferType t (Abs (mkAbs (absVar abE) ty (absExpr abE)))
     _    -> do

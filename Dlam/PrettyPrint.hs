@@ -28,22 +28,28 @@ instance PrettyPrint ex => PrettyPrint (Expr ex) where
 
     pprint (LitLevel n)           = show n
     pprint (Abs ab) =
-      concat ["\\ (", absVar ab, " : ", pprint (absTy ab), ") -> ", pprint (absExpr ab)]
+      concat ["\\ (", pprint (absVar ab), " : ", pprint (absTy ab), ") -> ", pprint (absExpr ab)]
     pprint (FunTy ab) =
-      "(" ++ absVar ab ++ " : " ++ pprint (absTy ab) ++ ") -> " ++ pprint (absExpr ab)
+      concat ["(", pprint (absVar ab), " : ",
+                 pprint (absTy ab), ") -> ", pprint (absExpr ab)]
     pprint (App abs@(Abs _) e2) =
       bracket_pprint abs ++ " " ++ bracket_pprint e2
     pprint (App (Sig e1 t) e2) =
       bracket_pprint (Sig e1 t) ++ " " ++ bracket_pprint e2
     pprint (App e1 e2) = pprint e1 ++ " " ++ bracket_pprint e2
-    pprint (Var var) = var
+    pprint (Var var) = pprint var
     pprint (Sig e t) = bracket_pprint e ++ " : " ++ pprint t
     -- Source extensions
     pprint (Ext e) = pprint e
     -- ML
-    pprint (GenLet x e1 e2) = "let " ++ x ++ " = " ++ pprint e1 ++ " in " ++ pprint e2
+    pprint (GenLet x e1 e2) = "let " ++ pprint x ++ " = " ++ pprint e1 ++ " in " ++ pprint e2
     pprint Wild = "_"
     pprint (Builtin s) = pprint s
+
+instance PrettyPrint Identifier where
+  pprint (Ident v) = v
+  pprint (GenIdent (v, i)) = v <> "_" <> show i
+  pprint Ignore = "_"
 
 instance PrettyPrint BuiltinTerm where
   pprint LZero = "lzero"

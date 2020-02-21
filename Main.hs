@@ -26,10 +26,10 @@ instance (Show e) => Show (BindV e) where
 type Context = [(Identifier, BindV NoExt)]
 
 builtins :: Context
-builtins = [ ("Type",  BindV (Just typeTy, typeTyTY))
-           , ("Level", BindV (Just levelTy, levelTyTY))
-           , ("lzero", BindV (Just lzero, lzeroTY))
-           , ("lsuc", BindV (Just lsuc, lsucTY))
+builtins = [ (mkIdent "Type",  BindV (Just typeTy, typeTyTY))
+           , (mkIdent "Level", BindV (Just levelTy, levelTyTY))
+           , (mkIdent "lzero", BindV (Just lzero, lzeroTY))
+           , (mkIdent "lsuc", BindV (Just lsuc, lsucTY))
            ]
 
 newtype Prog a =

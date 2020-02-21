@@ -5,8 +5,9 @@
 
 module Dlam.Syntax
   ( Expr(..)
-  , Identifier
+  , Identifier(..)
   , mkIdent
+  , ignoreVar
   , NoExt
   , Term(..)
   , mkAbs
@@ -77,11 +78,16 @@ normaliseAST (AST [StmtType v _]) =
 normaliseAST (AST ((StmtType v _):(StmtType _ _):_)) =
   error $ "expected an assignment to '" <> v <> "' but got another type assignment"
 
-type Identifier = String
+data Identifier = Ident String | GenIdent (String, Int) | Ignore
+  deriving (Show, Eq, Ord)
 
 -- | Create a new identifier from a (syntactic) string.
 mkIdent :: String -> Identifier
-mkIdent s = s
+mkIdent = Ident
+
+-- | Identifier for use when the value is unused.
+ignoreVar :: Identifier
+ignoreVar = Ignore
 
 newtype Abstraction ext = Abst { getAbst :: (Identifier, Expr ext, Expr ext) }
   deriving Show
@@ -183,7 +189,7 @@ lsuc :: Expr e
 lsuc = builtinTerm LSuc
 
 lsucTY :: Expr e
-lsucTY = FunTy (mkAbs "_" levelTy levelTy)
+lsucTY = FunTy (mkAbs ignoreVar levelTy levelTy)
 
 lsucApp :: Expr e -> Expr e
 lsucApp = App lsuc
@@ -192,7 +198,7 @@ lmax :: Expr e
 lmax = builtinTerm LMax
 
 lmaxTY :: Expr e
-lmaxTY = FunTy (mkAbs "_" levelTy (FunTy (mkAbs "_" levelTy levelTy)))
+lmaxTY = FunTy (mkAbs ignoreVar levelTy (FunTy (mkAbs ignoreVar levelTy levelTy)))
 
 lmaxApp :: Expr e -> Expr e -> Expr e
 lmaxApp l1 l2 = App (App lmax l1) l2
@@ -201,7 +207,7 @@ typeTy :: Expr e
 typeTy = builtinTerm TypeTy
 
 typeTyTY :: Expr e
-typeTyTY = FunTy (mkAbs "_" levelTy (mkUnivTy (LitLevel 0)))
+typeTyTY = FunTy (mkAbs ignoreVar levelTy (mkUnivTy (LitLevel 0)))
 
 mkUnivTy :: Expr e -> Expr e
 mkUnivTy = App typeTy

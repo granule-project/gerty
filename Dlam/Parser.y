@@ -72,17 +72,17 @@ Expr :: { [Option] -> Expr NoExt }
   : let VAR '=' Expr in Expr
     { \opts ->
       if isML opts
-       then GenLet (symString $2) ($4 opts) ($6 opts)
-       else App (Abs (mkAbs (symString $2) Wild ($6 opts))) ($4 opts) }
+       then GenLet (mkIdentFromSym $2) ($4 opts) ($6 opts)
+       else App (Abs (mkAbs (mkIdentFromSym $2) Wild ($6 opts))) ($4 opts) }
 
-  | Expr '->' Expr   { \opts -> FunTy (mkAbs "_" ($1 opts) ($3 opts)) }
-  | '(' VAR ':' Expr ')' '->' Expr { \opts -> FunTy (mkAbs (symString $2) ($4 opts) ($7 opts)) }
+  | Expr '->' Expr   { \opts -> FunTy (mkAbs ignoreVar ($1 opts) ($3 opts)) }
+  | '(' VAR ':' Expr ')' '->' Expr { \opts -> FunTy (mkAbs (mkIdentFromSym $2) ($4 opts) ($7 opts)) }
 
   | '\\' '(' VAR ':' Expr ')' '->' Expr
-    { \opts -> Abs (mkAbs (symString $3) ($5 opts) ($8 opts)) }
+    { \opts -> Abs (mkAbs (mkIdentFromSym $3) ($5 opts) ($8 opts)) }
 
   | '\\' VAR '->' Expr
-    { \opts -> Abs (mkAbs (symString $2) Wild ($4 opts)) }
+    { \opts -> Abs (mkAbs (mkIdentFromSym $2) Wild ($4 opts)) }
 
   | Expr ':' Expr  { \opts -> Sig ($1 opts) ($3 opts) }
 
@@ -98,7 +98,7 @@ Juxt :: { [Option] -> Expr NoExt }
 
 Atom :: { [Option] -> Expr NoExt }
   : '(' Expr ')'              { $2 }
-  | VAR                       { \opts -> Var $ symString $1 }
+  | VAR                       { \opts -> Var $ mkIdentFromSym $1 }
   | '_'                       { \opts -> Wild }
   | NAT                       { \opts -> LitLevel (natTokenToInt $1) }
 
@@ -125,5 +125,8 @@ parseProgram file input = runReaderT (program $ scanTokens input) file
 
 natTokenToInt :: Token -> Int
 natTokenToInt (TokenNat _ x) = x
+
+mkIdentFromSym :: Token -> Identifier
+mkIdentFromSym = mkIdent . symString
 
 }
