@@ -79,7 +79,6 @@ Expr :: { [Option] -> Expr NoExt }
   | Expr '->' Expr   { \opts -> FunTy (mkAbs "_" ($1 opts) ($3 opts)) }
   | '(' VAR ':' Expr ')' '->' Expr { \opts -> FunTy (mkAbs (symString $2) ($4 opts) ($7 opts)) }
 
-  | type { \opts -> TypeTy 0 }
   | type NAT { \opts -> TypeTy (natTokenToInt $2) }
 
   | '\\' '(' VAR ':' Expr ')' '->' Expr
