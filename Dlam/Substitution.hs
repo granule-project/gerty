@@ -7,7 +7,11 @@ module Dlam.Substitution
   , Freshenable(..)
   ) where
 
-import Dlam.Binders (HasBinders(..), HasTyVal(fromTyVal))
+import Dlam.Binders
+  ( HasBinders
+  , HasTyVal(fromTyVal)
+  , withBinding
+  )
 import Dlam.Syntax
 
 class Freshenable m n | m -> n where
@@ -20,6 +24,6 @@ substAbs :: (Monad m, HasTyVal v (Maybe a) (Expr e), HasBinders m Identifier v, 
 substAbs s ab = do
   v <- freshen (absVar ab)
   t <- substitute s (absTy ab)
-  setBinder v (fromTyVal (Nothing, t))
-  e <- substitute (absVar ab, Var v) (absExpr ab) >>= substitute s
-  pure $ mkAbs v t e
+  withBinding (v, fromTyVal (Nothing, t)) $ do
+    e <- substitute (absVar ab, Var v) (absExpr ab) >>= substitute s
+    pure $ mkAbs v t e
