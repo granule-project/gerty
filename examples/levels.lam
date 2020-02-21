@@ -1,0 +1,18 @@
+-- Experiments with levels
+
+typeZero : Type 1
+typeZero = Type lzero
+
+type0 : Type 1
+type0 = Type 0
+
+type0' : Type (lsuc 0)
+type0' = Type 0
+
+type0'' : Type (lsuc lzero)
+type0'' = Type 0
+
+type1 : Type (lsuc (lsuc lzero))
+type1 = Type 1
+
+type1' = Type (lsuc lzero)
