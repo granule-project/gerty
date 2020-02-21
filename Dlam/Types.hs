@@ -111,14 +111,11 @@ equalExprs e1 e2 = do
 -- | Attempt to infer the types of a definition, and check this against the declared
 -- | type, if any.
 doNStmtInference :: (PrettyPrint e, Show e, Monad m, Substitutable m Identifier (Expr e), HasBinders m Identifier v, HasTyVal v (Maybe (Expr e)) (Expr e)) => NStmt e -> m (NStmt e)
-doNStmtInference (Decl v Wild e) = do
-  exprTy <- checkOrInferType Wild e
+doNStmtInference (Decl v t e) = do
+  setBinder (mkIdent v) (fromTyVal (Just e, t))
+  exprTy <- checkOrInferType t e
   setBinder (mkIdent v) (fromTyVal (Just e, exprTy))
   pure (Decl v exprTy e)
-doNStmtInference r@(Decl v t e) = do
-  setBinder (mkIdent v) (fromTyVal ((Just e), t))
-  _ <- checkOrInferType t e
-  pure r
 
 -- | Attempt to infer the types of each definition in the AST, failing if a type
 -- | mismatch is found.
