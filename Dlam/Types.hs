@@ -87,6 +87,11 @@ equalExprs e1 e2 = do
     (_, Wild) -> pure True
     (_, _) -> pure False
   where equalAbs ab1 ab2 = do
+          -- checking \(x : a) -> b = \(y : c) -> d
+          -- we say:
+          -- d' = [y/x]d
+          -- then check:
+          -- a = c and b = d' (with (x : a) in scope)
           e2s <- substitute (absVar ab2, Var (absVar ab1)) (absExpr ab2)
           withBinding (absVar ab1, (fromTyVal (Nothing, absTy ab1))) $
             (&&) <$> equalExprs (absTy ab1) (absTy ab2) <*> equalExprs (absExpr ab1) e2s
