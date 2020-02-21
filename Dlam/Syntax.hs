@@ -13,7 +13,6 @@ module Dlam.Syntax
   , absVar
   , absTy
   , absExpr
-  , fresh_var
   , AST(..)
   , Stmt(..)
   , NAST(..)
@@ -255,11 +254,3 @@ instance Term (Expr NoExt) where
   freeVars Builtin{}                     = Set.empty
 
   mkVar = Var
-
-  ----------------------------
--- Fresh variable with respect to a set of variables
--- By adding apostrophes to a supplied initial variable
-
-fresh_var :: Identifier -> Set.Set Identifier -> Identifier
-fresh_var var vars =
-  if var `Set.member` vars then fresh_var (var ++ "'") vars else var
