@@ -29,6 +29,7 @@ builtins :: Context
 builtins = [ ("Type",  BindV (Just typeTy, FunTy (mkAbs "_" levelTy (mkUnivTy (LitLevel 0)))))
            , ("Level", BindV (Just levelTy, (mkUnivTy (LitLevel 0))))
            , ("lzero", BindV (Just lzero, levelTy))
+           , ("lsuc", BindV (Just lsuc, FunTy (mkAbs "_" levelTy levelTy)))
            ]
 
 newtype Prog a =

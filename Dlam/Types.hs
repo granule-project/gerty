@@ -58,6 +58,10 @@ normalise (App e1 e2) = do
   e1' <- normalise e1
   e2' <- normalise e2
   case e1' of
+    Builtin LSuc -> pure $
+      case e2' of
+        LitLevel n -> LitLevel (succ n)
+        _          -> App e1' e2'
     (App (Builtin LMax) (LitLevel n)) ->
       case e2' of
         -- if the expression is of the form 'lmax m n' where 'm' and 'n' are literal
