@@ -32,12 +32,16 @@ instance PrettyPrint ex => PrettyPrint (Expr ex) where
     pprint (FunTy ab) =
       concat ["(", pprint (absVar ab), " : ",
                  pprint (absTy ab), ") -> ", pprint (absExpr ab)]
+    pprint (ProductTy ab) =
+      concat ["(", pprint (absVar ab), " : ",
+                 pprint (absTy ab), ") * ", pprint (absExpr ab)]
     pprint (App abs@(Abs _) e2) =
       bracket_pprint abs ++ " " ++ bracket_pprint e2
     pprint (App (Sig e1 t) e2) =
       bracket_pprint (Sig e1 t) ++ " " ++ bracket_pprint e2
     pprint (App e1@App{} e2) = bracket_pprint e1 ++ " " ++ bracket_pprint e2
     pprint (App e1 e2) = pprint e1 ++ " " ++ bracket_pprint e2
+    pprint (Pair e1 e2) = "(" <> pprint e1 <> ", " <> pprint e2 <> ")"
     pprint (Var var) = pprint var
     pprint (Sig e t) = bracket_pprint e ++ " : " ++ pprint t
     -- Source extensions
@@ -46,6 +50,7 @@ instance PrettyPrint ex => PrettyPrint (Expr ex) where
     pprint (GenLet x e1 e2) = "let " ++ pprint x ++ " = " ++ pprint e1 ++ " in " ++ pprint e2
     pprint Wild = "_"
     pprint (Builtin s) = pprint s
+    pprint (PairElim x y e1 e2) = "let (" <> pprint x <> ", " <> pprint y <> ") = " <> pprint e1 <> " in " <> pprint e2
 
 instance PrettyPrint Identifier where
   pprint (Ident v) = v

@@ -33,12 +33,14 @@ import Dlam.Options
     '\\'    { TokenLambda _ }
     Lam     { TokenTyLambda _ }
     '->'    { TokenArrow _ }
+    '*'     { TokenProd _ }
     '='     { TokenEq _ }
     '('     { TokenLParen _ }
     ')'     { TokenRParen _ }
     ':'     { TokenSig _ }
     '?'     { TokenHole _ }
     '.'     { TokenDot _ }
+    ','     { TokenComma _ }
     '@'     { TokenAt _ }
 
 %right in
@@ -83,6 +85,16 @@ Expr :: { [Option] -> Expr NoExt }
 
   | '\\' VAR '->' Expr
     { \opts -> Abs (mkAbs (mkIdentFromSym $2) Wild ($4 opts)) }
+
+
+  | Expr '*' Expr   { \opts -> ProductTy (mkAbs ignoreVar ($1 opts) ($3 opts)) }
+
+  | '(' VAR ':' Expr ')' '*' Expr { \opts -> ProductTy (mkAbs (mkIdentFromSym $2) ($4 opts) ($7 opts)) }
+
+  | let '(' VAR ',' VAR ')' '=' Expr in Expr { \opts -> PairElim (mkIdentFromSym $3) (mkIdentFromSym $5) ($8 opts) ($10 opts) }
+
+  | '(' Expr ',' Expr ')' { \opts -> Pair ($2 opts) ($4 opts) }
+
 
   | Expr ':' Expr  { \opts -> Sig ($1 opts) ($3 opts) }
 

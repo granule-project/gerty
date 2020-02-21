@@ -126,6 +126,15 @@ data Expr ex where
   -- | Lambda abstraction.
   Abs :: Abstraction ex -> Expr ex
 
+  -- | Dependent tensor type.
+  ProductTy :: Abstraction ex -> Expr ex
+
+  -- | Pairs.
+  Pair :: Expr ex -> Expr ex -> Expr ex
+
+  -- | Pair eliminator.
+  PairElim :: Identifier -> Identifier -> Expr ex -> Expr ex -> Expr ex
+
   App :: Expr ex ->  Expr ex   -> Expr ex -- e1 e2
 
   Sig :: Expr ex -> Expr ex       -> Expr ex -- e : A
@@ -239,7 +248,9 @@ freeVarsAbs ab = Set.delete (absVar ab) (freeVars (absExpr ab))
 instance Term (Expr NoExt) where
   boundVars (Abs ab)                     = boundVarsAbs ab
   boundVars (FunTy ab)                   = boundVarsAbs ab
+  boundVars (ProductTy ab)               = boundVarsAbs ab
   boundVars (App e1 e2)                  = boundVars e1 `Set.union` boundVars e2
+  boundVars (Pair e1 e2)                 = boundVars e1 `Set.union` boundVars e2
   boundVars (Var _)                      = Set.empty
   boundVars (Sig e _)                    = boundVars e
   boundVars (GenLet var e1 e2)           = var `Set.insert` (boundVars e1 `Set.union` boundVars e2)
@@ -247,13 +258,19 @@ instance Term (Expr NoExt) where
   boundVars Wild                         = Set.empty
   boundVars LitLevel{}                   = Set.empty
   boundVars Builtin{}                    = Set.empty
+  boundVars (PairElim x y e1 e2)         =
+    x `Set.insert` (y `Set.insert` (boundVars e1 `Set.union` boundVars e2))
 
   freeVars (FunTy ab)                    = freeVarsAbs ab
   freeVars (Abs ab)                      = freeVarsAbs ab
+  freeVars (ProductTy ab)                = freeVarsAbs ab
   freeVars (App e1 e2)                   = freeVars e1 `Set.union` freeVars e2
+  freeVars (Pair e1 e2)                  = freeVars e1 `Set.union` freeVars e2
   freeVars (Var var)                     = Set.singleton var
   freeVars (Sig e _)                     = freeVars e
   freeVars (GenLet var e1 e2)            = Set.delete var (freeVars e1 `Set.union` freeVars e2)
+  freeVars (PairElim x y e1 e2)          =
+    Set.delete x (Set.delete y (freeVars e1 `Set.union` freeVars e2))
   freeVars (Ext _)                       = Set.empty
   freeVars Wild                          = Set.empty
   freeVars LitLevel{}                    = Set.empty

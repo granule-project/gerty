@@ -69,7 +69,7 @@ tokens :-
   "+"                           { \p s -> TokenSum p }
   "<"                           { \p s -> TokenLPair p }
   ">"                           { \p s -> TokenRPair p }
-  ", "                          { \p s -> TokenMPair p }
+  ","                           { \p _ -> TokenComma p }
   "_"                           { \p _ -> TokenWild p }
   \.                            { \p _ -> TokenDot p }
   \@                            { \p _ -> TokenAt p }
@@ -99,6 +99,7 @@ data Token
   | TokenEquiv    AlexPosn
   | TokenHole     AlexPosn
   | TokenProd     AlexPosn
+  | TokenComma    AlexPosn
   | TokenSum      AlexPosn
   | TokenLPair    AlexPosn
   | TokenRPair    AlexPosn

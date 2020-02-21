@@ -71,6 +71,12 @@ instance Substitutable Prog Identifier (Expr NoExt) where
     | otherwise = pure (Var x)
   substitute s (FunTy abs) = FunTy <$> substAbs s abs
   substitute s (Abs   abs) = Abs   <$> substAbs s abs
+  substitute s (ProductTy abs) = ProductTy <$> substAbs s abs
+  substitute s (Pair e1 e2) = Pair <$> substitute s e1 <*> substitute s e2
+  substitute s@(v, _) (PairElim v1 v2 e1 e2) = do
+    e1' <- substitute s e1
+    e2' <- if v == v1 || v == v2 then pure e2 else substitute s e2
+    pure $ PairElim v1 v2 e1' e2'
   substitute s (App e1 e2) = do
     e1' <- substitute s e1
     e2' <- substitute s e2

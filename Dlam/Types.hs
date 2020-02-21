@@ -52,6 +52,7 @@ normalise (Var x) = do
     Just (Just e) -> normalise e
 normalise (FunTy ab) = FunTy <$> normaliseAbs ab
 normalise (Abs ab) = Abs <$> normaliseAbs ab
+normalise (ProductTy ab) = ProductTy <$> normaliseAbs ab
 normalise (App e1 e2) = do
   e1' <- normalise e1
   e2' <- normalise e2
@@ -69,6 +70,11 @@ normalise (App e1 e2) = do
     -- (\x -> e) e' ----> [e'/x] e
     (Abs ab) -> substitute (absVar ab, e2') (absExpr ab) >>= normalise
     _              -> pure $ App e1' e2'
+normalise (PairElim v1 v2 e1 e2) = do
+  e1' <- normalise e1
+  case e1' of
+    (Pair l r) -> substitute (v1, l) e2 >>= substitute (v2, r) >>= normalise
+    _          -> pure $ PairElim v1 v2 e1' e2
 normalise (Builtin LZero) = pure $ LitLevel 0
 normalise e@Builtin{} = pure e
 normalise e@LitLevel{} = pure e
@@ -97,8 +103,8 @@ equalExprs e1 e2 = do
     (Var v1, Var v2) -> pure (v1 == v2)
     (App f1 v1, App f2 v2) -> (&&) <$> equalExprs f1 f2 <*> equalExprs v1 v2
     (FunTy ab1, FunTy ab2) -> equalAbs ab1 ab2
-    (Abs ab1, Abs ab2) ->
-      equalAbs ab1 ab2
+    (Abs ab1, Abs ab2) -> equalAbs ab1 ab2
+    (ProductTy ab1, ProductTy ab2) -> equalAbs ab1 ab2
     -- Wilds always match.
     (Wild, _) -> pure True
     (_, Wild) -> pure True
@@ -194,6 +200,42 @@ checkOrInferType t expr@(FunTy ab) = do
   withBinding (absVar ab, (fromTyVal (Nothing, absTy ab))) $ do
     k2 <- inferUniverseLevel (absExpr ab)
     normalise (lmaxApp k1 k2) >>= ensureEqualTypes expr t . mkUnivTy
+---------------------------
+-- Dependent tensor type --
+---------------------------
+checkOrInferType t expr@(ProductTy ab) = do
+  k1 <- inferUniverseLevel (absTy ab)
+  withBinding (absVar ab, (fromTyVal (Nothing, absTy ab))) $ do
+    k2 <- inferUniverseLevel (absExpr ab)
+    normalise (lmaxApp k1 k2) >>= ensureEqualTypes expr t . mkUnivTy
+-----------------------
+-- Pair introduction --
+-----------------------
+checkOrInferType (ProductTy abT) expr@(Pair e1 e2) = do
+  e1Ty <- checkOrInferType (absTy abT) e1
+  let x   = absVar abT
+      tyX = absTy  abT
+  _ <- ensureEqualTypes expr (absTy abT) e1Ty
+  _ <- inferUniverseLevel e1Ty
+  withBinding (x, (fromTyVal (Nothing, tyX))) $ do
+    absT <- substitute (x, e1) (absExpr abT)
+    te <- checkOrInferType absT e2
+    pure $ ProductTy (mkAbs x tyX te)
+---------------------
+-- Pair eliminator --
+---------------------
+checkOrInferType t expr@(PairElim v1 v2 e1 e2) = do
+  ab <- inferProductTy e1
+  withBinding (v1, (fromTyVal (Nothing, absTy ab))) $ do
+   sndTy <- substitute (absVar ab, e1) (absExpr ab)
+   withBinding (v2, (fromTyVal (Nothing, sndTy))) $ do
+     checkOrInferType t e2
+  where inferProductTy e = do
+          t <- checkOrInferType Wild e >>= normalise
+          case t of
+            ProductTy ab -> pure ab
+            -- TODO: improve error system (2020-02-20)
+            t        -> error $ "Inferred a type '" <> pprint t <> "' for '" <> pprint e <> "' when a product type was expected."
 ------------------------------------------
 -- Function type with Lambda expression --
 ------------------------------------------
