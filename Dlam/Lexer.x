@@ -68,6 +68,7 @@ tokens :-
   "<"                           { \p s -> TokenLPair p }
   ">"                           { \p s -> TokenRPair p }
   ", "                          { \p s -> TokenMPair p }
+  "_"                           { \p _ -> TokenWild p }
   \.                            { \p _ -> TokenDot p }
   \@                            { \p _ -> TokenAt p }
 
@@ -110,6 +111,7 @@ data Token
   | TokenDot      AlexPosn
   | TokenAt       AlexPosn
   | TokenNat      AlexPosn Int
+  | TokenWild     AlexPosn
   deriving (Eq, Show, Generic)
 
 symString :: Token -> String

@@ -24,6 +24,7 @@ import Dlam.Options
     nl      { TokenNL _ }
     let     { TokenLet _ }
     '|'     { TokenSep _ }
+    '_'     { TokenWild _ }
     in      { TokenIn  _  }
     type    { TokenType _ }
     VAR     { TokenSym _ _ }
@@ -90,6 +91,8 @@ Expr :: { [Option] -> Expr NoExt }
 
   | Expr ':' Expr  { \opts -> Sig ($1 opts) ($3 opts) }
 
+  | '_'            { \opts -> Wild }
+
   | Juxt
     { $1 }
 
@@ -102,6 +105,7 @@ Atom :: { [Option] -> Expr NoExt }
   : '(' Expr ')'              { $2 }
   | VAR                       { \opts -> Var $ symString $1 }
   | type                      { \opts -> TypeTy 0 }
+  | '_'                       { \opts -> Wild }
 
   -- For later
   -- | '?' { Hole }
