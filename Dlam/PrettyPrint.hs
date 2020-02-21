@@ -27,11 +27,12 @@ instance PrettyPrint ex => PrettyPrint (Expr ex) where
     isLexicallyAtomic _       = False
 
     pprint (LitLevel n)           = show n
-    pprint (Abs var t e) = "\\ (" ++ var ++ " : " ++ pprint t ++ ") -> " ++ pprint e
+    pprint (Abs ab) =
+      concat ["\\ (", absVar ab, " : ", pprint (absTy ab), ") -> ", pprint (absExpr ab)]
     pprint (FunTy ab) =
       "(" ++ absVar ab ++ " : " ++ pprint (absTy ab) ++ ") -> " ++ pprint (absExpr ab)
-    pprint (App (Abs var mt e1) e2) =
-      bracket_pprint (Abs var mt e1) ++ " " ++ bracket_pprint e2
+    pprint (App abs@(Abs _) e2) =
+      bracket_pprint abs ++ " " ++ bracket_pprint e2
     pprint (App (Sig e1 t) e2) =
       bracket_pprint (Sig e1 t) ++ " " ++ bracket_pprint e2
     pprint (App e1 e2) = pprint e1 ++ " " ++ bracket_pprint e2

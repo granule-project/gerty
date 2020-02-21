@@ -1,4 +1,5 @@
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE StandaloneDeriving #-}
 
@@ -112,7 +113,9 @@ data Expr ex where
   -- | Dependent function type.
   FunTy :: Abstraction ex -> Expr ex
 
-  Abs :: Identifier -> Expr ex -> Expr ex -> Expr ex
+  -- | Lambda abstraction.
+  Abs :: Abstraction ex -> Expr ex
+
   App :: Expr ex ->  Expr ex   -> Expr ex -- e1 e2
 
   Sig :: Expr ex -> Expr ex       -> Expr ex -- e : A
@@ -202,10 +205,16 @@ instance Eq NoExt where
 instance Show NoExt where
   show _ = undefined
 
+
+boundVarsAbs :: (Term (Expr e)) => Abstraction e -> Set.Set Identifier
+boundVarsAbs ab = absVar ab `Set.insert` boundVars (absExpr ab)
+
+freeVarsAbs :: (Term (Expr e)) => Abstraction e -> Set.Set Identifier
+freeVarsAbs ab = Set.delete (absVar ab) (freeVars (absExpr ab))
+
 instance Term (Expr NoExt) where
-  boundVars (Abs var _ e)                = var `Set.insert` boundVars e
-  boundVars (FunTy ab)                   =
-    absVar ab `Set.insert` boundVars (absExpr ab)
+  boundVars (Abs ab)                     = boundVarsAbs ab
+  boundVars (FunTy ab)                   = boundVarsAbs ab
   boundVars (App e1 e2)                  = boundVars e1 `Set.union` boundVars e2
   boundVars (Var _)                      = Set.empty
   boundVars (Sig e _)                    = boundVars e
@@ -215,9 +224,8 @@ instance Term (Expr NoExt) where
   boundVars LitLevel{}                   = Set.empty
   boundVars Builtin{}                    = Set.empty
 
-  freeVars (FunTy ab)                    =
-    Set.delete (absVar ab) (freeVars (absExpr ab))
-  freeVars (Abs var _ e)                 = Set.delete var (freeVars e)
+  freeVars (FunTy ab)                    = freeVarsAbs ab
+  freeVars (Abs ab)                      = freeVarsAbs ab
   freeVars (App e1 e2)                   = freeVars e1 `Set.union` freeVars e2
   freeVars (Var var)                     = Set.singleton var
   freeVars (Sig e _)                     = freeVars e

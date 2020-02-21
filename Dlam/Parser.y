@@ -73,16 +73,16 @@ Expr :: { [Option] -> Expr NoExt }
     { \opts ->
       if isML opts
        then GenLet (symString $2) ($4 opts) ($6 opts)
-       else App (Abs (symString $2) Wild ($6 opts)) ($4 opts) }
+       else App (Abs (mkAbs (symString $2) Wild ($6 opts))) ($4 opts) }
 
   | Expr '->' Expr   { \opts -> FunTy (mkAbs "_" ($1 opts) ($3 opts)) }
   | '(' VAR ':' Expr ')' '->' Expr { \opts -> FunTy (mkAbs (symString $2) ($4 opts) ($7 opts)) }
 
   | '\\' '(' VAR ':' Expr ')' '->' Expr
-    { \opts -> Abs (symString $3) ($5 opts) ($8 opts) }
+    { \opts -> Abs (mkAbs (symString $3) ($5 opts) ($8 opts)) }
 
   | '\\' VAR '->' Expr
-    { \opts -> Abs (symString $2) Wild ($4 opts) }
+    { \opts -> Abs (mkAbs (symString $2) Wild ($4 opts)) }
 
   | Expr ':' Expr  { \opts -> Sig ($1 opts) ($3 opts) }
 
