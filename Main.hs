@@ -5,6 +5,7 @@ module Dlam where
 
 import Control.Monad.State
 import Control.Monad.Trans.Maybe
+import qualified Data.Map as M
 
 import Dlam.Binders (HasBinders(..), HasTyVal(..))
 import Dlam.Parser      (parseProgram)
@@ -19,6 +20,9 @@ import System.Exit
 
 newtype BindV e = BindV { getBindV :: (Maybe (Expr e), Expr e) }
 
+instance (Show e) => Show (BindV e) where
+  show = show . getBindV
+
 newtype Prog a =
   Prog { runProg :: MaybeT (State [(Identifier, BindV NoExt)]) a }
   deriving ( Applicative, Functor, Monad
@@ -27,7 +31,7 @@ newtype Prog a =
 -- Example instance where identifiers are mapped to types
 -- and (optional) definitions via a list.
 instance HasBinders Prog Identifier (BindV NoExt) where
-  getBinder x = lookup x <$> get
+  getBindings = M.fromList <$> get
   setBinder x e = do
     st <- get
     put ((x, e) : st)

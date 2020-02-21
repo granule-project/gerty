@@ -7,9 +7,11 @@ module Dlam.Binders
   , withBinding
   ) where
 
+import qualified Data.Map as M
+
 class HasBinders m n v | m -> n, m -> v where
-  -- | Get the value at a given binder, if it exists.
-  getBinder :: n -> m (Maybe v)
+  -- | Get the bindings as a map.
+  getBindings :: m (M.Map n v)
   -- | Set the value and type for a given binder.
   setBinder :: n -> v -> m ()
   -- | Execute the action, restoring bindings to their original value afterwards.
@@ -21,12 +23,17 @@ class HasTyVal v e t | v -> e, v -> t where
   toTy  :: v -> t
   fromTyVal :: (e, t) -> v
 
+
+-- | Get the value at a given binder, if it exists.
+getBinder :: (Ord n, HasBinders m n v, Functor m) => n -> m (Maybe v)
+getBinder n = M.lookup n <$> getBindings
+
 -- | Get the type of the given binder, where types are of type 't'.
-getBinderType :: (Functor m, HasBinders m n v, HasTyVal v e t) => n -> m (Maybe t)
+getBinderType :: (Ord n, Functor m, HasBinders m n v, HasTyVal v e t) => n -> m (Maybe t)
 getBinderType = (fmap . fmap) toTy . getBinder
 
 -- | Get the value of the given binder, where values are of type 'e'.
-getBinderValue :: (Functor m, HasBinders m n v, HasTyVal v e t) => n -> m (Maybe e)
+getBinderValue :: (Ord n, Functor m, HasBinders m n v, HasTyVal v e t) => n -> m (Maybe e)
 getBinderValue = (fmap . fmap) toVal . getBinder
 
 -- | Execute the given action with a given binding active,
