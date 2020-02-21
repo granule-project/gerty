@@ -184,7 +184,11 @@ checkOrInferType t expr@(FunTy ab) = do
 checkOrInferType t@(FunTy abT) expr@(Abs abE) =
   case absTy abE of
     Wild ->
-      checkOrInferType t (Abs (mkAbs (absVar abE) (absTy abT) (absExpr abE)))
+      case absTy abT of
+        Wild -> error $ concat
+                [ "Unable to determine a type for '", absVar abE
+                , "' in the expression '", pprint expr, "'"]
+        ty -> checkOrInferType t (Abs (mkAbs (absVar abE) ty (absExpr abE)))
     _    -> do
       let x   = absVar abE
           tyX = absTy  abE
