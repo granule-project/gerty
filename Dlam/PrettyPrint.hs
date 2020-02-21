@@ -27,7 +27,7 @@ instance PrettyPrint ex => PrettyPrint (Expr ex) where
     isLexicallyAtomic _       = False
 
     pprint (Abs var Nothing e)  = "\\" ++ var ++ " -> " ++ pprint e
-    pprint (TypeTy l)             = "type " <> show l
+    pprint (LitLevel n)           = show n
     pprint (Abs var (Just t) e) = "\\ (" ++ var ++ " : " ++ pprint t ++ ") -> " ++ pprint e
     pprint (FunTy ab) =
       "(" ++ absVar ab ++ " : " ++ pprint (absTy ab) ++ ") -> " ++ pprint (absExpr ab)
@@ -43,6 +43,14 @@ instance PrettyPrint ex => PrettyPrint (Expr ex) where
     -- ML
     pprint (GenLet x e1 e2) = "let " ++ x ++ " = " ++ pprint e1 ++ " in " ++ pprint e2
     pprint Wild = "_"
+    pprint (Builtin s) = pprint s
+
+instance PrettyPrint BuiltinTerm where
+  pprint LZero = "lzero"
+  pprint LMax  = "lmax"
+  pprint LSuc  = "lsuc"
+  pprint LevelTy = "Level"
+  pprint TypeTy  = "Type"
 
 instance (PrettyPrint e) => PrettyPrint (NAST e) where
   pprint (NAST sts) = concat . intersperse "\n\n" $ fmap pprint sts

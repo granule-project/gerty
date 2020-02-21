@@ -19,6 +19,19 @@ module Dlam.Syntax
   , NStmt(..)
   , normaliseAST
   , Abstraction
+  -- * Builtins
+  , BuiltinTerm(..)
+  , builtinTerm
+  -- ** Levels
+  , levelTy
+  , lzero
+  , lsuc
+  , lsucApp
+  , lmax
+  , lmaxApp
+  -- ** Type Universes
+  , typeTy
+  , mkUnivTy
   ) where
 
 import qualified Data.Set as Set
@@ -85,9 +98,6 @@ absExpr (Abst (_, _, t)) = t
 mkAbs :: Identifier -> Expr ext -> Expr ext -> Abstraction ext
 mkAbs v e1 e2 = Abst (v, e1, e2)
 
--- | Universe level.
-type ULevel = Int
-
 -- Abstract-syntax tree for LambdaCore
 -- parameterised by an additional type `ex`
 -- used to represent the abstract syntax
@@ -96,8 +106,8 @@ data Expr ex where
   -- | Variable.
   Var :: Identifier -> Expr ex
 
-  -- | Type universe.
-  TypeTy :: ULevel -> Expr ex
+  -- | Level literals.
+  LitLevel :: Int -> Expr ex
 
   -- | Dependent function type.
   FunTy :: Abstraction ex -> Expr ex
@@ -113,6 +123,9 @@ data Expr ex where
   -- | Wildcards for inference.
   Wild :: Expr ex
 
+  -- | Builtin terms, with a unique identifying name.
+  Builtin :: BuiltinTerm -> Expr ex
+
   -- ML
   GenLet :: Identifier -> Expr ex -> Expr ex -> Expr ex -- let x = e1 in e2 (ML-style polymorphism)
 
@@ -121,6 +134,60 @@ data Expr ex where
   deriving Show
 
 deriving instance (Eq ext) => Eq (Expr ext)
+
+
+--------------------
+----- Builtins -----
+--------------------
+
+
+data BuiltinTerm =
+  -- | Level type.
+    LevelTy
+
+  -- | Level zero.
+  | LZero
+
+  -- | Level successor.
+  | LSuc
+
+  -- | Level maximum.
+  | LMax
+
+  -- | Universe type.
+  | TypeTy
+  deriving (Show, Eq)
+
+
+-- | Body for a builtin term (essentially an Agda postulate).
+builtinTerm :: BuiltinTerm -> Expr e
+builtinTerm = Builtin
+
+levelTy :: Expr e
+levelTy = builtinTerm LevelTy
+
+
+lzero :: Expr e
+lzero = builtinTerm LZero
+
+lsuc :: Expr e
+lsuc = builtinTerm LSuc
+
+lsucApp :: Expr e -> Expr e
+lsucApp = App lsuc
+
+lmax :: Expr e
+lmax = builtinTerm LMax
+
+lmaxApp :: Expr e -> Expr e -> Expr e
+lmaxApp l1 l2 = App (App lmax l1) l2
+
+typeTy :: Expr e
+typeTy = builtinTerm TypeTy
+
+mkUnivTy :: Expr e -> Expr e
+mkUnivTy = App typeTy
+
 
 ----------------------------
 
@@ -145,10 +212,11 @@ instance Term (Expr NoExt) where
   boundVars (App e1 e2)                  = boundVars e1 `Set.union` boundVars e2
   boundVars (Var _)                      = Set.empty
   boundVars (Sig e _)                    = boundVars e
-  boundVars TypeTy{}                     = Set.empty
   boundVars (GenLet var e1 e2)           = var `Set.insert` (boundVars e1 `Set.union` boundVars e2)
   boundVars (Ext _)                      = Set.empty
   boundVars Wild                         = Set.empty
+  boundVars LitLevel{}                   = Set.empty
+  boundVars Builtin{}                    = Set.empty
 
   freeVars (FunTy ab)                    =
     Set.delete (absVar ab) (freeVars (absExpr ab))
@@ -156,10 +224,11 @@ instance Term (Expr NoExt) where
   freeVars (App e1 e2)                   = freeVars e1 `Set.union` freeVars e2
   freeVars (Var var)                     = Set.singleton var
   freeVars (Sig e _)                     = freeVars e
-  freeVars TypeTy{}                      = Set.empty
   freeVars (GenLet var e1 e2)            = Set.delete var (freeVars e1 `Set.union` freeVars e2)
   freeVars (Ext _)                       = Set.empty
   freeVars Wild                          = Set.empty
+  freeVars LitLevel{}                    = Set.empty
+  freeVars Builtin{}                     = Set.empty
 
   mkVar = Var
 

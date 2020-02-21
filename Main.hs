@@ -23,8 +23,16 @@ newtype BindV e = BindV { getBindV :: (Maybe (Expr e), Expr e) }
 instance (Show e) => Show (BindV e) where
   show = show . getBindV
 
+type Context = [(Identifier, BindV NoExt)]
+
+builtins :: Context
+builtins = [ ("Type",  BindV (Just typeTy, FunTy (mkAbs "_" levelTy (mkUnivTy (LitLevel 0)))))
+           , ("Level", BindV (Just levelTy, (mkUnivTy (LitLevel 0))))
+           , ("lzero", BindV (Just lzero, levelTy))
+           ]
+
 newtype Prog a =
-  Prog { runProg :: MaybeT (State [(Identifier, BindV NoExt)]) a }
+  Prog { runProg :: MaybeT (State Context) a }
   deriving ( Applicative, Functor, Monad
            , MonadState [(Identifier, BindV NoExt)])
 
@@ -52,7 +60,6 @@ instance Substitutable Prog Identifier (Expr NoExt) where
   substitute (v, e) (Var x)
     | v == x    = pure e
     | otherwise = pure (Var x)
-  substitute _ r@TypeTy{} = pure r
   substitute s (FunTy abs) = FunTy <$> substAbs s abs
   substitute s@(v,_) (Abs x (Just t) e) = do
     t' <- substitute s t
@@ -65,6 +72,8 @@ instance Substitutable Prog Identifier (Expr NoExt) where
     e1' <- substitute s e1
     e2' <- substitute s e2
     pure (App e1' e2')
+  substitute _ e@Builtin{} = pure e
+  substitute _ e@LitLevel{} = pure e
   substitute _ e = error $ "substitution not yet defined for '" <> pprint e <> "'"
 
 main :: IO ()
@@ -93,7 +102,7 @@ main = do
               putStrLn $ "\n " <> ansi_bold <> "Pretty:\n" <> ansi_reset <> pprint nast
 
               -- Typing
-              case evalState (runMaybeT (runProg (doNASTInference nast))) [] of
+              case evalState (runMaybeT (runProg (doNASTInference nast))) builtins of
 
                  Nothing -> putStrLn "could not infer type"
                  Just nastInfed  ->

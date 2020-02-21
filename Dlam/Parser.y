@@ -26,7 +26,6 @@ import Dlam.Options
     '|'     { TokenSep _ }
     '_'     { TokenWild _ }
     in      { TokenIn  _  }
-    type    { TokenType _ }
     VAR     { TokenSym _ _ }
     LANG    { TokenLang _ _ }
     NAT     { TokenNat _ _ }
@@ -79,8 +78,6 @@ Expr :: { [Option] -> Expr NoExt }
   | Expr '->' Expr   { \opts -> FunTy (mkAbs "_" ($1 opts) ($3 opts)) }
   | '(' VAR ':' Expr ')' '->' Expr { \opts -> FunTy (mkAbs (symString $2) ($4 opts) ($7 opts)) }
 
-  | type NAT { \opts -> TypeTy (natTokenToInt $2) }
-
   | '\\' '(' VAR ':' Expr ')' '->' Expr
     { \opts -> Abs (symString $3) (Just ($5 opts)) ($8 opts) }
 
@@ -102,8 +99,8 @@ Juxt :: { [Option] -> Expr NoExt }
 Atom :: { [Option] -> Expr NoExt }
   : '(' Expr ')'              { $2 }
   | VAR                       { \opts -> Var $ symString $1 }
-  | type                      { \opts -> TypeTy 0 }
   | '_'                       { \opts -> Wild }
+  | NAT                       { \opts -> LitLevel (natTokenToInt $1) }
 
   -- For later
   -- | '?' { Hole }
