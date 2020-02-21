@@ -158,6 +158,9 @@ ensureEqualTypes expr tyExpected tyActual = do
 -- | it 'ty' is a wild. Evaluates to the calculated type.
 checkOrInferType :: (PrettyPrint ext, Show ext, Monad m, Substitutable m Identifier (Expr ext), HasBinders m Identifier v, HasTyVal v (Maybe (Expr ext)) (Expr ext)) =>
   Expr ext -> Expr ext -> m (Expr ext)
+-------------------------
+-- Variable expression --
+-------------------------
 checkOrInferType t expr@(Var x) = do
   xTy <- getBinderType x
   case xTy of
@@ -167,11 +170,17 @@ checkOrInferType t expr@(Var x) = do
       typesEqual <- equalExprs t t'
       if typesEqual then pure t'
       else tyMismatch expr t t'
+------------------------
+-- Pi-type expression --
+------------------------
 checkOrInferType t expr@(FunTy ab) = do
   k1 <- inferUniverseLevel (absTy ab)
   withBinding (absVar ab, (fromTyVal (Nothing, absTy ab))) $ do
     k2 <- inferUniverseLevel (absExpr ab)
     normalise (lmaxApp k1 k2) >>= ensureEqualTypes expr t . mkUnivTy
+------------------------------------------
+-- Function type with Lambda expression --
+------------------------------------------
 checkOrInferType t@(FunTy abT) expr@(Abs abE) =
   case absTy abE of
     Wild ->
@@ -184,6 +193,9 @@ checkOrInferType t@(FunTy abT) expr@(Abs abE) =
       withBinding (x, (fromTyVal (Nothing, tyX))) $ do
         te <- checkOrInferType (absExpr abT) (absExpr abE)
         pure $ FunTy (mkAbs x tyX te)
+-------------------------
+-- Application in type --
+-------------------------
 checkOrInferType t@App{} expr = do
   t' <- normalise t
   case t' of
@@ -217,6 +229,9 @@ checkOrInferType t@App{} expr = do
         _ -> error $ "Don't yet know how to check the type of '" <> pprint expr <> "' against the application '" <> pprint t <> "'"
     App{} -> error $ "Don't yet know how to check the type of '" <> pprint expr <> "' against the application '" <> pprint t <> "'"
     _     -> checkOrInferType t' expr
+----------------------------
+-- Application expression --
+----------------------------
 checkOrInferType t expr@(App e1 e2) = do
   ab <- inferFunTy e1
   expr' <- normalise expr
@@ -234,8 +249,17 @@ checkOrInferType t expr@(App e1 e2) = do
             FunTy ab -> pure ab
             -- TODO: improve error system (2020-02-20)
             t        -> error $ "Inferred a type '" <> pprint t <> "' for '" <> pprint e <> "' when a function type was expected."
+----------------------
+-- Level expression --
+----------------------
 checkOrInferType t expr@LitLevel{} = ensureEqualTypes expr t levelTy
+--------------------------------------------
+-- Abstraction expression, with wild type --
+--------------------------------------------
 checkOrInferType Wild expr@(Abs ab) = do
   checkOrInferType (FunTy (mkAbs (absVar ab) (absTy ab) Wild)) expr
+----------------------------------
+-- Currently unsupported checks --
+----------------------------------
 checkOrInferType t e =
   error $ "Error when checking '" <> pprint e <> "' has type '" <> pprint t <> "'"
