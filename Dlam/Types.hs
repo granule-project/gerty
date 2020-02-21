@@ -195,7 +195,8 @@ checkOrInferType t@(FunTy abT) expr@(Abs abE) =
       _ <- ensureEqualTypes expr (absTy abT) tyX
       _ <- inferUniverseLevel tyX
       withBinding (x, (fromTyVal (Nothing, tyX))) $ do
-        te <- checkOrInferType (absExpr abT) (absExpr abE)
+        absT <- substitute (absVar abT, Var x) (absExpr abT)
+        te <- checkOrInferType absT (absExpr abE)
         pure $ FunTy (mkAbs x tyX te)
 -------------------------
 -- Application in type --
