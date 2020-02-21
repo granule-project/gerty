@@ -22,8 +22,9 @@ class Substitutable m n e | m -> n, m -> e where
 
 substAbs :: (Monad m, HasTyVal v (Maybe a) (Expr e), HasBinders m Identifier v, Freshenable m Identifier, Substitutable m Identifier (Expr e)) => (Identifier, Expr e) -> Abstraction e -> m (Abstraction e)
 substAbs s ab = do
-  v <- freshen (absVar ab)
+  let v = absVar ab
+  v' <- freshen v
   t <- substitute s (absTy ab)
-  withBinding (v, fromTyVal (Nothing, t)) $ do
-    e <- substitute (absVar ab, Var v) (absExpr ab) >>= substitute s
-    pure $ mkAbs v t e
+  withBinding (v', fromTyVal (Nothing, t)) $ do
+    e <- substitute (v, Var v') (absExpr ab) >>= substitute s
+    pure $ mkAbs v' t e
