@@ -246,7 +246,7 @@ checkOrInferType t expr@(App e1 e2) = do
   ab <- inferFunTy e1
   expr' <- normalise expr
   case expr' of
-    (App (Builtin TypeTy) (LitLevel n)) -> pure $ mkUnivTy (LitLevel (succ n))
+    (App (Builtin TypeTy) (LitLevel n)) -> ensureEqualTypes expr t (mkUnivTy (LitLevel (succ n)))
     _ -> do
       withBinding (absVar ab, (fromTyVal (Nothing, absTy ab))) $ do
         argTy <- checkOrInferType (absTy ab) e2
