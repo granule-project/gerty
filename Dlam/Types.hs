@@ -215,7 +215,7 @@ checkOrInferType t@App{} expr = do
           case (ln, ln') of
             (LitLevel n, LitLevel n') ->
               -- TODO: replace with ensureEqualTypes (2020-02-21)
-              if n == succ n' then pure t' else tyMismatch expr (App typeTy (LitLevel (succ n'))) t
+              if n == succ n' then pure t' else tyMismatch expr t (App typeTy (LitLevel (succ n')))
             (LitLevel{}, _) ->
               error $ concat [ "When checking the expression '", pprint expr
                              , "' against the type '", pprint t
