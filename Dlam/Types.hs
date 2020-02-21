@@ -155,6 +155,17 @@ ensureEqualTypes expr tyExpected tyActual = do
 -- | it 'ty' is a wild. Evaluates to the calculated type.
 checkOrInferType :: (PrettyPrint ext, Show ext, Monad m, Substitutable m Identifier (Expr ext), HasBinders m Identifier v, HasTyVal v (Maybe (Expr ext)) (Expr ext)) =>
   Expr ext -> Expr ext -> m (Expr ext)
+--------------
+-- Builtins --
+--------------
+checkOrInferType t expr@(Builtin e) =
+  let genTy = case e of
+                LZero -> lzeroTY
+                LSuc  -> lsucTY
+                TypeTy -> typeTyTY
+                LevelTy -> levelTyTY
+                LMax -> lmaxTY
+  in ensureEqualTypes expr t genTy
 -------------------------
 -- Variable expression --
 -------------------------

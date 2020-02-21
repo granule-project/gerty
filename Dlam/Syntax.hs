@@ -25,13 +25,18 @@ module Dlam.Syntax
   , builtinTerm
   -- ** Levels
   , levelTy
+  , levelTyTY
   , lzero
+  , lzeroTY
   , lsuc
+  , lsucTY
   , lsucApp
   , lmax
+  , lmaxTY
   , lmaxApp
   -- ** Type Universes
   , typeTy
+  , typeTyTY
   , mkUnivTy
   ) where
 
@@ -166,12 +171,20 @@ builtinTerm = Builtin
 levelTy :: Expr e
 levelTy = builtinTerm LevelTy
 
+levelTyTY :: Expr e
+levelTyTY = mkUnivTy (LitLevel 0)
 
 lzero :: Expr e
 lzero = builtinTerm LZero
 
+lzeroTY :: Expr e
+lzeroTY = levelTy
+
 lsuc :: Expr e
 lsuc = builtinTerm LSuc
+
+lsucTY :: Expr e
+lsucTY = FunTy (mkAbs "_" levelTy levelTy)
 
 lsucApp :: Expr e -> Expr e
 lsucApp = App lsuc
@@ -179,11 +192,17 @@ lsucApp = App lsuc
 lmax :: Expr e
 lmax = builtinTerm LMax
 
+lmaxTY :: Expr e
+lmaxTY = FunTy (mkAbs "_" levelTy (FunTy (mkAbs "_" levelTy levelTy)))
+
 lmaxApp :: Expr e -> Expr e -> Expr e
 lmaxApp l1 l2 = App (App lmax l1) l2
 
 typeTy :: Expr e
 typeTy = builtinTerm TypeTy
+
+typeTyTY :: Expr e
+typeTyTY = FunTy (mkAbs "_" levelTy (mkUnivTy (LitLevel 0)))
 
 mkUnivTy :: Expr e -> Expr e
 mkUnivTy = App typeTy
