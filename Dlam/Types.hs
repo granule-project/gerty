@@ -75,6 +75,14 @@ normalise e@LitLevel{} = pure e
 normalise e = error $ "normalise does not yet support '" <> pprint e <> "'"
 
 
+-- | Normalise the expression, performing basic type sanity checks.
+normaliseWithCheck :: (Substitutable m Identifier (Expr e), PrettyPrint e, Monad m, HasBinders m Identifier v, HasTyVal v (Maybe (Expr e)) (Expr e)) => Expr e -> m (Expr e)
+normaliseWithCheck expr@App{} = do
+  _ <- checkOrInferType Wild expr
+  normalise expr
+normaliseWithCheck expr = normalise expr
+
+
 ------------------------------
 ----- AST Type Inference -----
 ------------------------------
@@ -210,8 +218,8 @@ checkOrInferType t@(FunTy abT) expr@(Abs abE) =
 -- Application in type --
 -------------------------
 checkOrInferType t@App{} expr = do
-  t' <- normalise t
-  expr' <- normalise expr
+  t' <- normaliseWithCheck t
+  expr' <- normaliseWithCheck expr
   case (t', expr') of
     -- TODO: improve error system (2020-02-21)
     (App (Builtin TypeTy) l, App (Builtin TypeTy) l') -> do
