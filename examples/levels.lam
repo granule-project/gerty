@@ -16,3 +16,6 @@ type1 : Type (lsuc (lsuc lzero))
 type1 = Type 1
 
 type1' = Type (lsuc lzero)
+
+levelInf : Type _
+levelInf = Type 1
