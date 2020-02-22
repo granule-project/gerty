@@ -334,26 +334,25 @@ checkOrInferType t expr@(PairElim x y e1 e2) = do
             ProductTy ab -> pure ab
             -- TODO: improve error system (2020-02-20)
             t        -> error $ "Inferred a type '" <> pprint t <> "' for '" <> pprint e <> "' when a product type was expected."
-------------------------------------------
--- Function type with Lambda expression --
-------------------------------------------
-checkOrInferType t@(FunTy abT) expr@(Abs abE) =
-  case absTy abE of
-    Wild ->
-      case absTy abT of
-        Wild -> error $ concat
-                [ "Unable to determine a type for '", pprint (absVar abE)
-                , "' in the expression '", pprint expr, "'"]
-        ty -> checkOrInferType t (Abs (mkAbs (absVar abE) ty (absExpr abE)))
-    _    -> do
-      let x   = absVar abE
-          tyX = absTy  abE
-      _ <- ensureEqualTypes expr (absTy abT) tyX
-      _ <- inferUniverseLevel tyX
-      withAbsBinding abE $ do
-        absT <- substitute (absVar abT, Var x) (absExpr abT)
-        te <- checkOrInferType absT (absExpr abE)
-        pure $ FunTy (mkAbs x tyX te)
+------------------------
+-- Lambda abstraction --
+------------------------
+{-
+   G, x : A |- e : B
+   --------------------------------- :: Abs
+   G |- \(x : A) -> e : (x : A) -> B
+-}
+checkOrInferType t@(FunTy abT) expr@(Abs abE) = do
+  let x = absVar  abE
+      e = absExpr abE
+      tA = absTy abT
+
+  -- G, x : A |- e : B
+  let tB = absExpr abT
+  tB <- withTypedVariable x tA (checkOrInferType tB e)
+
+  -- G |- \x -> e : (x : A) -> B
+  ensureEqualTypes expr t (FunTy (mkAbs x tA tB))
 -------------------------
 -- Application in type --
 -------------------------
