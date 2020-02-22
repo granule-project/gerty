@@ -64,12 +64,15 @@ NL :: { () }
   : nl NL                     { }
   | nl                        { }
 
+Ident :: { Identifier }
+  : VAR { mkIdentFromSym $1 }
+
 Expr :: { [Option] -> Expr NoExt }
-  : let VAR '=' Expr in Expr
+  : let Ident '=' Expr in Expr
     { \opts ->
       if isML opts
-       then GenLet (mkIdentFromSym $2) ($4 opts) ($6 opts)
-       else App (Abs (mkAbs (mkIdentFromSym $2) Wild ($6 opts))) ($4 opts) }
+       then GenLet $2 ($4 opts) ($6 opts)
+       else App (Abs (mkAbs $2 Wild ($6 opts))) ($4 opts) }
 
   | Expr '->' Expr   { \opts -> FunTy (mkAbs ignoreVar ($1 opts) ($3 opts)) }
   | TyBindings '->' Expr { \opts -> foldr (\(n, ty) fty -> FunTy (mkAbs n ty fty)) ($3 opts) ($1 opts) }
@@ -80,9 +83,9 @@ Expr :: { [Option] -> Expr NoExt }
 
   | Expr '*' Expr   { \opts -> ProductTy (mkAbs ignoreVar ($1 opts) ($3 opts)) }
 
-  | '(' VAR ':' Expr ')' '*' Expr { \opts -> ProductTy (mkAbs (mkIdentFromSym $2) ($4 opts) ($7 opts)) }
+  | '(' Ident ':' Expr ')' '*' Expr { \opts -> ProductTy (mkAbs $2 ($4 opts) ($7 opts)) }
 
-  | let '(' VAR ',' VAR ')' '=' Expr in Expr { \opts -> PairElim (mkIdentFromSym $3) (mkIdentFromSym $5) ($8 opts) ($10 opts) }
+  | let '(' Ident ',' Ident ')' '=' Expr in Expr { \opts -> PairElim $3 $5 ($8 opts) ($10 opts) }
 
   | Expr ':' Expr  { \opts -> Sig ($1 opts) ($3 opts) }
 
@@ -96,7 +99,7 @@ Juxt :: { [Option] -> Expr NoExt }
 
 Atom :: { [Option] -> Expr NoExt }
   : '(' Expr ')'              { $2 }
-  | VAR                       { \opts -> Var $ mkIdentFromSym $1 }
+  | Ident                       { \opts -> Var $1 }
   | '_'                       { \opts -> Wild }
   | NAT                       { \opts -> LitLevel (natTokenToInt $1) }
   | '(' Expr ',' Expr ')'     { \opts -> Pair ($2 opts) ($4 opts) }
@@ -106,12 +109,12 @@ Atom :: { [Option] -> Expr NoExt }
 
 -- List of space-separated identifiers.
 VarsSpaced :: { [Identifier] }
-  : VAR            { [mkIdentFromSym $1] }
-  | VAR VarsSpaced { mkIdentFromSym $1 : $2 }
+  : Ident            { [$1] }
+  | Ident VarsSpaced { $1 : $2 }
 
 -- Arguments for a lambda term.
 LambdaArg :: { [Option] -> [(Identifier, Expr NoExt)] }
-  : VAR       { \opts -> [(mkIdentFromSym $1, Wild)] }
+  : Ident       { \opts -> [($1, Wild)] }
   | TyBinding { \opts -> $1 opts }
 
 LambdaArgs :: { [Option] -> [(Identifier, Expr NoExt)] }
@@ -120,9 +123,9 @@ LambdaArgs :: { [Option] -> [(Identifier, Expr NoExt)] }
 
 -- syntax for bindings in a type
 TyBinding :: { [Option] -> [(Identifier, Expr NoExt)] }
-  : '(' VAR VarsSpaced ':' Expr ')'
-    { \opts -> let ty = $5 opts in fmap (\n -> (n, ty)) (mkIdentFromSym $2 : $3) }
-  | '(' VAR ':' Expr ')'        { \opts -> [((mkIdentFromSym $2), $4 opts)] }
+  : '(' Ident VarsSpaced ':' Expr ')'
+    { \opts -> let ty = $5 opts in fmap (\n -> (n, ty)) ($2 : $3) }
+  | '(' Ident ':' Expr ')'        { \opts -> [($2, $4 opts)] }
 
 TyBindings :: { [Option] -> [(Identifier, Expr NoExt)] }
   : TyBinding            { \opts -> $1 opts }
