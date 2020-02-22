@@ -230,19 +230,41 @@ checkOrInferType t expr@(Var x) = do
 ------------------------
 -- Pi-type expression --
 ------------------------
+{-
+   G |- A : Type l1
+   G, x : A |- B : Type l2
+   ------------------------------------- :: FunTy
+   G |- (x : A) -> B : Type (lmax l1 l2)
+-}
 checkOrInferType t expr@(FunTy ab) = do
-  k1 <- inferUniverseLevel (absTy ab)
-  withAbsBinding ab $ do
-    k2 <- inferUniverseLevel (absExpr ab)
-    normalise (lmaxApp k1 k2) >>= ensureEqualTypes expr t . mkUnivTy
+  -- G |- A : Type l1
+  l1 <- inferUniverseLevel (absTy ab)
+
+  -- G, x : A |- B : Type l2
+  l2 <- withAbsBinding ab $ inferUniverseLevel (absExpr ab)
+
+  -- G |- (x : A) -> B : Type (lmax l1 l2)
+  lmaxl1l2 <- normalise (lmaxApp l1 l2)
+  ensureEqualTypes expr t (mkUnivTy lmaxl1l2)
 ---------------------------
 -- Dependent tensor type --
 ---------------------------
+{-
+   G |- A : Type l1
+   G, x : A |- B : Type l2
+   ------------------------------------ :: ProductTy
+   G |- (x : A) * B : Type (lmax l1 l2)
+-}
 checkOrInferType t expr@(ProductTy ab) = do
-  k1 <- inferUniverseLevel (absTy ab)
-  withAbsBinding ab $ do
-    k2 <- inferUniverseLevel (absExpr ab)
-    normalise (lmaxApp k1 k2) >>= ensureEqualTypes expr t . mkUnivTy
+  -- G |- A : Type l1
+  l1 <- inferUniverseLevel (absTy ab)
+
+  -- G, x : A |- B : Type l2
+  l2 <- withAbsBinding ab $ inferUniverseLevel (absExpr ab)
+
+  -- G |- (x : A) * B : Type (lmax l1 l2)
+  lmaxl1l2 <- normalise (lmaxApp l1 l2)
+  ensureEqualTypes expr t (mkUnivTy lmaxl1l2)
 -----------------------
 -- Pair introduction --
 -----------------------
