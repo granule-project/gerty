@@ -121,9 +121,13 @@ VarsSpaced :: { [Identifier] }
   | VAR VarsSpaced { mkIdentFromSym $1 : $2 }
 
 -- syntax for bindings in a type
-TyBindings :: { [Option] -> [(Identifier, Expr NoExt)] }
+TyBinding :: { [Option] -> [(Identifier, Expr NoExt)] }
   : '(' VarsSpaced ':' Expr ')' { \opts -> let ty = $4 opts in fmap (\n -> (n, ty)) $2 }
   | '(' VAR ':' Expr ')'        { \opts -> [((mkIdentFromSym $2), $4 opts)] }
+
+TyBindings :: { [Option] -> [(Identifier, Expr NoExt)] }
+  : TyBinding            { \opts -> $1 opts }
+  | TyBinding TyBindings { \opts -> $1 opts <> $2 opts }
 
 {
 

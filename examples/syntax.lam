@@ -19,3 +19,8 @@ ftyDependent = \l -> \x -> x
 -- can group them as follows:
 ftyDependentSameGrouped : (l1 l2 : Level) -> Type l1 -> Type l2 -> Type l1
 ftyDependentSameGrouped = \l1 -> \l2 -> \x -> \y -> x
+
+-- similarly, if you have multiple named binders, you can group them
+-- without needing to put an arrow between them
+ftyDependentMultiBinders : (l : Level) (a : Type l) -> a -> a
+ftyDependentMultiBinders = \l -> \a -> \x -> x
