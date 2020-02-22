@@ -212,15 +212,22 @@ checkOrInferType t expr@(Builtin e) =
 -------------------------
 -- Variable expression --
 -------------------------
+{-
+   x : A in G
+   G |- A : Type l
+   --------------- :: Var
+   G |- x : A
+-}
 checkOrInferType t expr@(Var x) = do
-  xTy <- getBinderType x
-  case xTy of
-    -- TODO: update this to use a better error system (2020-02-19)
-    Nothing -> unknownIdentifierErr x
-    Just t'  -> do
-      typesEqual <- equalExprs t t'
-      if typesEqual then pure t'
-      else tyMismatch expr t t'
+  -- x : A in G
+  tA <- getBinderType x >>= maybe (unknownIdentifierErr x) pure
+
+  -- G |- A : Type l
+  _l <- inferUniverseLevel tA
+  tA <- normalise tA
+
+  -- G |- x : A
+  ensureEqualTypes expr t tA
 ------------------------
 -- Pi-type expression --
 ------------------------
