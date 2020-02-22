@@ -3,6 +3,8 @@ module Dlam.Types
   ( doNASTInference
   ) where
 
+import Control.Monad (when)
+
 import Dlam.Binders
   ( HasBinders(..)
   , HasTyVal(fromTyVal)
@@ -95,7 +97,7 @@ normalise e = error $ "normalise does not yet support '" <> pprint e <> "'"
 
 
 -- | Normalise the expression, performing basic type sanity checks.
-normaliseWithCheck :: (Substitutable m Identifier (Expr e), PrettyPrint e, Monad m, HasBinders m Identifier v, HasTyVal v (Maybe (Expr e)) (Expr e)) => Expr e -> m (Expr e)
+normaliseWithCheck :: (Term e, Substitutable m Identifier (Expr e), PrettyPrint e, Monad m, HasBinders m Identifier v, HasTyVal v (Maybe (Expr e)) (Expr e)) => Expr e -> m (Expr e)
 normaliseWithCheck expr@App{} = do
   _ <- synthType expr
   normalise expr
@@ -137,7 +139,7 @@ equalExprs e1 e2 = do
 
 -- | Attempt to infer the types of a definition, and check this against the declared
 -- | type, if any.
-doNStmtInference :: (PrettyPrint e, Monad m, Substitutable m Identifier (Expr e), HasBinders m Identifier v, HasTyVal v (Maybe (Expr e)) (Expr e)) => NStmt e -> m (NStmt e)
+doNStmtInference :: (Term e, PrettyPrint e, Monad m, Substitutable m Identifier (Expr e), HasBinders m Identifier v, HasTyVal v (Maybe (Expr e)) (Expr e)) => NStmt e -> m (NStmt e)
 doNStmtInference (Decl v t e) = do
   -- make sure that the definition's type is actually a type
   checkExprValidForSignature t
@@ -150,19 +152,19 @@ doNStmtInference (Decl v t e) = do
     -- |
     -- | This usually means that the expression is a type, but allows
     -- | for the possibility of holes that haven't yet been resolved.
-    checkExprValidForSignature :: (Monad m, PrettyPrint e, Substitutable m Identifier (Expr e), HasBinders m Identifier v, HasTyVal v (Maybe (Expr e)) (Expr e)) => Expr e -> m ()
+    checkExprValidForSignature :: (Term e, Monad m, PrettyPrint e, Substitutable m Identifier (Expr e), HasBinders m Identifier v, HasTyVal v (Maybe (Expr e)) (Expr e)) => Expr e -> m ()
     checkExprValidForSignature Wild = pure ()
     checkExprValidForSignature expr = inferUniverseLevel expr >> pure ()
 
 
 -- | Attempt to infer the types of each definition in the AST, failing if a type
 -- | mismatch is found.
-doNASTInference :: (PrettyPrint e, Monad m, Substitutable m Identifier (Expr e), HasBinders m Identifier v, HasTyVal v (Maybe (Expr e)) (Expr e)) => NAST e -> m (NAST e)
+doNASTInference :: (Term e, PrettyPrint e, Monad m, Substitutable m Identifier (Expr e), HasBinders m Identifier v, HasTyVal v (Maybe (Expr e)) (Expr e)) => NAST e -> m (NAST e)
 doNASTInference (NAST ds) = fmap NAST $ mapM doNStmtInference ds
 
 
 -- | Infer a level for the given type.
-inferUniverseLevel :: (Monad m, PrettyPrint e, Substitutable m Identifier (Expr e), HasBinders m Identifier v, HasTyVal v (Maybe (Expr e)) (Expr e)) => Expr e -> m (Expr e)
+inferUniverseLevel :: (Term e, Monad m, PrettyPrint e, Substitutable m Identifier (Expr e), HasBinders m Identifier v, HasTyVal v (Maybe (Expr e)) (Expr e)) => Expr e -> m (Expr e)
 inferUniverseLevel e = do
   u <- synthType e
   norm <- normalise u
@@ -191,7 +193,7 @@ ensureEqualTypes expr tyExpected tyActual = do
 
 -- | 'checkOrInferType ty ex' checks that the type of 'ex' matches 'ty', or infers
 -- | it 'ty' is a wild. Evaluates to the calculated type.
-checkOrInferType :: (PrettyPrint ext, Monad m, Substitutable m Identifier (Expr ext), HasBinders m Identifier v, HasTyVal v (Maybe (Expr ext)) (Expr ext)) =>
+checkOrInferType :: (Term ext, PrettyPrint ext, Monad m, Substitutable m Identifier (Expr ext), HasBinders m Identifier v, HasTyVal v (Maybe (Expr ext)) (Expr ext)) =>
   Expr ext -> Expr ext -> m (Expr ext)
 --------------
 -- Builtins --
@@ -295,14 +297,39 @@ checkOrInferType t@(ProductTy abT) expr@(Pair e1 e2) = do
 ---------------------
 -- Pair eliminator --
 ---------------------
-checkOrInferType t expr@(PairElim v1 v2 e1 e2) = do
-  ab <- inferProductTy e1
-  withTypedVariable v1 (absTy ab) $ do
-   sndTy <- substitute (absVar ab, e1) (absExpr ab)
-   withTypedVariable v2 sndTy $ do
-     checkOrInferType t e2
-  where inferProductTy e = do
-          t <- synthType e >>= normalise
+{-
+   x, y nin FV(C)
+   G |- t1 : (x : A) * B
+   G, x : A |- B : Type l
+   G, x : A, y : B |- t2 : C
+   ------------------------------ :: PairElim
+   G |- let (x, y) = t1 in t2 : C
+-}
+checkOrInferType t expr@(PairElim x y e1 e2) = do
+
+  -- G |- t1 : (x : A) * B
+  e1Ty <- inferProductTy x e1
+  tA <- substitute (absVar e1Ty, Var x) (absTy e1Ty)
+  tB <- substitute (absVar e1Ty, Var x) (absExpr e1Ty)
+
+  -- G, x : A |- B : Type l
+  _l <- withTypedVariable x tA (inferUniverseLevel tB)
+
+  -- G, x : A, y : B |- t2 : C
+  tC <- withTypedVariable x tA $ withTypedVariable y tB $ checkOrInferType t e2
+
+  -- x, y nin FV(C)
+  when (x `elem` freeVars tC || y `elem` freeVars tC) $
+       error $ concat [ "neither '", pprint x, "' nor '", pprint y
+                      , "' are allowed to occur in the type of '", pprint e2
+                      , "' (which was found to be '", pprint tC, "'), but one or more of them did."
+                      ]
+
+  -- G |- let (x, y) = t1 in t2 : C
+  ensureEqualTypes expr t tC
+
+  where inferProductTy x e = do
+          t <- checkOrInferType (ProductTy (mkAbs x Wild Wild)) e >>= normalise
           case t of
             ProductTy ab -> pure ab
             -- TODO: improve error system (2020-02-20)
@@ -401,6 +428,6 @@ checkOrInferType t e =
 
 
 -- | Attempt to synthesise a type for the given expression.
-synthType :: (PrettyPrint ext, Monad m, Substitutable m Identifier (Expr ext), HasBinders m Identifier v, HasTyVal v (Maybe (Expr ext)) (Expr ext)) =>
+synthType :: (Term ext, PrettyPrint ext, Monad m, Substitutable m Identifier (Expr ext), HasBinders m Identifier v, HasTyVal v (Maybe (Expr ext)) (Expr ext)) =>
   Expr ext -> m (Expr ext)
 synthType = checkOrInferType Wild
