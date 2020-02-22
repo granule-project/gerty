@@ -75,6 +75,7 @@ normalise (PairElim v1 v2 e1 e2) = do
   case e1' of
     (Pair l r) -> substitute (v1, l) e2 >>= substitute (v2, r) >>= normalise
     _          -> pure $ PairElim v1 v2 e1' e2
+normalise (Pair e1 e2) = Pair <$> normalise e1 <*> normalise e2
 normalise (Builtin LZero) = pure $ LitLevel 0
 normalise e@Builtin{} = pure e
 normalise e@LitLevel{} = pure e
