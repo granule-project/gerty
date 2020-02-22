@@ -24,7 +24,7 @@ import Dlam.PrettyPrint
 
 -- | Indicate that an identifier is not known to be defined.
 unknownIdentifierErr :: Identifier -> m a
-unknownIdentifierErr x = error $ "unknown identifier " <> show x
+unknownIdentifierErr x = error $ "unknown identifier '" <> pprint x <> "'"
 
 
 -------------------------
