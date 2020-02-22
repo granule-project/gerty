@@ -3,5 +3,9 @@
 uncurry : (l : Level) -> (a : Type l) -> (b : Type l) -> (c : Type l) -> (a -> b -> c) -> (a * b) -> c
 uncurry = \l -> \a -> \b -> \c -> \f -> \p -> let (x, y) = p in f x y
 
+-- Example converting a function from pairs to a 2-arity function
+curry : (l : Level) -> (a : Type l) -> (b : Type l) -> (c : Type l) -> (a * b -> c) -> a -> b -> c
+curry = \l -> \a -> \b -> \c -> \f -> \x -> \y -> f (x, y)
+
 pairId : (l : Level) -> (a : Type l) -> (b : Type l) -> (a * b) -> (a * b)
 pairId = \l -> \a -> \b -> \p -> let (x, y) = p in (x, y)
