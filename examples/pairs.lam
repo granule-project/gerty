@@ -19,6 +19,14 @@ pairTy = \l1 -> \l2 -> \a -> \b -> (x : a) * b x
 mkPair : (l1 : Level) -> (l2 : Level) -> (a : Type l1) -> (b : a -> Type l2) -> (x : a) -> b x -> (x : a) * b x
 mkPair = \l1 -> \l2 -> \a -> \b -> \x -> \y -> (x, y)
 
+-- The first projection
+fst : (l1 l2 : Level) (a : Type l1) (b : a -> Type l2) -> (x : a) * b x -> a
+fst = \l1 l2 a b p -> let (x, y) = p in x
+
+-- First projection on non-dependent pairs
+fst' : (l1 l2 : Level) (a : Type l1) (b : Type l2) -> a * b -> a
+fst' = \l1 l2 a b p -> fst l1 l2 a (\x -> b) p
+
 -- Pair eliminator
 letTen : (l1 l2 l3 : Level) (a : Type l1) (b : a -> Type l2) (c : Type l3) -> ((x : a) -> b x -> c) -> (x : a) * b x -> c
 letTen = \l1 l2 l3 a b c f p -> let (x, y) = p in f x y
