@@ -1,5 +1,6 @@
 -- Examples for the builtin pairs
 
+-- Example converting a 2-arity function to a function on pairs
 uncurry : (l : Level) -> (a : Type l) -> (b : Type l) -> (c : Type l) -> (a -> b -> c) -> (a * b) -> c
 uncurry = \l -> \a -> \b -> \c -> \f -> \p -> let (x, y) = p in f x y
 
