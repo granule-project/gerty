@@ -96,14 +96,6 @@ normalise e@LitLevel{} = pure e
 normalise e = error $ "normalise does not yet support '" <> pprint e <> "'"
 
 
--- | Normalise the expression, performing basic type sanity checks.
-normaliseWithCheck :: (Term e, Substitutable m Identifier (Expr e), PrettyPrint e, Monad m, HasBinders m Identifier v, HasTyVal v (Maybe (Expr e)) (Expr e)) => Expr e -> m (Expr e)
-normaliseWithCheck expr@App{} = do
-  _ <- synthType expr
-  normalise expr
-normaliseWithCheck expr = normalise expr
-
-
 ------------------------------
 ----- AST Type Inference -----
 ------------------------------
@@ -353,38 +345,6 @@ checkOrInferType t@(FunTy abT) expr@(Abs abE) = do
 
   -- G |- \x -> e : (x : A) -> B
   ensureEqualTypes expr t (FunTy (mkAbs x tA tB))
--------------------------
--- Application in type --
--------------------------
-checkOrInferType t@App{} expr = do
-  t' <- normaliseWithCheck t
-  expr' <- normaliseWithCheck expr
-  case (t', expr') of
-    -- TODO: improve error system (2020-02-21)
-    (App (Builtin TypeTy) l, App (Builtin TypeTy) l') -> do
-      ln <- normalise l
-      ln' <- normalise l'
-      case (ln, ln') of
-        (Wild, LitLevel{}) -> synthType expr'
-        (LitLevel n, LitLevel n') ->
-          if n == succ n' then pure t' else tyMismatch expr t (App typeTy (LitLevel (succ n')))
-        (LitLevel{}, _) ->
-          error $ concat [ "When checking the expression '", pprint expr
-                         , "' against the type '", pprint t
-                         , "' I was expecting '", pprint ln'
-                         , "' to be a level, but I couldn't determine that it was."]
-        (_, LitLevel{}) ->
-          error $ concat [ "When checking the expression '", pprint expr
-                         , "' against the type '", pprint t
-                         , "' I was expecting '", pprint ln
-                         , "' to be a level, but I couldn't determine that it was."]
-        (_, _) ->
-          error $ concat [ "When checking the expression '", pprint expr
-                         , "' against the type '", pprint t
-                         , "' I was expecting '", pprint ln, "' and '", pprint ln'
-                         , "' to be levels, but I couldn't determine that they were."]
-    (App{}, _) -> error $ "Don't yet know how to check the type of '" <> pprint expr <> "' against the application '" <> pprint t <> "'"
-    _     -> checkOrInferType t' expr
 ----------------------------
 -- Application expression --
 ----------------------------
