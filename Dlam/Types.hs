@@ -139,10 +139,22 @@ equalExprs e1 e2 = do
 -- | type, if any.
 doNStmtInference :: (PrettyPrint e, Monad m, Substitutable m Identifier (Expr e), HasBinders m Identifier v, HasTyVal v (Maybe (Expr e)) (Expr e)) => NStmt e -> m (NStmt e)
 doNStmtInference (Decl v t e) = do
+  -- make sure that the definition's type is actually a type
+  checkExprValidForSignature t
+
   setBinder (mkIdent v) (fromTyVal (Just e, t))
   exprTy <- checkOrInferType t e
   setBinder (mkIdent v) (fromTyVal (Just e, exprTy))
   pure (Decl v exprTy e)
+  where
+    -- | Check that the given expression is valid as a type signature.
+    -- |
+    -- | This usually means that the expression is a type, but allows
+    -- | for the possibility of holes that haven't yet been resolved.
+    checkExprValidForSignature :: (Monad m, PrettyPrint e, Substitutable m Identifier (Expr e), HasBinders m Identifier v, HasTyVal v (Maybe (Expr e)) (Expr e)) => Expr e -> m ()
+    checkExprValidForSignature Wild = pure ()
+    checkExprValidForSignature expr = inferUniverseLevel expr >> pure ()
+
 
 -- | Attempt to infer the types of each definition in the AST, failing if a type
 -- | mismatch is found.
