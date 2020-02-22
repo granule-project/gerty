@@ -1,0 +1,16 @@
+---------------------------------------------------
+----- Examples of various parts of the syntax -----
+---------------------------------------------------
+
+--------------------
+-- Function Types --
+--------------------
+
+-- the simplest function type has no named binders
+ftySimple : Type 0 -> Type 0
+ftySimple = \x -> x
+
+-- we can then use named binders to allow later parts of the type to depend
+-- upon earlier components
+ftyDependent : (l : Level) -> Type l -> Type l
+ftyDependent = \l -> \x -> x
