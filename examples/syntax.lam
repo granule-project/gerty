@@ -14,3 +14,8 @@ ftySimple = \x -> x
 -- upon earlier components
 ftyDependent : (l : Level) -> Type l -> Type l
 ftyDependent = \l -> \x -> x
+
+-- when you have multiple named bindings of the same type, you
+-- can group them as follows:
+ftyDependentSameGrouped : (l1 l2 : Level) -> Type l1 -> Type l2 -> Type l1
+ftyDependentSameGrouped = \l1 -> \l2 -> \x -> \y -> x

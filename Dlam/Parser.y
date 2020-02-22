@@ -78,7 +78,7 @@ Expr :: { [Option] -> Expr NoExt }
        else App (Abs (mkAbs (mkIdentFromSym $2) Wild ($6 opts))) ($4 opts) }
 
   | Expr '->' Expr   { \opts -> FunTy (mkAbs ignoreVar ($1 opts) ($3 opts)) }
-  | '(' VAR ':' Expr ')' '->' Expr { \opts -> FunTy (mkAbs (mkIdentFromSym $2) ($4 opts) ($7 opts)) }
+  | TyBindings '->' Expr { \opts -> foldr (\(n, ty) fty -> FunTy (mkAbs n ty fty)) ($3 opts) ($1 opts) }
 
   | '\\' '(' VAR ':' Expr ')' '->' Expr
     { \opts -> Abs (mkAbs (mkIdentFromSym $3) ($5 opts) ($8 opts)) }
@@ -114,6 +114,16 @@ Atom :: { [Option] -> Expr NoExt }
 
   -- For later
   -- | '?' { Hole }
+
+-- List of space-separated identifiers.
+VarsSpaced :: { [Identifier] }
+  : VAR            { [mkIdentFromSym $1] }
+  | VAR VarsSpaced { mkIdentFromSym $1 : $2 }
+
+-- syntax for bindings in a type
+TyBindings :: { [Option] -> [(Identifier, Expr NoExt)] }
+  : '(' VarsSpaced ':' Expr ')' { \opts -> let ty = $4 opts in fmap (\n -> (n, ty)) $2 }
+  | '(' VAR ':' Expr ')'        { \opts -> [((mkIdentFromSym $2), $4 opts)] }
 
 {
 
