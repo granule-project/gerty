@@ -201,7 +201,7 @@ checkOrInferType t expr@(Builtin e) =
       -- lsuc : Level -> Level
       LSuc  -> lsucTY
 
-      -- Type : Level -> Type 0
+      -- Type : (l : Level) -> Type (lsuc l)
       TypeTy -> typeTyTY
 
       -- Level : Type 0

@@ -216,7 +216,7 @@ typeTy :: Expr e
 typeTy = builtinTerm TypeTy
 
 typeTyTY :: Expr e
-typeTyTY = FunTy (mkAbs ignoreVar levelTy (mkUnivTy (LitLevel 0)))
+typeTyTY = let l = mkIdent "l" in FunTy (mkAbs l levelTy (mkUnivTy (lsucApp (Var l))))
 
 mkUnivTy :: Expr e -> Expr e
 mkUnivTy = App typeTy
