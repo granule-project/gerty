@@ -97,7 +97,7 @@ normalise e = error $ "normalise does not yet support '" <> pprint e <> "'"
 -- | Normalise the expression, performing basic type sanity checks.
 normaliseWithCheck :: (Substitutable m Identifier (Expr e), PrettyPrint e, Monad m, HasBinders m Identifier v, HasTyVal v (Maybe (Expr e)) (Expr e)) => Expr e -> m (Expr e)
 normaliseWithCheck expr@App{} = do
-  _ <- checkOrInferType Wild expr
+  _ <- synthType expr
   normalise expr
 normaliseWithCheck expr = normalise expr
 
@@ -153,7 +153,7 @@ doNASTInference (NAST ds) = fmap NAST $ mapM doNStmtInference ds
 -- | Infer a level for the given type.
 inferUniverseLevel :: (Monad m, PrettyPrint e, Substitutable m Identifier (Expr e), HasBinders m Identifier v, HasTyVal v (Maybe (Expr e)) (Expr e)) => Expr e -> m (Expr e)
 inferUniverseLevel e = do
-  u <- checkOrInferType Wild e
+  u <- synthType e
   norm <- normalise u
   case norm of
     (App (Builtin TypeTy) l) -> pure l
@@ -244,7 +244,7 @@ checkOrInferType t expr@(PairElim v1 v2 e1 e2) = do
    withTypedVariable v2 sndTy $ do
      checkOrInferType t e2
   where inferProductTy e = do
-          t <- checkOrInferType Wild e >>= normalise
+          t <- synthType e >>= normalise
           case t of
             ProductTy ab -> pure ab
             -- TODO: improve error system (2020-02-20)
@@ -281,7 +281,7 @@ checkOrInferType t@App{} expr = do
       ln <- normalise l
       ln' <- normalise l'
       case (ln, ln') of
-        (Wild, LitLevel{}) -> checkOrInferType Wild expr'
+        (Wild, LitLevel{}) -> synthType expr'
         (LitLevel n, LitLevel n') ->
           if n == succ n' then pure t' else tyMismatch expr t (App typeTy (LitLevel (succ n')))
         (LitLevel{}, _) ->
@@ -316,7 +316,7 @@ checkOrInferType t expr@(App e1 e2) = do
         appTy <- substitute (absVar ab, e2) (absExpr ab)
         ensureEqualTypes expr t appTy
   where inferFunTy e = do
-          t <- checkOrInferType Wild e >>= normalise
+          t <- synthType e >>= normalise
           case t of
             FunTy ab -> pure ab
             -- TODO: improve error system (2020-02-20)
@@ -340,3 +340,9 @@ checkOrInferType Wild expr =
 ----------------------------------
 checkOrInferType t e =
   error $ "Error when checking '" <> pprint e <> "' has type '" <> pprint t <> "'"
+
+
+-- | Attempt to synthesise a type for the given expression.
+synthType :: (PrettyPrint ext, Monad m, Substitutable m Identifier (Expr ext), HasBinders m Identifier v, HasTyVal v (Maybe (Expr ext)) (Expr ext)) =>
+  Expr ext -> m (Expr ext)
+synthType = checkOrInferType Wild
