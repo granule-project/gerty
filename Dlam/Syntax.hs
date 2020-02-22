@@ -227,7 +227,6 @@ mkUnivTy = App typeTy
 class Term t where
   boundVars :: t -> Set.Set Identifier
   freeVars  :: t -> Set.Set Identifier
-  mkVar     :: Identifier -> t
 
 -- | For minimal language with no extensions.
 data NoExt
@@ -275,5 +274,3 @@ instance Term (Expr NoExt) where
   freeVars Wild                          = Set.empty
   freeVars LitLevel{}                    = Set.empty
   freeVars Builtin{}                     = Set.empty
-
-  mkVar = Var
