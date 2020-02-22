@@ -32,11 +32,23 @@ unknownIdentifierErr x = error $ "unknown identifier '" <> pprint x <> "'"
 -------------------------
 
 
+-- | Execute the action with the given identifier bound with the given type.
+withTypedVariable :: (Monad m, HasTyVal v (Maybe t) (Expr e), HasBinders m Identifier v) =>
+  Identifier -> Expr e -> m a -> m a
+withTypedVariable v t = withBinding (v, fromTyVal (Nothing, t))
+
+
+-- | Execute the action with the binder from the abstraction active.
+withAbsBinding :: (Monad m, HasTyVal v (Maybe t) (Expr e), HasBinders m Identifier v) =>
+  Abstraction e -> m a -> m a
+withAbsBinding ab = withTypedVariable (absVar ab) (absTy ab)
+
+
 -- | Normalise an abstraction via a series of reductions.
 normaliseAbs :: (Substitutable m Identifier (Expr e), PrettyPrint e, Monad m, HasBinders m Identifier v, HasTyVal v (Maybe (Expr e)) (Expr e)) => Abstraction e -> m (Abstraction e)
 normaliseAbs ab = do
   t <- normalise (absTy ab)
-  e <- withBinding (absVar ab, (fromTyVal (Nothing, t))) (normalise (absExpr ab))
+  e <- withAbsBinding ab (normalise (absExpr ab))
   pure (mkAbs (absVar ab) t e)
 
 
@@ -119,7 +131,7 @@ equalExprs e1 e2 = do
           -- then check:
           -- a = c and b = d' (with (x : a) in scope)
           e2s <- substitute (absVar ab2, Var (absVar ab1)) (absExpr ab2)
-          withBinding (absVar ab1, (fromTyVal (Nothing, absTy ab1))) $
+          withAbsBinding ab1 $
             (&&) <$> equalExprs (absTy ab1) (absTy ab2) <*> equalExprs (absExpr ab1) e2s
 
 
@@ -198,7 +210,7 @@ checkOrInferType t expr@(Var x) = do
 ------------------------
 checkOrInferType t expr@(FunTy ab) = do
   k1 <- inferUniverseLevel (absTy ab)
-  withBinding (absVar ab, (fromTyVal (Nothing, absTy ab))) $ do
+  withAbsBinding ab $ do
     k2 <- inferUniverseLevel (absExpr ab)
     normalise (lmaxApp k1 k2) >>= ensureEqualTypes expr t . mkUnivTy
 ---------------------------
@@ -206,7 +218,7 @@ checkOrInferType t expr@(FunTy ab) = do
 ---------------------------
 checkOrInferType t expr@(ProductTy ab) = do
   k1 <- inferUniverseLevel (absTy ab)
-  withBinding (absVar ab, (fromTyVal (Nothing, absTy ab))) $ do
+  withAbsBinding ab $ do
     k2 <- inferUniverseLevel (absExpr ab)
     normalise (lmaxApp k1 k2) >>= ensureEqualTypes expr t . mkUnivTy
 -----------------------
@@ -218,7 +230,7 @@ checkOrInferType (ProductTy abT) expr@(Pair e1 e2) = do
       tyX = absTy  abT
   _ <- ensureEqualTypes expr (absTy abT) e1Ty
   _ <- inferUniverseLevel e1Ty
-  withBinding (x, (fromTyVal (Nothing, tyX))) $ do
+  withAbsBinding abT $ do
     absT <- substitute (x, e1) (absExpr abT)
     te <- checkOrInferType absT e2
     pure $ ProductTy (mkAbs x tyX te)
@@ -227,9 +239,9 @@ checkOrInferType (ProductTy abT) expr@(Pair e1 e2) = do
 ---------------------
 checkOrInferType t expr@(PairElim v1 v2 e1 e2) = do
   ab <- inferProductTy e1
-  withBinding (v1, (fromTyVal (Nothing, absTy ab))) $ do
+  withTypedVariable v1 (absTy ab) $ do
    sndTy <- substitute (absVar ab, e1) (absExpr ab)
-   withBinding (v2, (fromTyVal (Nothing, sndTy))) $ do
+   withTypedVariable v2 sndTy $ do
      checkOrInferType t e2
   where inferProductTy e = do
           t <- checkOrInferType Wild e >>= normalise
@@ -253,7 +265,7 @@ checkOrInferType t@(FunTy abT) expr@(Abs abE) =
           tyX = absTy  abE
       _ <- ensureEqualTypes expr (absTy abT) tyX
       _ <- inferUniverseLevel tyX
-      withBinding (x, (fromTyVal (Nothing, tyX))) $ do
+      withAbsBinding abE $ do
         absT <- substitute (absVar abT, Var x) (absExpr abT)
         te <- checkOrInferType absT (absExpr abE)
         pure $ FunTy (mkAbs x tyX te)
@@ -298,7 +310,7 @@ checkOrInferType t expr@(App e1 e2) = do
   case expr' of
     (App (Builtin TypeTy) (LitLevel n)) -> ensureEqualTypes expr t (mkUnivTy (LitLevel (succ n)))
     _ -> do
-      withBinding (absVar ab, (fromTyVal (Nothing, absTy ab))) $ do
+      withAbsBinding ab $ do
         argTy <- checkOrInferType (absTy ab) e2
         _ <- ensureEqualTypes e1 (absTy ab) argTy
         appTy <- substitute (absVar ab, e2) (absExpr ab)
