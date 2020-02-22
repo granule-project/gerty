@@ -24,3 +24,17 @@ ftyDependentSameGrouped = \l1 -> \l2 -> \x -> \y -> x
 -- without needing to put an arrow between them
 ftyDependentMultiBinders : (l : Level) (a : Type l) -> a -> a
 ftyDependentMultiBinders = \l -> \a -> \x -> x
+
+-------------------------
+-- Lambda Abstractions --
+-------------------------
+
+-- Lambda abstractions are introduced with a backslash,
+-- followed by an argument, then the arrow and result expression.
+lamSimple : Type 0 -> Type 0
+lamSimple = \x -> x
+
+-- you can use 'Church style' to give explicit types to the
+-- arguments if you desire.
+lamChurch : Type 0 -> Type 0
+lamChurch = \(x : Type 0) -> x
