@@ -59,7 +59,7 @@ normalise (Var x) = do
   val <- getBinderValue x
   case val of
     -- TODO: improve error system (2020-02-20)
-    Nothing -> unknownIdentifierErr x
+    Nothing -> pure $ Var x
     Just Nothing  -> pure $ Var x
     Just (Just e) -> normalise e
 normalise (FunTy ab) = FunTy <$> normaliseAbs ab
