@@ -23,10 +23,11 @@ newtype BindV e = BindV { getBindV :: (Maybe (Expr e), Expr e) }
 instance (Show e) => Show (BindV e) where
   show = show . getBindV
 
-type Context = [(Identifier, BindV NoExt)]
+type Context = M.Map Identifier (BindV NoExt)
 
 builtins :: Context
-builtins = [ (mkIdent "Type",  BindV (Just typeTy, typeTyTY))
+builtins = M.fromList
+           [ (mkIdent "Type",  BindV (Just typeTy, typeTyTY))
            , (mkIdent "Level", BindV (Just levelTy, levelTyTY))
            , (mkIdent "lzero", BindV (Just lzero, lzeroTY))
            , (mkIdent "lsuc", BindV (Just lsuc, lsucTY))
@@ -43,10 +44,10 @@ newtype Prog a =
 -- Example instance where identifiers are mapped to types
 -- and (optional) definitions via a list.
 instance HasBinders Prog Identifier (BindV NoExt) where
-  getBindings = M.fromList . snd <$> get
+  getBindings = snd <$> get
   setBinder x e = do
     (count, ctx) <- get
-    put (count, ((x, e) : ctx))
+    put (count, M.insert x e ctx)
   preservingBindings m = get >>= \old -> m <* put old
 
 instance HasTyVal (BindV e) (Maybe (Expr e)) (Expr e) where
