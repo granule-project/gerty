@@ -92,8 +92,6 @@ Expr :: { [Option] -> Expr NoExt }
 
   | Expr ':' Expr  { \opts -> Sig ($1 opts) ($3 opts) }
 
-  | '_'            { \opts -> Wild }
-
   | Juxt
     { $1 }
 
