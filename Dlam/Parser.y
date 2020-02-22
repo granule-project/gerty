@@ -93,9 +93,6 @@ Expr :: { [Option] -> Expr NoExt }
 
   | let '(' VAR ',' VAR ')' '=' Expr in Expr { \opts -> PairElim (mkIdentFromSym $3) (mkIdentFromSym $5) ($8 opts) ($10 opts) }
 
-  | '(' Expr ',' Expr ')' { \opts -> Pair ($2 opts) ($4 opts) }
-
-
   | Expr ':' Expr  { \opts -> Sig ($1 opts) ($3 opts) }
 
   | '_'            { \opts -> Wild }
@@ -113,6 +110,7 @@ Atom :: { [Option] -> Expr NoExt }
   | VAR                       { \opts -> Var $ mkIdentFromSym $1 }
   | '_'                       { \opts -> Wild }
   | NAT                       { \opts -> LitLevel (natTokenToInt $1) }
+  | '(' Expr ',' Expr ')'     { \opts -> Pair ($2 opts) ($4 opts) }
 
   -- For later
   -- | '?' { Hole }
