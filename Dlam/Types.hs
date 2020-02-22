@@ -318,6 +318,11 @@ checkOrInferType t expr@LitLevel{} = ensureEqualTypes expr t levelTy
 --------------------------------------------
 checkOrInferType Wild expr@(Abs ab) = do
   checkOrInferType (FunTy (mkAbs (absVar ab) (absTy ab) Wild)) expr
+-------------------------------------
+-- When we don't know how to synth --
+-------------------------------------
+checkOrInferType Wild expr =
+  error $ "I was asked to try and synthesise a type for '" <> pprint expr <> "' but I wasn't able to do so."
 ----------------------------------
 -- Currently unsupported checks --
 ----------------------------------
