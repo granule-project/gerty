@@ -142,7 +142,6 @@ doNStmtInference (Decl v t e) = do
   -- make sure that the definition's type is actually a type
   checkExprValidForSignature t
 
-  setBinder (mkIdent v) (fromTyVal (Just e, t))
   exprTy <- checkOrInferType t e
   setBinder (mkIdent v) (fromTyVal (Just e, exprTy))
   pure (Decl v exprTy e)
