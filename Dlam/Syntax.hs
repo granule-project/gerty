@@ -244,7 +244,7 @@ boundVarsAbs ab = absVar ab `Set.insert` boundVars (absExpr ab)
 freeVarsAbs :: (Term (Expr e)) => Abstraction e -> Set.Set Identifier
 freeVarsAbs ab = Set.delete (absVar ab) (freeVars (absExpr ab))
 
-instance Term (Expr NoExt) where
+instance (Term e) => Term (Expr e) where
   boundVars (Abs ab)                     = boundVarsAbs ab
   boundVars (FunTy ab)                   = boundVarsAbs ab
   boundVars (ProductTy ab)               = boundVarsAbs ab
@@ -253,7 +253,7 @@ instance Term (Expr NoExt) where
   boundVars (Var _)                      = Set.empty
   boundVars (Sig e _)                    = boundVars e
   boundVars (GenLet var e1 e2)           = var `Set.insert` (boundVars e1 `Set.union` boundVars e2)
-  boundVars (Ext _)                      = Set.empty
+  boundVars (Ext e)                      = boundVars e
   boundVars Wild                         = Set.empty
   boundVars LitLevel{}                   = Set.empty
   boundVars Builtin{}                    = Set.empty
@@ -270,7 +270,11 @@ instance Term (Expr NoExt) where
   freeVars (GenLet var e1 e2)            = Set.delete var (freeVars e1 `Set.union` freeVars e2)
   freeVars (PairElim x y e1 e2)          =
     Set.delete x (Set.delete y (freeVars e1 `Set.union` freeVars e2))
-  freeVars (Ext _)                       = Set.empty
+  freeVars (Ext e)                       = freeVars e
   freeVars Wild                          = Set.empty
   freeVars LitLevel{}                    = Set.empty
   freeVars Builtin{}                     = Set.empty
+
+instance Term NoExt where
+  boundVars _ = undefined
+  freeVars  _ = undefined
