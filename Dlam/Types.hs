@@ -348,17 +348,28 @@ checkOrInferType t@(FunTy abT) expr@(Abs abE) = do
 ----------------------------
 -- Application expression --
 ----------------------------
+{-
+   G |- t1 : (x : A) -> B
+   G |- t2 : A
+   ---------------------- :: App
+   G |- t1 t2 : [t2/x]B
+-}
 checkOrInferType t expr@(App e1 e2) = do
-  ab <- inferFunTy e1
-  expr' <- normalise expr
-  case expr' of
-    (App (Builtin TypeTy) (LitLevel n)) -> ensureEqualTypes expr t (mkUnivTy (LitLevel (succ n)))
-    _ -> do
-      withAbsBinding ab $ do
-        argTy <- checkOrInferType (absTy ab) e2
-        _ <- ensureEqualTypes e1 (absTy ab) argTy
-        appTy <- substitute (absVar ab, e2) (absExpr ab)
-        ensureEqualTypes expr t appTy
+
+  -- G |- t1 : (x : A) -> B
+  e1Ty <- inferFunTy e1
+
+  let x  = absVar e1Ty
+      tA = absTy  e1Ty
+      tB = absExpr e1Ty
+
+  -- G |- t2 : A
+  _e2Ty <- checkOrInferType tA e2
+
+  -- G |- t1 t2 : [t2/x]B
+  t2forXinB <- substitute (x, e2) tB
+  ensureEqualTypes expr t t2forXinB
+
   where inferFunTy e = do
           t <- synthType e >>= normalise
           case t of
