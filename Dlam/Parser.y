@@ -80,11 +80,8 @@ Expr :: { [Option] -> Expr NoExt }
   | Expr '->' Expr   { \opts -> FunTy (mkAbs ignoreVar ($1 opts) ($3 opts)) }
   | TyBindings '->' Expr { \opts -> foldr (\(n, ty) fty -> FunTy (mkAbs n ty fty)) ($3 opts) ($1 opts) }
 
-  | '\\' '(' VAR ':' Expr ')' '->' Expr
-    { \opts -> Abs (mkAbs (mkIdentFromSym $3) ($5 opts) ($8 opts)) }
-
-  | '\\' VAR '->' Expr
-    { \opts -> Abs (mkAbs (mkIdentFromSym $2) Wild ($4 opts)) }
+  | '\\' LambdaArgs '->' Expr
+    { \opts -> foldr (\(n, ty) rty -> Abs (mkAbs n ty rty)) ($4 opts) ($2 opts) }
 
 
   | Expr '*' Expr   { \opts -> ProductTy (mkAbs ignoreVar ($1 opts) ($3 opts)) }
@@ -119,6 +116,15 @@ Atom :: { [Option] -> Expr NoExt }
 VarsSpaced :: { [Identifier] }
   : VAR            { [mkIdentFromSym $1] }
   | VAR VarsSpaced { mkIdentFromSym $1 : $2 }
+
+-- Arguments for a lambda term.
+LambdaArg :: { [Option] -> [(Identifier, Expr NoExt)] }
+  : VAR       { \opts -> [(mkIdentFromSym $1, Wild)] }
+  | TyBinding { \opts -> $1 opts }
+
+LambdaArgs :: { [Option] -> [(Identifier, Expr NoExt)] }
+  : LambdaArg { \opts -> $1 opts }
+  | LambdaArg LambdaArgs { \opts -> $1 opts <> $2 opts }
 
 -- syntax for bindings in a type
 TyBinding :: { [Option] -> [(Identifier, Expr NoExt)] }

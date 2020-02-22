@@ -38,3 +38,12 @@ lamSimple = \x -> x
 -- arguments if you desire.
 lamChurch : Type 0 -> Type 0
 lamChurch = \(x : Type 0) -> x
+
+-- similarly to function types, you can group arguments, though
+-- the arguments don't need to have the same type
+lamGroupArgs : Type 0 -> Type 1 -> Type 0
+lamGroupArgs = \x y -> x
+
+-- you can of course mix argument syntax as you wish
+lamMixedArgs : (l1 l2 : Level) (a : Type l1) (b : Type l2) -> Type l2
+lamMixedArgs = \(l1 l2 : Level) (a : Type l1) b -> b
