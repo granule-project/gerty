@@ -268,16 +268,30 @@ checkOrInferType t expr@(ProductTy ab) = do
 -----------------------
 -- Pair introduction --
 -----------------------
-checkOrInferType (ProductTy abT) expr@(Pair e1 e2) = do
-  e1Ty <- checkOrInferType (absTy abT) e1
-  let x   = absVar abT
-      tyX = absTy  abT
-  _ <- ensureEqualTypes expr (absTy abT) e1Ty
-  _ <- inferUniverseLevel e1Ty
-  withAbsBinding abT $ do
-    absT <- substitute (x, e1) (absExpr abT)
-    te <- checkOrInferType absT e2
-    pure $ ProductTy (mkAbs x tyX te)
+{-
+   G |- t1 : A
+   G |- t2 : [t1/x]B
+   G, x : A |- B : Type l
+   --------------------------- :: Pair
+   G |- (t1, t2) : (x : A) * B
+-}
+checkOrInferType t@(ProductTy abT) expr@(Pair e1 e2) = do
+  let x = absVar abT
+      tB = absExpr abT
+
+  -- G |- t1 : A
+  tA <- checkOrInferType (absTy abT) e1
+
+  -- G, x : A |- B : Type l
+  _l <- withTypedVariable x tA (inferUniverseLevel tB)
+  tB <- normalise tB
+
+  -- G |- t2 : [t1/x]B
+  t1forXinB <- substitute (x, e1) tB
+  _e2Ty <- checkOrInferType t1forXinB e2
+
+  -- G |- (t1, t2) : (x : A) * B
+  ensureEqualTypes expr t (ProductTy (mkAbs x tA tB))
 ---------------------
 -- Pair eliminator --
 ---------------------
