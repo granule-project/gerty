@@ -46,8 +46,8 @@ import Dlam.Options
 %right in
 %right '->'
 %left ':'
+%right '*'
 %left '+' '-'
-%left '*'
 %%
 
 Program :: { (AST NoExt, [Option]) }
