@@ -197,13 +197,24 @@ checkOrInferType :: (PrettyPrint ext, Monad m, Substitutable m Identifier (Expr 
 -- Builtins --
 --------------
 checkOrInferType t expr@(Builtin e) =
-  let genTy = case e of
-                LZero -> lzeroTY
-                LSuc  -> lsucTY
-                TypeTy -> typeTyTY
-                LevelTy -> levelTyTY
-                LMax -> lmaxTY
-  in ensureEqualTypes expr t genTy
+  -- here we simply check that the expected type
+  -- matches the type defined for the builtin
+  ensureEqualTypes expr t $
+    case e of
+      -- lzero : Level
+      LZero -> lzeroTY
+
+      -- lsuc : Level -> Level
+      LSuc  -> lsucTY
+
+      -- Type : Level -> Type 0
+      TypeTy -> typeTyTY
+
+      -- Level : Type 0
+      LevelTy -> levelTyTY
+
+      -- lmax : Level -> Level -> Level
+      LMax -> lmaxTY
 -------------------------
 -- Variable expression --
 -------------------------
