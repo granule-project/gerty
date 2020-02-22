@@ -30,6 +30,7 @@ builtins = [ (mkIdent "Type",  BindV (Just typeTy, typeTyTY))
            , (mkIdent "Level", BindV (Just levelTy, levelTyTY))
            , (mkIdent "lzero", BindV (Just lzero, lzeroTY))
            , (mkIdent "lsuc", BindV (Just lsuc, lsucTY))
+           , (mkIdent "lmax", BindV (Just lmax, lmaxTY))
            ]
 
 type ProgState = (Int, Context)

@@ -17,5 +17,8 @@ type1 = Type 1
 
 type1' = Type (lsuc lzero)
 
+testLmaxLit : Type (lmax 1 3)
+testLmaxLit = Type 2
+
 levelInf : Type _
 levelInf = Type 1
