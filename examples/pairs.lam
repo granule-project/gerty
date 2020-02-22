@@ -10,3 +10,11 @@ curry = \l -> \a -> \b -> \c -> \f -> \x -> \y -> f (x, y)
 
 pairId : (l : Level) -> (a : Type l) -> (b : Type l) -> (a * b) -> (a * b)
 pairId = \l -> \a -> \b -> \p -> let (x, y) = p in (x, y)
+
+-- Example showing the dependent tensor type
+pairTy : (l1 : Level) -> (l2 : Level) -> (a : Type l1) -> (b : a -> Type l2) -> Type (lmax l1 l2)
+pairTy = \l1 -> \l2 -> \a -> \b -> (x : a) * b x
+
+-- Example showing pair construction
+mkPair : (l1 : Level) -> (l2 : Level) -> (a : Type l1) -> (b : a -> Type l2) -> a -> b x -> (x : a) * (b x)
+mkPair = \l1 -> \l2 -> \a -> \b -> \x -> \y -> (x, y)
