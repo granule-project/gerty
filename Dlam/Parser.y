@@ -23,25 +23,19 @@ import Dlam.Options
 %token
     nl      { TokenNL _ }
     let     { TokenLet _ }
-    '|'     { TokenSep _ }
     '_'     { TokenWild _ }
     in      { TokenIn  _  }
     VAR     { TokenSym _ _ }
     LANG    { TokenLang _ _ }
     NAT     { TokenNat _ _ }
-    forall  { TokenForall _ }
     '\\'    { TokenLambda _ }
-    Lam     { TokenTyLambda _ }
     '->'    { TokenArrow _ }
     '*'     { TokenProd _ }
     '='     { TokenEq _ }
     '('     { TokenLParen _ }
     ')'     { TokenRParen _ }
     ':'     { TokenSig _ }
-    '?'     { TokenHole _ }
-    '.'     { TokenDot _ }
     ','     { TokenComma _ }
-    '@'     { TokenAt _ }
 
 %right in
 %right '->'
