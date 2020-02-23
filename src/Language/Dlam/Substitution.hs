@@ -1,18 +1,18 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-module Dlam.Substitution
+module Language.Dlam.Substitution
   ( Substitutable(..)
   , substAbs
   , Freshenable(..)
   ) where
 
-import Dlam.Binders
+import Language.Dlam.Binders
   ( HasBinders
   , HasTyVal(fromTyVal)
   , withBinding
   )
-import Dlam.Syntax
+import Language.Dlam.Syntax
 
 class Freshenable m n | m -> n where
   freshen :: n -> m n

@@ -18,19 +18,35 @@ ghc-options:
 - -Wno-name-shadowing
 - -Wno-type-defaults
 
+library:
+  source-dirs: src
+  build-tools:
+   - alex
+   - happy
+  dependencies:
+   - containers
+   - transformers
+   - array
+   - text
+  exposed-modules:
+   - Language.Dlam.Binders
+   - Language.Dlam.Parser
+   - Language.Dlam.PrettyPrint
+   - Language.Dlam.Substitution
+   - Language.Dlam.Syntax
+   - Language.Dlam.Types
+  other-modules:
+   - Language.Dlam.FirstParameter
+   - Language.Dlam.Lexer
+   - Language.Dlam.Options
+
 executables:
   dlam:
     main: Main.hs
-    source-dirs: .
     ghc-options: -main-is Dlam
-    build-tools:
-     - alex
-     - happy
     dependencies:
+     - dependent-lamb
      - containers
      - directory
      - mtl
      - transformers
-     - filepath
-     - array
-     - text

@@ -7,12 +7,12 @@ import Control.Monad.State
 import Control.Monad.Trans.Maybe
 import qualified Data.Map as M
 
-import Dlam.Binders (HasBinders(..), HasTyVal(..))
-import Dlam.Parser      (parseProgram)
-import Dlam.PrettyPrint (pprint)
-import Dlam.Substitution (Substitutable(..), substAbs, Freshenable(..))
-import Dlam.Syntax
-import Dlam.Types
+import Language.Dlam.Binders (HasBinders(..), HasTyVal(..))
+import Language.Dlam.Parser      (parseProgram)
+import Language.Dlam.PrettyPrint (pprint)
+import Language.Dlam.Substitution (Substitutable(..), substAbs, Freshenable(..))
+import Language.Dlam.Syntax
+import Language.Dlam.Types
 
 import System.Directory   (doesPathExist)
 import System.Environment (getArgs)

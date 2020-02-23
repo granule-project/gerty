@@ -1,10 +1,10 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.33.0.
+-- This file has been generated from package.yaml by hpack version 0.31.2.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 449ce3f6053a6b1bf1027c31b8afc369f9a9b92dfa7b84dab83d07d4a36627d8
+-- hash: 3859e5d90216811ac4c017580c9a0c7dc5f78482d2c64cd9562122777492a25d
 
 name:           dependent-lamb
 version:        0.0.1
@@ -15,23 +15,21 @@ copyright:      2020 authors
 license:        BSD3
 build-type:     Simple
 
-executable dlam
-  main-is: Main.hs
+library
+  exposed-modules:
+      Language.Dlam.Binders
+      Language.Dlam.Parser
+      Language.Dlam.PrettyPrint
+      Language.Dlam.Substitution
+      Language.Dlam.Syntax
+      Language.Dlam.Types
   other-modules:
-      Dlam.Binders
-      Dlam.FirstParameter
-      Dlam.Helpers
-      Dlam.Lexer
-      Dlam.Options
-      Dlam.Parser
-      Dlam.PrettyPrint
-      Dlam.Substitution
-      Dlam.Syntax
-      Dlam.Types
-      Paths_dependent_lamb
+      Language.Dlam.FirstParameter
+      Language.Dlam.Lexer
+      Language.Dlam.Options
   hs-source-dirs:
-      ./.
-  ghc-options: -O0 -Wall -Werror -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns -Wredundant-constraints -Wno-name-shadowing -Wno-type-defaults -main-is Dlam
+      src
+  ghc-options: -O0 -Wall -Werror -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns -Wredundant-constraints -Wno-name-shadowing -Wno-type-defaults
   build-tools:
       alex
     , happy
@@ -39,9 +37,20 @@ executable dlam
       array
     , base >=4.10 && <5
     , containers
-    , directory
-    , filepath
-    , mtl
     , text
+    , transformers
+  default-language: Haskell2010
+
+executable dlam
+  main-is: Main.hs
+  other-modules:
+      Paths_dependent_lamb
+  ghc-options: -O0 -Wall -Werror -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns -Wredundant-constraints -Wno-name-shadowing -Wno-type-defaults -main-is Dlam
+  build-depends:
+      base >=4.10 && <5
+    , containers
+    , dependent-lamb
+    , directory
+    , mtl
     , transformers
   default-language: Haskell2010

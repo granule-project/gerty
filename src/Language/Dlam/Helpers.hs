@@ -1,4 +1,4 @@
-module Dlam.Helpers
+module Language.Dlam.Helpers
   ( todo
   ) where
 

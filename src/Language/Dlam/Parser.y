@@ -1,16 +1,16 @@
 {
 {-# LANGUAGE FlexibleContexts #-}
 
-module Dlam.Parser where
+module Language.Dlam.Parser where
 
 import Numeric
 import System.Exit
 import Control.Monad.Trans.Reader
 import Control.Monad.Trans.Class (lift)
 
-import Dlam.Lexer
-import Dlam.Syntax
-import Dlam.Options
+import Language.Dlam.Lexer
+import Language.Dlam.Syntax
+import Language.Dlam.Options
 
 }
 

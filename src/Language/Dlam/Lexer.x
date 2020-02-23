@@ -4,7 +4,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE DeriveGeneric #-}
 
-module Dlam.Lexer
+module Language.Dlam.Lexer
   ( Token(..)
   , scanTokens
   , symString
@@ -12,7 +12,7 @@ module Dlam.Lexer
   ) where
 
 import Data.Text (Text)
-import Dlam.FirstParameter
+import Language.Dlam.FirstParameter
 import GHC.Generics (Generic)
 
 }

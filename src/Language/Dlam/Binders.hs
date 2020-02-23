@@ -1,5 +1,5 @@
 {-# LANGUAGE FunctionalDependencies #-}
-module Dlam.Binders
+module Language.Dlam.Binders
   ( HasBinders(..)
   , HasTyVal(..)
   , getBinderType

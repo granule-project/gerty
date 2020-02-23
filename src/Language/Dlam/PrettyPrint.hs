@@ -1,13 +1,13 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-module Dlam.PrettyPrint
+module Language.Dlam.PrettyPrint
   ( PrettyPrint(..)
   ) where
 
 import Data.List (intersperse)
 
-import Dlam.Syntax
+import Language.Dlam.Syntax
 
 -- Pretty print terms
 class PrettyPrint t where

@@ -5,7 +5,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FunctionalDependencies #-}
 
-module Dlam.FirstParameter
+module Language.Dlam.FirstParameter
   ( FirstParameter(..)
   ) where
 

@@ -1,22 +1,22 @@
 {-# LANGUAGE FlexibleContexts #-}
-module Dlam.Types
+module Language.Dlam.Types
   ( doNASTInference
   ) where
 
 import Control.Monad (when)
 
-import Dlam.Binders
+import Language.Dlam.Binders
   ( HasBinders(..)
   , HasTyVal(fromTyVal)
   , getBinderValue
   , getBinderType
   , withBinding
   )
-import Dlam.Substitution
+import Language.Dlam.Substitution
   ( Substitutable(substitute)
   )
-import Dlam.Syntax
-import Dlam.PrettyPrint
+import Language.Dlam.Syntax
+import Language.Dlam.PrettyPrint
 
 
 -------------------

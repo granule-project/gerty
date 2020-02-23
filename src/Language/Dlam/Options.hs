@@ -1,4 +1,4 @@
-module Dlam.Options
+module Language.Dlam.Options
   ( Option(..)
   , isML
   , addOption
