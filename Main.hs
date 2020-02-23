@@ -7,7 +7,14 @@ import Control.Monad.State
 import Control.Monad.Trans.Maybe
 import qualified Data.Map as M
 
-import Language.Dlam.Binders (HasBinders(..), HasTyVal(..))
+import Language.Dlam.Binders
+  ( HasNamedMap(..)
+  , HasBinderMap
+  , BinderMap
+  , NormalFormMap
+  , HasNormalFormMap
+  , HasTyVal(..)
+  )
 import Language.Dlam.Parser      (parseProgram)
 import Language.Dlam.PrettyPrint (pprint)
 import Language.Dlam.Substitution (Substitutable(..), substAbs, Freshenable(..))
@@ -23,7 +30,12 @@ newtype BindV e = BindV { getBindV :: (Maybe (Expr e), Expr e) }
 instance (Show e) => Show (BindV e) where
   show = show . getBindV
 
+data MapTypes = VarBindings | NormalForms
+
 type Context = M.Map Identifier (BindV NoExt)
+type NormalFormContext = M.Map (Expr NoExt) (Expr NoExt)
+
+type ProgMaps = (Context, NormalFormContext)
 
 builtins :: Context
 builtins = M.fromList
@@ -37,7 +49,7 @@ builtins = M.fromList
            , (mkIdent "false", BindV (Just dfalse, dfalseTY))
            ]
 
-type ProgState = (Int, Context)
+type ProgState = (Int, ProgMaps)
 
 newtype Prog a =
   Prog { runProg :: MaybeT (State ProgState) a }
@@ -46,12 +58,23 @@ newtype Prog a =
 
 -- Example instance where identifiers are mapped to types
 -- and (optional) definitions via a list.
-instance HasBinders Prog Identifier (BindV NoExt) where
-  getBindings = snd <$> get
-  setBinder x e = do
-    (count, ctx) <- get
-    put (count, M.insert x e ctx)
-  preservingBindings m = get >>= \old -> m <* put old
+instance HasNamedMap Prog BinderMap Identifier (BindV NoExt) where
+  getBindings _ = fst . snd <$> get
+  setBinder _ x e = do
+    (count, (ctx, nfs)) <- get
+    put (count, (M.insert x e ctx, nfs))
+  preservingBindings _ m = get >>= \(_, (old, _)) -> m <* (get >>= \(c, (_, n)) -> put (c, (old, n)))
+
+instance HasBinderMap Prog Identifier (BindV NoExt)
+
+instance HasNamedMap Prog NormalFormMap (Expr NoExt) (Expr NoExt) where
+  getBindings _ = snd . snd <$> get
+  setBinder _ x e = do
+    (count, (ctx, nfs)) <- get
+    put (count, (ctx, M.insert x e nfs))
+  preservingBindings _ m = get >>= \(_, (_, old)) -> m <* (get >>= \(c, (v, _)) -> put (c, (v, old)))
+
+instance HasNormalFormMap Prog (Expr NoExt) (Expr NoExt)
 
 instance HasTyVal (BindV e) (Maybe (Expr e)) (Expr e) where
   toVal = fst . getBindV
@@ -118,7 +141,7 @@ main = do
               putStrLn $ "\n " <> ansi_bold <> "Pretty:\n" <> ansi_reset <> pprint nast
 
               -- Typing
-              case evalState (runMaybeT (runProg (doNASTInference nast))) (0, builtins) of
+              case evalState (runMaybeT (runProg (doNASTInference nast))) (0, (builtins, M.empty)) of
 
                  Nothing -> putStrLn "could not infer type"
                  Just nastInfed  ->

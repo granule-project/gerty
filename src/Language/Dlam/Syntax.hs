@@ -1,3 +1,4 @@
+{-# LANGUAGE EmptyDataDeriving #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -97,7 +98,7 @@ ignoreVar :: Identifier
 ignoreVar = Ignore
 
 newtype Abstraction ext = Abst { getAbst :: (Identifier, Expr ext, Expr ext) }
-  deriving Show
+  deriving (Show, Ord)
 
 deriving instance (Eq ext) => Eq (Abstraction ext)
 
@@ -160,7 +161,7 @@ data Expr ex where
 
   -- | AST extensions.
   Ext :: ex -> Expr ex
-  deriving Show
+  deriving (Show, Ord)
 
 deriving instance (Eq ext) => Eq (Expr ext)
 
@@ -194,7 +195,7 @@ data BuiltinTerm =
 
   -- | False.
   | DFalse
-  deriving (Show, Eq)
+  deriving (Show, Eq, Ord)
 
 
 -- | Body for a builtin term (essentially an Agda postulate).
@@ -266,6 +267,7 @@ class Term t where
 
 -- | For minimal language with no extensions.
 data NoExt
+  deriving Ord
 
 instance Eq NoExt where
   _ == _ = True

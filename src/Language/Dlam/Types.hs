@@ -6,8 +6,14 @@ module Language.Dlam.Types
 import Control.Monad (when)
 
 import Language.Dlam.Binders
-  ( HasBinders(..)
+  ( HasNamedMap(..)
+  , HasBinderMap
+  , BinderMap
+  , HasNormalFormMap
+  , NormalFormMap
+  , IsTag(..)
   , HasTyVal(fromTyVal)
+  , getBinder
   , getBinderValue
   , getBinderType
   , withBinding
@@ -35,38 +41,52 @@ unknownIdentifierErr x = error $ "unknown identifier '" <> pprint x <> "'"
 
 
 -- | Execute the action with the given identifier bound with the given type.
-withTypedVariable :: (Monad m, HasTyVal v (Maybe t) (Expr e), HasBinders m Identifier v) =>
+withTypedVariable :: (Monad m, HasTyVal v (Maybe t) (Expr e), HasBinderMap m Identifier v) =>
   Identifier -> Expr e -> m a -> m a
-withTypedVariable v t = withBinding (v, fromTyVal (Nothing, t))
+withTypedVariable v t = withBinding (mkTag :: BinderMap) (v, fromTyVal (Nothing, t))
 
 
 -- | Execute the action with the binder from the abstraction active.
-withAbsBinding :: (Monad m, HasTyVal v (Maybe t) (Expr e), HasBinders m Identifier v) =>
+withAbsBinding :: (Monad m, HasTyVal v (Maybe t) (Expr e), HasBinderMap m Identifier v) =>
   Abstraction e -> m a -> m a
 withAbsBinding ab = withTypedVariable (absVar ab) (absTy ab)
 
 
+-- | 'withExprNormalisingTo e nf m' runs 'm', but causes
+-- | any expressions that would usually normalise to (the normal form of)
+-- | 'e' to instead normalise to 'nf'.
+withExprNormalisingTo :: (Ord e, PrettyPrint e, HasTyVal v (Maybe (Expr e)) (Expr e), HasBinderMap m Identifier v, Substitutable m Identifier (Expr e), Monad m, HasNormalFormMap m (Expr e) (Expr e)) => Expr e -> Expr e -> m a -> m a
+withExprNormalisingTo e nf m = normalise e >>= \e -> withBinding (mkTag :: NormalFormMap) (e, nf) m
+
+
 -- | Normalise an abstraction via a series of reductions.
-normaliseAbs :: (Substitutable m Identifier (Expr e), PrettyPrint e, Monad m, HasBinders m Identifier v, HasTyVal v (Maybe (Expr e)) (Expr e)) => Abstraction e -> m (Abstraction e)
+normaliseAbs :: (Ord e, Substitutable m Identifier (Expr e), PrettyPrint e, Monad m, HasNormalFormMap m (Expr e) (Expr e), HasBinderMap m Identifier v, HasTyVal v (Maybe (Expr e)) (Expr e)) => Abstraction e -> m (Abstraction e)
 normaliseAbs ab = do
   t <- normalise (absTy ab)
   e <- withAbsBinding ab (normalise (absExpr ab))
   pure (mkAbs (absVar ab) t e)
 
 
+-- | Indicate that the expresion is now in an irreducible normal form.
+-- |
+-- | This allows for e.g., substituting normal forms.
+finalNormalForm :: (Functor m, Ord e, HasNormalFormMap m (Expr e) (Expr e)) => (Expr e) -> m (Expr e)
+finalNormalForm e = maybe e id <$> getBinder (mkTag :: NormalFormMap) e
+
+
 -- | Normalise the expression via a series of reductions.
-normalise :: (Substitutable m Identifier (Expr e), PrettyPrint e, Monad m, HasBinders m Identifier v, HasTyVal v (Maybe (Expr e)) (Expr e)) => Expr e -> m (Expr e)
-normalise Wild = pure Wild
+normalise :: (Ord e, Substitutable m Identifier (Expr e), PrettyPrint e, Monad m, HasNormalFormMap m (Expr e) (Expr e), HasBinderMap m Identifier v, HasTyVal v (Maybe (Expr e)) (Expr e)) => Expr e -> m (Expr e)
+normalise Wild = finalNormalForm Wild
 normalise (Var x) = do
-  val <- getBinderValue x
+  val <- getBinderValue (mkTag :: BinderMap) x
   case val of
     -- TODO: improve error system (2020-02-20)
-    Nothing -> pure $ Var x
-    Just Nothing  -> pure $ Var x
+    Nothing -> finalNormalForm $ Var x
+    Just Nothing  -> finalNormalForm $ Var x
     Just (Just e) -> normalise e
-normalise (FunTy ab) = FunTy <$> normaliseAbs ab
-normalise (Abs ab) = Abs <$> normaliseAbs ab
-normalise (ProductTy ab) = ProductTy <$> normaliseAbs ab
+normalise (FunTy ab) = finalNormalForm =<< FunTy <$> normaliseAbs ab
+normalise (Abs ab) = finalNormalForm =<< Abs <$> normaliseAbs ab
+normalise (ProductTy ab) = finalNormalForm =<< ProductTy <$> normaliseAbs ab
 normalise (App e1 e2) = do
   e1' <- normalise e1
   e2' <- normalise e2
@@ -79,40 +99,40 @@ normalise (App e1 e2) = do
           normalise $ App (App (Builtin LMax) (App (Builtin LSuc) l1)) (App (Builtin LSuc) l2)
 
         -- lsuc n = SUCC n
-        LitLevel n -> pure $ LitLevel (succ n)
-        _          -> pure $ App e1' e2'
+        LitLevel n -> finalNormalForm $ LitLevel (succ n)
+        _          -> finalNormalForm $ App e1' e2'
 
     -- lmax 0 l = l
-    (App (Builtin LMax) (LitLevel 0)) -> pure e2'
+    (App (Builtin LMax) (LitLevel 0)) -> finalNormalForm e2'
 
     (App (Builtin LMax) (LitLevel n)) ->
       case e2' of
         -- if the expression is of the form 'lmax m n' where 'm' and 'n' are literal
         -- numbers, then normalise by taking the maximum.
-        LitLevel m -> pure $ LitLevel (max n m)
-        _          -> pure $ App e1' e2'
+        LitLevel m -> finalNormalForm $ LitLevel (max n m)
+        _          -> finalNormalForm $ App e1' e2'
     -- (\x -> e) e' ----> [e'/x] e
     (Abs ab) -> substitute (absVar ab, e2') (absExpr ab) >>= normalise
-    _              -> pure $ App e1' e2'
+    _              -> finalNormalForm $ App e1' e2'
 normalise (PairElim v1 v2 e1 e2) = do
   e1' <- normalise e1
   case e1' of
     (Pair l r) -> substitute (v1, l) e2 >>= substitute (v2, r) >>= normalise
-    _          -> pure $ PairElim v1 v2 e1' e2
+    _          -> finalNormalForm $ PairElim v1 v2 e1' e2
 normalise (IfExpr e1 e2 e3) = do
   e1' <- normalise e1
   e2' <- normalise e2
   e3' <- normalise e3
   case e1' of
-    (Builtin DFalse) -> pure e3'
-    (Builtin DTrue)  -> pure e2'
+    (Builtin DFalse) -> finalNormalForm e3'
+    (Builtin DTrue)  -> finalNormalForm e2'
     _                -> do
       e2e3equal <- equalExprs e2' e3'
-      pure $ if e2e3equal then e2' else IfExpr e1' e2' e3'
-normalise (Pair e1 e2) = Pair <$> normalise e1 <*> normalise e2
-normalise (Builtin LZero) = pure $ LitLevel 0
-normalise e@Builtin{} = pure e
-normalise e@LitLevel{} = pure e
+      finalNormalForm $ if e2e3equal then e2' else IfExpr e1' e2' e3'
+normalise (Pair e1 e2) = finalNormalForm =<< Pair <$> normalise e1 <*> normalise e2
+normalise (Builtin LZero) = finalNormalForm $ LitLevel 0
+normalise e@Builtin{} = finalNormalForm e
+normalise e@LitLevel{} = finalNormalForm e
 normalise e = error $ "normalise does not yet support '" <> pprint e <> "'"
 
 
@@ -122,7 +142,7 @@ normalise e = error $ "normalise does not yet support '" <> pprint e <> "'"
 
 
 -- | Check if two expressions are equal under normalisation.
-equalExprs :: (PrettyPrint e, Monad m, Substitutable m Identifier (Expr e), HasBinders m Identifier v, HasTyVal v (Maybe (Expr e)) (Expr e)) => Expr e -> Expr e -> m Bool
+equalExprs :: (Ord e, PrettyPrint e, Monad m, Substitutable m Identifier (Expr e), HasNormalFormMap m (Expr e) (Expr e), HasBinderMap m Identifier v, HasTyVal v (Maybe (Expr e)) (Expr e)) => Expr e -> Expr e -> m Bool
 equalExprs e1 e2 = do
   ne1 <- normalise e1
   ne2 <- normalise e2
@@ -154,32 +174,32 @@ equalExprs e1 e2 = do
 
 -- | Attempt to infer the types of a definition, and check this against the declared
 -- | type, if any.
-doNStmtInference :: (Term e, PrettyPrint e, Monad m, Substitutable m Identifier (Expr e), HasBinders m Identifier v, HasTyVal v (Maybe (Expr e)) (Expr e)) => NStmt e -> m (NStmt e)
+doNStmtInference :: (Ord e, HasNormalFormMap m (Expr e) (Expr e), Term e, PrettyPrint e, Monad m, Substitutable m Identifier (Expr e), HasBinderMap m Identifier v, HasTyVal v (Maybe (Expr e)) (Expr e)) => NStmt e -> m (NStmt e)
 doNStmtInference (Decl v t e) = do
   -- make sure that the definition's type is actually a type
   checkExprValidForSignature t
 
   exprTy <- checkOrInferType t e
-  setBinder (mkIdent v) (fromTyVal (Just e, exprTy))
+  setBinder (mkTag :: BinderMap) (mkIdent v) (fromTyVal (Just e, exprTy))
   pure (Decl v exprTy e)
   where
     -- | Check that the given expression is valid as a type signature.
     -- |
     -- | This usually means that the expression is a type, but allows
     -- | for the possibility of holes that haven't yet been resolved.
-    checkExprValidForSignature :: (Term e, Monad m, PrettyPrint e, Substitutable m Identifier (Expr e), HasBinders m Identifier v, HasTyVal v (Maybe (Expr e)) (Expr e)) => Expr e -> m ()
+    checkExprValidForSignature :: (Ord e, HasNormalFormMap m (Expr e) (Expr e), Term e, Monad m, PrettyPrint e, Substitutable m Identifier (Expr e), HasBinderMap m Identifier v, HasTyVal v (Maybe (Expr e)) (Expr e)) => Expr e -> m ()
     checkExprValidForSignature Wild = pure ()
     checkExprValidForSignature expr = inferUniverseLevel expr >> pure ()
 
 
 -- | Attempt to infer the types of each definition in the AST, failing if a type
 -- | mismatch is found.
-doNASTInference :: (Term e, PrettyPrint e, Monad m, Substitutable m Identifier (Expr e), HasBinders m Identifier v, HasTyVal v (Maybe (Expr e)) (Expr e)) => NAST e -> m (NAST e)
+doNASTInference :: (Ord e, HasNormalFormMap m (Expr e) (Expr e), Term e, PrettyPrint e, Monad m, Substitutable m Identifier (Expr e), HasBinderMap m Identifier v, HasTyVal v (Maybe (Expr e)) (Expr e)) => NAST e -> m (NAST e)
 doNASTInference (NAST ds) = fmap NAST $ mapM doNStmtInference ds
 
 
 -- | Infer a level for the given type.
-inferUniverseLevel :: (Term e, Monad m, PrettyPrint e, Substitutable m Identifier (Expr e), HasBinders m Identifier v, HasTyVal v (Maybe (Expr e)) (Expr e)) => Expr e -> m (Expr e)
+inferUniverseLevel :: (Ord e, HasNormalFormMap m (Expr e) (Expr e), Term e, Monad m, PrettyPrint e, Substitutable m Identifier (Expr e), HasBinderMap m Identifier v, HasTyVal v (Maybe (Expr e)) (Expr e)) => Expr e -> m (Expr e)
 inferUniverseLevel e = do
   u <- synthType e
   norm <- normalise u
@@ -202,7 +222,7 @@ tyMismatch expr tyExpected tyActual =
 
 -- | 'ensureEqualTypes expr tyExpected tyActual' checks that 'tyExpected' and 'tyActual'
 -- | represent the same type (under normalisation), and fails if they differ.
-ensureEqualTypes :: (PrettyPrint e, Monad m, Substitutable m Identifier (Expr e), HasBinders m Identifier v, HasTyVal v (Maybe (Expr e)) (Expr e)) =>
+ensureEqualTypes :: (Ord e, PrettyPrint e, Monad m, Substitutable m Identifier (Expr e), HasNormalFormMap m (Expr e) (Expr e), HasBinderMap m Identifier v, HasTyVal v (Maybe (Expr e)) (Expr e)) =>
   Expr e -> Expr e -> Expr e -> m (Expr e)
 ensureEqualTypes expr tyExpected tyActual = do
   typesEqual <- equalExprs tyActual tyExpected
@@ -232,7 +252,7 @@ getAbsFromProductTy t =
 
 -- | 'checkOrInferType ty ex' checks that the type of 'ex' matches 'ty', or infers
 -- | it 'ty' is a wild. Evaluates to the calculated type.
-checkOrInferType :: (Term ext, PrettyPrint ext, Monad m, Substitutable m Identifier (Expr ext), HasBinders m Identifier v, HasTyVal v (Maybe (Expr ext)) (Expr ext)) =>
+checkOrInferType :: (Ord ext, HasNormalFormMap m (Expr ext) (Expr ext), Term ext, PrettyPrint ext, Monad m, Substitutable m Identifier (Expr ext), HasBinderMap m Identifier v, HasTyVal v (Maybe (Expr ext)) (Expr ext)) =>
   Expr ext -> Expr ext -> m (Expr ext)
 --------------
 -- Builtins --
@@ -276,7 +296,7 @@ checkOrInferType t expr@(Builtin e) =
 -}
 checkOrInferType t expr@(Var x) = do
   -- x : A in G
-  tA <- getBinderType x >>= maybe (unknownIdentifierErr x) pure
+  tA <- getBinderType (mkTag :: BinderMap) x >>= maybe (unknownIdentifierErr x) pure
 
   -- G |- A : Type l
   _l <- inferUniverseLevel tA
@@ -464,10 +484,10 @@ checkOrInferType t expr@(IfExpr e1 e2 e3) = do
   _e1Ty <- inferBoolTy e1
 
   -- G |- t2 : A
-  tA <- synthType e2
+  tA <- withExprNormalisingTo e1 (Builtin DTrue) $ synthType e2
 
   -- G |- t3 : B
-  tB <- synthType e3
+  tB <- withExprNormalisingTo e1 (Builtin DFalse) $ synthType e3
 
   -- G |- if t1 then t2 else t3 : if t1 then A else B
   ensureEqualTypes expr t =<< normalise (IfExpr e1 tA tB)
@@ -496,6 +516,6 @@ checkOrInferType t e =
 
 
 -- | Attempt to synthesise a type for the given expression.
-synthType :: (Term ext, PrettyPrint ext, Monad m, Substitutable m Identifier (Expr ext), HasBinders m Identifier v, HasTyVal v (Maybe (Expr ext)) (Expr ext)) =>
+synthType :: (Ord ext, HasNormalFormMap m (Expr ext) (Expr ext), Term ext, PrettyPrint ext, Monad m, Substitutable m Identifier (Expr ext), HasBinderMap m Identifier v, HasTyVal v (Maybe (Expr ext)) (Expr ext)) =>
   Expr ext -> m (Expr ext)
 synthType = checkOrInferType Wild
