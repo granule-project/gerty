@@ -1,0 +1,15 @@
+-- Examples with booleans
+
+-- | Non-dependent if.
+ifFun : (l : Level) (a : Type l) -> Bool -> a -> a -> a
+ifFun = \l a b t f -> if b then t else f
+
+-- | Dependent if.
+ifFunDep : (l1 l2 : Level) (a : Type l1) (b : Type l2) (e : Bool) -> a -> b -> if e then a else b
+ifFunDep = \l1 l2 a b e t f -> if e then t else f
+
+prog1 : Level
+prog1 = if false then Type 0 else lzero
+
+prog2 : Level
+prog2 = if true then lzero else Type 0

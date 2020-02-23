@@ -89,6 +89,16 @@ normalise (PairElim v1 v2 e1 e2) = do
   case e1' of
     (Pair l r) -> substitute (v1, l) e2 >>= substitute (v2, r) >>= normalise
     _          -> pure $ PairElim v1 v2 e1' e2
+normalise (IfExpr e1 e2 e3) = do
+  e1' <- normalise e1
+  e2' <- normalise e2
+  e3' <- normalise e3
+  case e1' of
+    (Builtin DFalse) -> pure e3'
+    (Builtin DTrue)  -> pure e2'
+    _                -> do
+      e2e3equal <- equalExprs e2' e3'
+      pure $ if e2e3equal then e2' else IfExpr e1' e2' e3'
 normalise (Pair e1 e2) = Pair <$> normalise e1 <*> normalise e2
 normalise (Builtin LZero) = pure $ LitLevel 0
 normalise e@Builtin{} = pure e
@@ -114,6 +124,8 @@ equalExprs e1 e2 = do
     (ProductTy ab1, ProductTy ab2) -> equalAbs ab1 ab2
     -- TODO: add proper equality (like Abs) for PairElim (2020-02-22)
     -- Wilds always match.
+    (IfExpr e1 e2 e3, IfExpr e1' e2' e3') ->
+      (&&) <$> equalExprs e1 e1' <*> ((&&) <$> equalExprs e2 e2' <*> equalExprs e3 e3')
     (Wild, _) -> pure True
     (_, Wild) -> pure True
     (Builtin b1, Builtin b2) -> pure (b1 == b2)
@@ -163,6 +175,10 @@ inferUniverseLevel e = do
   norm <- normalise u
   case norm of
     (App (Builtin TypeTy) l) -> pure l
+    (IfExpr _ e2 e3) -> do
+      l1 <- inferUniverseLevel e2
+      l2 <- inferUniverseLevel e3
+      normalise (lmaxApp l1 l2)
     -- TODO: improve error system (2020-02-20)
     _        -> error $ "expected '" <> pprint e <> "' to be a type, but instead it had type '" <> pprint norm <> "'"
 
@@ -230,6 +246,15 @@ checkOrInferType t expr@(Builtin e) =
 
       -- lmax : Level -> Level -> Level
       LMax -> lmaxTY
+
+      -- | Bool : Type 0
+      DBool -> dBoolTY
+
+      -- | true : Bool
+      DTrue -> dtrueTY
+
+      -- | false : Bool
+      DFalse -> dfalseTY
 -------------------------
 -- Variable expression --
 -------------------------
@@ -413,6 +438,37 @@ checkOrInferType t expr@(App e1 e2) = do
   where inferFunTy e = do
           t <- synthType e >>= normalise
           getAbsFromFunTy t
+-----------------
+-- Conditional --
+-----------------
+{-
+   G |- t1 : Bool
+   G |- t2 : A
+   G |- t3 : B
+   ------------------------------------------------ :: IfExpr
+   G |- if t1 then t2 else t3 : if t1 then A else B
+-}
+checkOrInferType t expr@(IfExpr e1 e2 e3) = do
+
+  -- G |- t1 : Bool
+  _e1Ty <- inferBoolTy e1
+
+  -- G |- t2 : A
+  tA <- synthType e2
+
+  -- G |- t3 : B
+  tB <- synthType e3
+
+  -- G |- if t1 then t2 else t3 : if t1 then A else B
+  ensureEqualTypes expr t =<< normalise (IfExpr e1 tA tB)
+
+  where inferBoolTy e = do
+          t <- synthType e >>= normalise
+          case t of
+            (Builtin DBool) -> pure t
+            -- TODO: improve error system (2020-02-20)
+            t        -> error $ "Expected '" <> pprint t <> "' to be a boolean type, but it wasn't."
+
 ----------------------
 -- Level expression --
 ----------------------

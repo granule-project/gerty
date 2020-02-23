@@ -32,6 +32,9 @@ builtins = M.fromList
            , (mkIdent "lzero", BindV (Just lzero, lzeroTY))
            , (mkIdent "lsuc", BindV (Just lsuc, lsucTY))
            , (mkIdent "lmax", BindV (Just lmax, lmaxTY))
+           , (mkIdent "Bool", BindV (Just dBool, dBoolTY))
+           , (mkIdent "true", BindV (Just dtrue, dtrueTY))
+           , (mkIdent "false", BindV (Just dfalse, dfalseTY))
            ]
 
 type ProgState = (Int, Context)
@@ -79,6 +82,7 @@ instance Substitutable Prog Identifier (Expr NoExt) where
     e1' <- substitute s e1
     e2' <- if v == v1 || v == v2 then pure e2 else substitute s e2
     pure $ PairElim v1 v2 e1' e2'
+  substitute s (IfExpr e1 e2 e3) = IfExpr <$> substitute s e1 <*> substitute s e2 <*> substitute s e3
   substitute s (App e1 e2) = do
     e1' <- substitute s e1
     e2' <- substitute s e2

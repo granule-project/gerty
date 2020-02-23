@@ -38,6 +38,13 @@ module Language.Dlam.Syntax
   , typeTy
   , typeTyTY
   , mkUnivTy
+  -- ** Booleans
+  , dBool
+  , dBoolTY
+  , dtrue
+  , dtrueTY
+  , dfalse
+  , dfalseTY
   ) where
 
 import qualified Data.Set as Set
@@ -135,6 +142,9 @@ data Expr ex where
   -- | Pair eliminator.
   PairElim :: Identifier -> Identifier -> Expr ex -> Expr ex -> Expr ex
 
+  -- | Conditional eliminator.
+  IfExpr :: Expr ex -> Expr ex -> Expr ex -> Expr ex
+
   App :: Expr ex ->  Expr ex   -> Expr ex -- e1 e2
 
   Sig :: Expr ex -> Expr ex       -> Expr ex -- e : A
@@ -175,6 +185,15 @@ data BuiltinTerm =
 
   -- | Universe type.
   | TypeTy
+
+  -- | Boolean type.
+  | DBool
+
+  -- | True.
+  | DTrue
+
+  -- | False.
+  | DFalse
   deriving (Show, Eq)
 
 
@@ -221,6 +240,23 @@ typeTyTY = let l = mkIdent "l" in FunTy (mkAbs l levelTy (mkUnivTy (lsucApp (Var
 mkUnivTy :: Expr e -> Expr e
 mkUnivTy = App typeTy
 
+dBool :: Expr e
+dBool = builtinTerm DBool
+
+dBoolTY :: Expr e
+dBoolTY = mkUnivTy (LitLevel 0)
+
+dtrue :: Expr e
+dtrue = builtinTerm DTrue
+
+dtrueTY :: Expr e
+dtrueTY = dBool
+
+dfalse :: Expr e
+dfalse = builtinTerm DFalse
+
+dfalseTY :: Expr e
+dfalseTY = dBool
 
 ----------------------------
 
@@ -250,6 +286,7 @@ instance (Term e) => Term (Expr e) where
   boundVars (ProductTy ab)               = boundVarsAbs ab
   boundVars (App e1 e2)                  = boundVars e1 `Set.union` boundVars e2
   boundVars (Pair e1 e2)                 = boundVars e1 `Set.union` boundVars e2
+  boundVars (IfExpr e1 e2 e3)            = boundVars e1 `Set.union` boundVars e2 `Set.union` boundVars e3
   boundVars (Var _)                      = Set.empty
   boundVars (Sig e _)                    = boundVars e
   boundVars (GenLet var e1 e2)           = var `Set.insert` (boundVars e1 `Set.union` boundVars e2)
@@ -265,6 +302,7 @@ instance (Term e) => Term (Expr e) where
   freeVars (ProductTy ab)                = freeVarsAbs ab
   freeVars (App e1 e2)                   = freeVars e1 `Set.union` freeVars e2
   freeVars (Pair e1 e2)                  = freeVars e1 `Set.union` freeVars e2
+  freeVars (IfExpr e1 e2 e3)             = freeVars e1 `Set.union` freeVars e2 `Set.union` freeVars e3
   freeVars (Var var)                     = Set.singleton var
   freeVars (Sig e _)                     = freeVars e
   freeVars (GenLet var e1 e2)            = Set.delete var (freeVars e1 `Set.union` freeVars e2)

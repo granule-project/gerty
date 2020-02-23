@@ -24,6 +24,9 @@ import Language.Dlam.Options
     nl      { TokenNL _ }
     let     { TokenLet _ }
     '_'     { TokenWild _ }
+    if { TokenIf _ }
+    then { TokenThen _ }
+    else { TokenElse _ }
     in      { TokenIn  _  }
     VAR     { TokenSym _ _ }
     LANG    { TokenLang _ _ }
@@ -86,6 +89,8 @@ Expr :: { [Option] -> Expr NoExt }
   | '(' Ident ':' Expr ')' '*' Expr { \opts -> ProductTy (mkAbs $2 ($4 opts) ($7 opts)) }
 
   | let '(' Ident ',' Ident ')' '=' Expr in Expr { \opts -> PairElim $3 $5 ($8 opts) ($10 opts) }
+
+  | if Expr then Expr else Expr { \opts -> IfExpr ($2 opts) ($4 opts) ($6 opts) }
 
   -- TODO: this might cause issues with binders in dependent function types? (2020-02-22)
   | Expr ':' Expr  { \opts -> Sig ($1 opts) ($3 opts) }

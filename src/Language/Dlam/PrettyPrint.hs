@@ -42,6 +42,7 @@ instance PrettyPrint ex => PrettyPrint (Expr ex) where
     pprint (App e1@App{} e2) = bracket_pprint e1 ++ " " ++ bracket_pprint e2
     pprint (App e1 e2) = pprint e1 ++ " " ++ bracket_pprint e2
     pprint (Pair e1 e2) = "(" <> pprint e1 <> ", " <> pprint e2 <> ")"
+    pprint (IfExpr e1 e2 e3) = "if " <> pprint e1 <> " then " <> pprint e2 <> " else " <> pprint e3
     pprint (Var var) = pprint var
     pprint (Sig e t) = bracket_pprint e ++ " : " ++ pprint t
     -- Source extensions
@@ -63,6 +64,9 @@ instance PrettyPrint BuiltinTerm where
   pprint LSuc  = "lsuc"
   pprint LevelTy = "Level"
   pprint TypeTy  = "Type"
+  pprint DBool  = "Bool"
+  pprint DTrue  = "true"
+  pprint DFalse = "false"
 
 instance (PrettyPrint e) => PrettyPrint (NAST e) where
   pprint (NAST sts) = concat . intersperse "\n\n" $ fmap pprint sts
