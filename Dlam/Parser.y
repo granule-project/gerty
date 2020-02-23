@@ -87,6 +87,7 @@ Expr :: { [Option] -> Expr NoExt }
 
   | let '(' Ident ',' Ident ')' '=' Expr in Expr { \opts -> PairElim $3 $5 ($8 opts) ($10 opts) }
 
+  -- TODO: this might cause issues with binders in dependent function types? (2020-02-22)
   | Expr ':' Expr  { \opts -> Sig ($1 opts) ($3 opts) }
 
   | Juxt
