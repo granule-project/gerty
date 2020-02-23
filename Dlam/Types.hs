@@ -112,6 +112,7 @@ equalExprs e1 e2 = do
     (FunTy ab1, FunTy ab2) -> equalAbs ab1 ab2
     (Abs ab1, Abs ab2) -> equalAbs ab1 ab2
     (ProductTy ab1, ProductTy ab2) -> equalAbs ab1 ab2
+    -- TODO: add proper equality (like Abs) for PairElim (2020-02-22)
     -- Wilds always match.
     (Wild, _) -> pure True
     (_, Wild) -> pure True
@@ -377,6 +378,9 @@ checkOrInferType t expr@(Abs abE) = do
 
   -- G, x : A |- e : B
   let tB = absExpr abT
+  -- TODO: I feel like we ought to be substituting here, to ensure
+  -- the names coming from the abstraction and from the type both get unified? (2020-02-22)
+  -- tB <- substitute (absVar abT, Var x) (absExpr abT)
   tB <- withTypedVariable x tA (checkOrInferType tB e)
 
   -- G |- \x -> e : (x : A) -> B
