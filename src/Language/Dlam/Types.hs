@@ -285,6 +285,12 @@ checkOrInferType t expr@(Builtin e) =
 
       -- | false : Bool
       DFalse -> dfalseTY
+
+      -- Unit : Type 0
+      DUnitTy -> unitTyTY
+
+      -- unit : Unit
+      DUnitTerm -> unitTermTY
 -------------------------
 -- Variable expression --
 -------------------------

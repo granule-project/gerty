@@ -67,6 +67,8 @@ instance PrettyPrint BuiltinTerm where
   pprint DBool  = "Bool"
   pprint DTrue  = "true"
   pprint DFalse = "false"
+  pprint DUnitTy = "Unit"
+  pprint DUnitTerm = "unit"
 
 instance (PrettyPrint e) => PrettyPrint (NAST e) where
   pprint (NAST sts) = concat . intersperse "\n\n" $ fmap pprint sts

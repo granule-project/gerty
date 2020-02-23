@@ -46,6 +46,11 @@ module Language.Dlam.Syntax
   , dtrueTY
   , dfalse
   , dfalseTY
+  -- ** Unit
+  , unitTy
+  , unitTyTY
+  , unitTerm
+  , unitTermTY
   ) where
 
 import qualified Data.Set as Set
@@ -195,6 +200,12 @@ data BuiltinTerm =
 
   -- | False.
   | DFalse
+
+  -- | Unit term.
+  | DUnitTerm
+
+  -- | Unit type.
+  | DUnitTy
   deriving (Show, Eq, Ord)
 
 
@@ -258,6 +269,18 @@ dfalse = builtinTerm DFalse
 
 dfalseTY :: Expr e
 dfalseTY = dBool
+
+unitTy :: Expr e
+unitTy = builtinTerm DUnitTy
+
+unitTyTY :: Expr e
+unitTyTY = mkUnivTy (LitLevel 0)
+
+unitTerm :: Expr e
+unitTerm = builtinTerm DUnitTerm
+
+unitTermTY :: Expr e
+unitTermTY = unitTy
 
 ----------------------------
 

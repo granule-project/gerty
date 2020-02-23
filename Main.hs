@@ -47,6 +47,8 @@ builtins = M.fromList
            , (mkIdent "Bool", BindV (Just dBool, dBoolTY))
            , (mkIdent "true", BindV (Just dtrue, dtrueTY))
            , (mkIdent "false", BindV (Just dfalse, dfalseTY))
+           , (mkIdent "unit", BindV (Just unitTerm, unitTermTY))
+           , (mkIdent "Unit", BindV (Just unitTy, unitTyTY))
            ]
 
 type ProgState = (Int, ProgMaps)
