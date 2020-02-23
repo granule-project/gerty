@@ -183,6 +183,26 @@ ensureEqualTypes expr tyExpected tyActual = do
   else tyMismatch expr tyExpected tyActual
 
 
+-- | Retrieve an Abstraction from a function type expression, failing if the
+-- | expression is not a function type.
+getAbsFromFunTy :: (PrettyPrint e, Applicative m) => Expr e -> m (Abstraction e)
+getAbsFromFunTy t =
+  case t of
+    FunTy ab -> pure ab
+    -- TODO: improve error system (2020-02-20)
+    t        -> error $ "Expected '" <> pprint t <> "' to be a function type, but it wasn't."
+
+
+-- | Retrieve an Abstraction from a product type expression, failing if the
+-- | expression is not a product type.
+getAbsFromProductTy :: (PrettyPrint e, Applicative m) => Expr e -> m (Abstraction e)
+getAbsFromProductTy t =
+  case t of
+    ProductTy ab -> pure ab
+    -- TODO: improve error system (2020-02-20)
+    t        -> error $ "Expected '" <> pprint t <> "' to be a product type, but it wasn't."
+
+
 -- | 'checkOrInferType ty ex' checks that the type of 'ex' matches 'ty', or infers
 -- | it 'ty' is a wild. Evaluates to the calculated type.
 checkOrInferType :: (Term ext, PrettyPrint ext, Monad m, Substitutable m Identifier (Expr ext), HasBinders m Identifier v, HasTyVal v (Maybe (Expr ext)) (Expr ext)) =>
@@ -276,7 +296,10 @@ checkOrInferType t expr@(ProductTy ab) = do
    --------------------------- :: Pair
    G |- (t1, t2) : (x : A) * B
 -}
-checkOrInferType t@(ProductTy abT) expr@(Pair e1 e2) = do
+checkOrInferType t expr@(Pair e1 e2) = do
+  _l <- inferUniverseLevel t
+  abT <- normalise t >>= getAbsFromProductTy
+
   let x = absVar abT
       tB = absExpr abT
 
@@ -329,10 +352,13 @@ checkOrInferType t expr@(PairElim x y e1 e2) = do
 
   where inferProductTy x e = do
           t <- checkOrInferType (ProductTy (mkAbs x Wild Wild)) e >>= normalise
-          case t of
-            ProductTy ab -> pure ab
-            -- TODO: improve error system (2020-02-20)
-            t        -> error $ "Inferred a type '" <> pprint t <> "' for '" <> pprint e <> "' when a product type was expected."
+          getAbsFromProductTy t
+--------------------------------------------
+-- Abstraction expression, with wild type --
+--------------------------------------------
+checkOrInferType Wild expr@(Abs ab) = do
+  rTy <- withAbsBinding ab $ checkOrInferType Wild (absExpr ab)
+  checkOrInferType (FunTy (mkAbs (absVar ab) (absTy ab) rTy)) expr
 ------------------------
 -- Lambda abstraction --
 ------------------------
@@ -341,7 +367,10 @@ checkOrInferType t expr@(PairElim x y e1 e2) = do
    --------------------------------- :: Abs
    G |- \(x : A) -> e : (x : A) -> B
 -}
-checkOrInferType t@(FunTy abT) expr@(Abs abE) = do
+checkOrInferType t expr@(Abs abE) = do
+  _l <- inferUniverseLevel t
+  abT <- normalise t >>= getAbsFromFunTy
+
   let x = absVar  abE
       e = absExpr abE
       tA = absTy abT
@@ -379,19 +408,11 @@ checkOrInferType t expr@(App e1 e2) = do
 
   where inferFunTy e = do
           t <- synthType e >>= normalise
-          case t of
-            FunTy ab -> pure ab
-            -- TODO: improve error system (2020-02-20)
-            t        -> error $ "Inferred a type '" <> pprint t <> "' for '" <> pprint e <> "' when a function type was expected."
+          getAbsFromFunTy t
 ----------------------
 -- Level expression --
 ----------------------
 checkOrInferType t expr@LitLevel{} = ensureEqualTypes expr t levelTy
---------------------------------------------
--- Abstraction expression, with wild type --
---------------------------------------------
-checkOrInferType Wild expr@(Abs ab) = do
-  checkOrInferType (FunTy (mkAbs (absVar ab) (absTy ab) Wild)) expr
 -------------------------------------
 -- When we don't know how to synth --
 -------------------------------------
