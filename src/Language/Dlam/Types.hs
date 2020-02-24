@@ -88,7 +88,7 @@ finalNormalForm e = maybe e id <$> getBinder (mkTag :: NormalFormMap) e
 
 -- | Normalise the expression via a series of reductions.
 normalise :: (Checkable m e v) => Expr e -> m (Expr e)
-normalise Wild = finalNormalForm Wild
+normalise Hole = finalNormalForm Hole
 normalise (Var x) = do
   val <- getBinderValue (mkTag :: BinderMap) x
   case val of
@@ -168,11 +168,11 @@ equalExprs e1 e2 = do
     (Abs ab1, Abs ab2) -> equalAbs ab1 ab2
     (ProductTy ab1, ProductTy ab2) -> equalAbs ab1 ab2
     -- TODO: add proper equality (like Abs) for PairElim (2020-02-22)
-    -- Wilds always match.
+    -- Holes always match.
     (IfExpr e1 e2 e3, IfExpr e1' e2' e3') ->
       (&&) <$> equalExprs e1 e1' <*> ((&&) <$> equalExprs e2 e2' <*> equalExprs e3 e3')
-    (Wild, _) -> pure True
-    (_, Wild) -> pure True
+    (Hole, _) -> pure True
+    (_, Hole) -> pure True
     (Builtin b1, Builtin b2) -> pure (b1 == b2)
     (LitLevel n, LitLevel m) -> pure (n == m)
     (_, _) -> pure False
@@ -203,7 +203,7 @@ doNStmtInference (Decl v t e) = do
     -- | This usually means that the expression is a type, but allows
     -- | for the possibility of holes that haven't yet been resolved.
     checkExprValidForSignature :: (Checkable m e v, Term e) => Expr e -> m ()
-    checkExprValidForSignature Wild = pure ()
+    checkExprValidForSignature Hole = pure ()
     checkExprValidForSignature expr = inferUniverseLevel expr >> pure ()
 
 
@@ -353,8 +353,8 @@ checkOrInferType t expr@(FunTy ab) = do
 --------------------------------------------
 -- Abstraction expression, with wild type --
 --------------------------------------------
-checkOrInferType Wild expr@(Abs ab) = do
-  rTy <- withAbsBinding ab $ checkOrInferType Wild (absExpr ab)
+checkOrInferType Hole expr@(Abs ab) = do
+  rTy <- withAbsBinding ab $ checkOrInferType Hole (absExpr ab)
   checkOrInferType (FunTy (mkAbs (absVar ab) (absTy ab) rTy)) expr
 
 {-
@@ -471,8 +471,8 @@ checkOrInferType t expr@(PairElim z x y e1 e2 tC) = do
 
   -- G, z : (x : A) * B |- C : Type l
   tC <- case tC of
-          -- if tC is Wild then assume it is okay for now, as we don't have unification variables
-          Wild -> normalise t
+          -- if tC is Hole then assume it is okay for now, as we don't have unification variables
+          Hole -> normalise t
           _ -> do
             _l <- withTypedVariable z (ProductTy (mkAbs x tA tB)) $ inferUniverseLevel tC
             normalise tC
@@ -493,7 +493,7 @@ checkOrInferType t expr@(PairElim z x y e1 e2 tC) = do
   ensureEqualTypes expr t t1ForZinC
 
   where inferProductTy x e = do
-          t <- checkOrInferType (ProductTy (mkAbs x Wild Wild)) e >>= normalise
+          t <- checkOrInferType (ProductTy (mkAbs x Hole Hole)) e >>= normalise
           getAbsFromProductTy t
 
 --------------------
@@ -531,7 +531,7 @@ checkOrInferType t expr@(IfExpr e1 e2 e3) = do
 -------------------------------------
 -- When we don't know how to synth --
 -------------------------------------
-checkOrInferType Wild expr =
+checkOrInferType Hole expr =
   error $ "I was asked to try and synthesise a type for '" <> pprint expr <> "' but I wasn't able to do so."
 ----------------------------------
 -- Currently unsupported checks --
@@ -542,4 +542,4 @@ checkOrInferType t e =
 
 -- | Attempt to synthesise a type for the given expression.
 synthType :: (Checkable m e v, Term e) => Expr e -> m (Expr e)
-synthType = checkOrInferType Wild
+synthType = checkOrInferType Hole

@@ -56,9 +56,9 @@ instance PrettyPrint ex => PrettyPrint (Expr ex) where
     pprint (Ext e) = pprint e
     -- ML
     pprint (GenLet x e1 e2) = "let " ++ pprint x ++ " = " ++ pprint e1 ++ " in " ++ pprint e2
-    pprint Wild = "_"
+    pprint Hole = "_"
     pprint (Builtin s) = pprint s
-    pprint (PairElim Ignore x y e1 e2 Wild) = "let (" <> pprint x <> ", " <> pprint y <> ") = " <> pprint e1 <> " in " <> pprint e2
+    pprint (PairElim Ignore x y e1 e2 Hole) = "let (" <> pprint x <> ", " <> pprint y <> ") = " <> pprint e1 <> " in " <> pprint e2
     pprint (PairElim z x y e1 e2 e3) = "let (" <> pprint z <> ", " <> pprint x <> ", " <> pprint y <> ") = " <> pprint e1 <> " in (" <> pprint e2 <> " : " <> pprint e3 <> ")"
 
 instance PrettyPrint Identifier where
