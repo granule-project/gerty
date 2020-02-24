@@ -119,6 +119,8 @@ normalise (App e1 e2) = do
 
     (App (Builtin LMax) (LitLevel n)) ->
       case e2' of
+        -- lmax (n + 1) (lsuc m) = lsuc m
+        (App (Builtin LSuc) _) | n > 0 -> finalNormalForm e2'
         -- if the expression is of the form 'lmax m n' where 'm' and 'n' are literal
         -- numbers, then normalise by taking the maximum.
         LitLevel m -> finalNormalForm $ LitLevel (max n m)
