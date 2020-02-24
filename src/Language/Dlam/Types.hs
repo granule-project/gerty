@@ -1,3 +1,4 @@
+{-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
 module Language.Dlam.Types
   ( doNASTInference
@@ -30,6 +31,17 @@ import Language.Dlam.PrettyPrint
 -------------------
 
 
+-- | Common constraints required for type checking.
+type Checkable m e v =
+  ( Ord e, PrettyPrint e
+  , Monad m
+  , Substitutable m Identifier (Expr e)
+  , HasBinderMap m Identifier v
+  , HasNormalFormMap m (Expr e) (Expr e)
+  , HasTyVal v (Maybe (Expr e)) (Expr e)
+  )
+
+
 -- | Indicate that an identifier is not known to be defined.
 unknownIdentifierErr :: Identifier -> m a
 unknownIdentifierErr x = error $ "unknown identifier '" <> pprint x <> "'"
@@ -55,12 +67,12 @@ withAbsBinding ab = withTypedVariable (absVar ab) (absTy ab)
 -- | 'withExprNormalisingTo e nf m' runs 'm', but causes
 -- | any expressions that would usually normalise to (the normal form of)
 -- | 'e' to instead normalise to 'nf'.
-withExprNormalisingTo :: (Ord e, PrettyPrint e, HasTyVal v (Maybe (Expr e)) (Expr e), HasBinderMap m Identifier v, Substitutable m Identifier (Expr e), Monad m, HasNormalFormMap m (Expr e) (Expr e)) => Expr e -> Expr e -> m a -> m a
+withExprNormalisingTo :: (Checkable m e v) => Expr e -> Expr e -> m a -> m a
 withExprNormalisingTo e nf m = normalise e >>= \e -> withBinding (mkTag :: NormalFormMap) (e, nf) m
 
 
 -- | Normalise an abstraction via a series of reductions.
-normaliseAbs :: (Ord e, Substitutable m Identifier (Expr e), PrettyPrint e, Monad m, HasNormalFormMap m (Expr e) (Expr e), HasBinderMap m Identifier v, HasTyVal v (Maybe (Expr e)) (Expr e)) => Abstraction e -> m (Abstraction e)
+normaliseAbs :: (Checkable m e v) => Abstraction e -> m (Abstraction e)
 normaliseAbs ab = do
   t <- normalise (absTy ab)
   e <- withAbsBinding ab (normalise (absExpr ab))
@@ -75,7 +87,7 @@ finalNormalForm e = maybe e id <$> getBinder (mkTag :: NormalFormMap) e
 
 
 -- | Normalise the expression via a series of reductions.
-normalise :: (Ord e, Substitutable m Identifier (Expr e), PrettyPrint e, Monad m, HasNormalFormMap m (Expr e) (Expr e), HasBinderMap m Identifier v, HasTyVal v (Maybe (Expr e)) (Expr e)) => Expr e -> m (Expr e)
+normalise :: (Checkable m e v) => Expr e -> m (Expr e)
 normalise Wild = finalNormalForm Wild
 normalise (Var x) = do
   val <- getBinderValue (mkTag :: BinderMap) x
@@ -142,7 +154,7 @@ normalise e = error $ "normalise does not yet support '" <> pprint e <> "'"
 
 
 -- | Check if two expressions are equal under normalisation.
-equalExprs :: (Ord e, PrettyPrint e, Monad m, Substitutable m Identifier (Expr e), HasNormalFormMap m (Expr e) (Expr e), HasBinderMap m Identifier v, HasTyVal v (Maybe (Expr e)) (Expr e)) => Expr e -> Expr e -> m Bool
+equalExprs :: (Checkable m e v) => Expr e -> Expr e -> m Bool
 equalExprs e1 e2 = do
   ne1 <- normalise e1
   ne2 <- normalise e2
@@ -174,7 +186,7 @@ equalExprs e1 e2 = do
 
 -- | Attempt to infer the types of a definition, and check this against the declared
 -- | type, if any.
-doNStmtInference :: (Ord e, HasNormalFormMap m (Expr e) (Expr e), Term e, PrettyPrint e, Monad m, Substitutable m Identifier (Expr e), HasBinderMap m Identifier v, HasTyVal v (Maybe (Expr e)) (Expr e)) => NStmt e -> m (NStmt e)
+doNStmtInference :: (Checkable m e v, Term e) => NStmt e -> m (NStmt e)
 doNStmtInference (Decl v t e) = do
   -- make sure that the definition's type is actually a type
   checkExprValidForSignature t
@@ -187,19 +199,19 @@ doNStmtInference (Decl v t e) = do
     -- |
     -- | This usually means that the expression is a type, but allows
     -- | for the possibility of holes that haven't yet been resolved.
-    checkExprValidForSignature :: (Ord e, HasNormalFormMap m (Expr e) (Expr e), Term e, Monad m, PrettyPrint e, Substitutable m Identifier (Expr e), HasBinderMap m Identifier v, HasTyVal v (Maybe (Expr e)) (Expr e)) => Expr e -> m ()
+    checkExprValidForSignature :: (Checkable m e v, Term e) => Expr e -> m ()
     checkExprValidForSignature Wild = pure ()
     checkExprValidForSignature expr = inferUniverseLevel expr >> pure ()
 
 
 -- | Attempt to infer the types of each definition in the AST, failing if a type
 -- | mismatch is found.
-doNASTInference :: (Ord e, HasNormalFormMap m (Expr e) (Expr e), Term e, PrettyPrint e, Monad m, Substitutable m Identifier (Expr e), HasBinderMap m Identifier v, HasTyVal v (Maybe (Expr e)) (Expr e)) => NAST e -> m (NAST e)
+doNASTInference :: (Checkable m e v, Term e) => NAST e -> m (NAST e)
 doNASTInference (NAST ds) = fmap NAST $ mapM doNStmtInference ds
 
 
 -- | Infer a level for the given type.
-inferUniverseLevel :: (Ord e, HasNormalFormMap m (Expr e) (Expr e), Term e, Monad m, PrettyPrint e, Substitutable m Identifier (Expr e), HasBinderMap m Identifier v, HasTyVal v (Maybe (Expr e)) (Expr e)) => Expr e -> m (Expr e)
+inferUniverseLevel :: (Checkable m e v, Term e) => Expr e -> m (Expr e)
 inferUniverseLevel e = do
   u <- synthType e
   norm <- normalise u
@@ -222,7 +234,7 @@ tyMismatch expr tyExpected tyActual =
 
 -- | 'ensureEqualTypes expr tyExpected tyActual' checks that 'tyExpected' and 'tyActual'
 -- | represent the same type (under normalisation), and fails if they differ.
-ensureEqualTypes :: (Ord e, PrettyPrint e, Monad m, Substitutable m Identifier (Expr e), HasNormalFormMap m (Expr e) (Expr e), HasBinderMap m Identifier v, HasTyVal v (Maybe (Expr e)) (Expr e)) =>
+ensureEqualTypes :: (Checkable m e v) =>
   Expr e -> Expr e -> Expr e -> m (Expr e)
 ensureEqualTypes expr tyExpected tyActual = do
   typesEqual <- equalExprs tyActual tyExpected
@@ -252,8 +264,7 @@ getAbsFromProductTy t =
 
 -- | 'checkOrInferType ty ex' checks that the type of 'ex' matches 'ty', or infers
 -- | it 'ty' is a wild. Evaluates to the calculated type.
-checkOrInferType :: (Ord ext, HasNormalFormMap m (Expr ext) (Expr ext), Term ext, PrettyPrint ext, Monad m, Substitutable m Identifier (Expr ext), HasBinderMap m Identifier v, HasTyVal v (Maybe (Expr ext)) (Expr ext)) =>
-  Expr ext -> Expr ext -> m (Expr ext)
+checkOrInferType :: (Checkable m e v, Term e) => Expr e -> Expr e -> m (Expr e)
 --------------
 -- Builtins --
 --------------
@@ -522,6 +533,5 @@ checkOrInferType t e =
 
 
 -- | Attempt to synthesise a type for the given expression.
-synthType :: (Ord ext, HasNormalFormMap m (Expr ext) (Expr ext), Term ext, PrettyPrint ext, Monad m, Substitutable m Identifier (Expr ext), HasBinderMap m Identifier v, HasTyVal v (Maybe (Expr ext)) (Expr ext)) =>
-  Expr ext -> m (Expr ext)
+synthType :: (Checkable m e v, Term e) => Expr e -> m (Expr e)
 synthType = checkOrInferType Wild
