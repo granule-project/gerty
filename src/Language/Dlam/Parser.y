@@ -23,7 +23,7 @@ import Language.Dlam.Options
 %token
     nl      { TokenNL _ }
     let     { TokenLet _ }
-    '_'     { TokenHole _ }
+    '_'     { TokenImplicit _ }
     if { TokenIf _ }
     then { TokenThen _ }
     else { TokenElse _ }
@@ -75,7 +75,7 @@ Expr :: { [Option] -> Expr NoExt }
     { \opts ->
       if isML opts
        then GenLet $2 ($4 opts) ($6 opts)
-       else App (Abs (mkAbs $2 Hole ($6 opts))) ($4 opts) }
+       else App (Abs (mkAbs $2 mkImplicit ($6 opts))) ($4 opts) }
 
   | Expr '->' Expr   { \opts -> FunTy (mkAbs ignoreVar ($1 opts) ($3 opts)) }
   | TyBindings '->' Expr { \opts -> foldr (\(n, ty) fty -> FunTy (mkAbs n ty fty)) ($3 opts) ($1 opts) }
@@ -90,7 +90,7 @@ Expr :: { [Option] -> Expr NoExt }
 
   | let '(' Ident ',' Ident ',' Ident ')' '=' Expr in '(' Expr ':' Expr ')' { \opts -> PairElim $3 $5 $7 ($10 opts) ($13 opts) ($15 opts) }
 
-  | let '(' Ident ',' Ident ')' '=' Expr in Expr { \opts -> PairElim ignoreVar $3 $5 ($8 opts) ($10 opts) Hole }
+  | let '(' Ident ',' Ident ')' '=' Expr in Expr { \opts -> PairElim ignoreVar $3 $5 ($8 opts) ($10 opts) mkImplicit }
 
   | if Expr then Expr else Expr { \opts -> IfExpr ($2 opts) ($4 opts) ($6 opts) }
 
@@ -108,7 +108,7 @@ Juxt :: { [Option] -> Expr NoExt }
 Atom :: { [Option] -> Expr NoExt }
   : '(' Expr ')'              { $2 }
   | Ident                       { \opts -> Var $1 }
-  | '_'                       { \opts -> Hole }
+  | '_'                       { \opts -> mkImplicit }
   | NAT                       { \opts -> LitLevel (natTokenToInt $1) }
   | '(' Expr ',' Expr ')'     { \opts -> Pair ($2 opts) ($4 opts) }
 
@@ -122,7 +122,7 @@ VarsSpaced :: { [Identifier] }
 
 -- Arguments for a lambda term.
 LambdaArg :: { [Option] -> [(Identifier, Expr NoExt)] }
-  : Ident       { \opts -> [($1, Hole)] }
+  : Ident       { \opts -> [($1, mkImplicit)] }
   | TyBinding { \opts -> $1 opts }
 
 LambdaArgs :: { [Option] -> [(Identifier, Expr NoExt)] }

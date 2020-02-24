@@ -21,6 +21,7 @@ module Language.Dlam.Syntax
   , NStmt(..)
   , normaliseAST
   , Abstraction
+  , mkImplicit
   -- * Builtins
   , BuiltinTerm(..)
   , builtinTerm
@@ -85,7 +86,7 @@ normaliseAST (AST ((StmtType v t):(StmtAssign v' e):sts))
   | v == v' = let (NAST xs) = normaliseAST (AST sts) in NAST ((Decl v t e):xs)
   | otherwise = error $ "type declaration for '" <> v <> "' followed by an assignment to '" <> v' <> "'"
 normaliseAST (AST ((StmtAssign v e):sts)) =
-  let (NAST xs) = normaliseAST (AST sts) in NAST ((Decl v Hole e) : xs)
+  let (NAST xs) = normaliseAST (AST sts) in NAST ((Decl v mkImplicit e) : xs)
 normaliseAST (AST [StmtType v _]) =
   error $ "expected an assignment to '" <> v <> "' but reached end of file"
 normaliseAST (AST ((StmtType v _):(StmtType _ _):_)) =
@@ -158,6 +159,9 @@ data Expr ex where
   -- | Holes for inference.
   Hole :: Expr ex
 
+  -- | Implicits for synthesis.
+  Implicit :: Expr ex
+
   -- | Builtin terms, with a unique identifying name.
   Builtin :: BuiltinTerm -> Expr ex
 
@@ -169,6 +173,11 @@ data Expr ex where
   deriving (Show, Ord)
 
 deriving instance (Eq ext) => Eq (Expr ext)
+
+
+-- | Make a new, unnamed, implicit term.
+mkImplicit :: Expr e
+mkImplicit = Implicit
 
 
 --------------------
@@ -317,6 +326,7 @@ instance (Term e) => Term (Expr e) where
   boundVars (GenLet var e1 e2)           = var `Set.insert` (boundVars e1 `Set.union` boundVars e2)
   boundVars (Ext e)                      = boundVars e
   boundVars Hole                         = Set.empty
+  boundVars Implicit                     = Set.empty
   boundVars LitLevel{}                   = Set.empty
   boundVars Builtin{}                    = Set.empty
   boundVars (PairElim z x y e1 e2 e3)    =
@@ -335,6 +345,7 @@ instance (Term e) => Term (Expr e) where
     Set.delete z (Set.delete x (Set.delete y (freeVars e1 `Set.union` freeVars e2 `Set.union` freeVars e3)))
   freeVars (Ext e)                       = freeVars e
   freeVars Hole                          = Set.empty
+  freeVars Implicit                      = Set.empty
   freeVars LitLevel{}                    = Set.empty
   freeVars Builtin{}                     = Set.empty
 

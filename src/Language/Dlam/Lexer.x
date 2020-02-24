@@ -62,7 +62,7 @@ tokens :-
   "<"                           { \p s -> TokenLPair p }
   ">"                           { \p s -> TokenRPair p }
   ","                           { \p _ -> TokenComma p }
-  "_"                           { \p _ -> TokenHole p }
+  "_"                           { \p _ -> TokenImplicit p }
   \.                            { \p _ -> TokenDot p }
   \@                            { \p _ -> TokenAt p }
 
@@ -87,6 +87,7 @@ data Token
   | TokenNL       AlexPosn
   | TokenSig      AlexPosn
   | TokenHole     AlexPosn
+  | TokenImplicit AlexPosn
   | TokenProd     AlexPosn
   | TokenComma    AlexPosn
   | TokenLPair    AlexPosn

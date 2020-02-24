@@ -110,6 +110,7 @@ instance Substitutable Prog Identifier (Expr NoExt) where
   substitute _ e@Builtin{} = pure e
   substitute _ e@LitLevel{} = pure e
   substitute _ e@Hole{} = pure e
+  substitute _ e@Implicit = pure e
   substitute _ e = error $ "substitution not yet defined for '" <> pprint e <> "'"
 
 main :: IO ()
