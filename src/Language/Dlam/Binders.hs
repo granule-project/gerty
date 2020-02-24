@@ -1,3 +1,4 @@
+{-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FunctionalDependencies #-}
 module Language.Dlam.Binders
@@ -57,12 +58,11 @@ newtype BinderMap = BinderMap ()
 instance IsTag BinderMap where
   mkTag = BinderMap ()
 
-class (HasNamedMap m BinderMap k v) => HasBinderMap m k v
-
+type HasBinderMap m k v = HasNamedMap m BinderMap k v
 
 newtype NormalFormMap = NormalFormMap ()
 
 instance IsTag NormalFormMap where
   mkTag = NormalFormMap ()
 
-class (HasNamedMap m NormalFormMap k v) => HasNormalFormMap m k v
+type HasNormalFormMap m k v = HasNamedMap m NormalFormMap k v

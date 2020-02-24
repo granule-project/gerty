@@ -9,10 +9,8 @@ import qualified Data.Map as M
 
 import Language.Dlam.Binders
   ( HasNamedMap(..)
-  , HasBinderMap
   , BinderMap
   , NormalFormMap
-  , HasNormalFormMap
   , HasTyVal(..)
   )
 import Language.Dlam.Parser      (parseProgram)
@@ -67,16 +65,12 @@ instance HasNamedMap Prog BinderMap Identifier (BindV NoExt) where
     put (count, (M.insert x e ctx, nfs))
   preservingBindings _ m = get >>= \(_, (old, _)) -> m <* (get >>= \(c, (_, n)) -> put (c, (old, n)))
 
-instance HasBinderMap Prog Identifier (BindV NoExt)
-
 instance HasNamedMap Prog NormalFormMap (Expr NoExt) (Expr NoExt) where
   getBindings _ = snd . snd <$> get
   setBinder _ x e = do
     (count, (ctx, nfs)) <- get
     put (count, (ctx, M.insert x e nfs))
   preservingBindings _ m = get >>= \(_, (_, old)) -> m <* (get >>= \(c, (v, _)) -> put (c, (v, old)))
-
-instance HasNormalFormMap Prog (Expr NoExt) (Expr NoExt)
 
 instance HasTyVal (BindV e) (Maybe (Expr e)) (Expr e) where
   toVal = fst . getBindV
