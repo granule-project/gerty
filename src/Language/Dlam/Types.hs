@@ -128,11 +128,12 @@ normalise (App e1 e2) = do
     -- (\x -> e) e' ----> [e'/x] e
     (Abs ab) -> substitute (absVar ab, e2') (absExpr ab) >>= normalise
     _              -> finalNormalForm $ App e1' e2'
-normalise (PairElim v1 v2 e1 e2) = do
+normalise (PairElim v0 v1 v2 e1 e2 e3) = do
   e1' <- normalise e1
+  e3' <- normalise e3
   case e1' of
     (Pair l r) -> substitute (v1, l) e2 >>= substitute (v2, r) >>= normalise
-    _          -> finalNormalForm $ PairElim v1 v2 e1' e2
+    _          -> finalNormalForm $ PairElim v0 v1 v2 e1' e2 e3'
 normalise (IfExpr e1 e2 e3) = do
   e1' <- normalise e1
   e2' <- normalise e2
@@ -455,25 +456,30 @@ checkOrInferType t expr@(Pair e1 e2) = do
   ensureEqualTypes expr t (ProductTy (mkAbs x tA tB))
 
 {-
-   x, y nin FV(C)
+   G, z : (x : A) * B |- C : Type l
+   G, x : A, y : B |- t2 : [(x, y)/z]C
    G |- t1 : (x : A) * B
-   G, x : A |- B : Type l
-   G, x : A, y : B |- t2 : C
-   ------------------------------ :: PairElim
-   G |- let (x, y) = t1 in t2 : C
+   ------------------------------------ :: PairElim
+   G |- let (x, y) = t1 in t2 : [t1/z]C
 -}
-checkOrInferType t expr@(PairElim x y e1 e2) = do
+checkOrInferType t expr@(PairElim z x y e1 e2 tC) = do
 
   -- G |- t1 : (x : A) * B
   e1Ty <- inferProductTy x e1
   tA <- substitute (absVar e1Ty, Var x) (absTy e1Ty)
   tB <- substitute (absVar e1Ty, Var x) (absExpr e1Ty)
 
-  -- G, x : A |- B : Type l
-  _l <- withTypedVariable x tA (inferUniverseLevel tB)
+  -- G, z : (x : A) * B |- C : Type l
+  tC <- case tC of
+          -- if tC is Wild then assume it is okay for now, as we don't have unification variables
+          Wild -> normalise t
+          _ -> do
+            _l <- withTypedVariable z (ProductTy (mkAbs (absVar e1Ty) tA tB)) $ inferUniverseLevel tC
+            normalise tC
 
-  -- G, x : A, y : B |- t2 : C
-  tC <- withTypedVariable x tA $ withTypedVariable y tB $ checkOrInferType t e2
+  -- G, x : A, y : B |- t2 : [(x, y)/z]C
+  xyForZinC <- withTypedVariable x tA $ withTypedVariable y tB $ substitute (z, Pair (Var x) (Var y)) tC
+  _ <- withTypedVariable x tA $ withTypedVariable y tB $ checkOrInferType xyForZinC e2
 
   -- x, y nin FV(C)
   when (x `elem` freeVars tC || y `elem` freeVars tC) $
@@ -482,8 +488,9 @@ checkOrInferType t expr@(PairElim x y e1 e2) = do
                       , "' (which was found to be '", pprint tC, "'), but one or more of them did."
                       ]
 
-  -- G |- let (x, y) = t1 in t2 : C
-  ensureEqualTypes expr t tC
+  -- G |- let (z, x, y) = t1 in (t2 : C) : [t1/z]C
+  t1ForZinC <- substitute (z, e1) tC
+  ensureEqualTypes expr t t1ForZinC
 
   where inferProductTy x e = do
           t <- checkOrInferType (ProductTy (mkAbs x Wild Wild)) e >>= normalise

@@ -88,7 +88,9 @@ Expr :: { [Option] -> Expr NoExt }
 
   | '(' Ident ':' Expr ')' '*' Expr { \opts -> ProductTy (mkAbs $2 ($4 opts) ($7 opts)) }
 
-  | let '(' Ident ',' Ident ')' '=' Expr in Expr { \opts -> PairElim $3 $5 ($8 opts) ($10 opts) }
+  | let '(' Ident ',' Ident ',' Ident ')' '=' Expr in '(' Expr ':' Expr ')' { \opts -> PairElim $3 $5 $7 ($10 opts) ($13 opts) ($15 opts) }
+
+  | let '(' Ident ',' Ident ')' '=' Expr in Expr { \opts -> PairElim ignoreVar $3 $5 ($8 opts) ($10 opts) Wild }
 
   | if Expr then Expr else Expr { \opts -> IfExpr ($2 opts) ($4 opts) ($6 opts) }
 

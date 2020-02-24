@@ -146,7 +146,7 @@ data Expr ex where
   Pair :: Expr ex -> Expr ex -> Expr ex
 
   -- | Pair eliminator.
-  PairElim :: Identifier -> Identifier -> Expr ex -> Expr ex -> Expr ex
+  PairElim :: Identifier -> Identifier -> Identifier -> Expr ex -> Expr ex -> Expr ex -> Expr ex
 
   -- | Conditional eliminator.
   IfExpr :: Expr ex -> Expr ex -> Expr ex -> Expr ex
@@ -319,8 +319,8 @@ instance (Term e) => Term (Expr e) where
   boundVars Wild                         = Set.empty
   boundVars LitLevel{}                   = Set.empty
   boundVars Builtin{}                    = Set.empty
-  boundVars (PairElim x y e1 e2)         =
-    x `Set.insert` (y `Set.insert` (boundVars e1 `Set.union` boundVars e2))
+  boundVars (PairElim z x y e1 e2 e3)    =
+    Set.insert z (x `Set.insert` (y `Set.insert` (boundVars e1 `Set.union` boundVars e2 `Set.union` boundVars e3)))
 
   freeVars (FunTy ab)                    = freeVarsAbs ab
   freeVars (Abs ab)                      = freeVarsAbs ab
@@ -331,8 +331,8 @@ instance (Term e) => Term (Expr e) where
   freeVars (Var var)                     = Set.singleton var
   freeVars (Sig e _)                     = freeVars e
   freeVars (GenLet var e1 e2)            = Set.delete var (freeVars e1 `Set.union` freeVars e2)
-  freeVars (PairElim x y e1 e2)          =
-    Set.delete x (Set.delete y (freeVars e1 `Set.union` freeVars e2))
+  freeVars (PairElim z x y e1 e2 e3)     =
+    Set.delete z (Set.delete x (Set.delete y (freeVars e1 `Set.union` freeVars e2 `Set.union` freeVars e3)))
   freeVars (Ext e)                       = freeVars e
   freeVars Wild                          = Set.empty
   freeVars LitLevel{}                    = Set.empty

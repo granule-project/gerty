@@ -97,10 +97,11 @@ instance Substitutable Prog Identifier (Expr NoExt) where
   substitute s (Abs   abs) = Abs   <$> substAbs s abs
   substitute s (ProductTy abs) = ProductTy <$> substAbs s abs
   substitute s (Pair e1 e2) = Pair <$> substitute s e1 <*> substitute s e2
-  substitute s@(v, _) (PairElim v1 v2 e1 e2) = do
+  substitute s@(v, _) (PairElim v0 v1 v2 e1 e2 e3) = do
     e1' <- substitute s e1
     e2' <- if v == v1 || v == v2 then pure e2 else substitute s e2
-    pure $ PairElim v1 v2 e1' e2'
+    e3' <- if v == v0 then pure e3 else substitute s e3
+    pure $ PairElim v0 v1 v2 e1' e2' e3'
   substitute s (IfExpr e1 e2 e3) = IfExpr <$> substitute s e1 <*> substitute s e2 <*> substitute s e3
   substitute s (App e1 e2) = do
     e1' <- substitute s e1
