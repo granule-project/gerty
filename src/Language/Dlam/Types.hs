@@ -304,6 +304,10 @@ checkOrInferType t expr@(Builtin e) =
 
       -- unit : Unit
       DUnitTerm -> unitTermTY
+----------------------
+-- Level expression --
+----------------------
+checkOrInferType t expr@LitLevel{} = ensureEqualTypes expr t levelTy
 -------------------------
 -- Variable expression --
 -------------------------
@@ -323,9 +327,11 @@ checkOrInferType t expr@(Var x) = do
 
   -- G |- x : A
   ensureEqualTypes expr t tA
-------------------------
--- Pi-type expression --
-------------------------
+
+-------------------------------
+----- Dependent Functions -----
+-------------------------------
+
 {-
    G |- A : Type l1
    G, x : A |- B : Type l2
@@ -342,9 +348,67 @@ checkOrInferType t expr@(FunTy ab) = do
   -- G |- (x : A) -> B : Type (lmax l1 l2)
   lmaxl1l2 <- normalise (lmaxApp l1 l2)
   ensureEqualTypes expr t (mkUnivTy lmaxl1l2)
----------------------------
--- Dependent tensor type --
----------------------------
+
+--------------------------------------------
+-- Abstraction expression, with wild type --
+--------------------------------------------
+checkOrInferType Wild expr@(Abs ab) = do
+  rTy <- withAbsBinding ab $ checkOrInferType Wild (absExpr ab)
+  checkOrInferType (FunTy (mkAbs (absVar ab) (absTy ab) rTy)) expr
+
+{-
+   G, x : A |- e : B
+   --------------------------------- :: Abs
+   G |- \(x : A) -> e : (x : A) -> B
+-}
+checkOrInferType t expr@(Abs abE) = do
+  _l <- inferUniverseLevel t
+  abT <- normalise t >>= getAbsFromFunTy
+
+  let x = absVar  abE
+      e = absExpr abE
+      tA = absTy abT
+
+  -- G, x : A |- e : B
+  let tB = absExpr abT
+  -- TODO: I feel like we ought to be substituting here, to ensure
+  -- the names coming from the abstraction and from the type both get unified? (2020-02-22)
+  -- tB <- substitute (absVar abT, Var x) (absExpr abT)
+  tB <- withTypedVariable x tA (checkOrInferType tB e)
+
+  -- G |- \x -> e : (x : A) -> B
+  ensureEqualTypes expr t (FunTy (mkAbs x tA tB))
+
+{-
+   G |- t1 : (x : A) -> B
+   G |- t2 : A
+   ---------------------- :: App
+   G |- t1 t2 : [t2/x]B
+-}
+checkOrInferType t expr@(App e1 e2) = do
+
+  -- G |- t1 : (x : A) -> B
+  e1Ty <- inferFunTy e1
+
+  let x  = absVar e1Ty
+      tA = absTy  e1Ty
+      tB = absExpr e1Ty
+
+  -- G |- t2 : A
+  _e2Ty <- checkOrInferType tA e2
+
+  -- G |- t1 t2 : [t2/x]B
+  t2forXinB <- substitute (x, e2) tB
+  ensureEqualTypes expr t t2forXinB
+
+  where inferFunTy e = do
+          t <- synthType e >>= normalise
+          getAbsFromFunTy t
+
+-----------------------------
+----- Dependent Tensors -----
+-----------------------------
+
 {-
    G |- A : Type l1
    G, x : A |- B : Type l2
@@ -361,9 +425,7 @@ checkOrInferType t expr@(ProductTy ab) = do
   -- G |- (x : A) * B : Type (lmax l1 l2)
   lmaxl1l2 <- normalise (lmaxApp l1 l2)
   ensureEqualTypes expr t (mkUnivTy lmaxl1l2)
------------------------
--- Pair introduction --
------------------------
+
 {-
    G |- t1 : A
    G |- t2 : [t1/x]B
@@ -391,9 +453,7 @@ checkOrInferType t expr@(Pair e1 e2) = do
 
   -- G |- (t1, t2) : (x : A) * B
   ensureEqualTypes expr t (ProductTy (mkAbs x tA tB))
----------------------
--- Pair eliminator --
----------------------
+
 {-
    x, y nin FV(C)
    G |- t1 : (x : A) * B
@@ -428,68 +488,11 @@ checkOrInferType t expr@(PairElim x y e1 e2) = do
   where inferProductTy x e = do
           t <- checkOrInferType (ProductTy (mkAbs x Wild Wild)) e >>= normalise
           getAbsFromProductTy t
---------------------------------------------
--- Abstraction expression, with wild type --
---------------------------------------------
-checkOrInferType Wild expr@(Abs ab) = do
-  rTy <- withAbsBinding ab $ checkOrInferType Wild (absExpr ab)
-  checkOrInferType (FunTy (mkAbs (absVar ab) (absTy ab) rTy)) expr
-------------------------
--- Lambda abstraction --
-------------------------
-{-
-   G, x : A |- e : B
-   --------------------------------- :: Abs
-   G |- \(x : A) -> e : (x : A) -> B
--}
-checkOrInferType t expr@(Abs abE) = do
-  _l <- inferUniverseLevel t
-  abT <- normalise t >>= getAbsFromFunTy
 
-  let x = absVar  abE
-      e = absExpr abE
-      tA = absTy abT
+--------------------
+----- Booleans -----
+--------------------
 
-  -- G, x : A |- e : B
-  let tB = absExpr abT
-  -- TODO: I feel like we ought to be substituting here, to ensure
-  -- the names coming from the abstraction and from the type both get unified? (2020-02-22)
-  -- tB <- substitute (absVar abT, Var x) (absExpr abT)
-  tB <- withTypedVariable x tA (checkOrInferType tB e)
-
-  -- G |- \x -> e : (x : A) -> B
-  ensureEqualTypes expr t (FunTy (mkAbs x tA tB))
-----------------------------
--- Application expression --
-----------------------------
-{-
-   G |- t1 : (x : A) -> B
-   G |- t2 : A
-   ---------------------- :: App
-   G |- t1 t2 : [t2/x]B
--}
-checkOrInferType t expr@(App e1 e2) = do
-
-  -- G |- t1 : (x : A) -> B
-  e1Ty <- inferFunTy e1
-
-  let x  = absVar e1Ty
-      tA = absTy  e1Ty
-      tB = absExpr e1Ty
-
-  -- G |- t2 : A
-  _e2Ty <- checkOrInferType tA e2
-
-  -- G |- t1 t2 : [t2/x]B
-  t2forXinB <- substitute (x, e2) tB
-  ensureEqualTypes expr t t2forXinB
-
-  where inferFunTy e = do
-          t <- synthType e >>= normalise
-          getAbsFromFunTy t
------------------
--- Conditional --
------------------
 {-
    G |- t1 : Bool
    G |- t2 : A
@@ -518,10 +521,6 @@ checkOrInferType t expr@(IfExpr e1 e2 e3) = do
             -- TODO: improve error system (2020-02-20)
             t        -> error $ "Expected '" <> pprint t <> "' to be a boolean type, but it wasn't."
 
-----------------------
--- Level expression --
-----------------------
-checkOrInferType t expr@LitLevel{} = ensureEqualTypes expr t levelTy
 -------------------------------------
 -- When we don't know how to synth --
 -------------------------------------
