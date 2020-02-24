@@ -20,6 +20,18 @@ bracket_pprint :: PrettyPrint t => t -> String
 bracket_pprint t | isLexicallyAtomic t = pprint t
                  | otherwise           = "(" ++ pprint t ++ ")"
 
+
+-- | Pretty-print an Abstraction, separating the (possibly named)
+-- | binder from the expression using the given separator.
+pprintAbs :: PrettyPrint t => String -> (Abstraction t) -> String
+pprintAbs sep ab =
+  let leftTyStr =
+        case absVar ab of
+          Ignore -> pprint (absTy ab)
+          _      -> concat ["(", pprint (absVar ab), " : ", pprint (absTy ab), ")"]
+  in concat [leftTyStr, " ", sep, " ", pprint (absExpr ab)]
+
+
 -- Untyped lambda calculus
 instance PrettyPrint ex => PrettyPrint (Expr ex) where
     isLexicallyAtomic (Var _) = True
@@ -27,14 +39,9 @@ instance PrettyPrint ex => PrettyPrint (Expr ex) where
     isLexicallyAtomic _       = False
 
     pprint (LitLevel n)           = show n
-    pprint (Abs ab) =
-      concat ["\\ (", pprint (absVar ab), " : ", pprint (absTy ab), ") -> ", pprint (absExpr ab)]
-    pprint (FunTy ab) =
-      concat ["(", pprint (absVar ab), " : ",
-                 pprint (absTy ab), ") -> ", pprint (absExpr ab)]
-    pprint (ProductTy ab) =
-      concat ["(", pprint (absVar ab), " : ",
-                 pprint (absTy ab), ") * ", pprint (absExpr ab)]
+    pprint (Abs ab) = "\\ " <> pprintAbs "->" ab
+    pprint (FunTy ab) = pprintAbs "->" ab
+    pprint (ProductTy ab) = pprintAbs "*" ab
     pprint (App abs@(Abs _) e2) =
       bracket_pprint abs ++ " " ++ bracket_pprint e2
     pprint (App (Sig e1 t) e2) =
