@@ -474,7 +474,7 @@ checkOrInferType t expr@(PairElim z x y e1 e2 tC) = do
           -- if tC is Wild then assume it is okay for now, as we don't have unification variables
           Wild -> normalise t
           _ -> do
-            _l <- withTypedVariable z (ProductTy (mkAbs (absVar e1Ty) tA tB)) $ inferUniverseLevel tC
+            _l <- withTypedVariable z (ProductTy (mkAbs x tA tB)) $ inferUniverseLevel tC
             normalise tC
 
   -- G, x : A, y : B |- t2 : [(x, y)/z]C
