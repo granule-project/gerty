@@ -4,7 +4,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE DeriveGeneric #-}
 
-module Language.Dlam.Lexer
+module Language.Dlam.Syntax.Lexer
   ( Token(..)
   , scanTokens
   , symString

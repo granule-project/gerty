@@ -24,8 +24,8 @@ import Control.Exception (Exception)
 import Control.Monad.Except (MonadError, throwError)
 import Type.Reflection (Typeable)
 
-import Language.Dlam.Syntax
-import Language.Dlam.PrettyPrint (PrettyPrint(pprint))
+import Language.Dlam.Syntax.Syntax
+import Language.Dlam.Syntax.PrettyPrint (PrettyPrint(pprint))
 
 
 class InjErr a b where

@@ -13,9 +13,9 @@ import Control.Monad.Except (MonadError, throwError)
 import Control.Monad.Writer (MonadWriter, tell)
 
 import Language.Dlam.Exception
-import Language.Dlam.Parser      (parseProgram)
-import Language.Dlam.PrettyPrint (PrettyPrint(pprint))
-import Language.Dlam.Syntax
+import Language.Dlam.Syntax.Parser      (parseProgram)
+import Language.Dlam.Syntax.PrettyPrint (PrettyPrint(pprint))
+import Language.Dlam.Syntax.Syntax
 import Language.Dlam.Types
 
 data InterpreterError ann e =

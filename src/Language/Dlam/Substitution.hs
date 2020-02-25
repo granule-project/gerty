@@ -14,7 +14,7 @@ import Language.Dlam.Binders
   , BinderMap
   , HasBinderMap
   )
-import Language.Dlam.Syntax
+import Language.Dlam.Syntax.Syntax
 
 class Freshenable m n | m -> n where
   freshen :: n -> m n

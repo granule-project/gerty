@@ -15,9 +15,9 @@ import Language.Dlam.Interpreter
   , InterpreterError
   , formatError
   )
-import Language.Dlam.PrettyPrint (pprint)
 import Language.Dlam.Program (runProgFull)
-import Language.Dlam.Syntax (NoAnn, NoExt)
+import Language.Dlam.Syntax.PrettyPrint (pprint)
+import Language.Dlam.Syntax.Syntax (NoAnn, NoExt)
 import qualified Language.Dlam.Interpreter as Interpreter
 
 

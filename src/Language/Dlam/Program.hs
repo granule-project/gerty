@@ -16,9 +16,9 @@ import Language.Dlam.Binders
   , NormalFormMap
   , HasTyVal(..)
   )
-import Language.Dlam.PrettyPrint (pprint)
+import Language.Dlam.Syntax.PrettyPrint (pprint)
 import Language.Dlam.Substitution (Substitutable(..), substAbs, Freshenable(..))
-import Language.Dlam.Syntax
+import Language.Dlam.Syntax.Syntax
 
 newtype BindV ann e = BindV { getBindV :: (Maybe (Expr ann e), Expr ann e) }
 

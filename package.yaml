@@ -32,17 +32,17 @@ library:
   exposed-modules:
    - Language.Dlam.Binders
    - Language.Dlam.Interpreter
-   - Language.Dlam.Parser
-   - Language.Dlam.PrettyPrint
    - Language.Dlam.Program
    - Language.Dlam.Substitution
-   - Language.Dlam.Syntax
+   - Language.Dlam.Syntax.Parser
+   - Language.Dlam.Syntax.PrettyPrint
+   - Language.Dlam.Syntax.Syntax
    - Language.Dlam.Types
   other-modules:
    - Language.Dlam.Exception
    - Language.Dlam.FirstParameter
-   - Language.Dlam.Lexer
    - Language.Dlam.Options
+   - Language.Dlam.Syntax.Lexer
 
 executables:
   dlam:
