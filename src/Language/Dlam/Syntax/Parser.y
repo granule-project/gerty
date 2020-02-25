@@ -143,11 +143,9 @@ TyBindings :: { [Option] -> [(Identifier, ParseExpr)] }
 
 {
 
-type ParseAnn = NoAnn
-type ParseExt = NoExt
-type ParseExpr = Expr ParseAnn ParseExt
-type ParseAST = AST ParseAnn ParseExt
-type ParseStmt = Stmt ParseAnn ParseExt
+type ParseExpr = Expr
+type ParseAST = AST
+type ParseStmt = Stmt
 
 readOption :: Token -> ReaderT String (Either String) Option
 readOption (TokenLang _ x) | x == "lang.ml"    = return ML

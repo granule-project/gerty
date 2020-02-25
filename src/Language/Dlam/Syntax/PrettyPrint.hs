@@ -23,7 +23,7 @@ bracket_pprint t | isLexicallyAtomic t = pprint t
 
 -- | Pretty-print an Abstraction, separating the (possibly named)
 -- | binder from the expression using the given separator.
-pprintAbs :: PrettyPrint t => String -> (Abstraction ann t) -> String
+pprintAbs :: String -> Abstraction -> String
 pprintAbs sep ab =
   let leftTyStr =
         case absVar ab of
@@ -33,9 +33,8 @@ pprintAbs sep ab =
 
 
 -- Untyped lambda calculus
-instance PrettyPrint ex => PrettyPrint (Expr ann ex) where
+instance PrettyPrint Expr where
     isLexicallyAtomic (Var _) = True
-    isLexicallyAtomic (Ext e) = isLexicallyAtomic e
     isLexicallyAtomic _       = False
 
     pprint (LitLevel n)           = show n
@@ -52,8 +51,6 @@ instance PrettyPrint ex => PrettyPrint (Expr ann ex) where
     pprint (IfExpr e1 e2 e3) = "if " <> pprint e1 <> " then " <> pprint e2 <> " else " <> pprint e3
     pprint (Var var) = pprint var
     pprint (Sig e t) = bracket_pprint e ++ " : " ++ pprint t
-    -- Source extensions
-    pprint (Ext e) = pprint e
     -- ML
     pprint (GenLet x e1 e2) = "let " ++ pprint x ++ " = " ++ pprint e1 ++ " in " ++ pprint e2
     pprint Hole = "?"
@@ -79,17 +76,11 @@ instance PrettyPrint BuiltinTerm where
   pprint DUnitTy = "Unit"
   pprint DUnitTerm = "unit"
 
-instance (PrettyPrint e) => PrettyPrint (NAST ann e) where
+instance PrettyPrint NAST where
   pprint (NAST sts) = concat . intersperse "\n\n" $ fmap pprint sts
 
-instance (PrettyPrint e) => PrettyPrint (NStmt ann e) where
+instance PrettyPrint NStmt where
   pprint (Decl v Nothing e) =
     v <> " = " <> pprint e
   pprint (Decl v (Just t) e) =
     v <> " : " <> pprint t <> "\n" <> v <> " = " <> pprint e
-
-instance PrettyPrint () where
-    pprint () = "()"
-
-instance PrettyPrint NoExt where
-  pprint _ = undefined

@@ -17,7 +17,6 @@ import Language.Dlam.Interpreter
   )
 import Language.Dlam.Program (runProgFull)
 import Language.Dlam.Syntax.PrettyPrint (pprint)
-import Language.Dlam.Syntax.Syntax (NoAnn, NoExt)
 import qualified Language.Dlam.Interpreter as Interpreter
 
 
@@ -28,7 +27,7 @@ main = do
   runTestsAndCleanUp $ testGroup "Golden tests" [negative, positive]
 
 
-type InterpreterError' = InterpreterError NoAnn NoExt
+type InterpreterError' = InterpreterError
 
 positiveTestCasesDir :: FilePath
 positiveTestCasesDir = "tests/cases/positive"

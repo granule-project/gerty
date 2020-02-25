@@ -18,45 +18,45 @@ import Language.Dlam.Syntax.PrettyPrint (PrettyPrint(pprint))
 import Language.Dlam.Syntax.Syntax
 import Language.Dlam.Types
 
-data InterpreterError ann e =
-    ISynthError (SynthError ann e)
+data InterpreterError =
+    ISynthError SynthError
   | IImplementationError ImplementationError
   | IScopeError ScopeError
-  | ITypeError (TypeError ann e)
+  | ITypeError TypeError
   | IGenericError String
 
-instance InjErr (SynthError ann e) (InterpreterError ann e) where injErr = ISynthError
-instance InjErr ScopeError (InterpreterError ann e) where injErr = IScopeError
-instance InjErr ImplementationError (InterpreterError ann e) where
+instance InjErr SynthError InterpreterError where injErr = ISynthError
+instance InjErr ScopeError InterpreterError where injErr = IScopeError
+instance InjErr ImplementationError InterpreterError where
   injErr = IImplementationError
-instance InjErr (TypeError ann e) (InterpreterError ann e) where injErr = ITypeError
+instance InjErr TypeError InterpreterError where injErr = ITypeError
 
-newtype InterpreterResult = InterpreterResult (NAST NoAnn NoExt)
+newtype InterpreterResult = InterpreterResult NAST
 
 instance Show InterpreterResult where
   show (InterpreterResult nast) = pprint nast
 
 
-throwGenericError :: (MonadError (InterpreterError ann e) m) => String -> m a
+throwGenericError :: (MonadError InterpreterError m) => String -> m a
 throwGenericError = throwError . IGenericError
 
-formatError :: (ExceptionCompat ann e) => InterpreterError ann e -> String
+formatError :: InterpreterError -> String
 formatError (ISynthError e) = displayException e
 formatError (ITypeError e) = displayException e
 formatError (IImplementationError e) = displayException e
 formatError (IScopeError e) = displayException e
 formatError (IGenericError s) = s
 
-instance (PrettyPrint e) => Show (InterpreterError ann e) where
+instance Show InterpreterError where
   show (ISynthError e) = show e
   show (ITypeError e) = show e
   show (IScopeError e) = show e
   show (IImplementationError e) = show e
   show (IGenericError e) = e
 
-instance (ExceptionCompat ann e) => Exception (InterpreterError ann e)
+instance Exception InterpreterError
 
-run :: (Checkable m (InterpreterError NoAnn NoExt) NoAnn NoExt v, MonadWriter String m) => FilePath -> String -> m InterpreterResult
+run :: (Checkable m InterpreterError v, MonadWriter String m) => FilePath -> String -> m InterpreterResult
 run fname input =
   case parseProgram fname input of
     Right (ast, _options) -> do

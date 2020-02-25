@@ -9,7 +9,6 @@ module Language.Dlam.Syntax.Syntax
   , Identifier(..)
   , mkIdent
   , ignoreVar
-  , NoExt
   , Term(..)
   , mkAbs
   , absVar
@@ -22,9 +21,6 @@ module Language.Dlam.Syntax.Syntax
   , normaliseAST
   , Abstraction
   , mkImplicit
-
-  -- * Annotations
-  , NoAnn
 
   -- * Builtins
   , BuiltinTerm(..)
@@ -64,27 +60,27 @@ import qualified Data.Set as Set
 -- Statements --
 ----------------
 
-newtype AST ann e = AST [Stmt ann e]
+newtype AST = AST [Stmt]
   deriving Show
 
-data Stmt ann e =
+data Stmt =
   -- | Assignment to a name.
-    StmtAssign String (Expr ann e)
+    StmtAssign String Expr
   -- | Type assignment.
-  | StmtType String (Expr ann e)
+  | StmtType String Expr
   deriving Show
 
-newtype NAST ann e = NAST [NStmt ann e]
+newtype NAST = NAST [NStmt]
   deriving Show
 
-data NStmt ann e =
+data NStmt =
   -- | An assignment with an optional type, and mandatory definition.
-  Decl String (Maybe (Expr ann e)) (Expr ann e)
+  Decl String (Maybe Expr) Expr
   deriving Show
 
 -- | Normalise the raw AST into a form appropriate for further analyses.
 -- TODO: add a better error system (2020-02-19)
-normaliseAST :: AST ann e -> NAST ann e
+normaliseAST :: AST -> NAST
 normaliseAST (AST []) = NAST []
 normaliseAST (AST ((StmtType v t):(StmtAssign v' e):sts))
   | v == v' = let (NAST xs) = normaliseAST (AST sts) in NAST ((Decl v (Just t) e):xs)
@@ -107,80 +103,73 @@ mkIdent = Ident
 ignoreVar :: Identifier
 ignoreVar = Ignore
 
-newtype Abstraction ann ext = Abst { getAbst :: (Identifier, Expr ann ext, Expr ann ext) }
-  deriving (Show, Ord)
-
-deriving instance (Eq ext) => Eq (Abstraction ann ext)
+newtype Abstraction = Abst { getAbst :: (Identifier, Expr, Expr) }
+  deriving (Show, Eq, Ord)
 
 -- | Variable bound in the abstraction.
-absVar :: Abstraction ann ex -> Identifier
+absVar :: Abstraction -> Identifier
 absVar (Abst (v, _, _)) = v
 
 -- | Type of the bound variable in the abstraction.
-absTy :: Abstraction ann ex -> Expr ann ex
+absTy :: Abstraction -> Expr
 absTy (Abst (_, t, _)) = t
 
 -- | Target expression of the abstraction.
-absExpr :: Abstraction ann ex -> Expr ann ex
+absExpr :: Abstraction -> Expr
 absExpr (Abst (_, _, t)) = t
 
-mkAbs :: Identifier -> Expr ann ext -> Expr ann ext -> Abstraction ann ext
+mkAbs :: Identifier -> Expr -> Expr -> Abstraction
 mkAbs v e1 e2 = Abst (v, e1, e2)
 
 -- Abstract-syntax tree for LambdaCore
 -- parameterised by an additional type `ex`
 -- used to represent the abstract syntax
 -- tree of additional commands
-data Expr ann ex where
+data Expr where
   -- | Variable.
-  Var :: Identifier -> Expr ann ex
+  Var :: Identifier -> Expr
 
   -- | Level literals.
-  LitLevel :: Int -> Expr ann ex
+  LitLevel :: Int -> Expr
 
   -- | Dependent function type.
-  FunTy :: Abstraction ann ex -> Expr ann ex
+  FunTy :: Abstraction -> Expr
 
   -- | Lambda abstraction.
-  Abs :: Abstraction ann ex -> Expr ann ex
+  Abs :: Abstraction -> Expr
 
   -- | Dependent tensor type.
-  ProductTy :: Abstraction ann ex -> Expr ann ex
+  ProductTy :: Abstraction -> Expr
 
   -- | Pairs.
-  Pair :: Expr ann ex -> Expr ann ex -> Expr ann ex
+  Pair :: Expr -> Expr -> Expr
 
   -- | Pair eliminator.
-  PairElim :: Identifier -> Identifier -> Identifier -> Expr ann ex -> Expr ann ex -> Expr ann ex -> Expr ann ex
+  PairElim :: Identifier -> Identifier -> Identifier -> Expr -> Expr -> Expr -> Expr
 
   -- | Conditional eliminator.
-  IfExpr :: Expr ann ex -> Expr ann ex -> Expr ann ex -> Expr ann ex
+  IfExpr :: Expr -> Expr -> Expr -> Expr
 
-  App :: Expr ann ex ->  Expr ann ex   -> Expr ann ex -- e1 e2
+  App :: Expr ->  Expr   -> Expr -- e1 e2
 
-  Sig :: Expr ann ex -> Expr ann ex       -> Expr ann ex -- e : A
+  Sig :: Expr -> Expr       -> Expr -- e : A
 
   -- | Holes for inference.
-  Hole :: Expr ann ex
+  Hole :: Expr
 
   -- | Implicits for synthesis.
-  Implicit :: Expr ann ex
+  Implicit :: Expr
 
   -- | Builtin terms, with a unique identifying name.
-  Builtin :: BuiltinTerm -> Expr ann ex
+  Builtin :: BuiltinTerm -> Expr
 
   -- ML
-  GenLet :: Identifier -> Expr ann ex -> Expr ann ex -> Expr ann ex -- let x = e1 in e2 (ML-style polymorphism)
-
-  -- | AST extensions.
-  Ext :: ex -> Expr ann ex
-  deriving (Show, Ord)
-
-deriving instance (Eq ext) => Eq (Expr ann ext)
+  GenLet :: Identifier -> Expr -> Expr -> Expr -- let x = e1 in e2 (ML-style polymorphism)
+  deriving (Show, Eq, Ord)
 
 
 -- | Make a new, unnamed, implicit term.
-mkImplicit :: Expr ann e
+mkImplicit :: Expr
 mkImplicit = Implicit
 
 
@@ -223,76 +212,76 @@ data BuiltinTerm =
 
 
 -- | Body for a builtin term (essentially an Agda postulate).
-builtinTerm :: BuiltinTerm -> Expr ann e
+builtinTerm :: BuiltinTerm -> Expr
 builtinTerm = Builtin
 
-levelTy :: Expr ann e
+levelTy :: Expr
 levelTy = builtinTerm LevelTy
 
-levelTyTY :: Expr ann e
+levelTyTY :: Expr
 levelTyTY = mkUnivTy (LitLevel 0)
 
-lzero :: Expr ann e
+lzero :: Expr
 lzero = builtinTerm LZero
 
-lzeroTY :: Expr ann e
+lzeroTY :: Expr
 lzeroTY = levelTy
 
-lsuc :: Expr ann e
+lsuc :: Expr
 lsuc = builtinTerm LSuc
 
-lsucTY :: Expr ann e
+lsucTY :: Expr
 lsucTY = FunTy (mkAbs ignoreVar levelTy levelTy)
 
-lsucApp :: Expr ann e -> Expr ann e
+lsucApp :: Expr -> Expr
 lsucApp = App lsuc
 
-lmax :: Expr ann e
+lmax :: Expr
 lmax = builtinTerm LMax
 
-lmaxTY :: Expr ann e
+lmaxTY :: Expr
 lmaxTY = FunTy (mkAbs ignoreVar levelTy (FunTy (mkAbs ignoreVar levelTy levelTy)))
 
-lmaxApp :: Expr ann e -> Expr ann e -> Expr ann e
+lmaxApp :: Expr -> Expr -> Expr
 lmaxApp l1 l2 = App (App lmax l1) l2
 
-typeTy :: Expr ann e
+typeTy :: Expr
 typeTy = builtinTerm TypeTy
 
-typeTyTY :: Expr ann e
+typeTyTY :: Expr
 typeTyTY = let l = mkIdent "l" in FunTy (mkAbs l levelTy (mkUnivTy (lsucApp (Var l))))
 
-mkUnivTy :: Expr ann e -> Expr ann e
+mkUnivTy :: Expr -> Expr
 mkUnivTy = App typeTy
 
-dBool :: Expr ann e
+dBool :: Expr
 dBool = builtinTerm DBool
 
-dBoolTY :: Expr ann e
+dBoolTY :: Expr
 dBoolTY = mkUnivTy (LitLevel 0)
 
-dtrue :: Expr ann e
+dtrue :: Expr
 dtrue = builtinTerm DTrue
 
-dtrueTY :: Expr ann e
+dtrueTY :: Expr
 dtrueTY = dBool
 
-dfalse :: Expr ann e
+dfalse :: Expr
 dfalse = builtinTerm DFalse
 
-dfalseTY :: Expr ann e
+dfalseTY :: Expr
 dfalseTY = dBool
 
-unitTy :: Expr ann e
+unitTy :: Expr
 unitTy = builtinTerm DUnitTy
 
-unitTyTY :: Expr ann e
+unitTyTY :: Expr
 unitTyTY = mkUnivTy (LitLevel 0)
 
-unitTerm :: Expr ann e
+unitTerm :: Expr
 unitTerm = builtinTerm DUnitTerm
 
-unitTermTY :: Expr ann e
+unitTermTY :: Expr
 unitTermTY = unitTy
 
 ----------------------------
@@ -301,27 +290,14 @@ class Term t where
   boundVars :: t -> Set.Set Identifier
   freeVars  :: t -> Set.Set Identifier
 
--- | For minimal language with no extensions.
-data NoExt
-  deriving Ord
 
-instance Eq NoExt where
-  _ == _ = True
-
-instance Show NoExt where
-  show _ = undefined
-
-
-type NoAnn = ()
-
-
-boundVarsAbs :: (Term (Expr ann e)) => Abstraction ann e -> Set.Set Identifier
+boundVarsAbs :: Abstraction -> Set.Set Identifier
 boundVarsAbs ab = absVar ab `Set.insert` boundVars (absExpr ab)
 
-freeVarsAbs :: (Term (Expr ann e)) => Abstraction ann e -> Set.Set Identifier
+freeVarsAbs :: Abstraction -> Set.Set Identifier
 freeVarsAbs ab = Set.delete (absVar ab) (freeVars (absExpr ab))
 
-instance (Term e) => Term (Expr ann e) where
+instance Term Expr where
   boundVars (Abs ab)                     = boundVarsAbs ab
   boundVars (FunTy ab)                   = boundVarsAbs ab
   boundVars (ProductTy ab)               = boundVarsAbs ab
@@ -331,7 +307,6 @@ instance (Term e) => Term (Expr ann e) where
   boundVars (Var _)                      = Set.empty
   boundVars (Sig e _)                    = boundVars e
   boundVars (GenLet var e1 e2)           = var `Set.insert` (boundVars e1 `Set.union` boundVars e2)
-  boundVars (Ext e)                      = boundVars e
   boundVars Hole                         = Set.empty
   boundVars Implicit                     = Set.empty
   boundVars LitLevel{}                   = Set.empty
@@ -350,12 +325,7 @@ instance (Term e) => Term (Expr ann e) where
   freeVars (GenLet var e1 e2)            = Set.delete var (freeVars e1 `Set.union` freeVars e2)
   freeVars (PairElim z x y e1 e2 e3)     =
     Set.delete z (Set.delete x (Set.delete y (freeVars e1 `Set.union` freeVars e2 `Set.union` freeVars e3)))
-  freeVars (Ext e)                       = freeVars e
   freeVars Hole                          = Set.empty
   freeVars Implicit                      = Set.empty
   freeVars LitLevel{}                    = Set.empty
   freeVars Builtin{}                     = Set.empty
-
-instance Term NoExt where
-  boundVars _ = undefined
-  freeVars  _ = undefined
