@@ -2,9 +2,11 @@
 {-# LANGUAGE FlexibleContexts #-}
 module Language.Dlam.Types
   ( doNASTInference
+  , Checkable
   ) where
 
 import Control.Monad (when)
+import Control.Monad.Except (MonadError)
 
 import Language.Dlam.Binders
   ( HasNamedMap(..)
@@ -19,6 +21,7 @@ import Language.Dlam.Binders
   , getBinderType
   , withBinding
   )
+import Language.Dlam.Exception
 import Language.Dlam.Substitution
   ( Substitutable(substitute)
   )
@@ -32,19 +35,19 @@ import Language.Dlam.PrettyPrint
 
 
 -- | Common constraints required for type checking.
-type Checkable m e v =
+type Checkable m err e v =
   ( Ord e, PrettyPrint e
   , Monad m
   , Substitutable m Identifier (Expr e)
   , HasBinderMap m Identifier v
   , HasNormalFormMap m (Expr e) (Expr e)
   , HasTyVal v (Maybe (Expr e)) (Expr e)
+  , MonadError err m
+  , InjErr (SynthError e) err
+  , InjErr (TypeError e) err
+  , InjErr ImplementationError err
+  , InjErr ScopeError err
   )
-
-
--- | Indicate that an identifier is not known to be defined.
-unknownIdentifierErr :: Identifier -> m a
-unknownIdentifierErr x = error $ "unknown identifier '" <> pprint x <> "'"
 
 
 -------------------------
@@ -67,12 +70,12 @@ withAbsBinding ab = withTypedVariable (absVar ab) (absTy ab)
 -- | 'withExprNormalisingTo e nf m' runs 'm', but causes
 -- | any expressions that would usually normalise to (the normal form of)
 -- | 'e' to instead normalise to 'nf'.
-withExprNormalisingTo :: (Checkable m e v) => Expr e -> Expr e -> m a -> m a
+withExprNormalisingTo :: (Checkable m err e v) => Expr e -> Expr e -> m a -> m a
 withExprNormalisingTo e nf m = normalise e >>= \e -> withBinding (mkTag :: NormalFormMap) (e, nf) m
 
 
 -- | Normalise an abstraction via a series of reductions.
-normaliseAbs :: (Checkable m e v) => Abstraction e -> m (Abstraction e)
+normaliseAbs :: (Checkable m err e v) => Abstraction e -> m (Abstraction e)
 normaliseAbs ab = do
   t <- normalise (absTy ab)
   e <- withAbsBinding ab (normalise (absExpr ab))
@@ -87,12 +90,11 @@ finalNormalForm e = maybe e id <$> getBinder (mkTag :: NormalFormMap) e
 
 
 -- | Normalise the expression via a series of reductions.
-normalise :: (Checkable m e v) => Expr e -> m (Expr e)
+normalise :: (Checkable m err e v) => Expr e -> m (Expr e)
 normalise Implicit = finalNormalForm Implicit
 normalise (Var x) = do
   val <- getBinderValue (mkTag :: BinderMap) x
   case val of
-    -- TODO: improve error system (2020-02-20)
     Nothing -> finalNormalForm $ Var x
     Just Nothing  -> finalNormalForm $ Var x
     Just (Just e) -> normalise e
@@ -148,7 +150,7 @@ normalise (Pair e1 e2) = finalNormalForm =<< Pair <$> normalise e1 <*> normalise
 normalise (Builtin LZero) = finalNormalForm $ LitLevel 0
 normalise e@Builtin{} = finalNormalForm e
 normalise e@LitLevel{} = finalNormalForm e
-normalise e = error $ "normalise does not yet support '" <> pprint e <> "'"
+normalise e = notImplemented $ "normalise does not yet support '" <> pprint e <> "'"
 
 
 ------------------------------
@@ -157,7 +159,7 @@ normalise e = error $ "normalise does not yet support '" <> pprint e <> "'"
 
 
 -- | Check if two expressions are equal under normalisation.
-equalExprs :: (Checkable m e v) => Expr e -> Expr e -> m Bool
+equalExprs :: (Checkable m err e v) => Expr e -> Expr e -> m Bool
 equalExprs e1 e2 = do
   ne1 <- normalise e1
   ne2 <- normalise e2
@@ -189,7 +191,7 @@ equalExprs e1 e2 = do
 
 -- | Attempt to infer the types of a definition, and check this against the declared
 -- | type, if any.
-doNStmtInference :: (Checkable m e v, Term e) => NStmt e -> m (NStmt e)
+doNStmtInference :: (Checkable m err e v, Term e) => NStmt e -> m (NStmt e)
 doNStmtInference (Decl v t e) = do
   -- make sure that the definition's type is actually a type
   checkExprValidForSignature t
@@ -202,19 +204,19 @@ doNStmtInference (Decl v t e) = do
     -- |
     -- | This usually means that the expression is a type, but allows
     -- | for the possibility of holes that haven't yet been resolved.
-    checkExprValidForSignature :: (Checkable m e v, Term e) => Expr e -> m ()
+    checkExprValidForSignature :: (Checkable m err e v, Term e) => Expr e -> m ()
     checkExprValidForSignature Implicit = pure ()
     checkExprValidForSignature expr = inferUniverseLevel expr >> pure ()
 
 
 -- | Attempt to infer the types of each definition in the AST, failing if a type
 -- | mismatch is found.
-doNASTInference :: (Checkable m e v, Term e) => NAST e -> m (NAST e)
+doNASTInference :: (Checkable m err e v, Term e) => NAST e -> m (NAST e)
 doNASTInference (NAST ds) = fmap NAST $ mapM doNStmtInference ds
 
 
 -- | Infer a level for the given type.
-inferUniverseLevel :: (Checkable m e v, Term e) => Expr e -> m (Expr e)
+inferUniverseLevel :: (Checkable m err e v, Term e) => Expr e -> m (Expr e)
 inferUniverseLevel e = do
   u <- synthType e
   norm <- normalise u
@@ -224,20 +226,12 @@ inferUniverseLevel e = do
       l1 <- inferUniverseLevel e2
       l2 <- inferUniverseLevel e3
       normalise (lmaxApp l1 l2)
-    -- TODO: improve error system (2020-02-20)
-    _        -> error $ "expected '" <> pprint e <> "' to be a type, but instead it had type '" <> pprint norm <> "'"
-
-
--- | 'tyMismatch expr tyExpected tyActual' generates failure, indicating
--- | that an expression was found to have a type that differs from expected.
-tyMismatch :: (PrettyPrint e) => Expr e -> Expr e -> Expr e -> m a
-tyMismatch expr tyExpected tyActual =
-  error $ "Error when checking the type of '" <> pprint expr <> "', expected '" <> pprint tyExpected <> "' but got '" <> pprint tyActual <> "'"
+    _        -> expectedInferredTypeForm "universe" e norm
 
 
 -- | 'ensureEqualTypes expr tyExpected tyActual' checks that 'tyExpected' and 'tyActual'
 -- | represent the same type (under normalisation), and fails if they differ.
-ensureEqualTypes :: (Checkable m e v) =>
+ensureEqualTypes :: (Checkable m err e v) =>
   Expr e -> Expr e -> Expr e -> m (Expr e)
 ensureEqualTypes expr tyExpected tyActual = do
   typesEqual <- equalExprs tyActual tyExpected
@@ -247,27 +241,25 @@ ensureEqualTypes expr tyExpected tyActual = do
 
 -- | Retrieve an Abstraction from a function type expression, failing if the
 -- | expression is not a function type.
-getAbsFromFunTy :: (PrettyPrint e, Applicative m) => Expr e -> m (Abstraction e)
-getAbsFromFunTy t =
+getAbsFromFunTy :: (MonadError err m, InjErr (TypeError e) err) => Expr e -> Expr e -> m (Abstraction e)
+getAbsFromFunTy expr t =
   case t of
     FunTy ab -> pure ab
-    -- TODO: improve error system (2020-02-20)
-    t        -> error $ "Expected '" <> pprint t <> "' to be a function type, but it wasn't."
+    t        -> expectedInferredTypeForm "function" expr t
 
 
 -- | Retrieve an Abstraction from a product type expression, failing if the
 -- | expression is not a product type.
-getAbsFromProductTy :: (PrettyPrint e, Applicative m) => Expr e -> m (Abstraction e)
-getAbsFromProductTy t =
+getAbsFromProductTy :: (MonadError err m, InjErr (TypeError e) err) => Expr e -> Expr e -> m (Abstraction e)
+getAbsFromProductTy expr t =
   case t of
     ProductTy ab -> pure ab
-    -- TODO: improve error system (2020-02-20)
-    t        -> error $ "Expected '" <> pprint t <> "' to be a product type, but it wasn't."
+    t            -> expectedInferredTypeForm "product" expr t
 
 
 -- | 'checkOrInferType ty ex' checks that the type of 'ex' matches 'ty', or infers
 -- | it 'ty' is a wild. Evaluates to the calculated type.
-checkOrInferType :: (Checkable m e v, Term e) => Expr e -> Expr e -> m (Expr e)
+checkOrInferType :: (Checkable m err e v, Term e) => Expr e -> Expr e -> m (Expr e)
 --------------
 -- Builtins --
 --------------
@@ -364,7 +356,7 @@ checkOrInferType Implicit expr@(Abs ab) = do
 -}
 checkOrInferType t expr@(Abs abE) = do
   _l <- inferUniverseLevel t
-  abT <- normalise t >>= getAbsFromFunTy
+  abT <- normalise t >>= getAbsFromFunTy expr
 
   let x = absVar  abE
       e = absExpr abE
@@ -404,7 +396,7 @@ checkOrInferType t expr@(App e1 e2) = do
 
   where inferFunTy e = do
           t <- synthType e >>= normalise
-          getAbsFromFunTy t
+          getAbsFromFunTy e t
 
 -----------------------------
 ----- Dependent Tensors -----
@@ -436,7 +428,7 @@ checkOrInferType t expr@(ProductTy ab) = do
 -}
 checkOrInferType t expr@(Pair e1 e2) = do
   _l <- inferUniverseLevel t
-  abT <- normalise t >>= getAbsFromProductTy
+  abT <- normalise t >>= getAbsFromProductTy expr
 
   let x = absVar abT
       tB = absExpr abT
@@ -494,7 +486,7 @@ checkOrInferType t expr@(PairElim z x y e1 e2 tC) = do
 
   where inferProductTy x e = do
           t <- checkOrInferType (ProductTy (mkAbs x mkImplicit mkImplicit)) e >>= normalise
-          getAbsFromProductTy t
+          getAbsFromProductTy e t
 
 --------------------
 ----- Booleans -----
@@ -525,21 +517,20 @@ checkOrInferType t expr@(IfExpr e1 e2 e3) = do
           t <- synthType e >>= normalise
           case t of
             (Builtin DBool) -> pure t
-            -- TODO: improve error system (2020-02-20)
-            t        -> error $ "Expected '" <> pprint t <> "' to be a boolean type, but it wasn't."
+            t -> expectedInferredTypeForm "boolean" e t
 
 -------------------------------------
 -- When we don't know how to synth --
 -------------------------------------
-checkOrInferType Implicit expr =
-  error $ "I was asked to try and synthesise a type for '" <> pprint expr <> "' but I wasn't able to do so."
+checkOrInferType Implicit expr = cannotSynthTypeForExpr expr
+checkOrInferType t Implicit    = cannotSynthExprForType t
 ----------------------------------
 -- Currently unsupported checks --
 ----------------------------------
 checkOrInferType t e =
-  error $ "Error when checking '" <> pprint e <> "' has type '" <> pprint t <> "'"
+  notImplemented $ "I don't yet know how to check the type of expression '" <> pprint e <> "' against the type '" <> pprint t
 
 
 -- | Attempt to synthesise a type for the given expression.
-synthType :: (Checkable m e v, Term e) => Expr e -> m (Expr e)
+synthType :: (Checkable m err e v, Term e) => Expr e -> m (Expr e)
 synthType = checkOrInferType mkImplicit

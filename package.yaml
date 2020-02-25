@@ -39,6 +39,7 @@ library:
    - Language.Dlam.Syntax
    - Language.Dlam.Types
   other-modules:
+   - Language.Dlam.Exception
    - Language.Dlam.FirstParameter
    - Language.Dlam.Lexer
    - Language.Dlam.Options

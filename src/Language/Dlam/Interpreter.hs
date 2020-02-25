@@ -1,4 +1,6 @@
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE MonoLocalBinds #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 module Language.Dlam.Interpreter
   ( run
   , InterpreterError
@@ -6,23 +8,28 @@ module Language.Dlam.Interpreter
   , formatError
   ) where
 
-import Control.Exception (Exception)
+import Control.Exception (Exception, displayException)
 import Control.Monad.Except (MonadError, throwError)
 import Control.Monad.Writer (MonadWriter, tell)
 
-import Language.Dlam.Binders
-  ( HasNamedMap(..)
-  , BinderMap
-  , NormalFormMap
-  , HasTyVal(..)
-  )
+import Language.Dlam.Exception
 import Language.Dlam.Parser      (parseProgram)
-import Language.Dlam.PrettyPrint (pprint)
-import Language.Dlam.Substitution (Substitutable(..))
+import Language.Dlam.PrettyPrint (PrettyPrint(pprint))
 import Language.Dlam.Syntax
 import Language.Dlam.Types
 
-newtype InterpreterError = InterpreterError String
+data InterpreterError e =
+    ISynthError (SynthError e)
+  | IImplementationError ImplementationError
+  | IScopeError ScopeError
+  | ITypeError (TypeError e)
+  | IGenericError String
+
+instance InjErr (SynthError e) (InterpreterError e) where injErr = ISynthError
+instance InjErr ScopeError (InterpreterError e) where injErr = IScopeError
+instance InjErr ImplementationError (InterpreterError e) where
+  injErr = IImplementationError
+instance InjErr (TypeError e) (InterpreterError e) where injErr = ITypeError
 
 newtype InterpreterResult = InterpreterResult (NAST NoExt)
 
@@ -30,18 +37,26 @@ instance Show InterpreterResult where
   show (InterpreterResult nast) = pprint nast
 
 
-throwInterpreterError :: (MonadError InterpreterError m) => String -> m a
-throwInterpreterError = throwError . InterpreterError
+throwGenericError :: (MonadError (InterpreterError e) m) => String -> m a
+throwGenericError = throwError . IGenericError
 
-formatError :: InterpreterError -> String
-formatError (InterpreterError e) = e
+formatError :: (ExceptionCompat e) => InterpreterError e -> String
+formatError (ISynthError e) = displayException e
+formatError (ITypeError e) = displayException e
+formatError (IImplementationError e) = displayException e
+formatError (IScopeError e) = displayException e
+formatError (IGenericError s) = s
 
-instance Show InterpreterError where
-  show (InterpreterError e) = e
+instance (PrettyPrint e) => Show (InterpreterError e) where
+  show (ISynthError e) = show e
+  show (ITypeError e) = show e
+  show (IScopeError e) = show e
+  show (IImplementationError e) = show e
+  show (IGenericError e) = e
 
-instance Exception InterpreterError
+instance (ExceptionCompat e) => Exception (InterpreterError e)
 
-run :: (Substitutable m Identifier (Expr NoExt), HasNamedMap m BinderMap Identifier v, HasNamedMap m NormalFormMap (Expr NoExt) (Expr NoExt), HasTyVal v (Maybe (Expr NoExt)) (Expr NoExt), MonadError InterpreterError m, MonadWriter String m) => FilePath -> String -> m InterpreterResult
+run :: (Checkable m (InterpreterError NoExt) NoExt v, MonadWriter String m) => FilePath -> String -> m InterpreterResult
 run fname input =
   case parseProgram fname input of
     Right (ast, _options) -> do
@@ -56,7 +71,7 @@ run fname input =
       -- Typing
       fmap InterpreterResult $ doNASTInference nast
 
-    Left msg -> throwInterpreterError $ ansi_red ++ "Error: " ++ ansi_reset ++ msg
+    Left msg -> throwGenericError $ ansi_red ++ "Error: " ++ ansi_reset ++ msg
 
 
 ansi_red, ansi_reset, ansi_bold :: String
