@@ -50,3 +50,16 @@ executables:
     dependencies:
      - dependent-lamb
      - directory
+
+tests:
+  dependent-lamb-golden:
+    main: Golden.hs
+    source-dirs: tests
+    dependencies:
+    - Diff
+    - dependent-lamb
+    - directory
+    - mtl
+    - strict
+    - tasty
+    - tasty-golden

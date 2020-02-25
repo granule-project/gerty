@@ -24,3 +24,6 @@ cabal.project.local~
 # Stack
 .stack-work/
 stack.yaml.lock
+
+# Test output
+*.output

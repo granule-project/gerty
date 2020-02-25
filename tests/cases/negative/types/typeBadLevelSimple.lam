@@ -1,0 +1,3 @@
+-- Type 0 cannot belong to Type 0, it must instead be in Type 1
+bad : Type 0
+bad = Type 0
