@@ -34,33 +34,33 @@ pprintAbs sep ab =
 
 -- Untyped lambda calculus
 instance PrettyPrint ex => PrettyPrint (Expr ann ex) where
-    isLexicallyAtomic (Var _) = True
-    isLexicallyAtomic (Ext e) = isLexicallyAtomic e
+    isLexicallyAtomic (Var _ _) = True
+    isLexicallyAtomic (Ext _ e) = isLexicallyAtomic e
     isLexicallyAtomic _       = False
 
-    pprint (LitLevel n)           = show n
-    pprint (Abs ab) = "\\ " <> pprintAbs "->" ab
-    pprint (FunTy ab) = pprintAbs "->" ab
-    pprint (ProductTy ab) = pprintAbs "*" ab
-    pprint (App abs@(Abs _) e2) =
+    pprint (LitLevel _ n)           = show n
+    pprint (Abs _ ab) = "\\ " <> pprintAbs "->" ab
+    pprint (FunTy _ ab) = pprintAbs "->" ab
+    pprint (ProductTy _ ab) = pprintAbs "*" ab
+    pprint (App _ abs@Abs{} e2) =
       bracket_pprint abs ++ " " ++ bracket_pprint e2
-    pprint (App (Sig e1 t) e2) =
-      bracket_pprint (Sig e1 t) ++ " " ++ bracket_pprint e2
-    pprint (App e1@App{} e2) = bracket_pprint e1 ++ " " ++ bracket_pprint e2
-    pprint (App e1 e2) = pprint e1 ++ " " ++ bracket_pprint e2
-    pprint (Pair e1 e2) = "(" <> pprint e1 <> ", " <> pprint e2 <> ")"
-    pprint (IfExpr e1 e2 e3) = "if " <> pprint e1 <> " then " <> pprint e2 <> " else " <> pprint e3
-    pprint (Var var) = pprint var
-    pprint (Sig e t) = bracket_pprint e ++ " : " ++ pprint t
+    pprint (App _ sig@Sig{} e2) =
+      bracket_pprint sig ++ " " ++ bracket_pprint e2
+    pprint (App _ e1@App{} e2) = bracket_pprint e1 ++ " " ++ bracket_pprint e2
+    pprint (App _ e1 e2) = pprint e1 ++ " " ++ bracket_pprint e2
+    pprint (Pair _ e1 e2) = "(" <> pprint e1 <> ", " <> pprint e2 <> ")"
+    pprint (IfExpr _ e1 e2 e3) = "if " <> pprint e1 <> " then " <> pprint e2 <> " else " <> pprint e3
+    pprint (Var _ var) = pprint var
+    pprint (Sig _ e t) = bracket_pprint e ++ " : " ++ pprint t
     -- Source extensions
-    pprint (Ext e) = pprint e
+    pprint (Ext _ e) = pprint e
     -- ML
-    pprint (GenLet x e1 e2) = "let " ++ pprint x ++ " = " ++ pprint e1 ++ " in " ++ pprint e2
-    pprint Hole = "?"
+    pprint (GenLet _ x e1 e2) = "let " ++ pprint x ++ " = " ++ pprint e1 ++ " in " ++ pprint e2
+    pprint Hole{} = "?"
     pprint Implicit{} = "_"
-    pprint (Builtin s) = pprint s
-    pprint (PairElim Ignore x y e1 e2 Implicit{}) = "let (" <> pprint x <> ", " <> pprint y <> ") = " <> pprint e1 <> " in " <> pprint e2
-    pprint (PairElim z x y e1 e2 e3) = "let (" <> pprint z <> ", " <> pprint x <> ", " <> pprint y <> ") = " <> pprint e1 <> " in (" <> pprint e2 <> " : " <> pprint e3 <> ")"
+    pprint (Builtin _ s) = pprint s
+    pprint (PairElim _ Ignore x y e1 e2 Implicit{}) = "let (" <> pprint x <> ", " <> pprint y <> ") = " <> pprint e1 <> " in " <> pprint e2
+    pprint (PairElim _ z x y e1 e2 e3) = "let (" <> pprint z <> ", " <> pprint x <> ", " <> pprint y <> ") = " <> pprint e1 <> " in (" <> pprint e2 <> " : " <> pprint e3 <> ")"
 
 instance PrettyPrint Identifier where
   pprint (Ident v) = v

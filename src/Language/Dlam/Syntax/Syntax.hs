@@ -23,6 +23,9 @@ module Language.Dlam.Syntax.Syntax
   , Abstraction
   , mkImplicit
 
+  -- * Helpers
+  , Default(..)
+
   -- * Annotations
   , NoAnn
 
@@ -59,6 +62,18 @@ module Language.Dlam.Syntax.Syntax
   ) where
 
 import qualified Data.Set as Set
+
+
+-------------------
+----- Helpers -----
+-------------------
+
+
+-- | Class for types that have a default value.
+class Default a where
+  -- | The default value.
+  def :: a
+
 
 ----------------
 -- Statements --
@@ -108,9 +123,7 @@ ignoreVar :: Identifier
 ignoreVar = Ignore
 
 newtype Abstraction ann ext = Abst { getAbst :: (Identifier, Expr ann ext, Expr ann ext) }
-  deriving (Show, Ord)
-
-deriving instance (Eq ext) => Eq (Abstraction ann ext)
+  deriving (Show, Eq, Ord)
 
 -- | Variable bound in the abstraction.
 absVar :: Abstraction ann ex -> Identifier
@@ -133,55 +146,48 @@ mkAbs v e1 e2 = Abst (v, e1, e2)
 -- tree of additional commands
 data Expr ann ex where
   -- | Variable.
-  Var :: Identifier -> Expr ann ex
+  Var :: ann -> Identifier -> Expr ann ex
 
   -- | Level literals.
-  LitLevel :: Int -> Expr ann ex
+  LitLevel :: ann -> Int -> Expr ann ex
 
   -- | Dependent function type.
-  FunTy :: Abstraction ann ex -> Expr ann ex
+  FunTy :: ann -> Abstraction ann ex -> Expr ann ex
 
   -- | Lambda abstraction.
-  Abs :: Abstraction ann ex -> Expr ann ex
+  Abs :: ann -> Abstraction ann ex -> Expr ann ex
 
   -- | Dependent tensor type.
-  ProductTy :: Abstraction ann ex -> Expr ann ex
+  ProductTy :: ann -> Abstraction ann ex -> Expr ann ex
 
   -- | Pairs.
-  Pair :: Expr ann ex -> Expr ann ex -> Expr ann ex
+  Pair :: ann -> Expr ann ex -> Expr ann ex -> Expr ann ex
 
   -- | Pair eliminator.
-  PairElim :: Identifier -> Identifier -> Identifier -> Expr ann ex -> Expr ann ex -> Expr ann ex -> Expr ann ex
+  PairElim :: ann -> Identifier -> Identifier -> Identifier -> Expr ann ex -> Expr ann ex -> Expr ann ex -> Expr ann ex
 
   -- | Conditional eliminator.
-  IfExpr :: Expr ann ex -> Expr ann ex -> Expr ann ex -> Expr ann ex
+  IfExpr :: ann -> Expr ann ex -> Expr ann ex -> Expr ann ex -> Expr ann ex
 
-  App :: Expr ann ex ->  Expr ann ex   -> Expr ann ex -- e1 e2
+  App :: ann -> Expr ann ex ->  Expr ann ex   -> Expr ann ex -- e1 e2
 
-  Sig :: Expr ann ex -> Expr ann ex       -> Expr ann ex -- e : A
+  Sig :: ann -> Expr ann ex -> Expr ann ex       -> Expr ann ex -- e : A
 
   -- | Holes for inference.
-  Hole :: Expr ann ex
+  Hole :: ann -> Expr ann ex
 
   -- | Implicits for synthesis.
-  Implicit :: Expr ann ex
+  Implicit :: ann -> Expr ann ex
 
   -- | Builtin terms, with a unique identifying name.
-  Builtin :: BuiltinTerm -> Expr ann ex
+  Builtin :: ann -> BuiltinTerm -> Expr ann ex
 
   -- ML
-  GenLet :: Identifier -> Expr ann ex -> Expr ann ex -> Expr ann ex -- let x = e1 in e2 (ML-style polymorphism)
+  GenLet :: ann -> Identifier -> Expr ann ex -> Expr ann ex -> Expr ann ex -- let x = e1 in e2 (ML-style polymorphism)
 
   -- | AST extensions.
-  Ext :: ex -> Expr ann ex
-  deriving (Show, Ord)
-
-deriving instance (Eq ext) => Eq (Expr ann ext)
-
-
--- | Make a new, unnamed, implicit term.
-mkImplicit :: Expr ann e
-mkImplicit = Implicit
+  Ext :: ann -> ex -> Expr ann ex
+  deriving (Show, Eq, Ord)
 
 
 --------------------
@@ -222,77 +228,79 @@ data BuiltinTerm =
   deriving (Show, Eq, Ord)
 
 
--- | Body for a builtin term (essentially an Agda postulate).
-builtinTerm :: BuiltinTerm -> Expr ann e
-builtinTerm = Builtin
+------------------------------------
+-- Helpers for constructing terms --
+------------------------------------
 
-levelTy :: Expr ann e
+
+-- | Make a new, unnamed, implicit term.
+mkImplicit :: (Default ann) => Expr ann e
+mkImplicit = Implicit def
+
+
+-- | 'Type 0' term.
+typeZero :: (Default ann) => Expr ann e
+typeZero = mkUnivTy (LitLevel def 0)
+
+
+-- | Body for a builtin term (essentially an Agda postulate).
+builtinTerm :: (Default ann) => BuiltinTerm -> Expr ann e
+builtinTerm = Builtin def
+
+
+levelTy, levelTyTY, lzero, lzeroTY, lsuc, lsucTY, lmax, lmaxTY, typeTy,
+  typeTyTY, dBool, dBoolTY, dtrue, dtrueTY, dfalse, dfalseTY, unitTy,
+  unitTyTY, unitTerm, unitTermTY ::
+  (Default ann) => Expr ann e
+
+
 levelTy = builtinTerm LevelTy
 
-levelTyTY :: Expr ann e
-levelTyTY = mkUnivTy (LitLevel 0)
+levelTyTY = typeZero
 
-lzero :: Expr ann e
 lzero = builtinTerm LZero
 
-lzeroTY :: Expr ann e
 lzeroTY = levelTy
 
-lsuc :: Expr ann e
 lsuc = builtinTerm LSuc
 
-lsucTY :: Expr ann e
-lsucTY = FunTy (mkAbs ignoreVar levelTy levelTy)
+lsucTY = FunTy def (mkAbs ignoreVar levelTy levelTy)
 
-lsucApp :: Expr ann e -> Expr ann e
-lsucApp = App lsuc
+lsucApp :: (Default ann) => Expr ann e -> Expr ann e
+lsucApp = App def lsuc
 
-lmax :: Expr ann e
 lmax = builtinTerm LMax
 
-lmaxTY :: Expr ann e
-lmaxTY = FunTy (mkAbs ignoreVar levelTy (FunTy (mkAbs ignoreVar levelTy levelTy)))
+lmaxTY = FunTy def (mkAbs ignoreVar levelTy (FunTy def (mkAbs ignoreVar levelTy levelTy)))
 
-lmaxApp :: Expr ann e -> Expr ann e -> Expr ann e
-lmaxApp l1 l2 = App (App lmax l1) l2
+lmaxApp :: (Default ann) => Expr ann e -> Expr ann e -> Expr ann e
+lmaxApp l1 l2 = App def (App def lmax l1) l2
 
-typeTy :: Expr ann e
 typeTy = builtinTerm TypeTy
 
-typeTyTY :: Expr ann e
-typeTyTY = let l = mkIdent "l" in FunTy (mkAbs l levelTy (mkUnivTy (lsucApp (Var l))))
+typeTyTY = let l = mkIdent "l" in FunTy def (mkAbs l levelTy (mkUnivTy (lsucApp (Var def l))))
 
-mkUnivTy :: Expr ann e -> Expr ann e
-mkUnivTy = App typeTy
+mkUnivTy :: (Default ann) => Expr ann e -> Expr ann e
+mkUnivTy = App def typeTy
 
-dBool :: Expr ann e
 dBool = builtinTerm DBool
 
-dBoolTY :: Expr ann e
-dBoolTY = mkUnivTy (LitLevel 0)
+dBoolTY = typeZero
 
-dtrue :: Expr ann e
 dtrue = builtinTerm DTrue
 
-dtrueTY :: Expr ann e
 dtrueTY = dBool
 
-dfalse :: Expr ann e
 dfalse = builtinTerm DFalse
 
-dfalseTY :: Expr ann e
 dfalseTY = dBool
 
-unitTy :: Expr ann e
 unitTy = builtinTerm DUnitTy
 
-unitTyTY :: Expr ann e
-unitTyTY = mkUnivTy (LitLevel 0)
+unitTyTY = typeZero
 
-unitTerm :: Expr ann e
 unitTerm = builtinTerm DUnitTerm
 
-unitTermTY :: Expr ann e
 unitTermTY = unitTy
 
 ----------------------------
@@ -315,6 +323,10 @@ instance Show NoExt where
 type NoAnn = ()
 
 
+instance Default NoAnn where
+  def = ()
+
+
 boundVarsAbs :: (Term (Expr ann e)) => Abstraction ann e -> Set.Set Identifier
 boundVarsAbs ab = absVar ab `Set.insert` boundVars (absExpr ab)
 
@@ -322,37 +334,37 @@ freeVarsAbs :: (Term (Expr ann e)) => Abstraction ann e -> Set.Set Identifier
 freeVarsAbs ab = Set.delete (absVar ab) (freeVars (absExpr ab))
 
 instance (Term e) => Term (Expr ann e) where
-  boundVars (Abs ab)                     = boundVarsAbs ab
-  boundVars (FunTy ab)                   = boundVarsAbs ab
-  boundVars (ProductTy ab)               = boundVarsAbs ab
-  boundVars (App e1 e2)                  = boundVars e1 `Set.union` boundVars e2
-  boundVars (Pair e1 e2)                 = boundVars e1 `Set.union` boundVars e2
-  boundVars (IfExpr e1 e2 e3)            = boundVars e1 `Set.union` boundVars e2 `Set.union` boundVars e3
-  boundVars (Var _)                      = Set.empty
-  boundVars (Sig e _)                    = boundVars e
-  boundVars (GenLet var e1 e2)           = var `Set.insert` (boundVars e1 `Set.union` boundVars e2)
-  boundVars (Ext e)                      = boundVars e
-  boundVars Hole                         = Set.empty
-  boundVars Implicit                     = Set.empty
+  boundVars (Abs _ ab)                     = boundVarsAbs ab
+  boundVars (FunTy _ ab)                   = boundVarsAbs ab
+  boundVars (ProductTy _ ab)               = boundVarsAbs ab
+  boundVars (App _ e1 e2)                  = boundVars e1 `Set.union` boundVars e2
+  boundVars (Pair _ e1 e2)                 = boundVars e1 `Set.union` boundVars e2
+  boundVars (IfExpr _ e1 e2 e3)            = boundVars e1 `Set.union` boundVars e2 `Set.union` boundVars e3
+  boundVars (Var _ _)                      = Set.empty
+  boundVars (Sig _ e _)                    = boundVars e
+  boundVars (GenLet _ var e1 e2)           = var `Set.insert` (boundVars e1 `Set.union` boundVars e2)
+  boundVars (Ext _ e)                      = boundVars e
+  boundVars Hole{}                       = Set.empty
+  boundVars Implicit{}                   = Set.empty
   boundVars LitLevel{}                   = Set.empty
   boundVars Builtin{}                    = Set.empty
-  boundVars (PairElim z x y e1 e2 e3)    =
+  boundVars (PairElim _ z x y e1 e2 e3)  =
     Set.insert z (x `Set.insert` (y `Set.insert` (boundVars e1 `Set.union` boundVars e2 `Set.union` boundVars e3)))
 
-  freeVars (FunTy ab)                    = freeVarsAbs ab
-  freeVars (Abs ab)                      = freeVarsAbs ab
-  freeVars (ProductTy ab)                = freeVarsAbs ab
-  freeVars (App e1 e2)                   = freeVars e1 `Set.union` freeVars e2
-  freeVars (Pair e1 e2)                  = freeVars e1 `Set.union` freeVars e2
-  freeVars (IfExpr e1 e2 e3)             = freeVars e1 `Set.union` freeVars e2 `Set.union` freeVars e3
-  freeVars (Var var)                     = Set.singleton var
-  freeVars (Sig e _)                     = freeVars e
-  freeVars (GenLet var e1 e2)            = Set.delete var (freeVars e1 `Set.union` freeVars e2)
-  freeVars (PairElim z x y e1 e2 e3)     =
+  freeVars (FunTy _ ab)                    = freeVarsAbs ab
+  freeVars (Abs _ ab)                      = freeVarsAbs ab
+  freeVars (ProductTy _ ab)                = freeVarsAbs ab
+  freeVars (App _ e1 e2)                   = freeVars e1 `Set.union` freeVars e2
+  freeVars (Pair _ e1 e2)                  = freeVars e1 `Set.union` freeVars e2
+  freeVars (IfExpr _ e1 e2 e3)             = freeVars e1 `Set.union` freeVars e2 `Set.union` freeVars e3
+  freeVars (Var _ var)                     = Set.singleton var
+  freeVars (Sig _ e _)                     = freeVars e
+  freeVars (GenLet _ var e1 e2)            = Set.delete var (freeVars e1 `Set.union` freeVars e2)
+  freeVars (PairElim _ z x y e1 e2 e3)     =
     Set.delete z (Set.delete x (Set.delete y (freeVars e1 `Set.union` freeVars e2 `Set.union` freeVars e3)))
-  freeVars (Ext e)                       = freeVars e
-  freeVars Hole                          = Set.empty
-  freeVars Implicit                      = Set.empty
+  freeVars (Ext _ e)                       = freeVars e
+  freeVars Hole{}                        = Set.empty
+  freeVars Implicit{}                    = Set.empty
   freeVars LitLevel{}                    = Set.empty
   freeVars Builtin{}                     = Set.empty
 

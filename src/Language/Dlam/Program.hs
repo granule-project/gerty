@@ -25,7 +25,7 @@ newtype BindV ann e = BindV { getBindV :: (Maybe (Expr ann e), Expr ann e) }
 type BindV' = BindV NoAnn NoExt
 type Expr' = Expr NoAnn NoExt
 
-instance (Show e) => Show (BindV ann e) where
+instance (Show ann, Show e) => Show (BindV ann e) where
   show = show . getBindV
 
 type Context = M.Map Identifier BindV'
@@ -90,27 +90,27 @@ instance Freshenable (Prog err) Identifier where
 
 
 instance Substitutable (Prog err) Identifier Expr' where
-  substitute (v, e) (Var x)
+  substitute (v, e) (Var ann x)
     | v == x    = pure e
-    | otherwise = pure (Var x)
-  substitute s (FunTy abs) = FunTy <$> substAbs s abs
-  substitute s (Abs   abs) = Abs   <$> substAbs s abs
-  substitute s (ProductTy abs) = ProductTy <$> substAbs s abs
-  substitute s (Pair e1 e2) = Pair <$> substitute s e1 <*> substitute s e2
-  substitute s@(v, _) (PairElim v0 v1 v2 e1 e2 e3) = do
+    | otherwise = pure (Var ann x)
+  substitute s (FunTy ann abs) = FunTy ann <$> substAbs s abs
+  substitute s (Abs   ann abs) = Abs   ann <$> substAbs s abs
+  substitute s (ProductTy ann abs) = ProductTy ann <$> substAbs s abs
+  substitute s (Pair ann e1 e2) = Pair ann <$> substitute s e1 <*> substitute s e2
+  substitute s@(v, _) (PairElim ann v0 v1 v2 e1 e2 e3) = do
     e1' <- substitute s e1
     e2' <- if v == v1 || v == v2 then pure e2 else substitute s e2
     e3' <- if v == v0 then pure e3 else substitute s e3
-    pure $ PairElim v0 v1 v2 e1' e2' e3'
-  substitute s (IfExpr e1 e2 e3) = IfExpr <$> substitute s e1 <*> substitute s e2 <*> substitute s e3
-  substitute s (App e1 e2) = do
+    pure $ PairElim ann v0 v1 v2 e1' e2' e3'
+  substitute s (IfExpr ann e1 e2 e3) = IfExpr ann <$> substitute s e1 <*> substitute s e2 <*> substitute s e3
+  substitute s (App ann e1 e2) = do
     e1' <- substitute s e1
     e2' <- substitute s e2
-    pure (App e1' e2')
+    pure (App ann e1' e2')
   substitute _ e@Builtin{} = pure e
   substitute _ e@LitLevel{} = pure e
   substitute _ e@Hole{} = pure e
-  substitute _ e@Implicit = pure e
+  substitute _ e@Implicit{} = pure e
   substitute _ e = error $ "substitution not yet defined for '" <> pprint e <> "'"
 
 

@@ -76,43 +76,43 @@ Expr :: { [Option] -> ParseExpr }
   : let Ident '=' Expr in Expr
     { \opts ->
       if isML opts
-       then GenLet $2 ($4 opts) ($6 opts)
-       else App (Abs (mkAbs $2 mkImplicit ($6 opts))) ($4 opts) }
+       then GenLet def $2 ($4 opts) ($6 opts)
+       else App def (Abs def (mkAbs $2 mkImplicit ($6 opts))) ($4 opts) }
 
-  | Expr '->' Expr   { \opts -> FunTy (mkAbs ignoreVar ($1 opts) ($3 opts)) }
-  | TyBindings '->' Expr { \opts -> foldr (\(n, ty) fty -> FunTy (mkAbs n ty fty)) ($3 opts) ($1 opts) }
+  | Expr '->' Expr   { \opts -> FunTy def (mkAbs ignoreVar ($1 opts) ($3 opts)) }
+  | TyBindings '->' Expr { \opts -> foldr (\(n, ty) fty -> FunTy def (mkAbs n ty fty)) ($3 opts) ($1 opts) }
 
   | '\\' LambdaArgs '->' Expr
-    { \opts -> foldr (\(n, ty) rty -> Abs (mkAbs n ty rty)) ($4 opts) ($2 opts) }
+    { \opts -> foldr (\(n, ty) rty -> Abs def (mkAbs n ty rty)) ($4 opts) ($2 opts) }
 
 
-  | Expr '*' Expr   { \opts -> ProductTy (mkAbs ignoreVar ($1 opts) ($3 opts)) }
+  | Expr '*' Expr   { \opts -> ProductTy def (mkAbs ignoreVar ($1 opts) ($3 opts)) }
 
-  | '(' Ident ':' Expr ')' '*' Expr { \opts -> ProductTy (mkAbs $2 ($4 opts) ($7 opts)) }
+  | '(' Ident ':' Expr ')' '*' Expr { \opts -> ProductTy def (mkAbs $2 ($4 opts) ($7 opts)) }
 
-  | let '(' Ident ',' Ident ',' Ident ')' '=' Expr in '(' Expr ':' Expr ')' { \opts -> PairElim $3 $5 $7 ($10 opts) ($13 opts) ($15 opts) }
+  | let '(' Ident ',' Ident ',' Ident ')' '=' Expr in '(' Expr ':' Expr ')' { \opts -> PairElim def $3 $5 $7 ($10 opts) ($13 opts) ($15 opts) }
 
-  | let '(' Ident ',' Ident ')' '=' Expr in Expr { \opts -> PairElim ignoreVar $3 $5 ($8 opts) ($10 opts) mkImplicit }
+  | let '(' Ident ',' Ident ')' '=' Expr in Expr { \opts -> PairElim def ignoreVar $3 $5 ($8 opts) ($10 opts) mkImplicit }
 
-  | if Expr then Expr else Expr { \opts -> IfExpr ($2 opts) ($4 opts) ($6 opts) }
+  | if Expr then Expr else Expr { \opts -> IfExpr def ($2 opts) ($4 opts) ($6 opts) }
 
   -- TODO: this might cause issues with binders in dependent function types? (2020-02-22)
-  | Expr ':' Expr  { \opts -> Sig ($1 opts) ($3 opts) }
+  | Expr ':' Expr  { \opts -> Sig def ($1 opts) ($3 opts) }
 
   | Juxt
     { $1 }
 
 
 Juxt :: { [Option] -> ParseExpr }
-  : Juxt Atom                 { \opts -> App ($1 opts) ($2 opts) }
+  : Juxt Atom                 { \opts -> App def ($1 opts) ($2 opts) }
   | Atom                      { $1 }
 
 Atom :: { [Option] -> ParseExpr }
   : '(' Expr ')'              { $2 }
-  | Ident                       { \opts -> Var $1 }
+  | Ident                       { \opts -> Var def $1 }
   | '_'                       { \opts -> mkImplicit }
-  | NAT                       { \opts -> LitLevel (natTokenToInt $1) }
-  | '(' Expr ',' Expr ')'     { \opts -> Pair ($2 opts) ($4 opts) }
+  | NAT                       { \opts -> LitLevel def (natTokenToInt $1) }
+  | '(' Expr ',' Expr ')'     { \opts -> Pair def ($2 opts) ($4 opts) }
 
   -- For later
   -- | '?' { Hole }
