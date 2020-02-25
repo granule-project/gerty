@@ -25,13 +25,16 @@ library:
    - happy
   dependencies:
    - containers
+   - mtl
    - transformers
    - array
    - text
   exposed-modules:
    - Language.Dlam.Binders
+   - Language.Dlam.Interpreter
    - Language.Dlam.Parser
    - Language.Dlam.PrettyPrint
+   - Language.Dlam.Program
    - Language.Dlam.Substitution
    - Language.Dlam.Syntax
    - Language.Dlam.Types
@@ -46,7 +49,4 @@ executables:
     ghc-options: -main-is Dlam
     dependencies:
      - dependent-lamb
-     - containers
      - directory
-     - mtl
-     - transformers

@@ -1,10 +1,10 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.31.2.
+-- This file has been generated from package.yaml by hpack version 0.33.0.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 3859e5d90216811ac4c017580c9a0c7dc5f78482d2c64cd9562122777492a25d
+-- hash: f703597f690323e8d9d3a6df43e5d867594aac8089a71013729df2f8b009cab8
 
 name:           dependent-lamb
 version:        0.0.1
@@ -18,8 +18,10 @@ build-type:     Simple
 library
   exposed-modules:
       Language.Dlam.Binders
+      Language.Dlam.Interpreter
       Language.Dlam.Parser
       Language.Dlam.PrettyPrint
+      Language.Dlam.Program
       Language.Dlam.Substitution
       Language.Dlam.Syntax
       Language.Dlam.Types
@@ -37,6 +39,7 @@ library
       array
     , base >=4.10 && <5
     , containers
+    , mtl
     , text
     , transformers
   default-language: Haskell2010
@@ -48,9 +51,6 @@ executable dlam
   ghc-options: -O0 -Wall -Werror -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns -Wredundant-constraints -Wno-name-shadowing -Wno-type-defaults -main-is Dlam
   build-depends:
       base >=4.10 && <5
-    , containers
     , dependent-lamb
     , directory
-    , mtl
-    , transformers
   default-language: Haskell2010
