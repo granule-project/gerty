@@ -83,7 +83,10 @@ instance (PrettyPrint e) => PrettyPrint (NAST ann e) where
   pprint (NAST sts) = concat . intersperse "\n\n" $ fmap pprint sts
 
 instance (PrettyPrint e) => PrettyPrint (NStmt ann e) where
-  pprint (Decl v t e) = v <> " : " <> pprint t <> "\n" <> v <> " = " <> pprint e
+  pprint (Decl v Nothing e) =
+    v <> " = " <> pprint e
+  pprint (Decl v (Just t) e) =
+    v <> " : " <> pprint t <> "\n" <> v <> " = " <> pprint e
 
 instance PrettyPrint () where
     pprint () = "()"

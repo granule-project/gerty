@@ -192,13 +192,15 @@ equalExprs e1 e2 = do
 -- | Attempt to infer the types of a definition, and check this against the declared
 -- | type, if any.
 doNStmtInference :: (Checkable m err ann e v, Term e) => NStmt ann e -> m (NStmt ann e)
-doNStmtInference (Decl v t e) = do
+doNStmtInference (Decl v Nothing e) =
+  doNStmtInference (Decl v (Just Implicit) e)
+doNStmtInference (Decl v (Just t) e) = do
   -- make sure that the definition's type is actually a type
   checkExprValidForSignature t
 
   exprTy <- checkOrInferType t e
   setBinder (mkTag :: BinderMap) (mkIdent v) (fromTyVal (Just e, exprTy))
-  pure (Decl v exprTy e)
+  pure (Decl v (Just exprTy) e)
   where
     -- | Check that the given expression is valid as a type signature.
     -- |

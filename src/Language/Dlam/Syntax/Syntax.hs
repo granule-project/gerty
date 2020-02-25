@@ -79,7 +79,7 @@ newtype NAST ann e = NAST [NStmt ann e]
 
 data NStmt ann e =
   -- | An assignment with an optional type, and mandatory definition.
-  Decl String (Expr ann e) (Expr ann e)
+  Decl String (Maybe (Expr ann e)) (Expr ann e)
   deriving Show
 
 -- | Normalise the raw AST into a form appropriate for further analyses.
@@ -87,10 +87,10 @@ data NStmt ann e =
 normaliseAST :: AST ann e -> NAST ann e
 normaliseAST (AST []) = NAST []
 normaliseAST (AST ((StmtType v t):(StmtAssign v' e):sts))
-  | v == v' = let (NAST xs) = normaliseAST (AST sts) in NAST ((Decl v t e):xs)
+  | v == v' = let (NAST xs) = normaliseAST (AST sts) in NAST ((Decl v (Just t) e):xs)
   | otherwise = error $ "type declaration for '" <> v <> "' followed by an assignment to '" <> v' <> "'"
 normaliseAST (AST ((StmtAssign v e):sts)) =
-  let (NAST xs) = normaliseAST (AST sts) in NAST ((Decl v mkImplicit e) : xs)
+  let (NAST xs) = normaliseAST (AST sts) in NAST ((Decl v Nothing e) : xs)
 normaliseAST (AST [StmtType v _]) =
   error $ "expected an assignment to '" <> v <> "' but reached end of file"
 normaliseAST (AST ((StmtType v _):StmtType{}:_)) =
