@@ -1,7 +1,9 @@
 {
 {-# LANGUAGE FlexibleContexts #-}
 
-module Language.Dlam.Syntax.Parser where
+module Language.Dlam.Syntax.Parser
+  ( parseProgram
+  ) where
 
 import Numeric
 import System.Exit
