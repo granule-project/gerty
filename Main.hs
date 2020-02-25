@@ -1,7 +1,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-module Dlam where
+module Dlam (main) where
 
 import Control.Monad.State
 import Control.Monad.Trans.Maybe
@@ -27,8 +27,6 @@ newtype BindV e = BindV { getBindV :: (Maybe (Expr e), Expr e) }
 
 instance (Show e) => Show (BindV e) where
   show = show . getBindV
-
-data MapTypes = VarBindings | NormalForms
 
 type Context = M.Map Identifier (BindV NoExt)
 type NormalFormContext = M.Map (Expr NoExt) (Expr NoExt)
@@ -149,8 +147,7 @@ main = do
               putStrLn $ ansi_red ++ "Error: " ++ ansi_reset ++ msg
               exitFailure
 
-ansi_red, ansi_green, ansi_reset, ansi_bold :: String
+ansi_red, ansi_reset, ansi_bold :: String
 ansi_red   = "\ESC[31;1m"
-ansi_green = "\ESC[32;1m"
 ansi_reset = "\ESC[0m"
 ansi_bold  = "\ESC[1m"
