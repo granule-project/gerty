@@ -22,6 +22,10 @@ module Language.Dlam.Syntax
   , normaliseAST
   , Abstraction
   , mkImplicit
+
+  -- * Annotations
+  , NoAnn
+
   -- * Builtins
   , BuiltinTerm(..)
   , builtinTerm
@@ -60,27 +64,27 @@ import qualified Data.Set as Set
 -- Statements --
 ----------------
 
-newtype AST e = AST [Stmt e]
+newtype AST ann e = AST [Stmt ann e]
   deriving Show
 
-data Stmt e =
+data Stmt ann e =
   -- | Assignment to a name.
-    StmtAssign String (Expr e)
+    StmtAssign String (Expr ann e)
   -- | Type assignment.
-  | StmtType String (Expr e)
+  | StmtType String (Expr ann e)
   deriving Show
 
-newtype NAST e = NAST [NStmt e]
+newtype NAST ann e = NAST [NStmt ann e]
   deriving Show
 
-data NStmt e =
+data NStmt ann e =
   -- | An assignment with an optional type, and mandatory definition.
-  Decl String (Expr e) (Expr e)
+  Decl String (Expr ann e) (Expr ann e)
   deriving Show
 
 -- | Normalise the raw AST into a form appropriate for further analyses.
 -- TODO: add a better error system (2020-02-19)
-normaliseAST :: AST e -> NAST e
+normaliseAST :: AST ann e -> NAST ann e
 normaliseAST (AST []) = NAST []
 normaliseAST (AST ((StmtType v t):(StmtAssign v' e):sts))
   | v == v' = let (NAST xs) = normaliseAST (AST sts) in NAST ((Decl v t e):xs)
@@ -89,7 +93,7 @@ normaliseAST (AST ((StmtAssign v e):sts)) =
   let (NAST xs) = normaliseAST (AST sts) in NAST ((Decl v mkImplicit e) : xs)
 normaliseAST (AST [StmtType v _]) =
   error $ "expected an assignment to '" <> v <> "' but reached end of file"
-normaliseAST (AST ((StmtType v _):(StmtType _ _):_)) =
+normaliseAST (AST ((StmtType v _):StmtType{}:_)) =
   error $ "expected an assignment to '" <> v <> "' but got another type assignment"
 
 data Identifier = Ident String | GenIdent (String, Int) | Ignore
@@ -103,80 +107,80 @@ mkIdent = Ident
 ignoreVar :: Identifier
 ignoreVar = Ignore
 
-newtype Abstraction ext = Abst { getAbst :: (Identifier, Expr ext, Expr ext) }
+newtype Abstraction ann ext = Abst { getAbst :: (Identifier, Expr ann ext, Expr ann ext) }
   deriving (Show, Ord)
 
-deriving instance (Eq ext) => Eq (Abstraction ext)
+deriving instance (Eq ext) => Eq (Abstraction ann ext)
 
 -- | Variable bound in the abstraction.
-absVar :: Abstraction ex -> Identifier
+absVar :: Abstraction ann ex -> Identifier
 absVar (Abst (v, _, _)) = v
 
 -- | Type of the bound variable in the abstraction.
-absTy :: Abstraction ex -> Expr ex
+absTy :: Abstraction ann ex -> Expr ann ex
 absTy (Abst (_, t, _)) = t
 
 -- | Target expression of the abstraction.
-absExpr :: Abstraction ex -> Expr ex
+absExpr :: Abstraction ann ex -> Expr ann ex
 absExpr (Abst (_, _, t)) = t
 
-mkAbs :: Identifier -> Expr ext -> Expr ext -> Abstraction ext
+mkAbs :: Identifier -> Expr ann ext -> Expr ann ext -> Abstraction ann ext
 mkAbs v e1 e2 = Abst (v, e1, e2)
 
 -- Abstract-syntax tree for LambdaCore
 -- parameterised by an additional type `ex`
 -- used to represent the abstract syntax
 -- tree of additional commands
-data Expr ex where
+data Expr ann ex where
   -- | Variable.
-  Var :: Identifier -> Expr ex
+  Var :: Identifier -> Expr ann ex
 
   -- | Level literals.
-  LitLevel :: Int -> Expr ex
+  LitLevel :: Int -> Expr ann ex
 
   -- | Dependent function type.
-  FunTy :: Abstraction ex -> Expr ex
+  FunTy :: Abstraction ann ex -> Expr ann ex
 
   -- | Lambda abstraction.
-  Abs :: Abstraction ex -> Expr ex
+  Abs :: Abstraction ann ex -> Expr ann ex
 
   -- | Dependent tensor type.
-  ProductTy :: Abstraction ex -> Expr ex
+  ProductTy :: Abstraction ann ex -> Expr ann ex
 
   -- | Pairs.
-  Pair :: Expr ex -> Expr ex -> Expr ex
+  Pair :: Expr ann ex -> Expr ann ex -> Expr ann ex
 
   -- | Pair eliminator.
-  PairElim :: Identifier -> Identifier -> Identifier -> Expr ex -> Expr ex -> Expr ex -> Expr ex
+  PairElim :: Identifier -> Identifier -> Identifier -> Expr ann ex -> Expr ann ex -> Expr ann ex -> Expr ann ex
 
   -- | Conditional eliminator.
-  IfExpr :: Expr ex -> Expr ex -> Expr ex -> Expr ex
+  IfExpr :: Expr ann ex -> Expr ann ex -> Expr ann ex -> Expr ann ex
 
-  App :: Expr ex ->  Expr ex   -> Expr ex -- e1 e2
+  App :: Expr ann ex ->  Expr ann ex   -> Expr ann ex -- e1 e2
 
-  Sig :: Expr ex -> Expr ex       -> Expr ex -- e : A
+  Sig :: Expr ann ex -> Expr ann ex       -> Expr ann ex -- e : A
 
   -- | Holes for inference.
-  Hole :: Expr ex
+  Hole :: Expr ann ex
 
   -- | Implicits for synthesis.
-  Implicit :: Expr ex
+  Implicit :: Expr ann ex
 
   -- | Builtin terms, with a unique identifying name.
-  Builtin :: BuiltinTerm -> Expr ex
+  Builtin :: BuiltinTerm -> Expr ann ex
 
   -- ML
-  GenLet :: Identifier -> Expr ex -> Expr ex -> Expr ex -- let x = e1 in e2 (ML-style polymorphism)
+  GenLet :: Identifier -> Expr ann ex -> Expr ann ex -> Expr ann ex -- let x = e1 in e2 (ML-style polymorphism)
 
   -- | AST extensions.
-  Ext :: ex -> Expr ex
+  Ext :: ex -> Expr ann ex
   deriving (Show, Ord)
 
-deriving instance (Eq ext) => Eq (Expr ext)
+deriving instance (Eq ext) => Eq (Expr ann ext)
 
 
 -- | Make a new, unnamed, implicit term.
-mkImplicit :: Expr e
+mkImplicit :: Expr ann e
 mkImplicit = Implicit
 
 
@@ -219,76 +223,76 @@ data BuiltinTerm =
 
 
 -- | Body for a builtin term (essentially an Agda postulate).
-builtinTerm :: BuiltinTerm -> Expr e
+builtinTerm :: BuiltinTerm -> Expr ann e
 builtinTerm = Builtin
 
-levelTy :: Expr e
+levelTy :: Expr ann e
 levelTy = builtinTerm LevelTy
 
-levelTyTY :: Expr e
+levelTyTY :: Expr ann e
 levelTyTY = mkUnivTy (LitLevel 0)
 
-lzero :: Expr e
+lzero :: Expr ann e
 lzero = builtinTerm LZero
 
-lzeroTY :: Expr e
+lzeroTY :: Expr ann e
 lzeroTY = levelTy
 
-lsuc :: Expr e
+lsuc :: Expr ann e
 lsuc = builtinTerm LSuc
 
-lsucTY :: Expr e
+lsucTY :: Expr ann e
 lsucTY = FunTy (mkAbs ignoreVar levelTy levelTy)
 
-lsucApp :: Expr e -> Expr e
+lsucApp :: Expr ann e -> Expr ann e
 lsucApp = App lsuc
 
-lmax :: Expr e
+lmax :: Expr ann e
 lmax = builtinTerm LMax
 
-lmaxTY :: Expr e
+lmaxTY :: Expr ann e
 lmaxTY = FunTy (mkAbs ignoreVar levelTy (FunTy (mkAbs ignoreVar levelTy levelTy)))
 
-lmaxApp :: Expr e -> Expr e -> Expr e
+lmaxApp :: Expr ann e -> Expr ann e -> Expr ann e
 lmaxApp l1 l2 = App (App lmax l1) l2
 
-typeTy :: Expr e
+typeTy :: Expr ann e
 typeTy = builtinTerm TypeTy
 
-typeTyTY :: Expr e
+typeTyTY :: Expr ann e
 typeTyTY = let l = mkIdent "l" in FunTy (mkAbs l levelTy (mkUnivTy (lsucApp (Var l))))
 
-mkUnivTy :: Expr e -> Expr e
+mkUnivTy :: Expr ann e -> Expr ann e
 mkUnivTy = App typeTy
 
-dBool :: Expr e
+dBool :: Expr ann e
 dBool = builtinTerm DBool
 
-dBoolTY :: Expr e
+dBoolTY :: Expr ann e
 dBoolTY = mkUnivTy (LitLevel 0)
 
-dtrue :: Expr e
+dtrue :: Expr ann e
 dtrue = builtinTerm DTrue
 
-dtrueTY :: Expr e
+dtrueTY :: Expr ann e
 dtrueTY = dBool
 
-dfalse :: Expr e
+dfalse :: Expr ann e
 dfalse = builtinTerm DFalse
 
-dfalseTY :: Expr e
+dfalseTY :: Expr ann e
 dfalseTY = dBool
 
-unitTy :: Expr e
+unitTy :: Expr ann e
 unitTy = builtinTerm DUnitTy
 
-unitTyTY :: Expr e
+unitTyTY :: Expr ann e
 unitTyTY = mkUnivTy (LitLevel 0)
 
-unitTerm :: Expr e
+unitTerm :: Expr ann e
 unitTerm = builtinTerm DUnitTerm
 
-unitTermTY :: Expr e
+unitTermTY :: Expr ann e
 unitTermTY = unitTy
 
 ----------------------------
@@ -308,13 +312,16 @@ instance Show NoExt where
   show _ = undefined
 
 
-boundVarsAbs :: (Term (Expr e)) => Abstraction e -> Set.Set Identifier
+type NoAnn = ()
+
+
+boundVarsAbs :: (Term (Expr ann e)) => Abstraction ann e -> Set.Set Identifier
 boundVarsAbs ab = absVar ab `Set.insert` boundVars (absExpr ab)
 
-freeVarsAbs :: (Term (Expr e)) => Abstraction e -> Set.Set Identifier
+freeVarsAbs :: (Term (Expr ann e)) => Abstraction ann e -> Set.Set Identifier
 freeVarsAbs ab = Set.delete (absVar ab) (freeVars (absExpr ab))
 
-instance (Term e) => Term (Expr e) where
+instance (Term e) => Term (Expr ann e) where
   boundVars (Abs ab)                     = boundVarsAbs ab
   boundVars (FunTy ab)                   = boundVarsAbs ab
   boundVars (ProductTy ab)               = boundVarsAbs ab

@@ -20,13 +20,16 @@ import Language.Dlam.PrettyPrint (pprint)
 import Language.Dlam.Substitution (Substitutable(..), substAbs, Freshenable(..))
 import Language.Dlam.Syntax
 
-newtype BindV e = BindV { getBindV :: (Maybe (Expr e), Expr e) }
+newtype BindV ann e = BindV { getBindV :: (Maybe (Expr ann e), Expr ann e) }
 
-instance (Show e) => Show (BindV e) where
+type BindV' = BindV NoAnn NoExt
+type Expr' = Expr NoAnn NoExt
+
+instance (Show e) => Show (BindV ann e) where
   show = show . getBindV
 
-type Context = M.Map Identifier (BindV NoExt)
-type NormalFormContext = M.Map (Expr NoExt) (Expr NoExt)
+type Context = M.Map Identifier BindV'
+type NormalFormContext = M.Map Expr' Expr'
 
 type ProgMaps = (Context, NormalFormContext)
 
@@ -55,21 +58,21 @@ newtype Prog err a =
 
 -- Example instance where identifiers are mapped to types
 -- and (optional) definitions via a list.
-instance HasNamedMap (Prog err) BinderMap Identifier (BindV NoExt) where
+instance HasNamedMap (Prog err) BinderMap Identifier BindV' where
   getBindings _ = fst . snd <$> get
   setBinder _ x e = do
     (count, (ctx, nfs)) <- get
     put (count, (M.insert x e ctx, nfs))
   preservingBindings _ m = get >>= \(_, (old, _)) -> m <* (get >>= \(c, (_, n)) -> put (c, (old, n)))
 
-instance HasNamedMap (Prog err) NormalFormMap (Expr NoExt) (Expr NoExt) where
+instance HasNamedMap (Prog err) NormalFormMap Expr' Expr' where
   getBindings _ = snd . snd <$> get
   setBinder _ x e = do
     (count, (ctx, nfs)) <- get
     put (count, (ctx, M.insert x e nfs))
   preservingBindings _ m = get >>= \(_, (_, old)) -> m <* (get >>= \(c, (v, _)) -> put (c, (v, old)))
 
-instance HasTyVal (BindV e) (Maybe (Expr e)) (Expr e) where
+instance HasTyVal (BindV ann e) (Maybe (Expr ann e)) (Expr ann e) where
   toVal = fst . getBindV
   toTy  = snd . getBindV
   fromTyVal = BindV
@@ -86,7 +89,7 @@ instance Freshenable (Prog err) Identifier where
       GenIdent (v, _) -> GenIdent (v, count)
 
 
-instance Substitutable (Prog err) Identifier (Expr NoExt) where
+instance Substitutable (Prog err) Identifier Expr' where
   substitute (v, e) (Var x)
     | v == x    = pure e
     | otherwise = pure (Var x)

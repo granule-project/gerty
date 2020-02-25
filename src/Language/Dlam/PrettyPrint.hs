@@ -23,7 +23,7 @@ bracket_pprint t | isLexicallyAtomic t = pprint t
 
 -- | Pretty-print an Abstraction, separating the (possibly named)
 -- | binder from the expression using the given separator.
-pprintAbs :: PrettyPrint t => String -> (Abstraction t) -> String
+pprintAbs :: PrettyPrint t => String -> (Abstraction ann t) -> String
 pprintAbs sep ab =
   let leftTyStr =
         case absVar ab of
@@ -33,7 +33,7 @@ pprintAbs sep ab =
 
 
 -- Untyped lambda calculus
-instance PrettyPrint ex => PrettyPrint (Expr ex) where
+instance PrettyPrint ex => PrettyPrint (Expr ann ex) where
     isLexicallyAtomic (Var _) = True
     isLexicallyAtomic (Ext e) = isLexicallyAtomic e
     isLexicallyAtomic _       = False
@@ -79,10 +79,10 @@ instance PrettyPrint BuiltinTerm where
   pprint DUnitTy = "Unit"
   pprint DUnitTerm = "unit"
 
-instance (PrettyPrint e) => PrettyPrint (NAST e) where
+instance (PrettyPrint e) => PrettyPrint (NAST ann e) where
   pprint (NAST sts) = concat . intersperse "\n\n" $ fmap pprint sts
 
-instance (PrettyPrint e) => PrettyPrint (NStmt e) where
+instance (PrettyPrint e) => PrettyPrint (NStmt ann e) where
   pprint (Decl v t e) = v <> " : " <> pprint t <> "\n" <> v <> " = " <> pprint e
 
 instance PrettyPrint () where

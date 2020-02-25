@@ -47,7 +47,7 @@ import Language.Dlam.Options
 %left '+' '-'
 %%
 
-Program :: { (AST NoExt, [Option]) }
+Program :: { (AST NoAnn NoExt, [Option]) }
   : LangOpts Stmts  { (AST ($2 $1), $1) }
 
 LangOpts :: { [Option] }
@@ -55,11 +55,11 @@ LangOpts :: { [Option] }
   | LANG                {% readOption $1 >>= (return . (:[])) }
   | {- empty -}         { [] }
 
-Stmts :: { [Option] -> [Stmt NoExt] }
+Stmts :: { [Option] -> [Stmt NoAnn NoExt] }
   : Stmt NL Stmts { \opts -> ($1 opts) : ($3 opts) }
   | Stmt          { \opts -> pure ($1 opts) }
 
-Stmt :: { [Option] -> Stmt NoExt }
+Stmt :: { [Option] -> Stmt NoAnn NoExt }
   : VAR ':' Expr { \opts -> StmtType (symString $1) ($3 opts) }
   | VAR '=' Expr { \opts -> StmtAssign (symString $1) ($3 opts) }
 
@@ -70,7 +70,7 @@ NL :: { () }
 Ident :: { Identifier }
   : VAR { mkIdentFromSym $1 }
 
-Expr :: { [Option] -> Expr NoExt }
+Expr :: { [Option] -> Expr NoAnn NoExt }
   : let Ident '=' Expr in Expr
     { \opts ->
       if isML opts
@@ -101,11 +101,11 @@ Expr :: { [Option] -> Expr NoExt }
     { $1 }
 
 
-Juxt :: { [Option] -> Expr NoExt }
+Juxt :: { [Option] -> Expr NoAnn NoExt }
   : Juxt Atom                 { \opts -> App ($1 opts) ($2 opts) }
   | Atom                      { $1 }
 
-Atom :: { [Option] -> Expr NoExt }
+Atom :: { [Option] -> Expr NoAnn NoExt }
   : '(' Expr ')'              { $2 }
   | Ident                       { \opts -> Var $1 }
   | '_'                       { \opts -> mkImplicit }
@@ -121,21 +121,21 @@ VarsSpaced :: { [Identifier] }
   | Ident VarsSpaced { $1 : $2 }
 
 -- Arguments for a lambda term.
-LambdaArg :: { [Option] -> [(Identifier, Expr NoExt)] }
+LambdaArg :: { [Option] -> [(Identifier, Expr NoAnn NoExt)] }
   : Ident       { \opts -> [($1, mkImplicit)] }
   | TyBinding { \opts -> $1 opts }
 
-LambdaArgs :: { [Option] -> [(Identifier, Expr NoExt)] }
+LambdaArgs :: { [Option] -> [(Identifier, Expr NoAnn NoExt)] }
   : LambdaArg { \opts -> $1 opts }
   | LambdaArg LambdaArgs { \opts -> $1 opts <> $2 opts }
 
 -- syntax for bindings in a type
-TyBinding :: { [Option] -> [(Identifier, Expr NoExt)] }
+TyBinding :: { [Option] -> [(Identifier, Expr NoAnn NoExt)] }
   : '(' Ident VarsSpaced ':' Expr ')'
     { \opts -> let ty = $5 opts in fmap (\n -> (n, ty)) ($2 : $3) }
   | '(' Ident ':' Expr ')'        { \opts -> [($2, $4 opts)] }
 
-TyBindings :: { [Option] -> [(Identifier, Expr NoExt)] }
+TyBindings :: { [Option] -> [(Identifier, Expr NoAnn NoExt)] }
   : TyBinding            { \opts -> $1 opts }
   | TyBinding TyBindings { \opts -> $1 opts <> $2 opts }
 
@@ -154,7 +154,7 @@ parseError t  =  do
                         <> ": parse error"
   where (l, c) = getPos (head t)
 
-parseProgram :: FilePath -> String -> Either String (AST NoExt, [Option])
+parseProgram :: FilePath -> String -> Either String (AST NoAnn NoExt, [Option])
 parseProgram file input = runReaderT (program $ scanTokens input) file
 
 natTokenToInt :: Token -> Int

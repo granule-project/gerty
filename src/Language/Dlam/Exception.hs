@@ -33,7 +33,7 @@ class InjErr a b where
 
 
 -- | Type for types that can be embedded in lamb exceptions.
-type ExceptionCompat e = (Typeable e, PrettyPrint e)
+type ExceptionCompat ann e = (Typeable ann, Typeable e, PrettyPrint e)
 
 
 type CanThrow m err errSpec = (MonadError err m, InjErr errSpec err)
@@ -85,26 +85,26 @@ unknownIdentifierErr n = throwError (injErr (NotInScope n))
 ------------------
 
 
-data SynthError e =
-    CannotSynthTypeForExpr (Expr e)
-  | CannotSynthExprForType (Expr e)
+data SynthError ann e =
+    CannotSynthTypeForExpr (Expr ann e)
+  | CannotSynthExprForType (Expr ann e)
 
 
-instance (PrettyPrint e) => Show (SynthError e) where
+instance (PrettyPrint e) => Show (SynthError ann e) where
   show (CannotSynthTypeForExpr expr) =
     "I was asked to try and synthesise a type for '" <> pprint expr <> "' but I wasn't able to do so."
   show (CannotSynthExprForType t) =
     "I was asked to try and synthesise a term of type '" <> pprint t <> "' but I wasn't able to do so."
 
 
-instance (ExceptionCompat e) => Exception (SynthError e)
+instance (ExceptionCompat ann e) => Exception (SynthError ann e)
 
 
-cannotSynthTypeForExpr :: (MonadError err m, InjErr (SynthError e) err) => Expr e -> m a
+cannotSynthTypeForExpr :: (MonadError err m, InjErr (SynthError ann e) err) => Expr ann e -> m a
 cannotSynthTypeForExpr expr = throwError (injErr (CannotSynthTypeForExpr expr))
 
 
-cannotSynthExprForType :: (MonadError err m, InjErr (SynthError e) err) => Expr e -> m a
+cannotSynthExprForType :: (MonadError err m, InjErr (SynthError ann e) err) => Expr ann e -> m a
 cannotSynthExprForType t = throwError (injErr (CannotSynthExprForType t))
 
 
@@ -113,11 +113,11 @@ cannotSynthExprForType t = throwError (injErr (CannotSynthExprForType t))
 -----------------
 
 
-data TypeError e =
-    TypeMismatch (Expr e) (Expr e) (Expr e)
-  | ExpectedInferredTypeForm String (Expr e) (Expr e)
+data TypeError ann e =
+    TypeMismatch (Expr ann e) (Expr ann e) (Expr ann e)
+  | ExpectedInferredTypeForm String (Expr ann e) (Expr ann e)
 
-instance (PrettyPrint e) => Show (TypeError e) where
+instance (PrettyPrint e) => Show (TypeError ann e) where
   show (TypeMismatch expr tyExpected tyActual) =
     "Error when checking the type of '" <> pprint expr <>
     "', expected '" <> pprint tyExpected <> "' but got '" <> pprint tyActual <> "'"
@@ -127,16 +127,16 @@ instance (PrettyPrint e) => Show (TypeError e) where
     <> pprint t <> "'"
 
 
-instance (ExceptionCompat e) => Exception (TypeError e)
+instance (ExceptionCompat ann e) => Exception (TypeError ann e)
 
 
 -- | 'tyMismatch expr tyExpected tyActual' indicates that an expression
 -- | was found to have a type that differs from expected.
-tyMismatch :: (MonadError err m, InjErr (TypeError e) err) => Expr e -> Expr e -> Expr e -> m a
+tyMismatch :: (MonadError err m, InjErr (TypeError ann e) err) => Expr ann e -> Expr ann e -> Expr ann e -> m a
 tyMismatch expr tyExpected tyActual =
   throwError (injErr (TypeMismatch expr tyExpected tyActual))
 
 
-expectedInferredTypeForm :: (MonadError err m, InjErr (TypeError e) err) => String -> Expr e -> Expr e -> m a
+expectedInferredTypeForm :: (MonadError err m, InjErr (TypeError ann e) err) => String -> Expr ann e -> Expr ann e -> m a
 expectedInferredTypeForm descr expr t =
   throwError (injErr (ExpectedInferredTypeForm descr expr t))

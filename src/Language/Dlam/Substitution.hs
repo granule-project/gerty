@@ -22,7 +22,7 @@ class Freshenable m n | m -> n where
 class Substitutable m n e | m -> n, m -> e where
   substitute :: (n, e) -> e -> m e
 
-substAbs :: (Monad m, HasTyVal v (Maybe a) (Expr e), HasBinderMap m Identifier v, Freshenable m Identifier, Substitutable m Identifier (Expr e)) => (Identifier, Expr e) -> Abstraction e -> m (Abstraction e)
+substAbs :: (Monad m, HasTyVal v (Maybe a) (Expr ann e), HasBinderMap m Identifier v, Freshenable m Identifier, Substitutable m Identifier (Expr ann e)) => (Identifier, Expr ann e) -> Abstraction ann e -> m (Abstraction ann e)
 substAbs s ab = do
   let v = absVar ab
   v' <- freshen v
