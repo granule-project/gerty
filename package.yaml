@@ -53,14 +53,12 @@ executables:
      - directory
 
 tests:
-  dependent-lamb-golden:
-    main: Golden.hs
+  dependent-lamb:
+    main: Test.hs
     source-dirs: tests
     dependencies:
-    - Diff
     - dependent-lamb
-    - directory
-    - mtl
     - strict
     - tasty
     - tasty-golden
+    - tasty-hunit

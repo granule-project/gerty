@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: bae5d3e3a87939f8ddb19f07e168536ef112cda2cf36c2dc54390831f0f7083f
+-- hash: 3e7b469ea2a307a758f2373a47a35b5444183cfe80ada3c861386c5616a986fa
 
 name:           dependent-lamb
 version:        0.0.1
@@ -56,21 +56,19 @@ executable dlam
     , directory
   default-language: Haskell2010
 
-test-suite dependent-lamb-golden
+test-suite dependent-lamb
   type: exitcode-stdio-1.0
-  main-is: Golden.hs
+  main-is: Test.hs
   other-modules:
       Paths_dependent_lamb
   hs-source-dirs:
       tests
   ghc-options: -O0 -Wall -Werror -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns -Wredundant-constraints -Wno-name-shadowing -Wno-type-defaults
   build-depends:
-      Diff
-    , base >=4.10 && <5
+      base >=4.10 && <5
     , dependent-lamb
-    , directory
-    , mtl
     , strict
     , tasty
     , tasty-golden
+    , tasty-hunit
   default-language: Haskell2010
