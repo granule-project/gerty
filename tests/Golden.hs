@@ -27,8 +27,6 @@ main = do
   runTestsAndCleanUp $ testGroup "Golden tests" [negative, positive]
 
 
-type InterpreterError' = InterpreterError
-
 positiveTestCasesDir :: FilePath
 positiveTestCasesDir = "tests/cases/positive"
 
@@ -59,7 +57,7 @@ goldenTestsNegative = do
   pure $ testGroup "negative cases" (map (dlamGolden formatResult) files)
 
   where
-    formatResult :: Either InterpreterError' InterpreterResult -> String
+    formatResult :: Either InterpreterError InterpreterResult -> String
     formatResult res = case res of
                          Left err -> formatError err
                          Right x -> error $ "Negative test passed!\n" <> show x
@@ -75,14 +73,14 @@ goldenTestsPositive = do
   pure $ testGroup "positive cases and examples" (map (dlamGolden formatResult) files)
 
   where
-    formatResult :: Either InterpreterError' InterpreterResult -> String
+    formatResult :: Either InterpreterError InterpreterResult -> String
     formatResult res = case res of
                          Right (InterpreterResult val) -> pprint val
                          Left err -> error $ formatError err
 
 
 dlamGolden
-  :: (Either InterpreterError' InterpreterResult -> String)
+  :: (Either InterpreterError InterpreterResult -> String)
   -> FilePath
   -> TestTree
 dlamGolden formatResult file = goldenTest
@@ -101,7 +99,7 @@ dlamGolden formatResult file = goldenTest
         , ppDiff $ getGroupedDiff (lines exp) (lines act)
         ]
 
-    runDlam :: FilePath -> IO (Either InterpreterError' InterpreterResult)
+    runDlam :: FilePath -> IO (Either InterpreterError InterpreterResult)
     runDlam fp = do
       src <- readFile fp
       -- Typing
@@ -112,7 +110,7 @@ dlamGolden formatResult file = goldenTest
 -- | Run tests and remove all output files.
 runTestsAndCleanUp :: TestTree -> IO ()
 runTestsAndCleanUp tests = do
-  defaultMain tests `catch` (\(e :: InterpreterError') -> do
     outfiles <- findOutputFilesInDir "."
     forM_ outfiles removeFile
+  defaultMain tests `catch` (\(e :: InterpreterError) -> do
     throwIO e)
