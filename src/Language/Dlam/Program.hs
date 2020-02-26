@@ -42,6 +42,8 @@ builtins = M.fromList
            , (mkIdent "false", BindV (Just dfalse, dfalseTY))
            , (mkIdent "unit", BindV (Just unitTerm, unitTermTY))
            , (mkIdent "Unit", BindV (Just unitTy, unitTyTY))
+           , (mkIdent "Id",   BindV (Just idTy, idTyTY))
+           , (mkIdent "refl", BindV (Just reflTerm, reflTermTY))
            ]
 
 type ProgState = (Int, ProgMaps)

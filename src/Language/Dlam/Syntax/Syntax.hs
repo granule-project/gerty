@@ -52,6 +52,13 @@ module Language.Dlam.Syntax.Syntax
   , unitTyTY
   , unitTerm
   , unitTermTY
+  -- ** Identity
+  , idTy
+  , idTyTY
+  , idTyApp
+  , reflTerm
+  , reflTermTY
+  , reflTermApp
   ) where
 
 import qualified Data.Set as Set
@@ -150,6 +157,9 @@ data Expr where
   -- | Conditional eliminator.
   IfExpr :: Expr -> Expr -> Expr -> Expr
 
+  -- | Identity eliminator.
+  RewriteExpr :: Identifier -> Identifier -> Identifier -> Expr -> Identifier -> Expr -> Expr -> Expr -> Expr -> Expr
+
   App :: Expr ->  Expr   -> Expr -- e1 e2
 
   Sig :: Expr -> Expr       -> Expr -- e : A
@@ -208,7 +218,17 @@ data BuiltinTerm =
 
   -- | Unit type.
   | DUnitTy
+
+  -- | Identity type.
+  | IdTy
+
+  -- | Reflexivity.
+  | DRefl
   deriving (Show, Eq, Ord)
+
+
+mkFunTy :: Identifier -> Expr -> Expr -> Expr
+mkFunTy n t e = FunTy $ mkAbs n t e
 
 
 -- | Body for a builtin term (essentially an Agda postulate).
@@ -284,6 +304,37 @@ unitTerm = builtinTerm DUnitTerm
 unitTermTY :: Expr
 unitTermTY = unitTy
 
+idTy :: Expr
+idTy = builtinTerm IdTy
+
+idTyTY :: Expr
+idTyTY =
+  let l = mkIdent "l"
+      lv = Var l
+      a = mkIdent "a"
+      av = Var a
+  in mkFunTy l levelTy (mkFunTy a (mkUnivTy lv) (mkFunTy ignoreVar av (mkFunTy ignoreVar av (mkUnivTy lv))))
+
+idTyApp :: Expr -> Expr -> Expr -> Expr -> Expr
+idTyApp l t x y = App (App (App (App idTy l) t) x) y
+
+reflTerm :: Expr
+reflTerm = builtinTerm DRefl
+
+reflTermTY :: Expr
+reflTermTY =
+  let l = mkIdent "l"
+      lv = Var l
+      a = mkIdent "a"
+      av = Var a
+      x = mkIdent "x"
+      xv = Var x
+  in mkFunTy l levelTy (mkFunTy a (mkUnivTy lv) (mkFunTy x av (idTyApp lv av xv xv)))
+
+
+reflTermApp :: Expr -> Expr -> Expr -> Expr
+reflTermApp l t x = App (App (App reflTerm l) t) x
+
 ----------------------------
 
 class Term t where
@@ -313,6 +364,7 @@ instance Term Expr where
   boundVars Builtin{}                    = Set.empty
   boundVars (PairElim z x y e1 e2 e3)    =
     Set.insert z (x `Set.insert` (y `Set.insert` (boundVars e1 `Set.union` boundVars e2 `Set.union` boundVars e3)))
+  boundVars (RewriteExpr{}) = error "boundVars for RewriteExpr not yet implemented"
 
   freeVars (FunTy ab)                    = freeVarsAbs ab
   freeVars (Abs ab)                      = freeVarsAbs ab
@@ -325,6 +377,7 @@ instance Term Expr where
   freeVars (GenLet var e1 e2)            = Set.delete var (freeVars e1 `Set.union` freeVars e2)
   freeVars (PairElim z x y e1 e2 e3)     =
     Set.delete z (Set.delete x (Set.delete y (freeVars e1 `Set.union` freeVars e2 `Set.union` freeVars e3)))
+  freeVars (RewriteExpr{}) = error "freeVars for RewriteExpr not yet implemented"
   freeVars Hole                          = Set.empty
   freeVars Implicit                      = Set.empty
   freeVars LitLevel{}                    = Set.empty

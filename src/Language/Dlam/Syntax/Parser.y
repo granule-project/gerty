@@ -25,6 +25,7 @@ import Language.Dlam.Syntax.Syntax
 %token
     nl      { TokenNL _ }
     let     { TokenLet _ }
+    rewrite { TokenRewrite _ }
     '_'     { TokenImplicit _ }
     if { TokenIf _ }
     then { TokenThen _ }
@@ -41,6 +42,7 @@ import Language.Dlam.Syntax.Syntax
     ')'     { TokenRParen _ }
     ':'     { TokenSig _ }
     ','     { TokenComma _ }
+    '.'     { TokenDot _ }
 
 %right in
 %right '->'
@@ -93,6 +95,8 @@ Expr :: { [Option] -> ParseExpr }
   | let '(' Ident ',' Ident ',' Ident ')' '=' Expr in '(' Expr ':' Expr ')' { \opts -> PairElim $3 $5 $7 ($10 opts) ($13 opts) ($15 opts) }
 
   | let '(' Ident ',' Ident ')' '=' Expr in Expr { \opts -> PairElim ignoreVar $3 $5 ($8 opts) ($10 opts) mkImplicit }
+
+  | rewrite '(' Ident '.' Ident '.' Ident '.' Expr ',' Ident '.' Expr ',' Expr ',' Expr ',' Expr ')' { \opts -> RewriteExpr $3 $5 $7 ($9 opts) $11 ($13 opts) ($15 opts) ($17 opts) ($19 opts) }
 
   | if Expr then Expr else Expr { \opts -> IfExpr ($2 opts) ($4 opts) ($6 opts) }
 

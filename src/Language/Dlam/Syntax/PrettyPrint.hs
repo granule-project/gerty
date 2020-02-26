@@ -53,6 +53,8 @@ instance PrettyPrint Expr where
     pprint (App e1 e2) = pprint e1 ++ " " ++ bracket_pprint e2
     pprint (Pair e1 e2) = "(" <> pprint e1 <> ", " <> pprint e2 <> ")"
     pprint (IfExpr e1 e2 e3) = "if " <> pprint e1 <> " then " <> pprint e2 <> " else " <> pprint e3
+    pprint (RewriteExpr x y p tC z c a b p') =
+      concat ["rewrite (", pprint x, ".", pprint y, ".", pprint p, ".", pprint tC, ", ", pprint z, ".", pprint c, ", ", pprint a, ", ", pprint b, ", ", pprint p', ")"]
     pprint (Var var) = pprint var
     pprint (Sig e t) = bracket_pprint e ++ " : " ++ pprint t
     -- ML
@@ -79,6 +81,8 @@ instance PrettyPrint BuiltinTerm where
   pprint DFalse = "false"
   pprint DUnitTy = "Unit"
   pprint DUnitTerm = "unit"
+  pprint IdTy = "Id"
+  pprint DRefl = "refl"
 
 instance PrettyPrint NAST where
   pprint (NAST sts) = concat . intersperse "\n\n" $ fmap pprint sts

@@ -1,0 +1,45 @@
+------------------------------------------
+----- Examples for the identity type -----
+------------------------------------------
+
+-- the identity type proposes equality between two same-typed terms
+Id' : (l : Level) (a : Type l) -> a -> a -> Type l
+Id' = Id
+
+-- the identity type is used to propose equality between two terms
+lzeroEqlzero : Type 0
+lzeroEqlzero = Id 0 Level lzero lzero
+
+
+-- there is only one constructor for the identity type, which is
+-- reflexivity. Reflexivity gives us a proof that two definitionally
+-- equal terms are equal.
+refl' : (l : Level) (a : Type l) (x : a) -> Id l a x x
+refl' = refl
+
+
+-- we know that lzero = lzero, so we should thus be able to inhabit
+-- our previous proposition:
+lzeroEqlzeroProof : lzeroEqlzero
+lzeroEqlzeroProof = refl 0 Level lzero
+
+
+-- additionally, when we know two terms are computationally
+-- equivalent, we should be able to indicate this with reflexivity
+funEta : (l : Level) (a : Type l) (x : a) -> Id l a ((\(y : a) -> y) x) x
+funEta = \l a x -> refl l a x
+
+
+-- we eliminate identities by using the 'rewrite pfEq in pf' construct
+pfSuc : (m n : Level) -> Id 0 Level m n -> Id 0 Level (lsuc m) (lsuc n)
+pfSuc = \m n p -> rewrite(x.y.p.Id 0 Level (lsuc x) (lsuc y), z.refl 0 Level (lsuc z), m, n, p)
+
+
+-- we can generalise the above to work on arbitrary functions (the 'cong' rule):
+cong : (l1 l2 : Level) (a : Type l1) (b : Type l2) (f : a -> b) (x y : a) -> Id l1 a x y -> Id l2 b (f x) (f y)
+cong = \l1 l2 a b f x y p -> rewrite (x.y.p.Id l2 b (f x) (f y), z.refl l2 b (f z), x, y, p)
+
+
+-- then we can rewrite pfSuc in terms of cong
+pfSuc' : (m n : Level) -> Id 0 Level m n -> Id 0 Level (lsuc m) (lsuc n)
+pfSuc' = \m n p -> cong 0 0 Level Level lsuc m n p

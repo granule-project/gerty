@@ -49,6 +49,7 @@ tokens :-
   in                            { \p s -> TokenIn p }
   case                          { \p s -> TokenCase p }
   of                            { \p s -> TokenOf p }
+  rewrite                       { \p _ -> TokenRewrite p }
   "|"                           { \p s -> TokenSep p }
   @sym				                  { \p s -> TokenSym p s }
   "->"                          { \p s -> TokenArrow p }
@@ -95,6 +96,7 @@ data Token
   | TokenDot      AlexPosn
   | TokenAt       AlexPosn
   | TokenNat      AlexPosn Int
+  | TokenRewrite  AlexPosn
   deriving (Eq, Show, Generic)
 
 symString :: Token -> String

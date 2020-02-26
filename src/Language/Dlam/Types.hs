@@ -297,6 +297,12 @@ checkOrInferType t expr@(Builtin e) =
 
       -- unit : Unit
       DUnitTerm -> unitTermTY
+
+      -- Id : (l : Level) (a : Type l) -> a -> a -> Type l
+      IdTy -> idTyTY
+
+      -- refl : (l : Level) (a : Type l) (x : a) -> Id l a x x
+      DRefl -> reflTermTY
 ----------------------
 -- Level expression --
 ----------------------
@@ -518,6 +524,46 @@ checkOrInferType t expr@(IfExpr e1 e2 e3) = do
           case t of
             (Builtin DBool) -> pure t
             t -> expectedInferredTypeForm "boolean" e t
+
+--------------------
+----- Identity -----
+--------------------
+
+{-
+   G |- A : Type l1
+   G, x : A, y : A, p : Id l1 A x y |- C : Type l2
+   G, z : A |- c : [z/x][z/y][refl l1 A z/p]C
+   G |- a : A
+   G |- b : A
+   G |- p' : Id l1 A a b
+   --------------------------------------------------------- :: RewriteExpr
+   G |- rewrite(x.y.p.C, l1, A, a, b, p) : [a/x][b/y][p'/p]C
+-}
+checkOrInferType t expr@(RewriteExpr x y p tC z c a b p') = do
+  -- G |- a : A
+  tA <- synthType a
+
+  -- G |- A : Type l1
+  l1 <- inferUniverseLevel tA
+
+  -- G |- b : A
+  _ <- checkOrInferType tA b
+
+  -- G |- p' : Id l1 A a b
+  _ <- checkOrInferType (idTyApp l1 tA a b) p'
+
+  -- G, x : A, y : A, p : Id l1 A x y |- C : Type l2
+  _l2 <- withTypedVariable x tA $ withTypedVariable y tA $ withTypedVariable p (idTyApp l1 tA (Var x) (Var y)) $ inferUniverseLevel tC
+
+  -- G, z : A |- c : [z/x][z/y][refl l1 A z/p]C
+  zForyinzforyinreflforpC <-
+    substitute (x, Var z) =<< substitute (y, Var z) =<< substitute (p, reflTermApp l1 tA (Var z)) tC
+  _ <- withTypedVariable z tA $ checkOrInferType zForyinzforyinreflforpC c
+
+  -- G |- rewrite(x.y.p.C, l1, A, a, b, p) : [a/x][b/y][p'/p]C
+  aforxbforypforpinC <-
+    substitute (x, a) tC >>= substitute (y, b) >>= substitute (p, p')
+  ensureEqualTypes expr t aforxbforypforpinC
 
 -------------------------------------
 -- When we don't know how to synth --
