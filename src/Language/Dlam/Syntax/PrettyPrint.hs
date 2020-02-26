@@ -35,6 +35,11 @@ pprintAbs sep ab =
 -- Untyped lambda calculus
 instance PrettyPrint Expr where
     isLexicallyAtomic (Var _) = True
+    isLexicallyAtomic LitLevel{} = True
+    isLexicallyAtomic Builtin{}  = True
+    isLexicallyAtomic Pair{}     = True
+    isLexicallyAtomic Hole{}     = True
+    isLexicallyAtomic Implicit{} = True
     isLexicallyAtomic _       = False
 
     pprint (LitLevel n)           = show n
