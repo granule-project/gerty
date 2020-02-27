@@ -47,6 +47,13 @@ module Language.Dlam.Syntax.Syntax
   , dtrueTY
   , dfalse
   , dfalseTY
+  -- ** Coproducts
+  , inlTerm
+  , inlTermTY
+  , inlTermApp
+  , inrTerm
+  , inrTermTY
+  , inrTermApp
   -- ** Unit
   , unitTy
   , unitTyTY
@@ -154,6 +161,12 @@ data Expr where
   -- | Pair eliminator.
   PairElim :: Identifier -> Identifier -> Identifier -> Expr -> Expr -> Expr -> Expr
 
+  -- | Coproduct type.
+  Coproduct :: Expr -> Expr -> Expr
+
+  -- | Coproduct eliminator.
+  CoproductCase :: (Identifier, Expr) -> (Identifier, Expr) -> (Identifier, Expr) -> Expr -> Expr
+
   -- | Conditional eliminator.
   IfExpr :: Expr -> Expr -> Expr -> Expr
 
@@ -212,6 +225,12 @@ data BuiltinTerm =
 
   -- | False.
   | DFalse
+
+  -- | inl.
+  | Inl
+
+  -- | inr.
+  | Inr
 
   -- | Unit term.
   | DUnitTerm
@@ -292,6 +311,42 @@ dfalse = builtinTerm DFalse
 dfalseTY :: Expr
 dfalseTY = dBool
 
+inlTerm :: Expr
+inlTerm = builtinTerm Inl
+
+inlTermTY :: Expr
+inlTermTY =
+  let l1 = mkIdent "l1"; l1v = Var l1
+      l2 = mkIdent "l2"; l2v = Var l2
+      a = mkIdent "a"; av = Var a
+      b = mkIdent "b"; bv = Var b
+  in mkFunTy l1 levelTy
+      (mkFunTy l2 levelTy
+       (mkFunTy a (mkUnivTy l1v)
+        (mkFunTy b (mkUnivTy l2v)
+         (mkFunTy ignoreVar av (Coproduct av bv)))))
+
+inlTermApp :: Expr -> Expr
+inlTermApp = App inlTerm
+
+inrTerm :: Expr
+inrTerm = builtinTerm Inr
+
+inrTermTY :: Expr
+inrTermTY =
+  let l1 = mkIdent "l1"; l1v = Var l1
+      l2 = mkIdent "l2"; l2v = Var l2
+      a = mkIdent "a"; av = Var a
+      b = mkIdent "b"; bv = Var b
+  in mkFunTy l1 levelTy
+      (mkFunTy l2 levelTy
+       (mkFunTy a (mkUnivTy l1v)
+        (mkFunTy b (mkUnivTy l2v)
+         (mkFunTy ignoreVar bv (Coproduct av bv)))))
+
+inrTermApp :: Expr -> Expr
+inrTermApp = App inrTerm
+
 unitTy :: Expr
 unitTy = builtinTerm DUnitTy
 
@@ -355,6 +410,9 @@ instance Term Expr where
   boundVars (App e1 e2)                  = boundVars e1 `Set.union` boundVars e2
   boundVars (Pair e1 e2)                 = boundVars e1 `Set.union` boundVars e2
   boundVars (IfExpr e1 e2 e3)            = boundVars e1 `Set.union` boundVars e2 `Set.union` boundVars e3
+  boundVars (Coproduct t1 t2) = boundVars t1 `Set.union` boundVars t2
+  boundVars (CoproductCase (_z, _tC) (x, c) (y, d) _e) =
+    Set.insert x (Set.insert y (boundVars c `Set.union` boundVars d))
   boundVars (Var _)                      = Set.empty
   boundVars (Sig e _)                    = boundVars e
   boundVars (GenLet var e1 e2)           = var `Set.insert` (boundVars e1 `Set.union` boundVars e2)
@@ -373,6 +431,9 @@ instance Term Expr where
   freeVars (App e1 e2)                   = freeVars e1 `Set.union` freeVars e2
   freeVars (Pair e1 e2)                  = freeVars e1 `Set.union` freeVars e2
   freeVars (IfExpr e1 e2 e3)             = freeVars e1 `Set.union` freeVars e2 `Set.union` freeVars e3
+  freeVars (Coproduct t1 t2) = freeVars t1 `Set.union` freeVars t2
+  freeVars (CoproductCase (_z, _tC) (x, c) (y, d) _e) =
+    Set.delete x (Set.delete y (freeVars c `Set.union` freeVars d))
   freeVars (Var var)                     = Set.singleton var
   freeVars (Sig e _)                     = freeVars e
   freeVars (GenLet var e1 e2)            = Set.delete var (freeVars e1 `Set.union` freeVars e2)

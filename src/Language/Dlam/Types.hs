@@ -188,6 +188,17 @@ normalise (IfExpr e1 e2 e3) = do
     _                -> do
       e2e3equal <- equalExprs e2' e3'
       finalNormalForm $ if e2e3equal then e2' else IfExpr e1' e2' e3'
+normalise (CoproductCase (z, tC) (x, c) (y, d) e) = do
+  e' <- normalise e
+  case e' of
+    (App (Builtin Inl) l) -> normalise =<< substitute (x, l) c
+    (App (Builtin Inr) r) -> normalise =<< substitute (y, r) d
+    _ -> do
+      tC' <- normalise tC
+      c' <- normalise c
+      d' <- normalise d
+      finalNormalForm $ CoproductCase (z, tC') (x, c') (y, d') e'
+normalise (Coproduct e1 e2) = finalNormalForm =<< Coproduct <$> normalise e1 <*> normalise e2
 normalise (Pair e1 e2) = finalNormalForm =<< Pair <$> normalise e1 <*> normalise e2
 normalise e@Builtin{} = finalNormalForm e
 normalise e = notImplemented $ "normalise does not yet support '" <> pprint e <> "'"
@@ -209,6 +220,7 @@ equalExprs e1 e2 = do
     (FunTy ab1, FunTy ab2) -> equalAbs ab1 ab2
     (Abs ab1, Abs ab2) -> equalAbs ab1 ab2
     (ProductTy ab1, ProductTy ab2) -> equalAbs ab1 ab2
+    (Coproduct t1 t2, Coproduct t1' t2') -> (&&) <$> equalExprs t1 t1' <*> equalExprs t2 t2'
     -- TODO: add proper equality (like Abs) for PairElim (2020-02-22)
     (IfExpr e1 e2 e3, IfExpr e1' e2' e3') ->
       (&&) <$> equalExprs e1 e1' <*> ((&&) <$> equalExprs e2 e2' <*> equalExprs e3 e3')
@@ -332,6 +344,12 @@ checkOrInferType t expr@(Builtin e) =
 
       -- | false : Bool
       DFalse -> dfalseTY
+
+      -- | inl : (l1 l2 : Level) (a : Type l1) (b : Type l2) -> a -> a + b
+      Inl -> inlTermTY
+
+      -- | inr : (l1 l2 : Level) (a : Type l1) (b : Type l2) -> b -> a + b
+      Inr -> inrTermTY
 
       -- Unit : Type 0
       DUnitTy -> unitTyTY
@@ -535,6 +553,60 @@ checkOrInferType t expr@(PairElim z x y e1 e2 tC) = do
   where inferProductTy x e = do
           t <- checkOrInferType (ProductTy (mkAbs x mkImplicit mkImplicit)) e >>= normalise
           getAbsFromProductTy e t
+
+----------------
+-- Coproducts --
+----------------
+
+{-
+   G |- A : Type l1
+   G |- B : Type l2
+   ------------------------------ :: Coproduct
+   G |- A + B : Type (lmax l1 l2)
+-}
+checkOrInferType t expr@(Coproduct tA tB) = do
+  -- G |- A : Type l1
+  l1 <- inferUniverseLevel tA
+
+  -- G |- B : Type l2
+  l2 <- inferUniverseLevel tB
+
+  -- G |- (x : A) -> B : Type (lmax l1 l2)
+  lmaxl1l2 <- normalise (lmaxApp l1 l2)
+  ensureEqualTypes expr t (mkUnivTy lmaxl1l2)
+
+{-
+   G, z : A + B |- C : Type l
+   G, x : A |- c : [inl x/z]C
+   G, y : B |- d : [inr y/z]C
+   G |- e : A + B
+   -------------------------------------------------------- :: CoproductCase
+   G |- case z = e of (Inl x -> c; Inr y -> d) : C : [e/z]C
+-}
+checkOrInferType t expr@(CoproductCase (z, tC) (x, c) (y, d) e) = do
+  -- G |- e : A + B
+  (tA, tB) <- inferCoproductTy e
+
+  -- G, z : A + B |- C : Type l
+  _l <- withTypedVariable z (Coproduct tA tB) $ inferUniverseLevel tC
+
+  -- G, x : A |- c : [inl x/z]C
+  inlxforzinC <- substitute (z, inlTermApp (Var x)) tC
+  _ <- withTypedVariable x tA $ checkOrInferType inlxforzinC c
+
+  -- G, y : B |- d : [inr y/z]C
+  inryforzinC <- substitute (z, inrTermApp (Var y)) tC
+  _ <- withTypedVariable y tB $ checkOrInferType inryforzinC d
+
+  -- G |- case z = e of (Inl x -> c; Inr y -> d) : C : [e/z]C
+  eforzinC <- substitute (z, e) tC
+  ensureEqualTypes expr t eforzinC
+
+  where inferCoproductTy e = do
+          t <- synthType e >>= normalise
+          case t of
+            (Coproduct tA tB) -> pure (tA, tB)
+            t -> expectedInferredTypeForm "coproduct" e t
 
 --------------------
 ----- Booleans -----

@@ -49,6 +49,8 @@ tokens :-
   in                            { \p s -> TokenIn p }
   case                          { \p s -> TokenCase p }
   of                            { \p s -> TokenOf p }
+  Inl                           { \p _ -> TokenInl p}
+  Inr                           { \p _ -> TokenInr p}
   rewrite                       { \p _ -> TokenRewrite p }
   "|"                           { \p s -> TokenSep p }
   @sym				                  { \p s -> TokenSym p s }
@@ -60,10 +62,12 @@ tokens :-
   \:                            { \p s -> TokenSig p }
   "?"                           { \p _ -> TokenHole p }
   "*"                           { \p s -> TokenProd p }
+  "+"                           { \p _ -> TokenPlus p }
   "<"                           { \p s -> TokenLPair p }
   ">"                           { \p s -> TokenRPair p }
   ","                           { \p _ -> TokenComma p }
   "_"                           { \p _ -> TokenImplicit p }
+  ";"                           { \p _ -> TokenSemiColon p }
   \.                            { \p _ -> TokenDot p }
   \@                            { \p _ -> TokenAt p }
 
@@ -76,6 +80,8 @@ data Token
   | TokenIf       AlexPosn
   | TokenThen     AlexPosn
   | TokenElse     AlexPosn
+  | TokenInl      AlexPosn
+  | TokenInr      AlexPosn
   | TokenSep      AlexPosn
   | TokenLet      AlexPosn
   | TokenIn       AlexPosn
@@ -97,6 +103,8 @@ data Token
   | TokenAt       AlexPosn
   | TokenNat      AlexPosn Int
   | TokenRewrite  AlexPosn
+  | TokenPlus     AlexPosn
+  | TokenSemiColon AlexPosn
   deriving (Eq, Show, Generic)
 
 symString :: Token -> String

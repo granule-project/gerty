@@ -40,6 +40,8 @@ builtins = M.fromList
            , (mkIdent "Bool", BindV (Just dBool, dBoolTY))
            , (mkIdent "true", BindV (Just dtrue, dtrueTY))
            , (mkIdent "false", BindV (Just dfalse, dfalseTY))
+           , (mkIdent "inl", BindV (Just inlTerm, inlTermTY))
+           , (mkIdent "inr", BindV (Just inrTerm, inrTermTY))
            , (mkIdent "unit", BindV (Just unitTerm, unitTermTY))
            , (mkIdent "Unit", BindV (Just unitTy, unitTyTY))
            , (mkIdent "Id",   BindV (Just idTy, idTyTY))
@@ -106,6 +108,13 @@ instance Substitutable (Prog err) Identifier Expr where
     e1' <- substitute s e1
     e2' <- substitute s e2
     pure (App e1' e2')
+  substitute s (Coproduct e1 e2) = Coproduct <$> substitute s e1 <*> substitute s e2
+  substitute s@(v, _) (CoproductCase (z, tC) (x, c) (y, d) e) = do
+    e' <- substitute s e
+    tC' <- if v == z then pure tC else substitute s tC
+    c'  <- if v == x then pure c else substitute s c
+    d'  <- if v == y then pure d else substitute s d
+    pure $ CoproductCase (z, tC') (x, c') (y, d') e'
   substitute _ e@Builtin{} = pure e
   substitute _ e@LitLevel{} = pure e
   substitute _ e@Hole{} = pure e

@@ -1,0 +1,12 @@
+-----------------------------------------------------------------------
+----- Tests for checking the typing of the builtin coproduct type -----
+-----------------------------------------------------------------------
+
+coproductTy : (l1 l2 : Level) -> (a : Type l1) (b : Type l2) -> Type (lmax l1 l2)
+coproductTy = \l1 l2 a b -> a + b
+
+inl' : (l1 l2 : Level) (a : Type l1) (b : Type l2) -> a -> coproductTy l1 l2 a b
+inl' = inl
+
+inr' : (l1 l2 : Level) (a : Type l1) (b : Type l2) -> b -> coproductTy l1 l2 a b
+inr' = inr

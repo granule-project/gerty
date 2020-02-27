@@ -53,6 +53,11 @@ instance PrettyPrint Expr where
     pprint (App e1 e2) = pprint e1 ++ " " ++ bracket_pprint e2
     pprint (Pair e1 e2) = "(" <> pprint e1 <> ", " <> pprint e2 <> ")"
     pprint (IfExpr e1 e2 e3) = "if " <> pprint e1 <> " then " <> pprint e2 <> " else " <> pprint e3
+    pprint (Coproduct e1 e2) = pprint e1 <> " + " <> pprint e2
+    pprint (CoproductCase (z, tC) (x, c) (y, d) e) =
+      "case " <> pprint z <> " = " <> pprint e <> " of ("
+              <> "inl " <> pprint x <> " -> " <> pprint c <> "; "
+              <> "inr " <> pprint y <> " -> " <> pprint d <> ") : " <> pprint tC
     pprint (RewriteExpr x y p tC z c a b p') =
       concat ["rewrite (", pprint x, ".", pprint y, ".", pprint p, ".", pprint tC, ", ", pprint z, ".", pprint c, ", ", pprint a, ", ", pprint b, ", ", pprint p', ")"]
     pprint (Var var) = pprint var
@@ -79,6 +84,8 @@ instance PrettyPrint BuiltinTerm where
   pprint DBool  = "Bool"
   pprint DTrue  = "true"
   pprint DFalse = "false"
+  pprint Inl = "inl"
+  pprint Inr = "inr"
   pprint DUnitTy = "Unit"
   pprint DUnitTerm = "unit"
   pprint IdTy = "Id"

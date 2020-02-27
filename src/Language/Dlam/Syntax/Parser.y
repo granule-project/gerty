@@ -30,6 +30,10 @@ import Language.Dlam.Syntax.Syntax
     if { TokenIf _ }
     then { TokenThen _ }
     else { TokenElse _ }
+    case    { TokenCase _ }
+    inl     { TokenInl _ }
+    inr     { TokenInr _ }
+    of      { TokenOf _ }
     in      { TokenIn  _  }
     VAR     { TokenSym _ _ }
     LANG    { TokenLang _ _ }
@@ -37,12 +41,14 @@ import Language.Dlam.Syntax.Syntax
     '\\'    { TokenLambda _ }
     '->'    { TokenArrow _ }
     '*'     { TokenProd _ }
+    '+'     { TokenPlus _ }
     '='     { TokenEq _ }
     '('     { TokenLParen _ }
     ')'     { TokenRParen _ }
     ':'     { TokenSig _ }
     ','     { TokenComma _ }
     '.'     { TokenDot _ }
+    ';'     { TokenSemiColon _ }
 
 %right in
 %right '->'
@@ -92,11 +98,16 @@ Expr :: { [Option] -> ParseExpr }
 
   | '(' Ident ':' Expr ')' '*' Expr { \opts -> ProductTy (mkAbs $2 ($4 opts) ($7 opts)) }
 
+  | Expr '+' Expr   { \opts -> Coproduct ($1 opts) ($3 opts) }
+
   | let '(' Ident ',' Ident ',' Ident ')' '=' Expr in '(' Expr ':' Expr ')' { \opts -> PairElim $3 $5 $7 ($10 opts) ($13 opts) ($15 opts) }
 
   | let '(' Ident ',' Ident ')' '=' Expr in Expr { \opts -> PairElim ignoreVar $3 $5 ($8 opts) ($10 opts) mkImplicit }
 
   | rewrite '(' Ident '.' Ident '.' Ident '.' Expr ',' Ident '.' Expr ',' Expr ',' Expr ',' Expr ')' { \opts -> RewriteExpr $3 $5 $7 ($9 opts) $11 ($13 opts) ($15 opts) ($17 opts) ($19 opts) }
+
+  | case Ident '=' Expr of '(' inl Ident '->' Expr ';' inr Ident '->' Expr ')' ':' Expr
+    { \opts -> CoproductCase ($2, $18 opts) ($8, $10 opts) ($13, $15 opts) ($4 opts) }
 
   | if Expr then Expr else Expr { \opts -> IfExpr ($2 opts) ($4 opts) ($6 opts) }
 
