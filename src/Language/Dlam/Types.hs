@@ -410,10 +410,11 @@ checkOrInferType t expr@(Abs abE) = do
       tA = absTy abT
 
   -- G, x : A |- e : B
-  let tB = absExpr abT
-  -- TODO: I feel like we ought to be substituting here, to ensure
-  -- the names coming from the abstraction and from the type both get unified? (2020-02-22)
-  -- tB <- substitute (absVar abT, Var x) (absExpr abT)
+
+  -- make sure that we are considering the name
+  -- coming from the abstraction, rather than the type
+  tB <- substitute (absVar abT, Var $ x) (absExpr abT)
+
   tB <- withTypedVariable x tA (checkOrInferType tB e)
 
   -- G |- \x -> e : (x : A) -> B

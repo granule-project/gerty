@@ -1,0 +1,7 @@
+-- the program should complain about how 'Level' is expected
+-- to have type 'c l', but instead is type 'Type 0'
+--
+-- this is a regression test---it used to be that this
+-- would complain about "Unknown identifier 'p'"
+t : (c : Level -> Type 0) (p : Level) -> (Level -> c p) -> c p
+t = \c l e -> Level
