@@ -98,11 +98,11 @@ instance Substitutable (Prog err) Identifier Expr where
   substitute s (Abs   abs) = Abs   <$> substAbs s abs
   substitute s (ProductTy abs) = ProductTy <$> substAbs s abs
   substitute s (Pair e1 e2) = Pair <$> substitute s e1 <*> substitute s e2
-  substitute s@(v, _) (PairElim v0 v1 v2 e1 e2 e3) = do
-    e1' <- substitute s e1
-    e2' <- if v == v1 || v == v2 then pure e2 else substitute s e2
-    e3' <- if v == v0 then pure e3 else substitute s e3
-    pure $ PairElim v0 v1 v2 e1' e2' e3'
+  substitute s@(v, _) (PairElim (z, tC) (x, y, g) p) = do
+    p' <- substitute s p
+    g' <- if v == x || v == y then pure g else substitute s g
+    tC' <- if v == z then pure tC else substitute s tC
+    pure $ PairElim (z, tC') (x, y, g') p'
   substitute s (IfExpr e1 e2 e3) = IfExpr <$> substitute s e1 <*> substitute s e2 <*> substitute s e3
   substitute s (App e1 e2) = do
     e1' <- substitute s e1

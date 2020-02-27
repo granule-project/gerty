@@ -95,9 +95,9 @@ Expr :: { [Option] -> ParseExpr }
 
   | Expr '+' Expr   { \opts -> Coproduct ($1 opts) ($3 opts) }
 
-  | let Ident '@' '(' Ident ',' Ident ')' '=' Expr in '(' Expr ':' Expr ')' { \opts -> PairElim $2 $5 $7 ($10 opts) ($13 opts) ($15 opts) }
+  | let Ident '@' '(' Ident ',' Ident ')' '=' Expr in '(' Expr ':' Expr ')' { \opts -> PairElim ($2, $15 opts) ($5, $7, $13 opts) ($10 opts) }
 
-  | let '(' Ident ',' Ident ')' '=' Expr in Expr { \opts -> PairElim ignoreVar $3 $5 ($8 opts) ($10 opts) mkImplicit }
+  | let '(' Ident ',' Ident ')' '=' Expr in Expr { \opts -> PairElim (ignoreVar, mkImplicit) ($3, $5, $10 opts) ($8 opts) }
 
   | rewrite '(' Ident '.' Ident '.' Ident '.' Expr ',' Ident '.' Expr ',' Expr ',' Expr ',' Expr ')' { \opts -> RewriteExpr $3 $5 $7 ($9 opts) $11 ($13 opts) ($15 opts) ($17 opts) ($19 opts) }
 

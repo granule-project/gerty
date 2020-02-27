@@ -159,7 +159,7 @@ data Expr where
   Pair :: Expr -> Expr -> Expr
 
   -- | Pair eliminator.
-  PairElim :: Identifier -> Identifier -> Identifier -> Expr -> Expr -> Expr -> Expr
+  PairElim :: (Identifier, Expr) -> (Identifier, Identifier, Expr) -> Expr -> Expr
 
   -- | Coproduct type.
   Coproduct :: Expr -> Expr -> Expr
@@ -416,8 +416,8 @@ instance Term Expr where
   boundVars Implicit                     = Set.empty
   boundVars LitLevel{}                   = Set.empty
   boundVars Builtin{}                    = Set.empty
-  boundVars (PairElim z x y e1 e2 e3)    =
-    Set.insert z (x `Set.insert` (y `Set.insert` (boundVars e1 `Set.union` boundVars e2 `Set.union` boundVars e3)))
+  boundVars (PairElim (z, tC) (x, y, g) p) =
+    Set.insert z (x `Set.insert` (y `Set.insert` (boundVars g `Set.union` boundVars p `Set.union` boundVars tC)))
   -- TODO: I'm not entirely convinced the boundVars for RewriteExpr is actually correct (2020-02-27)
   boundVars (RewriteExpr _x _y _p _tC _z c _a _b _p') = boundVars c
 
@@ -432,8 +432,8 @@ instance Term Expr where
     Set.delete x (Set.delete y (freeVars c `Set.union` freeVars d))
   freeVars (Var var)                     = Set.singleton var
   freeVars (Sig e _)                     = freeVars e
-  freeVars (PairElim z x y e1 e2 e3)     =
-    Set.delete z (Set.delete x (Set.delete y (freeVars e1 `Set.union` freeVars e2 `Set.union` freeVars e3)))
+  freeVars (PairElim (z, tC) (x, y, g) p) =
+    Set.delete z (Set.delete x (Set.delete y (freeVars g `Set.union` freeVars p `Set.union` freeVars tC)))
   -- TODO: I'm not entirely convinced the freeVars for RewriteExpr is actually correct (2020-02-27)
   freeVars (RewriteExpr _x _y _p _tC _z c _a _b _p') = freeVars c
   freeVars Hole                          = Set.empty

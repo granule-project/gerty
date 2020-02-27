@@ -65,8 +65,8 @@ instance PrettyPrint Expr where
     pprint Hole = "?"
     pprint Implicit{} = "_"
     pprint (Builtin s) = pprint s
-    pprint (PairElim Ignore x y e1 e2 Implicit{}) = "let (" <> pprint x <> ", " <> pprint y <> ") = " <> pprint e1 <> " in " <> pprint e2
-    pprint (PairElim z x y e1 e2 e3) = "let " <> pprint z <> "@(" <> pprint x <> ", " <> pprint y <> ") = " <> pprint e1 <> " in (" <> pprint e2 <> " : " <> pprint e3 <> ")"
+    pprint (PairElim (Ignore, Implicit{}) (x, y, g) p) = "let (" <> pprint x <> ", " <> pprint y <> ") = " <> pprint p <> " in " <> pprint g
+    pprint (PairElim (z, tC) (x, y, g) p) = "let " <> pprint z <> "@(" <> pprint x <> ", " <> pprint y <> ") = " <> pprint p <> " in (" <> pprint g <> " : " <> pprint tC <> ")"
 
 instance PrettyPrint Identifier where
   pprint (Ident v) = v

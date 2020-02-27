@@ -172,12 +172,12 @@ normalise (App e1 e2) = do
     ------------------------
 
     _ -> finalNormalForm $ App e1' e2'
-normalise (PairElim v0 v1 v2 e1 e2 e3) = do
-  e1' <- normalise e1
-  e3' <- normalise e3
-  case e1' of
-    (Pair l r) -> substitute (v1, l) e2 >>= substitute (v2, r) >>= normalise
-    _          -> finalNormalForm $ PairElim v0 v1 v2 e1' e2 e3'
+normalise (PairElim (z, tC) (x, y, g) p) = do
+  p' <- normalise p
+  tC' <- normalise tC
+  case p' of
+    (Pair l r) -> substitute (x, l) g >>= substitute (y, r) >>= normalise
+    _          -> finalNormalForm $ PairElim (z, tC') (x, y, g) p'
 normalise (IfExpr e1 e2 e3) = do
   e1' <- normalise e1
   e2' <- normalise e2
@@ -221,11 +221,11 @@ equalExprs e1 e2 = do
     (Abs ab1, Abs ab2) -> equalAbs ab1 ab2
     (ProductTy ab1, ProductTy ab2) -> equalAbs ab1 ab2
     (Coproduct t1 t2, Coproduct t1' t2') -> (&&) <$> equalExprs t1 t1' <*> equalExprs t2 t2'
-    (PairElim z x y tC e p, PairElim z' x' y' tC' e' p') -> do
+    (PairElim (z, tC) (x, y, g) p, PairElim (z', tC') (x', y', g') p') -> do
       typesOK <- equalExprs tC' =<< substitute (z, Var z') tC
-      esOK <- equalExprs e' =<< (substitute (x, Var x') e >>= substitute (y, Var y'))
+      gsOK <- equalExprs g' =<< (substitute (x, Var x') g >>= substitute (y, Var y'))
       psOK <- equalExprs p p'
-      pure $ typesOK && esOK && psOK
+      pure $ typesOK && gsOK && psOK
     (IfExpr e1 e2 e3, IfExpr e1' e2' e3') ->
       (&&) <$> equalExprs e1 e1' <*> ((&&) <$> equalExprs e2 e2' <*> equalExprs e3 e3')
     -- Implicits always match.
@@ -524,12 +524,12 @@ checkOrInferType t expr@(Pair e1 e2) = do
    -------------------------------------------- :: PairElim
    G |- let z@(x, y) = t1 in (t2 : C) : [t1/z]C
 -}
-checkOrInferType t expr@(PairElim z x y e1 e2 tC) = do
+checkOrInferType t expr@(PairElim (z, tC) (x, y, g) p) = do
 
   -- G |- t1 : (x : A) * B
-  e1Ty <- inferProductTy x e1
-  tA <- substitute (absVar e1Ty, Var x) (absTy e1Ty)
-  tB <- substitute (absVar e1Ty, Var x) (absExpr e1Ty)
+  pTy <- inferProductTy x p
+  tA <- substitute (absVar pTy, Var x) (absTy pTy)
+  tB <- substitute (absVar pTy, Var x) (absExpr pTy)
 
   -- G, z : (x : A) * B |- C : Type l
   tC <- case tC of
@@ -541,17 +541,17 @@ checkOrInferType t expr@(PairElim z x y e1 e2 tC) = do
 
   -- G, x : A, y : B |- t2 : [(x, y)/z]C
   xyForZinC <- withTypedVariable x tA $ withTypedVariable y tB $ substitute (z, Pair (Var x) (Var y)) tC
-  _ <- withTypedVariable x tA $ withTypedVariable y tB $ checkOrInferType xyForZinC e2
+  _ <- withTypedVariable x tA $ withTypedVariable y tB $ checkOrInferType xyForZinC g
 
   -- x, y nin FV(C)
   when (x `elem` freeVars tC || y `elem` freeVars tC) $
        error $ concat [ "neither '", pprint x, "' nor '", pprint y
-                      , "' are allowed to occur in the type of '", pprint e2
+                      , "' are allowed to occur in the type of '", pprint g
                       , "' (which was found to be '", pprint tC, "'), but one or more of them did."
                       ]
 
   -- G |- let (z, x, y) = t1 in (t2 : C) : [t1/z]C
-  t1ForZinC <- substitute (z, e1) tC
+  t1ForZinC <- substitute (z, p) tC
   ensureEqualTypes expr t t1ForZinC
 
   where inferProductTy x e = do
