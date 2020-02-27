@@ -185,9 +185,6 @@ data Expr where
 
   -- | Builtin terms, with a unique identifying name.
   Builtin :: BuiltinTerm -> Expr
-
-  -- ML
-  GenLet :: Identifier -> Expr -> Expr -> Expr -- let x = e1 in e2 (ML-style polymorphism)
   deriving (Show, Eq, Ord)
 
 
@@ -415,7 +412,6 @@ instance Term Expr where
     Set.insert x (Set.insert y (boundVars c `Set.union` boundVars d))
   boundVars (Var _)                      = Set.empty
   boundVars (Sig e _)                    = boundVars e
-  boundVars (GenLet var e1 e2)           = var `Set.insert` (boundVars e1 `Set.union` boundVars e2)
   boundVars Hole                         = Set.empty
   boundVars Implicit                     = Set.empty
   boundVars LitLevel{}                   = Set.empty
@@ -436,7 +432,6 @@ instance Term Expr where
     Set.delete x (Set.delete y (freeVars c `Set.union` freeVars d))
   freeVars (Var var)                     = Set.singleton var
   freeVars (Sig e _)                     = freeVars e
-  freeVars (GenLet var e1 e2)            = Set.delete var (freeVars e1 `Set.union` freeVars e2)
   freeVars (PairElim z x y e1 e2 e3)     =
     Set.delete z (Set.delete x (Set.delete y (freeVars e1 `Set.union` freeVars e2 `Set.union` freeVars e3)))
   -- TODO: I'm not entirely convinced the freeVars for RewriteExpr is actually correct (2020-02-27)

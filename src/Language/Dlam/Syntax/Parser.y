@@ -82,13 +82,7 @@ Ident :: { Identifier }
   : VAR { mkIdentFromSym $1 }
 
 Expr :: { [Option] -> ParseExpr }
-  : let Ident '=' Expr in Expr
-    { \opts ->
-      if isML opts
-       then GenLet $2 ($4 opts) ($6 opts)
-       else App (Abs (mkAbs $2 mkImplicit ($6 opts))) ($4 opts) }
-
-  | Expr '->' Expr   { \opts -> FunTy (mkAbs ignoreVar ($1 opts) ($3 opts)) }
+  : Expr '->' Expr   { \opts -> FunTy (mkAbs ignoreVar ($1 opts) ($3 opts)) }
   | TyBindings '->' Expr { \opts -> foldr (\(n, ty) fty -> FunTy (mkAbs n ty fty)) ($3 opts) ($1 opts) }
 
   | '\\' LambdaArgs '->' Expr
@@ -164,7 +158,6 @@ type ParseAST = AST
 type ParseStmt = Stmt
 
 readOption :: Token -> ReaderT String (Either String) Option
-readOption (TokenLang _ x) | x == "lang.ml"    = return ML
 readOption (TokenLang _ x) = lift . Left $ "Unknown language option: " <> x
 readOption _ = lift . Left $ "Wrong token for language"
 

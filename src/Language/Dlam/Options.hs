@@ -1,19 +1,17 @@
+{-# LANGUAGE EmptyDataDeriving #-}
 module Language.Dlam.Options
-  ( Option(..)
-  , isML
+  ( Option
   , addOption
   ) where
 
 import Control.Monad.Trans.Reader
 
 ------------------------------
--- Language options that `lcore` accepts in files
+-- Language options that `dlam` accepts in files
 
-data Option = ML
+data Option
   deriving (Eq, Show)
 
-isML :: [Option] -> Bool
-isML options = elem ML options
 
 -- Builds up a the language option list and checks for conflicting options
 addOption :: Option -> [Option] -> ReaderT String (Either String) [Option]

@@ -62,8 +62,6 @@ instance PrettyPrint Expr where
       concat ["rewrite (", pprint x, ".", pprint y, ".", pprint p, ".", pprint tC, ", ", pprint z, ".", pprint c, ", ", pprint a, ", ", pprint b, ", ", pprint p', ")"]
     pprint (Var var) = pprint var
     pprint (Sig e t) = bracket_pprint e ++ " : " ++ pprint t
-    -- ML
-    pprint (GenLet x e1 e2) = "let " ++ pprint x ++ " = " ++ pprint e1 ++ " in " ++ pprint e2
     pprint Hole = "?"
     pprint Implicit{} = "_"
     pprint (Builtin s) = pprint s
