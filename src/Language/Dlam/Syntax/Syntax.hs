@@ -364,7 +364,8 @@ instance Term Expr where
   boundVars Builtin{}                    = Set.empty
   boundVars (PairElim z x y e1 e2 e3)    =
     Set.insert z (x `Set.insert` (y `Set.insert` (boundVars e1 `Set.union` boundVars e2 `Set.union` boundVars e3)))
-  boundVars (RewriteExpr{}) = error "boundVars for RewriteExpr not yet implemented"
+  -- TODO: I'm not entirely convinced the boundVars for RewriteExpr is actually correct (2020-02-27)
+  boundVars (RewriteExpr _x _y _p _tC _z c _a _b _p') = boundVars c
 
   freeVars (FunTy ab)                    = freeVarsAbs ab
   freeVars (Abs ab)                      = freeVarsAbs ab
@@ -377,7 +378,8 @@ instance Term Expr where
   freeVars (GenLet var e1 e2)            = Set.delete var (freeVars e1 `Set.union` freeVars e2)
   freeVars (PairElim z x y e1 e2 e3)     =
     Set.delete z (Set.delete x (Set.delete y (freeVars e1 `Set.union` freeVars e2 `Set.union` freeVars e3)))
-  freeVars (RewriteExpr{}) = error "freeVars for RewriteExpr not yet implemented"
+  -- TODO: I'm not entirely convinced the freeVars for RewriteExpr is actually correct (2020-02-27)
+  freeVars (RewriteExpr _x _y _p _tC _z c _a _b _p') = freeVars c
   freeVars Hole                          = Set.empty
   freeVars Implicit                      = Set.empty
   freeVars LitLevel{}                    = Set.empty
