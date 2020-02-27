@@ -1,0 +1,11 @@
+fst : (l1 l2 : Level) (a : Type l1) (b : a -> Type l2) -> (x : a) * b x -> a
+fst = \l1 l2 a b p -> let (x, y) = p in x
+
+snd : (l1 l2 : Level) (a : Type l1) (b : a -> Type l2) (p : ((x : a) * b x)) -> b (fst l1 l2 a b p)
+snd = \l1 l2 a b p -> let z@(x, y) = p in (y : b (fst l1 l2 a b z))
+
+-- The checker should be able to first normalise 'fst l1 l2 a b p' to
+-- 'let (x, y) = p in x', then should be able to see that the 'x' in
+-- '(x : a) * b x' is equivalent to this.
+snd' : (l1 l2 : Level) (a : Type l1) (b : a -> Type l2) (p : ((x : a) * b x)) -> b (fst l1 l2 a b p)
+snd' = \l1 l2 a b p -> let (x, y) = p in y

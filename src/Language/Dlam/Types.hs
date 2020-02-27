@@ -540,8 +540,9 @@ checkOrInferType t expr@(PairElim (z, tC) (x, y, g) p) = do
             normalise tC
 
   -- G, x : A, y : B |- t2 : [(x, y)/z]C
-  xyForZinC <- withTypedVariable x tA $ withTypedVariable y tB $ substitute (z, Pair (Var x) (Var y)) tC
-  _ <- withTypedVariable x tA $ withTypedVariable y tB $ checkOrInferType xyForZinC g
+  let pairXY = Pair (Var x) (Var y)
+  xyForZinC <- withTypedVariable x tA $ withTypedVariable y tB $ substitute (z, pairXY) tC
+  _ <- withTypedVariable x tA $ withTypedVariable y tB $ withExprNormalisingTo p pairXY $ checkOrInferType xyForZinC g
 
   -- x, y nin FV(C)
   when (x `elem` freeVars tC || y `elem` freeVars tC) $
