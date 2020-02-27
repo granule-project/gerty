@@ -1,0 +1,87 @@
+---------------------------------------------
+----- Tests for normalisation of levels -----
+---------------------------------------------
+
+
+-------------
+-- Helpers --
+-------------
+
+
+levelEq : Level -> Level -> Type 0
+levelEq = Id 0 Level
+
+refl' : (l : Level) -> levelEq l l
+refl' = \l -> refl 0 Level l
+
+
+--------------------
+-- [lzero ---> 0] --
+--------------------
+
+
+t1 : levelEq lzero 0
+t1 = refl' lzero
+
+
+--------------------------
+-- [lsuc n ---> SUCC n] --
+--------------------------
+
+
+t2 : levelEq (lsuc 1) 2
+t2 = refl' 2
+
+
+-----------------------
+-- [lmax 0 l ---> l] --
+-----------------------
+
+
+t3 : (l : Level) -> levelEq (lmax 0 l) l
+t3 = \l -> refl' l
+
+
+-----------------------
+-- [lmax l 0 ---> l] --
+-----------------------
+
+
+t4 : (l : Level) -> levelEq (lmax l 0) l
+t4 = \l -> refl' l
+
+
+-----------------------------
+-- [lmax m n ---> MAX m n] --
+-----------------------------
+
+
+t5 : levelEq (lmax 2 7) 7
+t5 = refl' 7
+
+
+-------------------------------------------------------
+-- [lmax (lsuc l1) (lsuc l2) ---> lsuc (lmax l1 l2)] --
+-------------------------------------------------------
+
+
+t6 : (l1 l2 : Level) -> levelEq (lmax (lsuc l1) (lsuc l2)) (lsuc (lmax l1 l2))
+t6 = \l1 l2 -> refl' (lmax (lsuc l1) (lsuc l2))
+
+
+--------------------------------------------------
+-- [lmax (m + 1) (lsuc l) ---> lsuc (lmax m l)] --
+--------------------------------------------------
+
+
+t7 : (l : Level) -> levelEq (lmax (lsuc 6) (lsuc l)) (lsuc (lmax 6 l))
+t7 = \l -> refl' (lmax (lsuc 6) (lsuc l))
+
+
+--------------------------------------------------
+-- [lmax (lsuc l) (n + 1) ---> lsuc (lmax l n)] --
+--------------------------------------------------
+
+
+t8 : (l : Level) -> levelEq (lmax (lsuc l) 7) (lsuc (lmax l 6))
+t8 = \l -> refl' (lmax (lsuc l) 7)

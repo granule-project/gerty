@@ -100,35 +100,78 @@ normalise (Var x) = do
 normalise (FunTy ab) = finalNormalForm =<< FunTy <$> normaliseAbs ab
 normalise (Abs ab) = finalNormalForm =<< Abs <$> normaliseAbs ab
 normalise (ProductTy ab) = finalNormalForm =<< ProductTy <$> normaliseAbs ab
+-- VALUE: LitLevel
+normalise (LitLevel n) = finalNormalForm $ LitLevel n
+-- lzero ---> 0
+normalise (Builtin LZero) = finalNormalForm $ LitLevel 0
 normalise (App e1 e2) = do
   e1' <- normalise e1
   e2' <- normalise e2
   case e1' of
-    Builtin LSuc ->
-      case e2' of
 
-        -- lsuc (lmax l1 l2) = lmax (lsuc l1) (lsuc l2)
-        (App (App (Builtin LMax) l1) l2) ->
-          normalise $ App (App (Builtin LMax) (App (Builtin LSuc) l1)) (App (Builtin LSuc) l2)
+    ------------------
+    -- Builtin lsuc --
+    ------------------
 
-        -- lsuc n = SUCC n
-        LitLevel n -> finalNormalForm $ LitLevel (succ n)
-        _          -> finalNormalForm $ App e1' e2'
+    Builtin LSuc -> do
+      let l = e2'
+      case l of
 
-    -- lmax 0 l = l
-    (App (Builtin LMax) (LitLevel 0)) -> finalNormalForm e2'
+        -- lsuc n ---> SUCC n
+        (LitLevel n) -> finalNormalForm (LitLevel (succ n))
 
-    (App (Builtin LMax) (LitLevel n)) ->
-      case e2' of
-        -- lmax (n + 1) (lsuc m) = lsuc m
-        (App (Builtin LSuc) _) | n > 0 -> finalNormalForm e2'
-        -- if the expression is of the form 'lmax m n' where 'm' and 'n' are literal
-        -- numbers, then normalise by taking the maximum.
-        LitLevel m -> finalNormalForm $ LitLevel (max n m)
-        _          -> finalNormalForm $ App e1' e2'
+        -- otherwise we can't reduce further
+        _ ->
+          finalNormalForm $ lsucApp l
+
+    ------------------
+    -- Builtin lmax --
+    ------------------
+
+    (App (Builtin LMax) l1) -> do
+      let l2 = e2'
+      case (l1, l2) of
+
+        -- lmax 0 l2 ---> l2
+        (LitLevel 0, l2) ->
+          finalNormalForm $ l2
+
+        -- lmax l1 0 ---> l1
+        (l1, LitLevel 0) ->
+          finalNormalForm $ l1
+
+        -- lmax m n ---> MAX m n
+        (LitLevel m, LitLevel n) ->
+          finalNormalForm $ LitLevel (max m n)
+
+        -- lmax (lsuc l1) (lsuc l2) ---> lsuc (lmax l1 l2)
+        (App (Builtin LSuc) l1, App (Builtin LSuc) l2) ->
+          normalise $ lsucApp (lmaxApp l1 l2)
+
+        -- lmax (m + 1) (lsuc l2) ---> lsuc (lmax m l2)
+        (LitLevel m, App (Builtin LSuc) l2') | m > 0 ->
+          normalise $ lsucApp (lmaxApp (LitLevel (pred m)) l2')
+
+        -- lmax (lsuc l1) (n + 1) ---> lsuc (lmax l1 n)
+        (App (Builtin LSuc) l1', LitLevel n) | n > 0 ->
+          normalise $ lsucApp (lmaxApp l1' (LitLevel (pred n)))
+
+        -- otherwise we can't reduce further
+        _ ->
+          finalNormalForm $ lmaxApp l1 l2
+
+    ------------------------
+    -- Lambda abstraction --
+    ------------------------
+
     -- (\x -> e) e' ----> [e'/x] e
     (Abs ab) -> substitute (absVar ab, e2') (absExpr ab) >>= normalise
-    _              -> finalNormalForm $ App e1' e2'
+
+    ------------------------
+    -- Other applications --
+    ------------------------
+
+    _ -> finalNormalForm $ App e1' e2'
 normalise (PairElim v0 v1 v2 e1 e2 e3) = do
   e1' <- normalise e1
   e3' <- normalise e3
@@ -146,9 +189,7 @@ normalise (IfExpr e1 e2 e3) = do
       e2e3equal <- equalExprs e2' e3'
       finalNormalForm $ if e2e3equal then e2' else IfExpr e1' e2' e3'
 normalise (Pair e1 e2) = finalNormalForm =<< Pair <$> normalise e1 <*> normalise e2
-normalise (Builtin LZero) = finalNormalForm $ LitLevel 0
 normalise e@Builtin{} = finalNormalForm e
-normalise e@LitLevel{} = finalNormalForm e
 normalise e = notImplemented $ "normalise does not yet support '" <> pprint e <> "'"
 
 
