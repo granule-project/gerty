@@ -27,6 +27,14 @@ fst = \l1 l2 a b p -> let (x, y) = p in x
 fst' : (l1 l2 : Level) (a : Type l1) (b : Type l2) -> a * b -> a
 fst' = \l1 l2 a b p -> fst l1 l2 a (\x -> b) p
 
+-- The second projection
+snd : (l1 l2 : Level) (a : Type l1) (b : a -> Type l2) (p : ((x : a) * b x)) -> b (fst l1 l2 a b p)
+snd = \l1 l2 a b p -> let z@(x, y) = p in (y : b (fst l1 l2 a b z))
+
+-- Second projection on non-dependent pairs
+snd' : (l1 l2 : Level) (a : Type l1) (b : Type l2) -> a * b -> b
+snd' = \l1 l2 a b p -> snd l1 l2 a (\x -> b) p
+
 -- Pair eliminator
 letTen : (l1 l2 l3 : Level) (a : Type l1) (b : a -> Type l2) (c : Type l3) -> ((x : a) -> b x -> c) -> (x : a) * b x -> c
 letTen = \l1 l2 l3 a b c f p -> let (x, y) = p in f x y
