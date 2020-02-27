@@ -10,3 +10,6 @@ inl' = inl
 
 inr' : (l1 l2 : Level) (a : Type l1) (b : Type l2) -> b -> coproductTy l1 l2 a b
 inr' = inr
+
+caseElim : (l1 l2 l3 : Level) (a : Type l1) (b : Type l2) (c : a + b -> Type l3) (p : a + b) -> (a -> c p) -> (b -> c p) -> c p
+caseElim = \l1 l2 l3 a b c p l r -> case z = p of (Inl x -> l x; Inr y -> r y) : c z

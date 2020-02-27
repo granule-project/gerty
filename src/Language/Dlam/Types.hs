@@ -597,12 +597,14 @@ checkOrInferType t expr@(CoproductCase (z, tC) (x, c) (y, d) e) = do
   _l <- withTypedVariable z (Coproduct tA tB) $ inferUniverseLevel tC
 
   -- G, x : A |- c : [inl x/z]C
-  inlxforzinC <- substitute (z, inlTermApp l1 l2 tA tB (Var x)) tC
-  _ <- withTypedVariable x tA $ checkOrInferType inlxforzinC c
+  let inlX = inlTermApp l1 l2 tA tB (Var x)
+  inlxforzinC <- substitute (z, inlX) tC
+  _ <- withTypedVariable x tA $ withExprNormalisingTo e inlX $ checkOrInferType inlxforzinC c
 
   -- G, y : B |- d : [inr y/z]C
-  inryforzinC <- substitute (z, inrTermApp l1 l2 tA tB (Var y)) tC
-  _ <- withTypedVariable y tB $ checkOrInferType inryforzinC d
+  let inrY = inrTermApp l1 l2 tA tB (Var y)
+  inryforzinC <- substitute (z, inrY) tC
+  _ <- withTypedVariable y tB $ withExprNormalisingTo e inrY $ checkOrInferType inryforzinC d
 
   -- G |- case z = e of (Inl x -> c; Inr y -> d) : C : [e/z]C
   eforzinC <- substitute (z, e) tC
