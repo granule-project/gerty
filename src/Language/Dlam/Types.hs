@@ -521,8 +521,8 @@ checkOrInferType t expr@(Pair e1 e2) = do
    G, z : (x : A) * B |- C : Type l
    G, x : A, y : B |- t2 : [(x, y)/z]C
    G |- t1 : (x : A) * B
-   ------------------------------------ :: PairElim
-   G |- let (x, y) = t1 in t2 : [t1/z]C
+   -------------------------------------------- :: PairElim
+   G |- let z@(x, y) = t1 in (t2 : C) : [t1/z]C
 -}
 checkOrInferType t expr@(PairElim z x y e1 e2 tC) = do
 
