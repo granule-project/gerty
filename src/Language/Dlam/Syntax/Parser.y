@@ -49,6 +49,7 @@ import Language.Dlam.Syntax.Syntax
     ','     { TokenComma _ }
     '.'     { TokenDot _ }
     ';'     { TokenSemiColon _ }
+    '@'     { TokenAt _ }
 
 %right in
 %right '->'
@@ -100,7 +101,7 @@ Expr :: { [Option] -> ParseExpr }
 
   | Expr '+' Expr   { \opts -> Coproduct ($1 opts) ($3 opts) }
 
-  | let '(' Ident ',' Ident ',' Ident ')' '=' Expr in '(' Expr ':' Expr ')' { \opts -> PairElim $3 $5 $7 ($10 opts) ($13 opts) ($15 opts) }
+  | let Ident '@' '(' Ident ',' Ident ')' '=' Expr in '(' Expr ':' Expr ')' { \opts -> PairElim $2 $5 $7 ($10 opts) ($13 opts) ($15 opts) }
 
   | let '(' Ident ',' Ident ')' '=' Expr in Expr { \opts -> PairElim ignoreVar $3 $5 ($8 opts) ($10 opts) mkImplicit }
 
