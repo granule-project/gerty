@@ -221,7 +221,11 @@ equalExprs e1 e2 = do
     (Abs ab1, Abs ab2) -> equalAbs ab1 ab2
     (ProductTy ab1, ProductTy ab2) -> equalAbs ab1 ab2
     (Coproduct t1 t2, Coproduct t1' t2') -> (&&) <$> equalExprs t1 t1' <*> equalExprs t2 t2'
-    -- TODO: add proper equality (like Abs) for PairElim (2020-02-22)
+    (PairElim z x y tC e p, PairElim z' x' y' tC' e' p') -> do
+      typesOK <- equalExprs tC' =<< substitute (z, Var z') tC
+      esOK <- equalExprs e' =<< (substitute (x, Var x') e >>= substitute (y, Var y'))
+      psOK <- equalExprs p p'
+      pure $ typesOK && esOK && psOK
     (IfExpr e1 e2 e3, IfExpr e1' e2' e3') ->
       (&&) <$> equalExprs e1 e1' <*> ((&&) <$> equalExprs e2 e2' <*> equalExprs e3 e3')
     -- Implicits always match.
