@@ -191,8 +191,8 @@ normalise (IfExpr e1 e2 e3) = do
 normalise (CoproductCase (z, tC) (x, c) (y, d) e) = do
   e' <- normalise e
   case e' of
-    (App (Builtin Inl) l) -> normalise =<< substitute (x, l) c
-    (App (Builtin Inr) r) -> normalise =<< substitute (y, r) d
+    App (App (App (App (App (Builtin Inl) _l1) _l2) _a) _b) l -> normalise =<< substitute (x, l) c
+    App (App (App (App (App (Builtin Inr) _l1) _l2) _a) _b) r -> normalise =<< substitute (y, r) d
     _ -> do
       tC' <- normalise tC
       c' <- normalise c
@@ -586,16 +586,18 @@ checkOrInferType t expr@(Coproduct tA tB) = do
 checkOrInferType t expr@(CoproductCase (z, tC) (x, c) (y, d) e) = do
   -- G |- e : A + B
   (tA, tB) <- inferCoproductTy e
+  l1 <- inferUniverseLevel tA
+  l2 <- inferUniverseLevel tB
 
   -- G, z : A + B |- C : Type l
   _l <- withTypedVariable z (Coproduct tA tB) $ inferUniverseLevel tC
 
   -- G, x : A |- c : [inl x/z]C
-  inlxforzinC <- substitute (z, inlTermApp (Var x)) tC
+  inlxforzinC <- substitute (z, inlTermApp l1 l2 tA tB (Var x)) tC
   _ <- withTypedVariable x tA $ checkOrInferType inlxforzinC c
 
   -- G, y : B |- d : [inr y/z]C
-  inryforzinC <- substitute (z, inrTermApp (Var y)) tC
+  inryforzinC <- substitute (z, inrTermApp l1 l2 tA tB (Var y)) tC
   _ <- withTypedVariable y tB $ checkOrInferType inryforzinC d
 
   -- G |- case z = e of (Inl x -> c; Inr y -> d) : C : [e/z]C

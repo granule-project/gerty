@@ -323,8 +323,8 @@ inlTermTY =
         (mkFunTy b (mkUnivTy l2v)
          (mkFunTy ignoreVar av (Coproduct av bv)))))
 
-inlTermApp :: Expr -> Expr
-inlTermApp = App inlTerm
+inlTermApp :: Expr -> Expr -> Expr -> Expr -> Expr -> Expr
+inlTermApp l1 l2 a b v = App (App (App (App (App inlTerm l1) l2) a) b) v
 
 inrTerm :: Expr
 inrTerm = builtinTerm Inr
@@ -341,8 +341,8 @@ inrTermTY =
         (mkFunTy b (mkUnivTy l2v)
          (mkFunTy ignoreVar bv (Coproduct av bv)))))
 
-inrTermApp :: Expr -> Expr
-inrTermApp = App inrTerm
+inrTermApp :: Expr -> Expr -> Expr -> Expr -> Expr -> Expr
+inrTermApp l1 l2 a b v = App (App (App (App (App inrTerm l1) l2) a) b) v
 
 unitTy :: Expr
 unitTy = builtinTerm DUnitTy
