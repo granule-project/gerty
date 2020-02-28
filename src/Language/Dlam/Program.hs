@@ -37,9 +37,6 @@ builtins = M.fromList
            , (mkIdent "lzero", BindV (Just lzero, lzeroTY))
            , (mkIdent "lsuc", BindV (Just lsuc, lsucTY))
            , (mkIdent "lmax", BindV (Just lmax, lmaxTY))
-           , (mkIdent "Bool", BindV (Just dBool, dBoolTY))
-           , (mkIdent "true", BindV (Just dtrue, dtrueTY))
-           , (mkIdent "false", BindV (Just dfalse, dfalseTY))
            , (mkIdent "inl", BindV (Just inlTerm, inlTermTY))
            , (mkIdent "inr", BindV (Just inrTerm, inrTermTY))
            , (mkIdent "Nat", BindV (Just natTy, natTyTY))
@@ -106,7 +103,6 @@ instance Substitutable (Prog err) Identifier Expr where
     g' <- if v == x || v == y then pure g else substitute s g
     tC' <- if v == z then pure tC else substitute s tC
     pure $ PairElim (z, tC') (x, y, g') p'
-  substitute s (IfExpr e1 e2 e3) = IfExpr <$> substitute s e1 <*> substitute s e2 <*> substitute s e3
   substitute s (App e1 e2) = do
     e1' <- substitute s e1
     e2' <- substitute s e2

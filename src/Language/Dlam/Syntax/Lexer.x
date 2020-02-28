@@ -42,9 +42,6 @@ tokens :-
   "--".*                        ;
   @nat                          { \p s -> TokenNat p (read s) }
   lang\.@langPrag               { \p s -> TokenLang p s }
-  if                            { \p _ -> TokenIf p }
-  then                          { \p _ -> TokenThen p }
-  else                          { \p _ -> TokenElse p }
   let                           { \p s -> TokenLet p }
   in                            { \p s -> TokenIn p }
   case                          { \p s -> TokenCase p }
@@ -79,9 +76,6 @@ data Token
   = TokenLang     AlexPosn String
   | TokenCase     AlexPosn
   | TokenOf       AlexPosn
-  | TokenIf       AlexPosn
-  | TokenThen     AlexPosn
-  | TokenElse     AlexPosn
   | TokenInl      AlexPosn
   | TokenInr      AlexPosn
   | TokenSep      AlexPosn

@@ -1,15 +1,34 @@
 -- Examples with booleans
 
+-- First we define booleans (in terms of the builtin coproducts)
+Bool : Type 0
+Bool = Unit + Unit
+
+false : Bool
+false = inr 0 0 Unit Unit unit
+
+true : Bool
+true = inl 0 0 Unit Unit unit
+
+ifThenElse : (l1 l2 : Level) (a : Type l1) (b : Type l2) (t : Bool) (thn : a) (els : b) ->
+  case z@t of (Inl x -> a; Inr y -> b)
+    : Type (case z@t of (Inl x -> l1; Inr y -> l2) : Level)
+ifThenElse = \l1 l2 a b t thn els ->
+  case z@t of (Inl x -> thn; Inr y -> els)
+    : case z@t of (Inl x -> a; Inr y -> b)
+    : Type (case z@t of (Inl x -> l1; Inr y -> l2) : Level)
+
+
 -- | Non-dependent if.
 ifFun : (l : Level) (a : Type l) -> Bool -> a -> a -> a
-ifFun = \l a b t f -> if b then t else f
+ifFun = \l a b t f -> ifThenElse l l a a b t f
 
 -- | Dependent if.
-ifFunDep : (l1 l2 : Level) (a : Type l1) (b : Type l2) (e : Bool) -> a -> b -> if e then a else b
-ifFunDep = \l1 l2 a b e t f -> if e then t else f
+ifFunDep : (l1 l2 : Level) (a : Type l1) (b : Type l2) (e : Bool) -> a -> b -> ifThenElse (lsuc l1) (lsuc l2) (Type l1) (Type l2) e a b
+ifFunDep = \l1 l2 a b e t f -> ifThenElse l1 l2 a b e t f
 
 prog1 : Level
-prog1 = if false then Type 0 else lzero
+prog1 = ifThenElse false (Type 0) lzero
 
 prog2 : Level
-prog2 = if true then lzero else Type 0
+prog2 = ifThenElse true lzero (Type 0)

@@ -27,9 +27,6 @@ import Language.Dlam.Syntax.Syntax
     let     { TokenLet _ }
     rewrite { TokenRewrite _ }
     '_'     { TokenImplicit _ }
-    if { TokenIf _ }
-    then { TokenThen _ }
-    else { TokenElse _ }
     case    { TokenCase _ }
     inl     { TokenInl _ }
     inr     { TokenInr _ }
@@ -108,8 +105,6 @@ Expr :: { [Option] -> ParseExpr }
 
   | case Ident '@' Expr of '(' zero '->' Expr ';' succ Ident '@' Ident '->' Expr ')' ':' Expr
     { \opts -> NatCase ($2, $19 opts) ($9 opts) ($12, $14, $16 opts) ($4 opts) }
-
-  | if Expr then Expr else Expr { \opts -> IfExpr ($2 opts) ($4 opts) ($6 opts) }
 
   -- TODO: this might cause issues with binders in dependent function types? (2020-02-22)
   | Expr ':' Expr  { \opts -> Sig ($1 opts) ($3 opts) }

@@ -40,13 +40,6 @@ module Language.Dlam.Syntax.Syntax
   , typeTy
   , typeTyTY
   , mkUnivTy
-  -- ** Booleans
-  , dBool
-  , dBoolTY
-  , dtrue
-  , dtrueTY
-  , dfalse
-  , dfalseTY
   -- ** Coproducts
   , inlTerm
   , inlTermTY
@@ -178,9 +171,6 @@ data Expr where
   -- | Natural number eliminator.
   NatCase :: (Identifier, Expr) -> Expr -> (Identifier, Identifier, Expr) -> Expr -> Expr
 
-  -- | Conditional eliminator.
-  IfExpr :: Expr -> Expr -> Expr -> Expr
-
   -- | Identity eliminator.
   RewriteExpr :: Identifier -> Identifier -> Identifier -> Expr -> Identifier -> Expr -> Expr -> Expr -> Expr -> Expr
 
@@ -224,15 +214,6 @@ data BuiltinTerm =
 
   -- | Universe type.
   | TypeTy
-
-  -- | Boolean type.
-  | DBool
-
-  -- | True.
-  | DTrue
-
-  -- | False.
-  | DFalse
 
   -- | inl.
   | Inl
@@ -309,24 +290,6 @@ typeTyTY = let l = mkIdent "l" in FunTy (mkAbs l levelTy (mkUnivTy (lsucApp (Var
 
 mkUnivTy :: Expr -> Expr
 mkUnivTy = App typeTy
-
-dBool :: Expr
-dBool = builtinTerm DBool
-
-dBoolTY :: Expr
-dBoolTY = mkUnivTy (LitLevel 0)
-
-dtrue :: Expr
-dtrue = builtinTerm DTrue
-
-dtrueTY :: Expr
-dtrueTY = dBool
-
-dfalse :: Expr
-dfalse = builtinTerm DFalse
-
-dfalseTY :: Expr
-dfalseTY = dBool
 
 inlTerm :: Expr
 inlTerm = builtinTerm Inl
@@ -449,7 +412,6 @@ instance Term Expr where
   boundVars (ProductTy ab)               = boundVarsAbs ab
   boundVars (App e1 e2)                  = boundVars e1 `Set.union` boundVars e2
   boundVars (Pair e1 e2)                 = boundVars e1 `Set.union` boundVars e2
-  boundVars (IfExpr e1 e2 e3)            = boundVars e1 `Set.union` boundVars e2 `Set.union` boundVars e3
   boundVars (Coproduct t1 t2) = boundVars t1 `Set.union` boundVars t2
   boundVars (CoproductCase (_z, _tC) (x, c) (y, d) _e) =
     Set.insert x (Set.insert y (boundVars c `Set.union` boundVars d))
@@ -471,7 +433,6 @@ instance Term Expr where
   freeVars (ProductTy ab)                = freeVarsAbs ab
   freeVars (App e1 e2)                   = freeVars e1 `Set.union` freeVars e2
   freeVars (Pair e1 e2)                  = freeVars e1 `Set.union` freeVars e2
-  freeVars (IfExpr e1 e2 e3)             = freeVars e1 `Set.union` freeVars e2 `Set.union` freeVars e3
   freeVars (Coproduct t1 t2) = freeVars t1 `Set.union` freeVars t2
   freeVars (CoproductCase (_z, _tC) (x, c) (y, d) _e) =
     Set.delete x (Set.delete y (freeVars c `Set.union` freeVars d))

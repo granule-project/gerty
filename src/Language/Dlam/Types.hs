@@ -178,16 +178,6 @@ normalise (PairElim (z, tC) (x, y, g) p) = do
   case p' of
     (Pair l r) -> substitute (x, l) g >>= substitute (y, r) >>= normalise
     _          -> finalNormalForm $ PairElim (z, tC') (x, y, g) p'
-normalise (IfExpr e1 e2 e3) = do
-  e1' <- normalise e1
-  e2' <- normalise e2
-  e3' <- normalise e3
-  case e1' of
-    (Builtin DFalse) -> finalNormalForm e3'
-    (Builtin DTrue)  -> finalNormalForm e2'
-    _                -> do
-      e2e3equal <- equalExprs e2' e3'
-      finalNormalForm $ if e2e3equal then e2' else IfExpr e1' e2' e3'
 normalise (CoproductCase (z, tC) (x, c) (y, d) e) = do
   e' <- normalise e
   case e' of
@@ -260,8 +250,6 @@ equalExprs e1 e2 = do
       czsOK <- equalExprs cz cz'
       nsOK <- equalExprs n n'
       pure $ typesOK && csOK && czsOK && nsOK
-    (IfExpr e1 e2 e3, IfExpr e1' e2' e3') ->
-      (&&) <$> equalExprs e1 e1' <*> ((&&) <$> equalExprs e2 e2' <*> equalExprs e3 e3')
     -- Implicits always match.
     (Implicit, _) -> pure True
     (_, Implicit) -> pure True
@@ -314,10 +302,6 @@ inferUniverseLevel e = do
   norm <- normalise u
   case norm of
     (App (Builtin TypeTy) l) -> pure l
-    (IfExpr _ e2 e3) -> do
-      l1 <- inferUniverseLevel e2
-      l2 <- inferUniverseLevel e3
-      normalise (lmaxApp l1 l2)
     _        -> expectedInferredTypeForm "universe" e norm
 
 
@@ -373,15 +357,6 @@ checkOrInferType t expr@(Builtin e) =
 
       -- lmax : Level -> Level -> Level
       LMax -> lmaxTY
-
-      -- | Bool : Type 0
-      DBool -> dBoolTY
-
-      -- | true : Bool
-      DTrue -> dtrueTY
-
-      -- | false : Bool
-      DFalse -> dfalseTY
 
       -- | inl : (l1 l2 : Level) (a : Type l1) (b : Type l2) -> a -> a + b
       Inl -> inlTermTY
@@ -693,37 +668,6 @@ checkOrInferType t expr@(NatCase (x, tC) cz (w, y, cs) n) = do
   -- G |- case x@n of (Zero -> cz; Succ w@y -> cs) : C : [n/x]C
   nforxinC <- substitute (x, n) tC
   ensureEqualTypes expr t nforxinC
-
---------------------
------ Booleans -----
---------------------
-
-{-
-   G |- t1 : Bool
-   G |- t2 : A
-   G |- t3 : B
-   ------------------------------------------------ :: IfExpr
-   G |- if t1 then t2 else t3 : if t1 then A else B
--}
-checkOrInferType t expr@(IfExpr e1 e2 e3) = do
-
-  -- G |- t1 : Bool
-  _e1Ty <- inferBoolTy e1
-
-  -- G |- t2 : A
-  tA <- withExprNormalisingTo e1 (Builtin DTrue) $ synthType e2
-
-  -- G |- t3 : B
-  tB <- withExprNormalisingTo e1 (Builtin DFalse) $ synthType e3
-
-  -- G |- if t1 then t2 else t3 : if t1 then A else B
-  ensureEqualTypes expr t =<< normalise (IfExpr e1 tA tB)
-
-  where inferBoolTy e = do
-          t <- synthType e >>= normalise
-          case t of
-            (Builtin DBool) -> pure t
-            t -> expectedInferredTypeForm "boolean" e t
 
 --------------------
 ----- Identity -----

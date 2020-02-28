@@ -52,7 +52,6 @@ instance PrettyPrint Expr where
       bracket_pprint (Sig e1 t) ++ " " ++ bracket_pprint e2
     pprint (App e1 e2) = pprint e1 ++ " " ++ bracket_pprint e2
     pprint (Pair e1 e2) = "(" <> pprint e1 <> ", " <> pprint e2 <> ")"
-    pprint (IfExpr e1 e2 e3) = "if " <> pprint e1 <> " then " <> pprint e2 <> " else " <> pprint e3
     pprint (Coproduct e1 e2) = pprint e1 <> " + " <> pprint e2
     pprint (CoproductCase (z, tC) (x, c) (y, d) e) =
       "case " <> pprint z <> "@" <> bracket_pprint e <> " of ("
@@ -83,9 +82,6 @@ instance PrettyPrint BuiltinTerm where
   pprint LSuc  = "lsuc"
   pprint LevelTy = "Level"
   pprint TypeTy  = "Type"
-  pprint DBool  = "Bool"
-  pprint DTrue  = "true"
-  pprint DFalse = "false"
   pprint Inl = "inl"
   pprint Inr = "inr"
   pprint DNat = "Nat"

@@ -1,3 +1,0 @@
--- Test that the Bool builtin type has the correct type
-boolTy : Type 0
-boolTy = Bool
