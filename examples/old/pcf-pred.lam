@@ -1,6 +1,0 @@
-lang.pcf
-lang.typed
-
-pred = (\n -> natcase n of zero -> zero | succ x -> x) : Nat -> Nat
-
-(pred (succ (succ zero))) : Nat

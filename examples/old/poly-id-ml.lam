@@ -1,4 +1,0 @@
-lang.ml
-lang.typed
-
-let id = \x -> x in (id id) zero

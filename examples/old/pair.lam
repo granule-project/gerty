@@ -1,8 +1,0 @@
--- Church encoding of pairs
-
-pair = \ x -> \ y -> \ z -> z x y
-first = \ p -> p (\ x -> \ y -> x)
-second = \ p -> p (\ x -> \ y -> y)
-
--- e.g. gives \ x -> \ y -> y when evaluated
-second (first (pair (pair (\ x -> x) (\ x -> \ y -> y)) (\ x -> \ y -> x)))

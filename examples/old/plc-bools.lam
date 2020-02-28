@@ -1,9 +1,0 @@
-lang.pcf
-lang.poly
-lang.typed
-
-true = (/\ a -> ((\(x : a) -> \(y : a) -> x)))    : forall a . a -> a -> a
-false = (/\ a -> (\(x : a) -> \(y : a) -> y))     : forall a . a -> a -> a
-if = (/\ b -> (\bool -> \x -> \y -> (bool @b) x y)) : forall b . (forall a . (a -> a -> a)) -> b -> b -> b
-
-if @Nat false zero (succ zero)

@@ -1,7 +1,0 @@
--- k combinator
-k = \x -> \y -> x
-
--- identity function
-i = \x -> x
-
-i (k a b)
