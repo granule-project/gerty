@@ -1,0 +1,31 @@
+-----------------------------------------------------
+----- Tests for normalisation of natural numbers ----
+-----------------------------------------------------
+
+
+----------------------------------------------------------------------------
+-- [case x@zero of (Zero -> cz; Succ x@y -> cs) : C ---> cz : [zero/x]C ] --
+----------------------------------------------------------------------------
+
+
+t1 :
+  (l : Level) (C : Nat -> Type l)
+  (cz : C zero) (cs : (x : Nat) -> C x -> C (succ x))
+  -> Id l (C zero) (case x@zero of (Zero -> cz; Succ x@y -> cs x y) : C x) cz
+t1 = \l C cz cs -> refl l (C zero) cz
+
+
+---------------------------------------------------------------------------------------------------------------------------------------
+-- [case x@(succ n) of (Zero -> cz; Succ x@y -> cs) : C ---> [n/w][case x@n of (Zero -> cz; Succ x@y -> cs) : C/y]cs : [succ n/x]C ] --
+---------------------------------------------------------------------------------------------------------------------------------------
+
+
+t2 :
+  (l : Level) (C : Nat -> Type l)
+  (cz : C zero) (cs : (x : Nat) -> C x -> C (succ x))
+  (n : Nat)
+  -> Id l (C (succ n))
+      (case x@succ n of (Zero -> cz; Succ w@y -> cs w y) : C x)
+      (cs n (case x@n of (Zero -> cz; Succ w@y -> cs w y) : C x))
+t2 = \l C cz cs n -> refl l (C (succ n))
+  (cs n (case x@n of (Zero -> cz; Succ w@y -> cs w y) : C x))

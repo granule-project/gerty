@@ -58,6 +58,10 @@ instance PrettyPrint Expr where
       "case " <> pprint z <> " = " <> pprint e <> " of ("
               <> "inl " <> pprint x <> " -> " <> pprint c <> "; "
               <> "inr " <> pprint y <> " -> " <> pprint d <> ") : " <> pprint tC
+    pprint (NatCase (x, tC) cz (w, y, cs) n) =
+      "case " <> pprint x <> "@" <> bracket_pprint n <> " of ("
+              <> "Zero -> " <> pprint cz <> "; "
+              <> "Succ " <> pprint w <> "@" <> pprint y <> " -> " <> pprint cs <> ") : " <> pprint tC
     pprint (RewriteExpr x y p tC z c a b p') =
       concat ["rewrite (", pprint x, ".", pprint y, ".", pprint p, ".", pprint tC, ", ", pprint z, ".", pprint c, ", ", pprint a, ", ", pprint b, ", ", pprint p', ")"]
     pprint (Var var) = pprint var
@@ -84,6 +88,9 @@ instance PrettyPrint BuiltinTerm where
   pprint DFalse = "false"
   pprint Inl = "inl"
   pprint Inr = "inr"
+  pprint DNat = "Nat"
+  pprint DNZero = "zero"
+  pprint DNSucc = "succ"
   pprint DUnitTy = "Unit"
   pprint DUnitTerm = "unit"
   pprint IdTy = "Id"

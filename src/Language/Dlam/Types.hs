@@ -198,6 +198,34 @@ normalise (CoproductCase (z, tC) (x, c) (y, d) e) = do
       c' <- normalise c
       d' <- normalise d
       finalNormalForm $ CoproductCase (z, tC') (x, c') (y, d') e'
+normalise (NatCase (x, tC) cz (w, y, cs) n) = do
+  n' <- normalise n
+  case n' of
+
+    {-
+       case x@zero of (Zero -> cz; Succ w@y -> cs) : C
+       --->
+       cz : [zero/x]C
+    -}
+    Builtin DNZero -> normalise cz
+
+    {-
+       case x@(succ n) of (Zero -> cz; Succ w@y -> cs) : C
+       --->
+       [n/w][case x@n of (Zero -> cz; Succ w@y -> cs) : C/y]cs : [succ(n)/x]C
+    -}
+    (App (Builtin DNSucc) k) ->
+      -- [case x@n of (Zero -> cz; Succ w@y -> cs) : C/y]
+      substitute (y, NatCase (x, tC) cz (w, y, cs) k) cs >>=
+      -- [n/w]
+      substitute (w, k) >>= normalise
+
+    -- otherwise we can't reduce further (just reduce the components)
+    _ -> do
+      tC' <- normalise tC
+      cz' <- normalise cz
+      cs'  <- normalise cs
+      finalNormalForm $ NatCase (x, tC') cz' (w, y, cs') n'
 normalise (Coproduct e1 e2) = finalNormalForm =<< Coproduct <$> normalise e1 <*> normalise e2
 normalise (Pair e1 e2) = finalNormalForm =<< Pair <$> normalise e1 <*> normalise e2
 normalise e@Builtin{} = finalNormalForm e
@@ -226,6 +254,12 @@ equalExprs e1 e2 = do
       gsOK <- equalExprs g' =<< (substitute (x, Var x') g >>= substitute (y, Var y'))
       psOK <- equalExprs p p'
       pure $ typesOK && gsOK && psOK
+    (NatCase (x, tC) cz (w, y, cs) n, NatCase (x', tC') cz' (w', y', cs') n') -> do
+      typesOK <- equalExprs tC' =<< substitute (x, Var x') tC
+      csOK <- equalExprs cs' =<< (substitute (w, Var w') cs >>= substitute (y, Var y'))
+      czsOK <- equalExprs cz cz'
+      nsOK <- equalExprs n n'
+      pure $ typesOK && csOK && czsOK && nsOK
     (IfExpr e1 e2 e3, IfExpr e1' e2' e3') ->
       (&&) <$> equalExprs e1 e1' <*> ((&&) <$> equalExprs e2 e2' <*> equalExprs e3 e3')
     -- Implicits always match.
@@ -354,6 +388,15 @@ checkOrInferType t expr@(Builtin e) =
 
       -- | inr : (l1 l2 : Level) (a : Type l1) (b : Type l2) -> b -> a + b
       Inr -> inrTermTY
+
+      -- | Nat : Type 0
+      DNat -> natTyTY
+
+      -- | zero : Nat
+      DNZero -> dnzeroTY
+
+      -- | succ : Nat -> Nat
+      DNSucc -> dnsuccTY
 
       -- Unit : Type 0
       DUnitTy -> unitTyTY
@@ -616,6 +659,40 @@ checkOrInferType t expr@(CoproductCase (z, tC) (x, c) (y, d) e) = do
           case t of
             (Coproduct tA tB) -> pure (tA, tB)
             t -> expectedInferredTypeForm "coproduct" e t
+
+---------------------------
+----- Natural numbers -----
+---------------------------
+
+{-
+   G, x : Nat |- C : Type l
+   G |- cz : [zero/x]C
+   G, w : Nat, y : [w/x]C |- cs : [succ w/x]C
+   G |- n : Nat
+   ---------------------------------------------------------- :: NatCase
+   G |- case x@n of (Zero -> cz; Succ w@y -> cs) : C : [n/x]C
+-}
+checkOrInferType t expr@(NatCase (x, tC) cz (w, y, cs) n) = do
+  -- G, x : Nat |- C : Type l
+  _l <- withTypedVariable x natTy $ inferUniverseLevel tC
+
+  -- G |- cz : [zero/x]C
+  zeroforxinC <- substitute (x, dnzero) tC
+  _ <- checkOrInferType zeroforxinC cz
+
+  -- G, w : Nat, y : [w/x]C |- cs : [succ w/x]C
+  succwforxinC <- substitute (x, dnsuccApp (Var w)) tC
+  wforxinC <- substitute (x, Var w) tC
+  _ <-   withTypedVariable y wforxinC
+       $ withTypedVariable w natTy
+       $ checkOrInferType succwforxinC cs
+
+  -- G |- n : Nat
+  _Nat <- checkOrInferType natTy n
+
+  -- G |- case x@n of (Zero -> cz; Succ w@y -> cs) : C : [n/x]C
+  nforxinC <- substitute (x, n) tC
+  ensureEqualTypes expr t nforxinC
 
 --------------------
 ----- Booleans -----

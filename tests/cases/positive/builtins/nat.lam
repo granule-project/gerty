@@ -1,0 +1,25 @@
+----------------------------------------------------------------------------
+----- Tests for checking the typing of the builtin natural number type -----
+----------------------------------------------------------------------------
+
+
+natTy : Type 0
+natTy = Nat
+
+
+zero' : Nat
+zero' = zero
+
+
+succ' : Nat -> Nat
+succ' = succ
+
+
+natCase :
+  (l : Level)
+  (C : natTy -> Type l)
+  (cz : C zero')
+  (cs : (x : natTy) -> (y : C x) -> C (succ' x))
+  (n : natTy)
+  -> C n
+natCase = \l C cz cs n -> case x@n of (Zero -> cz; Succ w@y -> cs w y) : C x

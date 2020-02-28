@@ -33,6 +33,8 @@ import Language.Dlam.Syntax.Syntax
     case    { TokenCase _ }
     inl     { TokenInl _ }
     inr     { TokenInr _ }
+    zero    { TokenZero _ }
+    succ    { TokenSucc _ }
     of      { TokenOf _ }
     in      { TokenIn  _  }
     VAR     { TokenSym _ _ }
@@ -103,6 +105,9 @@ Expr :: { [Option] -> ParseExpr }
 
   | case Ident '=' Expr of '(' inl Ident '->' Expr ';' inr Ident '->' Expr ')' ':' Expr
     { \opts -> CoproductCase ($2, $18 opts) ($8, $10 opts) ($13, $15 opts) ($4 opts) }
+
+  | case Ident '@' Expr of '(' zero '->' Expr ';' succ Ident '@' Ident '->' Expr ')' ':' Expr
+    { \opts -> NatCase ($2, $19 opts) ($9 opts) ($12, $14, $16 opts) ($4 opts) }
 
   | if Expr then Expr else Expr { \opts -> IfExpr ($2 opts) ($4 opts) ($6 opts) }
 

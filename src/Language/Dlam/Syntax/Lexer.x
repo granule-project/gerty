@@ -51,6 +51,8 @@ tokens :-
   of                            { \p s -> TokenOf p }
   Inl                           { \p _ -> TokenInl p}
   Inr                           { \p _ -> TokenInr p}
+  Zero                          { \p _ -> TokenZero p}
+  Succ                          { \p _ -> TokenSucc p}
   rewrite                       { \p _ -> TokenRewrite p }
   "|"                           { \p s -> TokenSep p }
   @sym				                  { \p s -> TokenSym p s }
@@ -105,6 +107,8 @@ data Token
   | TokenRewrite  AlexPosn
   | TokenPlus     AlexPosn
   | TokenSemiColon AlexPosn
+  | TokenZero AlexPosn
+  | TokenSucc AlexPosn
   deriving (Eq, Show, Generic)
 
 symString :: Token -> String

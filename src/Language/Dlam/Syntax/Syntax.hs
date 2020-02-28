@@ -54,6 +54,14 @@ module Language.Dlam.Syntax.Syntax
   , inrTerm
   , inrTermTY
   , inrTermApp
+  -- ** Natural numbers
+  , natTy
+  , natTyTY
+  , dnzero
+  , dnzeroTY
+  , dnsucc
+  , dnsuccTY
+  , dnsuccApp
   -- ** Unit
   , unitTy
   , unitTyTY
@@ -167,6 +175,9 @@ data Expr where
   -- | Coproduct eliminator.
   CoproductCase :: (Identifier, Expr) -> (Identifier, Expr) -> (Identifier, Expr) -> Expr -> Expr
 
+  -- | Natural number eliminator.
+  NatCase :: (Identifier, Expr) -> Expr -> (Identifier, Identifier, Expr) -> Expr -> Expr
+
   -- | Conditional eliminator.
   IfExpr :: Expr -> Expr -> Expr -> Expr
 
@@ -240,6 +251,15 @@ data BuiltinTerm =
 
   -- | Reflexivity.
   | DRefl
+
+  -- | Natural number type.
+  | DNat
+
+  -- | Natural number zero.
+  | DNZero
+
+  -- | Natural number successor.
+  | DNSucc
   deriving (Show, Eq, Ord)
 
 
@@ -387,6 +407,29 @@ reflTermTY =
 reflTermApp :: Expr -> Expr -> Expr -> Expr
 reflTermApp l t x = App (App (App reflTerm l) t) x
 
+
+natTy :: Expr
+natTy = builtinTerm DNat
+
+natTyTY :: Expr
+natTyTY = mkUnivTy (LitLevel 0)
+
+dnzero :: Expr
+dnzero = builtinTerm DNZero
+
+dnzeroTY :: Expr
+dnzeroTY = natTy
+
+dnsucc :: Expr
+dnsucc = builtinTerm DNSucc
+
+dnsuccTY :: Expr
+dnsuccTY = mkFunTy ignoreVar natTy natTy
+
+dnsuccApp :: Expr -> Expr
+dnsuccApp = App dnsucc
+
+
 ----------------------------
 
 class Term t where
@@ -410,6 +453,8 @@ instance Term Expr where
   boundVars (Coproduct t1 t2) = boundVars t1 `Set.union` boundVars t2
   boundVars (CoproductCase (_z, _tC) (x, c) (y, d) _e) =
     Set.insert x (Set.insert y (boundVars c `Set.union` boundVars d))
+  boundVars (NatCase (x, tC) cz (w, y, cs) _n) =
+    Set.insert w $ Set.insert x $ Set.insert y (boundVars cz `Set.union` boundVars cs `Set.union` boundVars tC)
   boundVars (Var _)                      = Set.empty
   boundVars (Sig e _)                    = boundVars e
   boundVars Hole                         = Set.empty
@@ -430,6 +475,8 @@ instance Term Expr where
   freeVars (Coproduct t1 t2) = freeVars t1 `Set.union` freeVars t2
   freeVars (CoproductCase (_z, _tC) (x, c) (y, d) _e) =
     Set.delete x (Set.delete y (freeVars c `Set.union` freeVars d))
+  freeVars (NatCase (x, tC) cz (w, y, cs) _n) =
+    (Set.delete x (freeVars tC)) `Set.union` (freeVars cz) `Set.union` (Set.delete w $ Set.delete y $ freeVars cs)
   freeVars (Var var)                     = Set.singleton var
   freeVars (Sig e _)                     = freeVars e
   freeVars (PairElim (z, tC) (x, y, g) p) =
