@@ -628,8 +628,8 @@ checkOrInferType t expr@(Coproduct tA tB) = do
    G, x : A |- c : [inl x/z]C
    G, y : B |- d : [inr y/z]C
    G |- e : A + B
-   -------------------------------------------------------- :: CoproductCase
-   G |- case z = e of (Inl x -> c; Inr y -> d) : C : [e/z]C
+   ------------------------------------------------------ :: CoproductCase
+   G |- case z@e of (Inl x -> c; Inr y -> d) : C : [e/z]C
 -}
 checkOrInferType t expr@(CoproductCase (z, tC) (x, c) (y, d) e) = do
   -- G |- e : A + B
@@ -650,7 +650,7 @@ checkOrInferType t expr@(CoproductCase (z, tC) (x, c) (y, d) e) = do
   inryforzinC <- substitute (z, inrY) tC
   _ <- withTypedVariable y tB $ withExprNormalisingTo e inrY $ checkOrInferType inryforzinC d
 
-  -- G |- case z = e of (Inl x -> c; Inr y -> d) : C : [e/z]C
+  -- G |- case z@e of (Inl x -> c; Inr y -> d) : C : [e/z]C
   eforzinC <- substitute (z, e) tC
   ensureEqualTypes expr t eforzinC
 

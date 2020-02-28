@@ -103,7 +103,7 @@ Expr :: { [Option] -> ParseExpr }
 
   | rewrite '(' Ident '.' Ident '.' Ident '.' Expr ',' Ident '.' Expr ',' Expr ',' Expr ',' Expr ')' { \opts -> RewriteExpr $3 $5 $7 ($9 opts) $11 ($13 opts) ($15 opts) ($17 opts) ($19 opts) }
 
-  | case Ident '=' Expr of '(' inl Ident '->' Expr ';' inr Ident '->' Expr ')' ':' Expr
+  | case Ident '@' Expr of '(' inl Ident '->' Expr ';' inr Ident '->' Expr ')' ':' Expr
     { \opts -> CoproductCase ($2, $18 opts) ($8, $10 opts) ($13, $15 opts) ($4 opts) }
 
   | case Ident '@' Expr of '(' zero '->' Expr ';' succ Ident '@' Ident '->' Expr ')' ':' Expr

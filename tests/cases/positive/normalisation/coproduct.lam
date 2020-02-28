@@ -3,27 +3,27 @@
 ------------------------------------------------
 
 
--------------------------------------------------------------------------------------
--- [case z = (inl p) of (Inl x -> c x; Inr y -> d y) : ty z ---> c p : ty (inl p)] --
--------------------------------------------------------------------------------------
+-----------------------------------------------------------------------------------
+-- [case z@(inl p) of (Inl x -> c x; Inr y -> d y) : ty z ---> c p : ty (inl p)] --
+-----------------------------------------------------------------------------------
 
 
 t1 : (l1 l2 l3 : Level) (a : Type l1) (b : Type l2) (ty : a + b -> Type l3)
   (c : (x : a) -> ty (inl l1 l2 a b x))
   (d : (y : b) -> ty (inr l1 l2 a b y))
   (p : a)
-  -> Id l3 (ty (inl l1 l2 a b p)) (case z = inl l1 l2 a b p of (Inl x -> c x; Inr y -> d y) : ty z) (c p)
+  -> Id l3 (ty (inl l1 l2 a b p)) (case z@inl l1 l2 a b p of (Inl x -> c x; Inr y -> d y) : ty z) (c p)
 t1 = \l1 l2 l3 a b ty c d p -> refl l3 (ty (inl l1 l2 a b p)) (c p)
 
 
--------------------------------------------------------------------------------------
--- [case z = (inr p) of (Inl x -> c x; Inr y -> d y) : ty z ---> d p : ty (inr p)] --
--------------------------------------------------------------------------------------
+-----------------------------------------------------------------------------------
+-- [case z@(inr p) of (Inl x -> c x; Inr y -> d y) : ty z ---> d p : ty (inr p)] --
+-----------------------------------------------------------------------------------
 
 
 t2 : (l1 l2 l3 : Level) (a : Type l1) (b : Type l2) (ty : a + b -> Type l3)
   (c : (x : a) -> ty (inl l1 l2 a b x))
   (d : (y : b) -> ty (inr l1 l2 a b y))
   (p : b)
-  -> Id l3 (ty (inr l1 l2 a b p)) (case z = inr l1 l2 a b p of (Inl x -> c x; Inr y -> d y) : ty z) (d p)
+  -> Id l3 (ty (inr l1 l2 a b p)) (case z@inr l1 l2 a b p of (Inl x -> c x; Inr y -> d y) : ty z) (d p)
 t2 = \l1 l2 l3 a b ty c d p -> refl l3 (ty (inr l1 l2 a b p)) (d p)
