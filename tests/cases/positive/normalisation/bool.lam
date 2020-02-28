@@ -1,0 +1,63 @@
+-----------------------------------------------
+----- Tests for normalisation of booleans -----
+-----------------------------------------------
+
+
+-------------
+-- Helpers --
+-------------
+
+
+-- First we define booleans (in terms of the builtin coproducts)
+Bool : Type 0
+Bool = Unit + Unit
+
+false : Bool
+false = inr 0 0 Unit Unit unit
+
+true : Bool
+true = inl 0 0 Unit Unit unit
+
+ifThenElse : (l1 l2 : Level) (a : Type l1) (b : Type l2) (t : Bool) (thn : a) (els : b) ->
+  case z@t of (Inl x -> a; Inr y -> b)
+    : Type (case z@t of (Inl x -> l1; Inr y -> l2) : Level)
+ifThenElse = \l1 l2 a b t thn els ->
+  case z@t of (Inl x -> thn; Inr y -> els)
+    : case z@t of (Inl x -> a; Inr y -> b)
+    : Type (case z@t of (Inl x -> l1; Inr y -> l2) : Level)
+
+
+------------------------------------
+-- [if true then x else y ---> x] --
+------------------------------------
+
+
+t1 : (l : Level) (a : Type l) (x y : a) -> Id l a (ifThenElse l l a a true x y) x
+t1 = \l a x y -> refl l a x
+
+
+-------------------------------------
+-- [if false then x else y ---> y] --
+-------------------------------------
+
+
+t2 : (l : Level) (a : Type l) (x y : a) -> Id l a (ifThenElse l l a a false x y) y
+t2 = \l a x y -> refl l a y
+
+
+---------------------------------
+-- [if t then x else x ---> x] --
+---------------------------------
+
+
+t3 : (l : Level) (a : Type l) (t : Bool) (x : a) -> Id l a (ifThenElse l l a a t x x) x
+t3 = \l a t x -> refl l a x
+
+
+--------------------------------------------------
+-- [if t then x else y ---> if t then x else y] --
+--------------------------------------------------
+
+
+t4 : (l : Level) (a : Type l) (t : Bool) (x y : a) -> ifThenElse l l a a t (Id l a (ifThenElse t x y) x) (Id l a (ifThenElse t x y) y)
+t4 = \l a t x y -> ifThenElse l l a a t (refl l a x) (refl l a y)
