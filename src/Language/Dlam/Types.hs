@@ -344,50 +344,50 @@ checkOrInferType t expr@(Builtin e) =
   ensureEqualTypes expr t $
     case e of
       -- lzero : Level
-      LZero -> lzeroTY
+      LZero -> builtinType lzero
 
       -- lsuc : Level -> Level
-      LSuc  -> lsucTY
+      LSuc  -> builtinType lsuc
 
       -- Type : (l : Level) -> Type (lsuc l)
-      TypeTy -> typeTyTY
+      TypeTy -> builtinType typeTy
 
       -- Level : Type 0
-      LevelTy -> levelTyTY
+      LevelTy -> builtinType levelTy
 
       -- lmax : Level -> Level -> Level
-      LMax -> lmaxTY
+      LMax -> builtinType lmax
 
       -- | inl : (l1 l2 : Level) (a : Type l1) (b : Type l2) -> a -> a + b
-      Inl -> inlTermTY
+      Inl -> builtinType inlTerm
 
       -- | inr : (l1 l2 : Level) (a : Type l1) (b : Type l2) -> b -> a + b
-      Inr -> inrTermTY
+      Inr -> builtinType inrTerm
 
       -- | Nat : Type 0
-      DNat -> natTyTY
+      DNat -> builtinType natTy
 
       -- | zero : Nat
-      DNZero -> dnzeroTY
+      DNZero -> builtinType dnzero
 
       -- | succ : Nat -> Nat
-      DNSucc -> dnsuccTY
+      DNSucc -> builtinType dnsucc
 
       -- Unit : Type 0
-      DUnitTy -> unitTyTY
+      DUnitTy -> builtinType unitTy
 
       -- unit : Unit
-      DUnitTerm -> unitTermTY
+      DUnitTerm -> builtinType unitTerm
 
       -- Id : (l : Level) (a : Type l) -> a -> a -> Type l
-      IdTy -> idTyTY
+      IdTy -> builtinType idTy
 
       -- refl : (l : Level) (a : Type l) (x : a) -> Id l a x x
-      DRefl -> reflTermTY
+      DRefl -> builtinType reflTerm
 ----------------------
 -- Level expression --
 ----------------------
-checkOrInferType t expr@LitLevel{} = ensureEqualTypes expr t levelTy
+checkOrInferType t expr@LitLevel{} = ensureEqualTypes expr t (builtinBody levelTy)
 -------------------------
 -- Variable expression --
 -------------------------
@@ -649,21 +649,22 @@ checkOrInferType t expr@(CoproductCase (z, tC) (x, c) (y, d) e) = do
 -}
 checkOrInferType t expr@(NatCase (x, tC) cz (w, y, cs) n) = do
   -- G, x : Nat |- C : Type l
-  _l <- withTypedVariable x natTy $ inferUniverseLevel tC
+  let natTy' = builtinBody natTy
+  _l <- withTypedVariable x natTy' $ inferUniverseLevel tC
 
   -- G |- cz : [zero/x]C
-  zeroforxinC <- substitute (x, dnzero) tC
+  zeroforxinC <- substitute (x, builtinBody dnzero) tC
   _ <- checkOrInferType zeroforxinC cz
 
   -- G, w : Nat, y : [w/x]C |- cs : [succ w/x]C
   succwforxinC <- substitute (x, dnsuccApp (Var w)) tC
   wforxinC <- substitute (x, Var w) tC
   _ <-   withTypedVariable y wforxinC
-       $ withTypedVariable w natTy
+       $ withTypedVariable w natTy'
        $ checkOrInferType succwforxinC cs
 
   -- G |- n : Nat
-  _Nat <- checkOrInferType natTy n
+  _Nat <- checkOrInferType natTy' n
 
   -- G |- case x@n of (Zero -> cz; Succ w@y -> cs) : C : [n/x]C
   nforxinC <- substitute (x, n) tC

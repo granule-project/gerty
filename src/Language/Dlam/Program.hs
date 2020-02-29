@@ -32,21 +32,14 @@ type ProgMaps = (Context, NormalFormContext)
 
 builtins :: Context
 builtins = M.fromList
-           [ (mkIdent "Type",  BindV (Just typeTy, typeTyTY))
-           , (mkIdent "Level", BindV (Just levelTy, levelTyTY))
-           , (mkIdent "lzero", BindV (Just lzero, lzeroTY))
-           , (mkIdent "lsuc", BindV (Just lsuc, lsucTY))
-           , (mkIdent "lmax", BindV (Just lmax, lmaxTY))
-           , (mkIdent "inl", BindV (Just inlTerm, inlTermTY))
-           , (mkIdent "inr", BindV (Just inrTerm, inrTermTY))
-           , (mkIdent "Nat", BindV (Just natTy, natTyTY))
-           , (mkIdent "zero", BindV (Just dnzero, dnzeroTY))
-           , (mkIdent "succ", BindV (Just dnsucc, dnsuccTY))
-           , (mkIdent "unit", BindV (Just unitTerm, unitTermTY))
-           , (mkIdent "Unit", BindV (Just unitTy, unitTyTY))
-           , (mkIdent "Id",   BindV (Just idTy, idTyTY))
-           , (mkIdent "refl", BindV (Just reflTerm, reflTermTY))
-           ]
+  (fmap (\bin -> (builtinName bin, BindV (Just $ builtinBody bin, builtinType bin)))
+   [ typeTy
+   , levelTy, lzero, lsuc, lmax
+   , inlTerm, inrTerm
+   , natTy, dnzero, dnsucc
+   , unitTerm, unitTy
+   , idTy, reflTerm
+   ])
 
 type ProgState = (Int, ProgMaps)
 

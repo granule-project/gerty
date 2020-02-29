@@ -24,48 +24,37 @@ module Language.Dlam.Syntax.Syntax
 
   -- * Builtins
   , BuiltinTerm(..)
-  , builtinTerm
+  , Builtin
+  , builtinName
+  , builtinBody
+  , builtinType
   -- ** Levels
   , levelTy
-  , levelTyTY
   , lzero
-  , lzeroTY
   , lsuc
-  , lsucTY
   , lsucApp
   , lmax
-  , lmaxTY
   , lmaxApp
   -- ** Type Universes
   , typeTy
-  , typeTyTY
   , mkUnivTy
   -- ** Coproducts
   , inlTerm
-  , inlTermTY
   , inlTermApp
   , inrTerm
-  , inrTermTY
   , inrTermApp
   -- ** Natural numbers
   , natTy
-  , natTyTY
   , dnzero
-  , dnzeroTY
   , dnsucc
-  , dnsuccTY
   , dnsuccApp
   -- ** Unit
   , unitTy
-  , unitTyTY
   , unitTerm
-  , unitTermTY
   -- ** Identity
   , idTy
-  , idTyTY
   , idTyApp
   , reflTerm
-  , reflTermTY
   , reflTermApp
   ) where
 
@@ -244,153 +233,128 @@ data BuiltinTerm =
   deriving (Show, Eq, Ord)
 
 
+newtype Builtin = MkBuiltin (Identifier, BuiltinTerm, Expr)
+
+mkBuiltin :: String -> BuiltinTerm -> Expr -> Builtin
+mkBuiltin name exprRef ty = MkBuiltin (mkIdent name, exprRef, ty)
+
+-- | Syntactic name of a builtin term.
+builtinName :: Builtin -> Identifier
+builtinName (MkBuiltin (n, _, _)) = n
+
+-- | Body for a builtin term (essentially an Agda postulate).
+builtinBody :: Builtin -> Expr
+builtinBody (MkBuiltin (_, e, _)) = Builtin e
+
+-- | The type of a builtin term.
+builtinType :: Builtin -> Expr
+builtinType (MkBuiltin (_, _, t)) = t
+
+
 mkFunTy :: Identifier -> Expr -> Expr -> Expr
 mkFunTy n t e = FunTy $ mkAbs n t e
 
+typeZero, levelTy', natTy' :: Expr
+typeZero = mkUnivTy (LitLevel 0)
 
--- | Body for a builtin term (essentially an Agda postulate).
-builtinTerm :: BuiltinTerm -> Expr
-builtinTerm = Builtin
+mkApp :: Expr -> Expr -> Expr
+mkApp = App
 
-levelTy :: Expr
-levelTy = builtinTerm LevelTy
+levelTy' = builtinBody levelTy
 
-levelTyTY :: Expr
-levelTyTY = mkUnivTy (LitLevel 0)
+levelTy, lzero, lsuc, lmax,
+ typeTy,
+ inlTerm, inrTerm,
+ unitTy, unitTerm,
+ idTy, reflTerm,
+ natTy, dnzero, dnsucc :: Builtin
 
-lzero :: Expr
-lzero = builtinTerm LZero
+levelTy = mkBuiltin "Level" LevelTy typeZero
+lzero = mkBuiltin "lzero" LZero levelTy'
+lsuc = mkBuiltin "lsuc" LSuc (mkFunTy ignoreVar levelTy' levelTy')
+lmax = mkBuiltin "lmax" LMax (mkFunTy ignoreVar levelTy' (mkFunTy ignoreVar levelTy' levelTy'))
+typeTy = mkBuiltin "Type" TypeTy
+         (let l = mkIdent "l" in mkFunTy l levelTy' (mkUnivTy (lsucApp (Var l))))
+inlTerm = mkBuiltin "inl" Inl inlTermTY
+  where
+    inlTermTY =
+      let l1 = mkIdent "l1"; l1v = Var l1
+          l2 = mkIdent "l2"; l2v = Var l2
+          a = mkIdent "a"; av = Var a
+          b = mkIdent "b"; bv = Var b
+      in mkFunTy l1 levelTy'
+          (mkFunTy l2 levelTy'
+           (mkFunTy a (mkUnivTy l1v)
+            (mkFunTy b (mkUnivTy l2v)
+             (mkFunTy ignoreVar av (Coproduct av bv)))))
+inrTerm = mkBuiltin "inr" Inr inrTermTY
+  where
+    inrTermTY =
+      let l1 = mkIdent "l1"; l1v = Var l1
+          l2 = mkIdent "l2"; l2v = Var l2
+          a = mkIdent "a"; av = Var a
+          b = mkIdent "b"; bv = Var b
+      in mkFunTy l1 levelTy'
+          (mkFunTy l2 levelTy'
+           (mkFunTy a (mkUnivTy l1v)
+            (mkFunTy b (mkUnivTy l2v)
+             (mkFunTy ignoreVar bv (Coproduct av bv)))))
 
-lzeroTY :: Expr
-lzeroTY = levelTy
+unitTy = mkBuiltin "Unit" DUnitTy typeZero
 
-lsuc :: Expr
-lsuc = builtinTerm LSuc
+unitTerm = mkBuiltin "unit" DUnitTerm (builtinBody unitTy)
 
-lsucTY :: Expr
-lsucTY = FunTy (mkAbs ignoreVar levelTy levelTy)
+idTy = mkBuiltin "Id" IdTy idTyTY
+  where
+    idTyTY :: Expr
+    idTyTY =
+      let l = mkIdent "l"
+          lv = Var l
+          a = mkIdent "a"
+          av = Var a
+      in mkFunTy l levelTy' (mkFunTy a (mkUnivTy lv) (mkFunTy ignoreVar av (mkFunTy ignoreVar av (mkUnivTy lv))))
+
+reflTerm = mkBuiltin "refl" DRefl reflTermTY
+  where
+    reflTermTY :: Expr
+    reflTermTY =
+      let l = mkIdent "l"
+          lv = Var l
+          a = mkIdent "a"
+          av = Var a
+          x = mkIdent "x"
+          xv = Var x
+      in mkFunTy l levelTy' (mkFunTy a (mkUnivTy lv) (mkFunTy x av (idTyApp lv av xv xv)))
+
+natTy = mkBuiltin "Nat" DNat typeZero
+natTy' = builtinBody natTy
+dnzero = mkBuiltin "zero" DNZero natTy'
+dnsucc = mkBuiltin "succ" DNSucc (mkFunTy ignoreVar natTy' natTy')
+
 
 lsucApp :: Expr -> Expr
-lsucApp = App lsuc
-
-lmax :: Expr
-lmax = builtinTerm LMax
-
-lmaxTY :: Expr
-lmaxTY = FunTy (mkAbs ignoreVar levelTy (FunTy (mkAbs ignoreVar levelTy levelTy)))
+lsucApp = mkApp (builtinBody lsuc)
 
 lmaxApp :: Expr -> Expr -> Expr
-lmaxApp l1 l2 = App (App lmax l1) l2
-
-typeTy :: Expr
-typeTy = builtinTerm TypeTy
-
-typeTyTY :: Expr
-typeTyTY = let l = mkIdent "l" in FunTy (mkAbs l levelTy (mkUnivTy (lsucApp (Var l))))
+lmaxApp l1 l2 = mkApp (mkApp (builtinBody lmax) l1) l2
 
 mkUnivTy :: Expr -> Expr
-mkUnivTy = App typeTy
-
-inlTerm :: Expr
-inlTerm = builtinTerm Inl
-
-inlTermTY :: Expr
-inlTermTY =
-  let l1 = mkIdent "l1"; l1v = Var l1
-      l2 = mkIdent "l2"; l2v = Var l2
-      a = mkIdent "a"; av = Var a
-      b = mkIdent "b"; bv = Var b
-  in mkFunTy l1 levelTy
-      (mkFunTy l2 levelTy
-       (mkFunTy a (mkUnivTy l1v)
-        (mkFunTy b (mkUnivTy l2v)
-         (mkFunTy ignoreVar av (Coproduct av bv)))))
+mkUnivTy = mkApp (builtinBody typeTy)
 
 inlTermApp :: Expr -> Expr -> Expr -> Expr -> Expr -> Expr
-inlTermApp l1 l2 a b v = App (App (App (App (App inlTerm l1) l2) a) b) v
-
-inrTerm :: Expr
-inrTerm = builtinTerm Inr
-
-inrTermTY :: Expr
-inrTermTY =
-  let l1 = mkIdent "l1"; l1v = Var l1
-      l2 = mkIdent "l2"; l2v = Var l2
-      a = mkIdent "a"; av = Var a
-      b = mkIdent "b"; bv = Var b
-  in mkFunTy l1 levelTy
-      (mkFunTy l2 levelTy
-       (mkFunTy a (mkUnivTy l1v)
-        (mkFunTy b (mkUnivTy l2v)
-         (mkFunTy ignoreVar bv (Coproduct av bv)))))
+inlTermApp l1 l2 a b v = mkApp (mkApp (mkApp (mkApp (mkApp (builtinBody inlTerm) l1) l2) a) b) v
 
 inrTermApp :: Expr -> Expr -> Expr -> Expr -> Expr -> Expr
-inrTermApp l1 l2 a b v = App (App (App (App (App inrTerm l1) l2) a) b) v
-
-unitTy :: Expr
-unitTy = builtinTerm DUnitTy
-
-unitTyTY :: Expr
-unitTyTY = mkUnivTy (LitLevel 0)
-
-unitTerm :: Expr
-unitTerm = builtinTerm DUnitTerm
-
-unitTermTY :: Expr
-unitTermTY = unitTy
-
-idTy :: Expr
-idTy = builtinTerm IdTy
-
-idTyTY :: Expr
-idTyTY =
-  let l = mkIdent "l"
-      lv = Var l
-      a = mkIdent "a"
-      av = Var a
-  in mkFunTy l levelTy (mkFunTy a (mkUnivTy lv) (mkFunTy ignoreVar av (mkFunTy ignoreVar av (mkUnivTy lv))))
+inrTermApp l1 l2 a b v = mkApp (mkApp (mkApp (mkApp (mkApp (builtinBody inrTerm) l1) l2) a) b) v
 
 idTyApp :: Expr -> Expr -> Expr -> Expr -> Expr
-idTyApp l t x y = App (App (App (App idTy l) t) x) y
-
-reflTerm :: Expr
-reflTerm = builtinTerm DRefl
-
-reflTermTY :: Expr
-reflTermTY =
-  let l = mkIdent "l"
-      lv = Var l
-      a = mkIdent "a"
-      av = Var a
-      x = mkIdent "x"
-      xv = Var x
-  in mkFunTy l levelTy (mkFunTy a (mkUnivTy lv) (mkFunTy x av (idTyApp lv av xv xv)))
-
+idTyApp l t x y = mkApp (mkApp (mkApp (mkApp (builtinBody idTy) l) t) x) y
 
 reflTermApp :: Expr -> Expr -> Expr -> Expr
-reflTermApp l t x = App (App (App reflTerm l) t) x
-
-
-natTy :: Expr
-natTy = builtinTerm DNat
-
-natTyTY :: Expr
-natTyTY = mkUnivTy (LitLevel 0)
-
-dnzero :: Expr
-dnzero = builtinTerm DNZero
-
-dnzeroTY :: Expr
-dnzeroTY = natTy
-
-dnsucc :: Expr
-dnsucc = builtinTerm DNSucc
-
-dnsuccTY :: Expr
-dnsuccTY = mkFunTy ignoreVar natTy natTy
+reflTermApp l t x = mkApp (mkApp (mkApp (builtinBody reflTerm) l) t) x
 
 dnsuccApp :: Expr -> Expr
-dnsuccApp = App dnsucc
+dnsuccApp = mkApp (builtinBody dnsucc)
 
 
 ----------------------------

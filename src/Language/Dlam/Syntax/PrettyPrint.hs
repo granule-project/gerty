@@ -77,20 +77,20 @@ instance PrettyPrint Identifier where
   pprint Ignore = "_"
 
 instance PrettyPrint BuiltinTerm where
-  pprint LZero = "lzero"
-  pprint LMax  = "lmax"
-  pprint LSuc  = "lsuc"
-  pprint LevelTy = "Level"
-  pprint TypeTy  = "Type"
-  pprint Inl = "inl"
-  pprint Inr = "inr"
-  pprint DNat = "Nat"
-  pprint DNZero = "zero"
-  pprint DNSucc = "succ"
-  pprint DUnitTy = "Unit"
-  pprint DUnitTerm = "unit"
-  pprint IdTy = "Id"
-  pprint DRefl = "refl"
+  pprint LZero     = pprint . builtinName $ lzero
+  pprint LMax      = pprint . builtinName $ lmax
+  pprint LSuc      = pprint . builtinName $ lsuc
+  pprint LevelTy   = pprint . builtinName $ levelTy
+  pprint TypeTy    = pprint . builtinName $ typeTy
+  pprint Inl       = pprint . builtinName $ inlTerm
+  pprint Inr       = pprint . builtinName $ inrTerm
+  pprint DNat      = pprint . builtinName $ natTy
+  pprint DNZero    = pprint . builtinName $ dnzero
+  pprint DNSucc    = pprint . builtinName $ dnsucc
+  pprint DUnitTy   = pprint . builtinName $ unitTy
+  pprint DUnitTerm = pprint . builtinName $ unitTerm
+  pprint IdTy      = pprint . builtinName $ idTy
+  pprint DRefl     = pprint . builtinName $ reflTerm
 
 instance PrettyPrint NAST where
   pprint (NAST sts) = concat . intersperse "\n\n" $ fmap pprint sts
