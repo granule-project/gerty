@@ -239,6 +239,12 @@ equalExprs e1 e2 = do
     (Abs ab1, Abs ab2) -> equalAbs ab1 ab2
     (ProductTy ab1, ProductTy ab2) -> equalAbs ab1 ab2
     (Coproduct t1 t2, Coproduct t1' t2') -> (&&) <$> equalExprs t1 t1' <*> equalExprs t2 t2'
+    (CoproductCase (z, tC) (x, c) (y, d) e, CoproductCase (z', tC') (x', c') (y', d') e') -> do
+      typesOK <- equalExprs tC' =<< substitute (z, Var z') tC
+      csOK <- equalExprs c' =<< substitute (x, Var x') c
+      dsOK <- equalExprs d' =<< substitute (y, Var y') d
+      esOK <- equalExprs e e'
+      pure $ typesOK && csOK && dsOK && esOK
     (PairElim (z, tC) (x, y, g) p, PairElim (z', tC') (x', y', g') p') -> do
       typesOK <- equalExprs tC' =<< substitute (z, Var z') tC
       gsOK <- equalExprs g' =<< (substitute (x, Var x') g >>= substitute (y, Var y'))
