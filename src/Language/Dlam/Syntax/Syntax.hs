@@ -17,7 +17,7 @@ module Language.Dlam.Syntax.Syntax
   , AST(..)
   , Stmt(..)
   , NAST(..)
-  , NStmt(..)
+  , Declaration(..)
   , normaliseAST
   , Abstraction
   , mkImplicit
@@ -74,10 +74,10 @@ data Stmt =
   | StmtType String Expr
   deriving Show
 
-newtype NAST = NAST [NStmt]
+newtype NAST = NAST [Declaration]
   deriving Show
 
-data NStmt =
+data Declaration =
   -- | An assignment with an optional type, and mandatory definition.
   Decl String (Maybe Expr) Expr
   deriving Show

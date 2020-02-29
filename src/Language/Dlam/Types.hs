@@ -275,10 +275,10 @@ equalExprs e1 e2 = do
 
 -- | Attempt to infer the types of a definition, and check this against the declared
 -- | type, if any.
-doNStmtInference :: (Checkable m err v) => NStmt -> m NStmt
-doNStmtInference (Decl v Nothing e) =
-  doNStmtInference (Decl v (Just Implicit) e)
-doNStmtInference (Decl v (Just t) e) = do
+doDeclarationInference :: (Checkable m err v) => Declaration -> m Declaration
+doDeclarationInference (Decl v Nothing e) =
+  doDeclarationInference (Decl v (Just Implicit) e)
+doDeclarationInference (Decl v (Just t) e) = do
   -- make sure that the definition's type is actually a type
   checkExprValidForSignature t
 
@@ -298,7 +298,7 @@ doNStmtInference (Decl v (Just t) e) = do
 -- | Attempt to infer the types of each definition in the AST, failing if a type
 -- | mismatch is found.
 doNASTInference :: (Checkable m err v) => NAST -> m NAST
-doNASTInference (NAST ds) = fmap NAST $ mapM doNStmtInference ds
+doNASTInference (NAST ds) = fmap NAST $ mapM doDeclarationInference ds
 
 
 -- | Infer a level for the given type.

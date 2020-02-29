@@ -95,7 +95,7 @@ instance PrettyPrint BuiltinTerm where
 instance PrettyPrint NAST where
   pprint (NAST sts) = concat . intersperse "\n\n" $ fmap pprint sts
 
-instance PrettyPrint NStmt where
+instance PrettyPrint Declaration where
   pprint (Decl v Nothing e) =
     v <> " = " <> pprint e
   pprint (Decl v (Just t) e) =
