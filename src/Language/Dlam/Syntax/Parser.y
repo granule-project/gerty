@@ -10,7 +10,6 @@ import System.Exit
 import Control.Monad.Trans.Reader
 import Control.Monad.Trans.Class (lift)
 
-import Language.Dlam.Options
 import Language.Dlam.Syntax.Lexer
 import Language.Dlam.Syntax.Syntax
 
@@ -57,21 +56,16 @@ import Language.Dlam.Syntax.Syntax
 %left '+' '-'
 %%
 
-Program :: { (ParseAST, [Option]) }
-  : LangOpts Stmts  { (AST ($2 $1), $1) }
+Program :: { ParseAST }
+  : Stmts  { AST $1 }
 
-LangOpts :: { [Option] }
-  : LANG NL LangOpts    {% (readOption $1) >>= (\opt -> addOption opt $3) }
-  | LANG                {% readOption $1 >>= (return . (:[])) }
-  | {- empty -}         { [] }
+Stmts :: { [ParseStmt] }
+  : Stmt NL Stmts { $1 : $3 }
+  | Stmt          { pure $1 }
 
-Stmts :: { [Option] -> [ParseStmt] }
-  : Stmt NL Stmts { \opts -> ($1 opts) : ($3 opts) }
-  | Stmt          { \opts -> pure ($1 opts) }
-
-Stmt :: { [Option] -> ParseStmt }
-  : VAR ':' Expr { \opts -> StmtType (symString $1) ($3 opts) }
-  | VAR '=' Expr { \opts -> StmtAssign (symString $1) ($3 opts) }
+Stmt :: { ParseStmt }
+  : VAR ':' Expr { StmtType (symString $1) $3 }
+  | VAR '=' Expr { StmtAssign (symString $1) $3 }
 
 NL :: { () }
   : nl NL                     { }
@@ -80,49 +74,49 @@ NL :: { () }
 Ident :: { Identifier }
   : VAR { mkIdentFromSym $1 }
 
-Expr :: { [Option] -> ParseExpr }
-  : Expr '->' Expr   { \opts -> FunTy (mkAbs ignoreVar ($1 opts) ($3 opts)) }
-  | TyBindings '->' Expr { \opts -> foldr (\(n, ty) fty -> FunTy (mkAbs n ty fty)) ($3 opts) ($1 opts) }
+Expr :: { ParseExpr }
+  : Expr '->' Expr   { FunTy (mkAbs ignoreVar $1 $3) }
+  | TyBindings '->' Expr { foldr (\(n, ty) fty -> FunTy (mkAbs n ty fty)) $3 $1 }
 
   | '\\' LambdaArgs '->' Expr
-    { \opts -> foldr (\(n, ty) rty -> Abs (mkAbs n ty rty)) ($4 opts) ($2 opts) }
+    { foldr (\(n, ty) rty -> Abs (mkAbs n ty rty)) $4 $2 }
 
 
-  | Expr '*' Expr   { \opts -> ProductTy (mkAbs ignoreVar ($1 opts) ($3 opts)) }
+  | Expr '*' Expr   { ProductTy (mkAbs ignoreVar $1 $3) }
 
-  | '(' Ident ':' Expr ')' '*' Expr { \opts -> ProductTy (mkAbs $2 ($4 opts) ($7 opts)) }
+  | '(' Ident ':' Expr ')' '*' Expr { ProductTy (mkAbs $2 $4 $7) }
 
-  | Expr '+' Expr   { \opts -> Coproduct ($1 opts) ($3 opts) }
+  | Expr '+' Expr   { Coproduct $1 $3 }
 
-  | let Ident '@' '(' Ident ',' Ident ')' '=' Expr in '(' Expr ':' Expr ')' { \opts -> PairElim ($2, $15 opts) ($5, $7, $13 opts) ($10 opts) }
+  | let Ident '@' '(' Ident ',' Ident ')' '=' Expr in '(' Expr ':' Expr ')' { PairElim ($2, $15) ($5, $7, $13) $10 }
 
-  | let '(' Ident ',' Ident ')' '=' Expr in Expr { \opts -> PairElim (ignoreVar, mkImplicit) ($3, $5, $10 opts) ($8 opts) }
+  | let '(' Ident ',' Ident ')' '=' Expr in Expr { PairElim (ignoreVar, mkImplicit) ($3, $5, $10) $8 }
 
-  | rewrite '(' Ident '.' Ident '.' Ident '.' Expr ',' Ident '.' Expr ',' Expr ',' Expr ',' Expr ')' { \opts -> RewriteExpr $3 $5 $7 ($9 opts) $11 ($13 opts) ($15 opts) ($17 opts) ($19 opts) }
+  | rewrite '(' Ident '.' Ident '.' Ident '.' Expr ',' Ident '.' Expr ',' Expr ',' Expr ',' Expr ')' { RewriteExpr $3 $5 $7 $9 $11 $13 $15 $17 $19 }
 
   | case Ident '@' Expr of '(' inl Ident '->' Expr ';' inr Ident '->' Expr ')' ':' Expr
-    { \opts -> CoproductCase ($2, $18 opts) ($8, $10 opts) ($13, $15 opts) ($4 opts) }
+    { CoproductCase ($2, $18) ($8, $10) ($13, $15) $4 }
 
   | case Ident '@' Expr of '(' zero '->' Expr ';' succ Ident '@' Ident '->' Expr ')' ':' Expr
-    { \opts -> NatCase ($2, $19 opts) ($9 opts) ($12, $14, $16 opts) ($4 opts) }
+    { NatCase ($2, $19) $9 ($12, $14, $16) $4 }
 
   -- TODO: this might cause issues with binders in dependent function types? (2020-02-22)
-  | Expr ':' Expr  { \opts -> Sig ($1 opts) ($3 opts) }
+  | Expr ':' Expr  { Sig $1 $3 }
 
   | Juxt
     { $1 }
 
 
-Juxt :: { [Option] -> ParseExpr }
-  : Juxt Atom                 { \opts -> App ($1 opts) ($2 opts) }
+Juxt :: { ParseExpr }
+  : Juxt Atom                 { App $1 $2 }
   | Atom                      { $1 }
 
-Atom :: { [Option] -> ParseExpr }
+Atom :: { ParseExpr }
   : '(' Expr ')'              { $2 }
-  | Ident                       { \opts -> Var $1 }
-  | '_'                       { \opts -> mkImplicit }
-  | NAT                       { \opts -> LitLevel (natTokenToInt $1) }
-  | '(' Expr ',' Expr ')'     { \opts -> Pair ($2 opts) ($4 opts) }
+  | Ident                       { Var $1 }
+  | '_'                       { mkImplicit }
+  | NAT                       { LitLevel (natTokenToInt $1) }
+  | '(' Expr ',' Expr ')'     { Pair $2 $4 }
 
   -- For later
   -- | '?' { Hole }
@@ -133,33 +127,29 @@ VarsSpaced :: { [Identifier] }
   | Ident VarsSpaced { $1 : $2 }
 
 -- Arguments for a lambda term.
-LambdaArg :: { [Option] -> [(Identifier, ParseExpr)] }
-  : Ident       { \opts -> [($1, mkImplicit)] }
-  | TyBinding { \opts -> $1 opts }
+LambdaArg :: { [(Identifier, ParseExpr)] }
+  : Ident       { [($1, mkImplicit)] }
+  | TyBinding { $1 }
 
-LambdaArgs :: { [Option] -> [(Identifier, ParseExpr)] }
-  : LambdaArg { \opts -> $1 opts }
-  | LambdaArg LambdaArgs { \opts -> $1 opts <> $2 opts }
+LambdaArgs :: { [(Identifier, ParseExpr)] }
+  : LambdaArg { $1 }
+  | LambdaArg LambdaArgs { $1 <> $2 }
 
 -- syntax for bindings in a type
-TyBinding :: { [Option] -> [(Identifier, ParseExpr)] }
+TyBinding :: { [(Identifier, ParseExpr)] }
   : '(' Ident VarsSpaced ':' Expr ')'
-    { \opts -> let ty = $5 opts in fmap (\n -> (n, ty)) ($2 : $3) }
-  | '(' Ident ':' Expr ')'        { \opts -> [($2, $4 opts)] }
+    { let ty = $5 in fmap (\n -> (n, ty)) ($2 : $3) }
+  | '(' Ident ':' Expr ')'        { [($2, $4)] }
 
-TyBindings :: { [Option] -> [(Identifier, ParseExpr)] }
-  : TyBinding            { \opts -> $1 opts }
-  | TyBinding TyBindings { \opts -> $1 opts <> $2 opts }
+TyBindings :: { [(Identifier, ParseExpr)] }
+  : TyBinding            { $1 }
+  | TyBinding TyBindings { $1 <> $2 }
 
 {
 
 type ParseExpr = Expr
 type ParseAST = AST
 type ParseStmt = Stmt
-
-readOption :: Token -> ReaderT String (Either String) Option
-readOption (TokenLang _ x) = lift . Left $ "Unknown language option: " <> x
-readOption _ = lift . Left $ "Wrong token for language"
 
 parseError :: [Token] -> ReaderT String (Either String) a
 parseError [] = lift . Left $ "Premature end of file"
@@ -169,7 +159,7 @@ parseError t  =  do
                         <> ": parse error"
   where (l, c) = getPos (head t)
 
-parseProgram :: FilePath -> String -> Either String (ParseAST, [Option])
+parseProgram :: FilePath -> String -> Either String ParseAST
 parseProgram file input = runReaderT (program $ scanTokens input) file
 
 natTokenToInt :: Token -> Int

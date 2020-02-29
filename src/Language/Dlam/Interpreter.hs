@@ -59,7 +59,7 @@ instance Exception InterpreterError
 run :: (Checkable m InterpreterError v, MonadWriter String m) => FilePath -> String -> m InterpreterResult
 run fname input =
   case parseProgram fname input of
-    Right (ast, _options) -> do
+    Right ast -> do
       -- Show AST
       tell $ "\n " <> ansi_bold <> "AST: " <> ansi_reset <> show ast
       let nast = normaliseAST ast

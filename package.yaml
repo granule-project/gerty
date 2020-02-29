@@ -41,7 +41,6 @@ library:
   other-modules:
    - Language.Dlam.Exception
    - Language.Dlam.FirstParameter
-   - Language.Dlam.Options
    - Language.Dlam.Syntax.Lexer
 
 executables:
