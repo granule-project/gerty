@@ -117,6 +117,9 @@ Expr :: { ParseExpr }
   | case Ident '@' Expr of '(' inl Ident '->' Expr ';' inr Ident '->' Expr ')' ':' Expr
     { CoproductCase ($2, $18) ($8, $10) ($13, $15) $4 }
 
+  | case Expr of inl Ident '->' Expr ';' inr Ident '->' Expr
+    { CoproductCase (ignoreVar, mkImplicit) ($5, $7) ($10, $12) $2 }
+
   | case Ident '@' Expr of '(' zero '->' Expr ';' succ Ident '@' Ident '->' Expr ')' ':' Expr
     { NatCase ($2, $19) $9 ($12, $14, $16) $4 }
 

@@ -53,6 +53,10 @@ instance PrettyPrint Expr where
     pprint (App e1 e2) = pprint e1 ++ " " ++ bracket_pprint e2
     pprint (Pair e1 e2) = "(" <> pprint e1 <> ", " <> pprint e2 <> ")"
     pprint (Coproduct e1 e2) = pprint e1 <> " + " <> pprint e2
+    pprint (CoproductCase (Ignore, Implicit) (x, c) (y, d) e) =
+      "case " <> pprint e <> " of "
+              <> "Inl " <> pprint x <> " -> " <> pprint c <> "; "
+              <> "Inr " <> pprint y <> " -> " <> pprint d
     pprint (CoproductCase (z, tC) (x, c) (y, d) e) =
       "case " <> pprint z <> "@" <> bracket_pprint e <> " of ("
               <> "Inl " <> pprint x <> " -> " <> pprint c <> "; "

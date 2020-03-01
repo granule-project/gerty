@@ -77,3 +77,16 @@ pairSimple = (Type 0, Type 0)
 -- tensors are eliminated through the syntax 'let (x, y) = e1 in e2'
 pairElimSimple : Level * Level -> Level
 pairElimSimple = \p -> let (x, y) = p in lmax x y
+
+
+----------------
+-- Coproducts --
+----------------
+
+
+cpLongForm : Nat + Nat -> Nat
+cpLongForm = \p -> case z@p of (Inl x -> x; Inr y -> y) : Nat
+
+
+cpShortForm : Nat + Nat -> Nat
+cpShortForm = \p -> case p of Inl x -> x; Inr y -> y
