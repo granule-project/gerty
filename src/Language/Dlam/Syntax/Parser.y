@@ -91,7 +91,7 @@ FRHS :: { FRHSOrTypeSig }
   -- Type signature
   | ':' Expr { IsTypeSig $2 }
 
-Ident :: { Identifier }
+Ident :: { Name }
   : VAR { mkIdentFromSym $1 }
 
 Expr :: { ParseExpr }
@@ -145,26 +145,26 @@ Atom :: { ParseExpr }
   -- | '?' { Hole }
 
 -- List of space-separated identifiers.
-VarsSpaced :: { [Identifier] }
+VarsSpaced :: { [Name] }
   : Ident            { [$1] }
   | Ident VarsSpaced { $1 : $2 }
 
 -- Arguments for a lambda term.
-LambdaArg :: { [(Identifier, ParseExpr)] }
+LambdaArg :: { [(Name, ParseExpr)] }
   : Ident       { [($1, mkImplicit)] }
   | TyBinding { $1 }
 
-LambdaArgs :: { [(Identifier, ParseExpr)] }
+LambdaArgs :: { [(Name, ParseExpr)] }
   : LambdaArg { $1 }
   | LambdaArg LambdaArgs { $1 <> $2 }
 
 -- syntax for bindings in a type
-TyBinding :: { [(Identifier, ParseExpr)] }
+TyBinding :: { [(Name, ParseExpr)] }
   : '(' Ident VarsSpaced ':' Expr ')'
     { let ty = $5 in fmap (\n -> (n, ty)) ($2 : $3) }
   | '(' Ident ':' Expr ')'        { [($2, $4)] }
 
-TyBindings :: { [(Identifier, ParseExpr)] }
+TyBindings :: { [(Name, ParseExpr)] }
   : TyBinding            { $1 }
   | TyBinding TyBindings { $1 <> $2 }
 
@@ -188,7 +188,7 @@ parseProgram file input = runReaderT (program $ scanTokens input) file
 natTokenToInt :: Token -> Int
 natTokenToInt (TokenNat _ x) = x
 
-mkIdentFromSym :: Token -> Identifier
+mkIdentFromSym :: Token -> Name
 mkIdentFromSym = mkIdent . symString
 
 data FRHSOrTypeSig = IsRHS FRHS | IsTypeSig Expr

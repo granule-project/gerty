@@ -25,7 +25,7 @@ newtype BindV = BindV { getBindV :: (Maybe Expr, Expr) }
 instance Show BindV where
   show = show . getBindV
 
-type Context = M.Map Identifier BindV
+type Context = M.Map Name BindV
 type NormalFormContext = M.Map Expr Expr
 
 type ProgMaps = (Context, NormalFormContext)
@@ -52,7 +52,7 @@ newtype Prog err a =
 
 -- Example instance where identifiers are mapped to types
 -- and (optional) definitions via a list.
-instance HasNamedMap (Prog err) BinderMap Identifier BindV where
+instance HasNamedMap (Prog err) BinderMap Name BindV where
   getBindings _ = fst . snd <$> get
   setBinder _ x e = do
     (count, (ctx, nfs)) <- get
@@ -72,7 +72,7 @@ instance HasTyVal BindV (Maybe Expr) Expr where
   fromTyVal = BindV
 
 
-instance Freshenable (Prog err) Identifier where
+instance Freshenable (Prog err) Name where
   -- TODO: update this to actually do freshening (2020-02-20)
   freshen v = do
     (count, ctx) <- get
@@ -83,7 +83,7 @@ instance Freshenable (Prog err) Identifier where
       GenIdent (v, _) -> GenIdent (v, count)
 
 
-instance Substitutable (Prog err) Identifier Expr where
+instance Substitutable (Prog err) Name Expr where
   substitute (v, e) (Var x)
     | v == x    = pure e
     | otherwise = pure (Var x)

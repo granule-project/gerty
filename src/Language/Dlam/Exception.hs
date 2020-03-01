@@ -8,7 +8,7 @@ module Language.Dlam.Exception
   , notImplemented
   -- ** Scope errors
   , ScopeError
-  , unknownIdentifierErr
+  , unknownNameErr
   -- ** Synthesis errors
   , SynthError
   , cannotSynthTypeForExpr
@@ -59,7 +59,7 @@ notImplemented descr = throwError (injErr (NotImplemented descr))
 
 
 data ScopeError =
-  NotInScope Identifier
+  NotInScope Name
 
 
 instance Show ScopeError where
@@ -70,8 +70,8 @@ instance Exception ScopeError
 
 
 -- | Indicate that an identifier is not known to be defined.
-unknownIdentifierErr :: (CanThrow m err ScopeError) => Identifier -> m a
-unknownIdentifierErr n = throwError (injErr (NotInScope n))
+unknownNameErr :: (CanThrow m err ScopeError) => Name -> m a
+unknownNameErr n = throwError (injErr (NotInScope n))
 
 
 ------------------

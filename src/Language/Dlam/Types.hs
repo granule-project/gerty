@@ -37,8 +37,8 @@ import Language.Dlam.Syntax.PrettyPrint
 -- | Common constraints required for type checking.
 type Checkable m err v =
   ( Monad m
-  , Substitutable m Identifier Expr
-  , HasBinderMap m Identifier v
+  , Substitutable m Name Expr
+  , HasBinderMap m Name v
   , HasNormalFormMap m Expr Expr
   , HasTyVal v (Maybe Expr) Expr
   , MonadError err m
@@ -55,13 +55,13 @@ type Checkable m err v =
 
 
 -- | Execute the action with the given identifier bound with the given type.
-withTypedVariable :: (Monad m, HasTyVal v (Maybe t) Expr, HasBinderMap m Identifier v) =>
-  Identifier -> Expr -> m a -> m a
+withTypedVariable :: (Monad m, HasTyVal v (Maybe t) Expr, HasBinderMap m Name v) =>
+  Name -> Expr -> m a -> m a
 withTypedVariable v t = withBinding (mkTag :: BinderMap) (v, fromTyVal (Nothing, t))
 
 
 -- | Execute the action with the binder from the abstraction active.
-withAbsBinding :: (Monad m, HasTyVal v (Maybe t) Expr, HasBinderMap m Identifier v) =>
+withAbsBinding :: (Monad m, HasTyVal v (Maybe t) Expr, HasBinderMap m Name v) =>
   Abstraction -> m a -> m a
 withAbsBinding ab = withTypedVariable (absVar ab) (absTy ab)
 
@@ -415,7 +415,7 @@ checkOrInferType t expr@LitLevel{} = ensureEqualTypes expr t (builtinBody levelT
 -}
 checkOrInferType t expr@(Var x) = do
   -- x : A in G
-  tA <- getBinderType (mkTag :: BinderMap) x >>= maybe (unknownIdentifierErr x) pure
+  tA <- getBinderType (mkTag :: BinderMap) x >>= maybe (unknownNameErr x) pure
 
   -- G |- A : Type l
   _l <- inferUniverseLevel tA

@@ -75,7 +75,7 @@ instance PrettyPrint Expr where
     pprint (PairElim (Ignore, Implicit{}) (x, y, g) p) = "let (" <> pprint x <> ", " <> pprint y <> ") = " <> pprint p <> " in " <> pprint g
     pprint (PairElim (z, tC) (x, y, g) p) = "let " <> pprint z <> "@(" <> pprint x <> ", " <> pprint y <> ") = " <> pprint p <> " in (" <> pprint g <> " : " <> pprint tC <> ")"
 
-instance PrettyPrint Identifier where
+instance PrettyPrint Name where
   pprint (Ident v) = v
   pprint (GenIdent (v, i)) = v <> "_" <> show i
   pprint Ignore = "_"

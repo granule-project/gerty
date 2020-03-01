@@ -6,7 +6,7 @@
 
 module Language.Dlam.Syntax.Syntax
   ( Expr(..)
-  , Identifier(..)
+  , Name(..)
   , mkIdent
   , ignoreVar
   , Term(..)
@@ -74,7 +74,7 @@ newtype AST = AST [Declaration]
 -- | A function clause's left-hand side.
 data FLHS =
   -- Currently we only support simple identifiers.
-  FLHSName Identifier
+  FLHSName Name
   deriving (Show)
 
 -- | Right-hand side of a function clause.
@@ -88,25 +88,25 @@ data Declaration =
   -- ^ A single clause for a function.
     FunEqn FLHS FRHS
   -- ^ A type signature.
-  | TypeSig Identifier Expr
+  | TypeSig Name Expr
   deriving (Show)
 
-data Identifier = Ident String | GenIdent (String, Int) | Ignore
+data Name = Ident String | GenIdent (String, Int) | Ignore
   deriving (Show, Eq, Ord)
 
 -- | Create a new identifier from a (syntactic) string.
-mkIdent :: String -> Identifier
+mkIdent :: String -> Name
 mkIdent = Ident
 
--- | Identifier for use when the value is unused.
-ignoreVar :: Identifier
+-- | Name for use when the value is unused.
+ignoreVar :: Name
 ignoreVar = Ignore
 
-newtype Abstraction = Abst { getAbst :: (Identifier, Expr, Expr) }
+newtype Abstraction = Abst { getAbst :: (Name, Expr, Expr) }
   deriving (Show, Eq, Ord)
 
 -- | Variable bound in the abstraction.
-absVar :: Abstraction -> Identifier
+absVar :: Abstraction -> Name
 absVar (Abst (v, _, _)) = v
 
 -- | Type of the bound variable in the abstraction.
@@ -117,7 +117,7 @@ absTy (Abst (_, t, _)) = t
 absExpr :: Abstraction -> Expr
 absExpr (Abst (_, _, t)) = t
 
-mkAbs :: Identifier -> Expr -> Expr -> Abstraction
+mkAbs :: Name -> Expr -> Expr -> Abstraction
 mkAbs v e1 e2 = Abst (v, e1, e2)
 
 -- Abstract-syntax tree for LambdaCore
@@ -126,7 +126,7 @@ mkAbs v e1 e2 = Abst (v, e1, e2)
 -- tree of additional commands
 data Expr where
   -- | Variable.
-  Var :: Identifier -> Expr
+  Var :: Name -> Expr
 
   -- | Level literals.
   LitLevel :: Int -> Expr
@@ -144,19 +144,19 @@ data Expr where
   Pair :: Expr -> Expr -> Expr
 
   -- | Pair eliminator.
-  PairElim :: (Identifier, Expr) -> (Identifier, Identifier, Expr) -> Expr -> Expr
+  PairElim :: (Name, Expr) -> (Name, Name, Expr) -> Expr -> Expr
 
   -- | Coproduct type.
   Coproduct :: Expr -> Expr -> Expr
 
   -- | Coproduct eliminator.
-  CoproductCase :: (Identifier, Expr) -> (Identifier, Expr) -> (Identifier, Expr) -> Expr -> Expr
+  CoproductCase :: (Name, Expr) -> (Name, Expr) -> (Name, Expr) -> Expr -> Expr
 
   -- | Natural number eliminator.
-  NatCase :: (Identifier, Expr) -> Expr -> (Identifier, Identifier, Expr) -> Expr -> Expr
+  NatCase :: (Name, Expr) -> Expr -> (Name, Name, Expr) -> Expr -> Expr
 
   -- | Identity eliminator.
-  RewriteExpr :: Identifier -> Identifier -> Identifier -> Expr -> Identifier -> Expr -> Expr -> Expr -> Expr -> Expr
+  RewriteExpr :: Name -> Name -> Name -> Expr -> Name -> Expr -> Expr -> Expr -> Expr -> Expr
 
   App :: Expr ->  Expr   -> Expr -- e1 e2
 
@@ -228,13 +228,13 @@ data BuiltinTerm =
   deriving (Show, Eq, Ord)
 
 
-newtype Builtin = MkBuiltin (Identifier, BuiltinTerm, Expr)
+newtype Builtin = MkBuiltin (Name, BuiltinTerm, Expr)
 
 mkBuiltin :: String -> BuiltinTerm -> Expr -> Builtin
 mkBuiltin name exprRef ty = MkBuiltin (mkIdent name, exprRef, ty)
 
 -- | Syntactic name of a builtin term.
-builtinName :: Builtin -> Identifier
+builtinName :: Builtin -> Name
 builtinName (MkBuiltin (n, _, _)) = n
 
 -- | Body for a builtin term (essentially an Agda postulate).
@@ -246,7 +246,7 @@ builtinType :: Builtin -> Expr
 builtinType (MkBuiltin (_, _, t)) = t
 
 
-mkFunTy :: Identifier -> Expr -> Expr -> Expr
+mkFunTy :: Name -> Expr -> Expr -> Expr
 mkFunTy n t e = FunTy $ mkAbs n t e
 
 typeZero, levelTy', natTy' :: Expr
@@ -355,14 +355,14 @@ dnsuccApp = mkApp (builtinBody dnsucc)
 ----------------------------
 
 class Term t where
-  boundVars :: t -> Set.Set Identifier
-  freeVars  :: t -> Set.Set Identifier
+  boundVars :: t -> Set.Set Name
+  freeVars  :: t -> Set.Set Name
 
 
-boundVarsAbs :: Abstraction -> Set.Set Identifier
+boundVarsAbs :: Abstraction -> Set.Set Name
 boundVarsAbs ab = absVar ab `Set.insert` boundVars (absExpr ab)
 
-freeVarsAbs :: Abstraction -> Set.Set Identifier
+freeVarsAbs :: Abstraction -> Set.Set Name
 freeVarsAbs ab = Set.delete (absVar ab) (freeVars (absExpr ab))
 
 instance Term Expr where
