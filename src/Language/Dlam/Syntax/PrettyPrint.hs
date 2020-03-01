@@ -55,8 +55,8 @@ instance PrettyPrint Expr where
     pprint (Coproduct e1 e2) = pprint e1 <> " + " <> pprint e2
     pprint (CoproductCase (z, tC) (x, c) (y, d) e) =
       "case " <> pprint z <> "@" <> bracket_pprint e <> " of ("
-              <> "inl " <> pprint x <> " -> " <> pprint c <> "; "
-              <> "inr " <> pprint y <> " -> " <> pprint d <> ") : " <> pprint tC
+              <> "Inl " <> pprint x <> " -> " <> pprint c <> "; "
+              <> "Inr " <> pprint y <> " -> " <> pprint d <> ") : " <> pprint tC
     pprint (NatCase (x, tC) cz (w, y, cs) n) =
       "case " <> pprint x <> "@" <> bracket_pprint n <> " of ("
               <> "Zero -> " <> pprint cz <> "; "
