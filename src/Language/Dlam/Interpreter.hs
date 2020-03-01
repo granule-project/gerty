@@ -31,10 +31,10 @@ instance InjErr ImplementationError InterpreterError where
   injErr = IImplementationError
 instance InjErr TypeError InterpreterError where injErr = ITypeError
 
-newtype InterpreterResult = InterpreterResult NAST
+newtype InterpreterResult = InterpreterResult AST
 
 instance Show InterpreterResult where
-  show (InterpreterResult nast) = pprint nast
+  show (InterpreterResult ast) = pprint ast
 
 
 throwGenericError :: (MonadError InterpreterError m) => String -> m a
@@ -62,14 +62,12 @@ run fname input =
     Right ast -> do
       -- Show AST
       tell $ "\n " <> ansi_bold <> "AST: " <> ansi_reset <> show ast
-      let nast = normaliseAST ast
-      tell $ "\n " <> ansi_bold <> "NAST: " <> ansi_reset <> show nast
 
       -- Pretty print
-      tell $ "\n " <> ansi_bold <> "Pretty:\n" <> ansi_reset <> pprint nast
+      tell $ "\n " <> ansi_bold <> "Pretty:\n" <> ansi_reset <> pprint ast
 
       -- Typing
-      fmap InterpreterResult $ doNASTInference nast
+      fmap InterpreterResult $ doASTInference ast
 
     Left msg -> throwGenericError $ ansi_red ++ "Error: " ++ ansi_reset ++ msg
 

@@ -11,6 +11,7 @@ import Control.Monad.Trans.Reader
 import Control.Monad.Trans.Class (lift)
 
 import Language.Dlam.Syntax.Lexer
+import Language.Dlam.Syntax.PrettyPrint (pprint)
 import Language.Dlam.Syntax.Syntax
 
 }
@@ -57,19 +58,38 @@ import Language.Dlam.Syntax.Syntax
 %%
 
 Program :: { ParseAST }
-  : Stmts  { AST $1 }
+  : Declarations  { AST $1 }
 
-Stmts :: { [ParseStmt] }
-  : Stmt NL Stmts { $1 : $3 }
-  | Stmt          { pure $1 }
-
-Stmt :: { ParseStmt }
-  : VAR ':' Expr { StmtType (symString $1) $3 }
-  | VAR '=' Expr { StmtAssign (symString $1) $3 }
+Declarations :: { [ParseDeclaration] }
+  : Declaration NL Declarations { $1 : $3 }
+  | Declaration          { pure $1 }
 
 NL :: { () }
   : nl NL                     { }
   | nl                        { }
+
+----------------------
+---- Declarations ----
+----------------------
+
+-- Left-hand side of a function clause
+FLHS :: { FLHS }
+  -- we only support names for the moment
+  : Ident { FLHSName $1 }
+  -- TODO: add support for parsing patterns on the LHS (2020-02-29)
+
+Declaration :: { Declaration }
+  : FunctionDeclaration { $1 }
+
+FunctionDeclaration :: { Declaration }
+  : FLHS FRHS { funAssignOrTypeSig $1 $2 }
+
+-- Right-hand side of a function clause
+FRHS :: { FRHSOrTypeSig }
+  -- Assignment
+  : '=' Expr { IsRHS (FRHSAssign $2) }
+  -- Type signature
+  | ':' Expr { IsTypeSig $2 }
 
 Ident :: { Identifier }
   : VAR { mkIdentFromSym $1 }
@@ -149,7 +169,7 @@ TyBindings :: { [(Identifier, ParseExpr)] }
 
 type ParseExpr = Expr
 type ParseAST = AST
-type ParseStmt = Stmt
+type ParseDeclaration = Declaration
 
 parseError :: [Token] -> ReaderT String (Either String) a
 parseError [] = lift . Left $ "Premature end of file"
@@ -167,5 +187,13 @@ natTokenToInt (TokenNat _ x) = x
 
 mkIdentFromSym :: Token -> Identifier
 mkIdentFromSym = mkIdent . symString
+
+data FRHSOrTypeSig = IsRHS FRHS | IsTypeSig Expr
+
+funAssignOrTypeSig :: FLHS -> FRHSOrTypeSig -> Declaration
+funAssignOrTypeSig n (IsRHS e) = FunEqn n e
+funAssignOrTypeSig (FLHSName n) (IsTypeSig t) = TypeSig n t
+-- TODO: improve error system in parser here to use a monad (2020-03-01)
+funAssignOrTypeSig lhs (IsTypeSig _) = error $ "'" <> pprint lhs <> "' is not allowed a type signature"
 
 }

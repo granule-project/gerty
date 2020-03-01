@@ -14,11 +14,12 @@ module Language.Dlam.Syntax.Syntax
   , absVar
   , absTy
   , absExpr
+  -- * AST
   , AST(..)
-  , Stmt(..)
-  , NAST(..)
+  -- ** Declarations
+  , FLHS(..)
+  , FRHS(..)
   , Declaration(..)
-  , normaliseAST
   , Abstraction
   , mkImplicit
 
@@ -60,41 +61,35 @@ module Language.Dlam.Syntax.Syntax
 
 import qualified Data.Set as Set
 
-----------------
--- Statements --
-----------------
 
-newtype AST = AST [Stmt]
+------------------
+-- Declarations --
+------------------
+
+
+newtype AST = AST [Declaration]
   deriving Show
 
-data Stmt =
-  -- | Assignment to a name.
-    StmtAssign String Expr
-  -- | Type assignment.
-  | StmtType String Expr
-  deriving Show
 
-newtype NAST = NAST [Declaration]
-  deriving Show
+-- | A function clause's left-hand side.
+data FLHS =
+  -- Currently we only support simple identifiers.
+  FLHSName Identifier
+  deriving (Show)
+
+-- | Right-hand side of a function clause.
+data FRHS =
+  -- Currently we only support simple expressions.
+  FRHSAssign Expr
+  deriving (Show)
+
 
 data Declaration =
-  -- | An assignment with an optional type, and mandatory definition.
-  Decl String (Maybe Expr) Expr
-  deriving Show
-
--- | Normalise the raw AST into a form appropriate for further analyses.
--- TODO: add a better error system (2020-02-19)
-normaliseAST :: AST -> NAST
-normaliseAST (AST []) = NAST []
-normaliseAST (AST ((StmtType v t):(StmtAssign v' e):sts))
-  | v == v' = let (NAST xs) = normaliseAST (AST sts) in NAST ((Decl v (Just t) e):xs)
-  | otherwise = error $ "type declaration for '" <> v <> "' followed by an assignment to '" <> v' <> "'"
-normaliseAST (AST ((StmtAssign v e):sts)) =
-  let (NAST xs) = normaliseAST (AST sts) in NAST ((Decl v Nothing e) : xs)
-normaliseAST (AST [StmtType v _]) =
-  error $ "expected an assignment to '" <> v <> "' but reached end of file"
-normaliseAST (AST ((StmtType v _):StmtType{}:_)) =
-  error $ "expected an assignment to '" <> v <> "' but got another type assignment"
+  -- ^ A single clause for a function.
+    FunEqn FLHS FRHS
+  -- ^ A type signature.
+  | TypeSig Identifier Expr
+  deriving (Show)
 
 data Identifier = Ident String | GenIdent (String, Int) | Ignore
   deriving (Show, Eq, Ord)

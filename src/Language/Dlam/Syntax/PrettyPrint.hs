@@ -92,11 +92,15 @@ instance PrettyPrint BuiltinTerm where
   pprint IdTy      = pprint . builtinName $ idTy
   pprint DRefl     = pprint . builtinName $ reflTerm
 
-instance PrettyPrint NAST where
-  pprint (NAST sts) = concat . intersperse "\n\n" $ fmap pprint sts
+instance PrettyPrint AST where
+  pprint (AST decls) = concat . intersperse "\n\n" $ fmap pprint decls
+
+instance PrettyPrint FLHS where
+  pprint (FLHSName n) = pprint n
+
+instance PrettyPrint FRHS where
+  pprint (FRHSAssign e) = "= " <> pprint e
 
 instance PrettyPrint Declaration where
-  pprint (Decl v Nothing e) =
-    v <> " = " <> pprint e
-  pprint (Decl v (Just t) e) =
-    v <> " : " <> pprint t <> "\n" <> v <> " = " <> pprint e
+  pprint (TypeSig n t) = pprint n <> " : " <> pprint t
+  pprint (FunEqn lhs rhs) = pprint lhs <> " " <> pprint rhs

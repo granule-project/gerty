@@ -1,7 +1,7 @@
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
 module Language.Dlam.Types
-  ( doNASTInference
+  ( doASTInference
   , Checkable
   ) where
 
@@ -276,15 +276,12 @@ equalExprs e1 e2 = do
 -- | Attempt to infer the types of a definition, and check this against the declared
 -- | type, if any.
 doDeclarationInference :: (Checkable m err v) => Declaration -> m Declaration
-doDeclarationInference (Decl v Nothing e) =
-  doDeclarationInference (Decl v (Just Implicit) e)
-doDeclarationInference (Decl v (Just t) e) = do
-  -- make sure that the definition's type is actually a type
+doDeclarationInference (TypeSig n t) = do
+  -- make sure that the type is actually a type
   checkExprValidForSignature t
 
-  exprTy <- checkOrInferType t e
-  setBinder (mkTag :: BinderMap) (mkIdent v) (fromTyVal (Just e, exprTy))
-  pure (Decl v (Just exprTy) e)
+  registerTypeForName n t
+  pure (TypeSig n t)
   where
     -- | Check that the given expression is valid as a type signature.
     -- |
@@ -294,11 +291,24 @@ doDeclarationInference (Decl v (Just t) e) = do
     checkExprValidForSignature Implicit = pure ()
     checkExprValidForSignature expr = inferUniverseLevel expr >> pure ()
 
+doDeclarationInference (FunEqn (FLHSName v) (FRHSAssign e)) = do
+
+  -- try and get a prescribed type for the equation,
+  -- treating it as an implicit if no type is given
+  t <- getBinderType (mkTag :: BinderMap) v
+  exprTy <- case t of
+              Nothing -> checkOrInferType mkImplicit e
+              Just ty -> checkOrInferType ty e
+
+  -- assign the appopriate equation and normalised/inferred type for the name
+  setBinder (mkTag :: BinderMap) v (fromTyVal (Just e, exprTy))
+  pure (FunEqn (FLHSName v) (FRHSAssign e))
+
 
 -- | Attempt to infer the types of each definition in the AST, failing if a type
 -- | mismatch is found.
-doNASTInference :: (Checkable m err v) => NAST -> m NAST
-doNASTInference (NAST ds) = fmap NAST $ mapM doDeclarationInference ds
+doASTInference :: (Checkable m err v) => AST -> m AST
+doASTInference (AST ds) = fmap AST $ mapM doDeclarationInference ds
 
 
 -- | Infer a level for the given type.
