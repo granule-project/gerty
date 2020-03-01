@@ -120,10 +120,6 @@ absExpr (Abst (_, _, t)) = t
 mkAbs :: Name -> Expr -> Expr -> Abstraction
 mkAbs v e1 e2 = Abst (v, e1, e2)
 
--- Abstract-syntax tree for LambdaCore
--- parameterised by an additional type `ex`
--- used to represent the abstract syntax
--- tree of additional commands
 data Expr where
   -- | Variable.
   Var :: Name -> Expr
