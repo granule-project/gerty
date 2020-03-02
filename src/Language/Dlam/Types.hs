@@ -25,8 +25,9 @@ import Language.Dlam.Exception
 import Language.Dlam.Substitution
   ( Substitutable(substitute)
   )
-import Language.Dlam.Syntax.Syntax
+import Language.Dlam.Syntax.Free (freeVars)
 import Language.Dlam.Syntax.PrettyPrint
+import Language.Dlam.Syntax.Syntax
 
 
 -------------------

@@ -9,7 +9,6 @@ module Language.Dlam.Syntax.Syntax
   , Name(..)
   , mkIdent
   , ignoreVar
-  , Term(..)
   , mkAbs
   , absVar
   , absTy
@@ -60,8 +59,6 @@ module Language.Dlam.Syntax.Syntax
   , reflTerm
   , reflTermApp
   ) where
-
-import qualified Data.Set as Set
 
 
 ------------------
@@ -359,39 +356,3 @@ reflTermApp l t x = mkApp (mkApp (mkApp (builtinBody reflTerm) l) t) x
 
 dnsuccApp :: Expr -> Expr
 dnsuccApp = mkApp (builtinBody dnsucc)
-
-
-----------------------------
-
-class Term t where
-  freeVars  :: t -> Set.Set Name
-
-
-freeVarsAbs :: Abstraction -> Set.Set Name
-freeVarsAbs ab = Set.delete (absVar ab) (freeVars (absExpr ab))
-
-instance Term Expr where
-  freeVars (FunTy ab)                    = freeVarsAbs ab
-  freeVars (Abs ab)                      = freeVarsAbs ab
-  freeVars (ProductTy ab)                = freeVarsAbs ab
-  freeVars (App e1 e2)                   = freeVars e1 `Set.union` freeVars e2
-  freeVars (Pair e1 e2)                  = freeVars e1 `Set.union` freeVars e2
-  freeVars (Coproduct t1 t2) = freeVars t1 `Set.union` freeVars t2
-  freeVars (CoproductCase (_z, _tC) (x, c) (y, d) _e) =
-    Set.delete x (Set.delete y (freeVars c `Set.union` freeVars d))
-  freeVars (NatCase (x, tC) cz (w, y, cs) _n) =
-    (Set.delete x (freeVars tC)) `Set.union` (freeVars cz) `Set.union` (Set.delete w $ Set.delete y $ freeVars cs)
-  freeVars (Var var)                     = Set.singleton var
-  freeVars (Sig e _)                     = freeVars e
-  freeVars (PairElim (z, tC) (x, y, g) p) =
-    Set.delete z (Set.delete x (Set.delete y (freeVars g `Set.union` freeVars p `Set.union` freeVars tC)))
-  -- TODO: I'm not entirely convinced the freeVars for RewriteExpr is actually correct (2020-02-27)
-  freeVars (RewriteExpr _x _y _p _tC _z c _a _b _p') = freeVars c
-  freeVars (UnitElim (x, tC) c a) =
-    Set.delete x $ freeVars tC `Set.union` (freeVars c `Set.union` freeVars a)
-  freeVars (EmptyElim (x, tC) a) =
-    Set.delete x $ freeVars tC `Set.union` freeVars a
-  freeVars Hole                          = Set.empty
-  freeVars Implicit                      = Set.empty
-  freeVars LitLevel{}                    = Set.empty
-  freeVars Builtin{}                     = Set.empty
