@@ -35,7 +35,7 @@ instance Free C.Expr where
   freeVars (C.PairElim (z, tC) (x, y, g) p) =
     Set.delete z (Set.delete x (Set.delete y (freeVars (g, (p, tC)))))
   -- TODO: I'm not entirely convinced the freeVars for RewriteExpr is actually correct (2020-02-27)
-  freeVars (C.RewriteExpr _x _y _p _tC _z c _a _b _p') = freeVars c
+  freeVars (C.RewriteExpr (_x, _y, _p, _tC) (_z, c) _a _b _p') = freeVars c
   freeVars (C.UnitElim (x, tC) c a)        = Set.delete x $ freeVars (tC, (c, a))
   freeVars (C.EmptyElim (x, tC) a)         = Set.delete x $ freeVars (tC, a)
   freeVars C.Hole                          = Set.empty

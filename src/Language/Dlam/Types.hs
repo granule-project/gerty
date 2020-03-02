@@ -727,7 +727,7 @@ checkOrInferType t expr@(NatCase (x, tC) cz (w, y, cs) n) = do
    --------------------------------------------------------- :: RewriteExpr
    G |- rewrite(x.y.p.C, l1, A, a, b, p) : [a/x][b/y][p'/p]C
 -}
-checkOrInferType t expr@(RewriteExpr x y p tC z c a b p') = do
+checkOrInferType t expr@(RewriteExpr (x, y, p, tC) (z, c) a b p') = do
   -- G |- a : A
   tA <- synthType a
 

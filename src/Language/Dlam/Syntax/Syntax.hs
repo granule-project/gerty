@@ -150,7 +150,7 @@ data Expr
   | NatCase (Name, Expr) Expr (Name, Name, Expr) Expr
 
   -- | Identity eliminator.
-  | RewriteExpr Name Name Name Expr Name Expr Expr Expr Expr
+  | RewriteExpr (Name, Name, Name, Expr) (Name, Expr) Expr Expr Expr
 
   -- | Unit eliminator.
   | UnitElim (Name, Expr) Expr Expr

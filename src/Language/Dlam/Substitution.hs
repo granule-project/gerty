@@ -75,13 +75,13 @@ instance (SubstConstr m v) => Substitutable m Name Expr where
   substitute _ e@Hole{} = pure e
   substitute _ e@Implicit = pure e
   substitute s (Sig e t) = Sig <$> substitute s e <*> substitute s t
-  substitute s@(v, _) (RewriteExpr x y pv tC z c a b pe) = do
+  substitute s@(v, _) (RewriteExpr (x, y, pv, tC) (z, c) a b pe) = do
     tC' <- if v `elem` [x, y, pv] then pure tC else substitute s tC
     c' <- if v == z then pure c else substitute s c
     a' <- substitute s a
     b' <- substitute s b
     pe' <- substitute s pe
-    pure $ RewriteExpr x y pv tC' z c' a' b' pe'
+    pure $ RewriteExpr (x, y, pv, tC') (z, c') a' b' pe'
   substitute s@(v, _) (UnitElim (x, tC) c a) = do
     tC' <- if v == x then pure tC else substitute s tC
     c' <- substitute s c

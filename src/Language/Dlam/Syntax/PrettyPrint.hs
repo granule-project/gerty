@@ -65,7 +65,7 @@ instance PrettyPrint Expr where
       "case " <> pprint x <> "@" <> bracket_pprint n <> " of ("
               <> "Zero -> " <> pprint cz <> "; "
               <> "Succ " <> pprint w <> "@" <> pprint y <> " -> " <> pprint cs <> ") : " <> pprint tC
-    pprint (RewriteExpr x y p tC z c a b p') =
+    pprint (RewriteExpr (x, y, p, tC) (z, c) a b p') =
       concat ["rewrite (", pprint x, ".", pprint y, ".", pprint p, ".", pprint tC, ", ", pprint z, ".", pprint c, ", ", pprint a, ", ", pprint b, ", ", pprint p', ")"]
     pprint (Var var) = pprint var
     pprint (Sig e t) = bracket_pprint e ++ " : " ++ pprint t

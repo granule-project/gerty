@@ -117,7 +117,7 @@ Expr :: { ParseExpr }
 
   | let Ident '@' absurd '=' Expr ':' Expr { EmptyElim ($2, $8) $6 }
 
-  | rewrite '(' Ident '.' Ident '.' Ident '.' Expr ',' Ident '.' Expr ',' Expr ',' Expr ',' Expr ')' { RewriteExpr $3 $5 $7 $9 $11 $13 $15 $17 $19 }
+  | rewrite '(' Ident '.' Ident '.' Ident '.' Expr ',' Ident '.' Expr ',' Expr ',' Expr ',' Expr ')' { RewriteExpr ($3, $5, $7, $9) ($11, $13) $15 $17 $19 }
 
   | case Ident '@' Expr of '(' inl Ident '->' Expr ';' inr Ident '->' Expr ')' ':' Expr
     { CoproductCase ($2, $18) ($8, $10) ($13, $15) $4 }
