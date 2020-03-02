@@ -1,5 +1,4 @@
 {-# LANGUAGE EmptyDataDeriving #-}
-{-# LANGUAGE GADTs #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE StandaloneDeriving #-}
@@ -119,58 +118,58 @@ absExpr (Abst (_, _, t)) = t
 mkAbs :: Name -> Expr -> Expr -> Abstraction
 mkAbs v e1 e2 = Abst (v, e1, e2)
 
-data Expr where
+data Expr
   -- | Variable.
-  Var :: Name -> Expr
+  = Var Name
 
   -- | Level literals.
-  LitLevel :: Int -> Expr
+  | LitLevel Int
 
   -- | Dependent function type.
-  FunTy :: Abstraction -> Expr
+  | FunTy Abstraction
 
   -- | Lambda abstraction.
-  Abs :: Abstraction -> Expr
+  | Abs Abstraction
 
   -- | Dependent tensor type.
-  ProductTy :: Abstraction -> Expr
+  | ProductTy Abstraction
 
   -- | Pairs.
-  Pair :: Expr -> Expr -> Expr
+  | Pair Expr Expr
 
   -- | Pair eliminator.
-  PairElim :: (Name, Expr) -> (Name, Name, Expr) -> Expr -> Expr
+  | PairElim (Name, Expr) (Name, Name, Expr) Expr
 
   -- | Coproduct type.
-  Coproduct :: Expr -> Expr -> Expr
+  | Coproduct Expr Expr
 
   -- | Coproduct eliminator.
-  CoproductCase :: (Name, Expr) -> (Name, Expr) -> (Name, Expr) -> Expr -> Expr
+  | CoproductCase (Name, Expr) (Name, Expr) (Name, Expr) Expr
 
   -- | Natural number eliminator.
-  NatCase :: (Name, Expr) -> Expr -> (Name, Name, Expr) -> Expr -> Expr
+  | NatCase (Name, Expr) Expr (Name, Name, Expr) Expr
 
   -- | Identity eliminator.
-  RewriteExpr :: Name -> Name -> Name -> Expr -> Name -> Expr -> Expr -> Expr -> Expr -> Expr
+  | RewriteExpr Name Name Name Expr Name Expr Expr Expr Expr
 
   -- | Unit eliminator.
-  UnitElim :: (Name, Expr) -> Expr -> Expr -> Expr
+  | UnitElim (Name, Expr) Expr Expr
 
   -- | Empty eliminator.
-  EmptyElim :: (Name, Expr) -> Expr -> Expr
+  | EmptyElim (Name, Expr) Expr
 
-  App :: Expr ->  Expr   -> Expr -- e1 e2
+  | App Expr Expr -- e1 e2
 
-  Sig :: Expr -> Expr       -> Expr -- e : A
+  | Sig Expr Expr -- e : A
 
   -- | Holes for inference.
-  Hole :: Expr
+  | Hole
 
   -- | Implicits for synthesis.
-  Implicit :: Expr
+  | Implicit
 
   -- | Builtin terms, with a unique identifying name.
-  Builtin :: BuiltinTerm -> Expr
+  | Builtin BuiltinTerm
   deriving (Show, Eq, Ord)
 
 
