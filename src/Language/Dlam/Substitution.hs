@@ -1,23 +1,11 @@
-{-# LANGUAGE ConstraintKinds #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FunctionalDependencies #-}
-{-# LANGUAGE MonoLocalBinds #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE UndecidableInstances #-}
 module Language.Dlam.Substitution
   ( Substitutable(..)
   , Freshenable(..)
   ) where
 
-import Language.Dlam.Binders
-  ( IsTag(mkTag)
-  , HasTyVal(fromTyVal)
-  , withBinding
-  , BinderMap
-  , HasBinderMap
-  )
 import Language.Dlam.Syntax.Syntax
+import Language.Dlam.TypeChecking.Monad.Base
 
 class Freshenable m n | m -> n where
   freshen :: n -> m n
@@ -26,22 +14,17 @@ class Substitutable m n e | m -> n, m -> e where
   substitute :: (n, e) -> e -> m e
 
 
-type SubstConstr m v =
-  ( Monad m, HasTyVal v (Maybe Expr) Expr
-  , HasBinderMap m Name v, Freshenable m Name
-  , Substitutable m Name Expr)
-
-substAbs :: (SubstConstr m v) => (Name, Expr) -> Abstraction -> m Abstraction
+substAbs :: (Name, Expr) -> Abstraction -> CM Abstraction
 substAbs s ab = do
   let v = absVar ab
   v' <- freshen v
   t <- substitute s (absTy ab)
-  withBinding (mkTag :: BinderMap) (v', fromTyVal (Nothing, t)) $ do
+  withTypedVariable v' t $ do
     e <- substitute (v, Var v') (absExpr ab) >>= substitute s
     pure $ mkAbs v' t e
 
 
-instance (SubstConstr m v) => Substitutable m Name Expr where
+instance Substitutable CM Name Expr where
   substitute (v, e) (Var x)
     | v == x    = pure e
     | otherwise = pure (Var x)
@@ -92,3 +75,12 @@ instance (SubstConstr m v) => Substitutable m Name Expr where
     a' <- substitute s a
     pure $ EmptyElim (x, tC') a'
   substitute _ e@Builtin{} = pure e
+
+
+instance Freshenable CM Name where
+  freshen v = do
+    count <- getUniqueCounter
+    pure $ case v of
+      Ignore -> GenIdent ("_", count)
+      Ident v -> GenIdent (v, count)
+      GenIdent (v, _) -> GenIdent (v, count)

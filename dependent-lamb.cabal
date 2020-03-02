@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: fa08e6f0ed9ce8ab5e8d090f9ba39accaac0a5778cf5205f966914ad99c39c1a
+-- hash: 34c4bc2d4c84f1bae3312b811d58a945cb64b154bb4b4f067df22d438890bbad
 
 name:           dependent-lamb
 version:        0.0.1
@@ -17,19 +17,18 @@ build-type:     Simple
 
 library
   exposed-modules:
-      Language.Dlam.Binders
       Language.Dlam.Interpreter
-      Language.Dlam.Program
       Language.Dlam.Substitution
       Language.Dlam.Syntax.Parser
       Language.Dlam.Syntax.PrettyPrint
       Language.Dlam.Syntax.Syntax
       Language.Dlam.Types
+      Language.Dlam.TypeChecking.Monad
   other-modules:
-      Language.Dlam.Exception
       Language.Dlam.FirstParameter
       Language.Dlam.Syntax.Free
       Language.Dlam.Syntax.Lexer
+      Language.Dlam.TypeChecking.Monad.Base
   hs-source-dirs:
       src
   ghc-options: -O0 -Wall -Werror -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns -Wredundant-constraints -Wno-name-shadowing -Wno-type-defaults

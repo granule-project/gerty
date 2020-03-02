@@ -30,19 +30,18 @@ library:
    - array
    - text
   exposed-modules:
-   - Language.Dlam.Binders
    - Language.Dlam.Interpreter
-   - Language.Dlam.Program
    - Language.Dlam.Substitution
    - Language.Dlam.Syntax.Parser
    - Language.Dlam.Syntax.PrettyPrint
    - Language.Dlam.Syntax.Syntax
    - Language.Dlam.Types
+   - Language.Dlam.TypeChecking.Monad
   other-modules:
-   - Language.Dlam.Exception
    - Language.Dlam.FirstParameter
    - Language.Dlam.Syntax.Free
    - Language.Dlam.Syntax.Lexer
+   - Language.Dlam.TypeChecking.Monad.Base
 
 executables:
   dlam:

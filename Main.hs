@@ -1,7 +1,7 @@
 module Dlam (main) where
 
 import Language.Dlam.Interpreter (formatError)
-import Language.Dlam.Program (runProgFull)
+import Language.Dlam.TypeChecking.Monad (runNewChecker, tcrLog, tcrRes)
 import qualified Language.Dlam.Interpreter as Interpreter
 
 import System.Directory   (doesPathExist)
@@ -20,8 +20,8 @@ main = do
         then putStrLn $ "File `" <> fname <> "` cannot be found."
         else do
           input <- readFile fname
-          let (res, log) = runProgFull (Interpreter.run fname input)
-          putStrLn log
-          case res of
+          let res = runNewChecker (Interpreter.run fname input)
+          putStrLn (tcrLog res)
+          case tcrRes res of
             Left err -> putStrLn (formatError err) >> exitFailure
             Right _ -> exitSuccess

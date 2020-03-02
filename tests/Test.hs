@@ -8,7 +8,7 @@ import Test.Tasty (defaultMain, TestTree, testGroup)
 import Test.Tasty.Golden (findByExtension)
 
 import Language.Dlam.Interpreter (formatError)
-import Language.Dlam.Program (runProgFull)
+import Language.Dlam.TypeChecking.Monad (runNewChecker, tcrRes)
 
 import qualified Language.Dlam.Interpreter as Interpreter
 
@@ -29,7 +29,7 @@ fileTestsPositive :: [FilePath] -> TestTree
 fileTestsPositive = testGroup "positive cases and examples" .
   fmap (\file -> testCase ("checking " <> file <> " type checks") $ do
                    src <- Strict.readFile file
-                   let (res, _log) = runProgFull (Interpreter.run file src)
+                   let res = tcrRes $ runNewChecker (Interpreter.run file src)
                    case res of
                      Right _ -> pure ()
                      Left err -> assertFailure
@@ -41,7 +41,7 @@ fileTestsNegative :: [FilePath] -> TestTree
 fileTestsNegative = testGroup "negative file cases" .
   fmap (\file -> testCase ("checking " <> file <> " doesn't type check") $ do
                    src <- Strict.readFile file
-                   let (res, _log) = runProgFull (Interpreter.run file src)
+                   let res = tcrRes $ runNewChecker (Interpreter.run file src)
                    assertBool "Expected file not to type check, but it did."
                                 (isLeft res))
 

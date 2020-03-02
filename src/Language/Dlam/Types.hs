@@ -1,28 +1,9 @@
-{-# LANGUAGE ConstraintKinds #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE MonoLocalBinds #-}
 module Language.Dlam.Types
   ( doASTInference
-  , Checkable
   ) where
 
 import Control.Monad (when)
-import Control.Monad.Except (MonadError)
 
-import Language.Dlam.Binders
-  ( HasNamedMap(..)
-  , HasBinderMap
-  , BinderMap
-  , HasNormalFormMap
-  , NormalFormMap
-  , IsTag(..)
-  , HasTyVal(fromTyVal)
-  , getBinder
-  , getBinderValue
-  , getBinderType
-  , withBinding
-  )
-import Language.Dlam.Exception
 import Language.Dlam.Substitution
   ( Substitutable(substitute)
   )
@@ -30,25 +11,7 @@ import Language.Dlam.Syntax.Free (freeVars)
 import Language.Dlam.Syntax.PrettyPrint
 import Language.Dlam.Syntax.Syntax
 
-
--------------------
------ Helpers -----
--------------------
-
-
--- | Common constraints required for type checking.
-type Checkable m err v =
-  ( Monad m
-  , Substitutable m Name Expr
-  , HasBinderMap m Name v
-  , HasNormalFormMap m Expr Expr
-  , HasTyVal v (Maybe Expr) Expr
-  , MonadError err m
-  , InjErr SynthError err
-  , InjErr TypeError err
-  , InjErr ImplementationError err
-  , InjErr ScopeError err
-  )
+import Language.Dlam.TypeChecking.Monad
 
 
 -------------------------
@@ -56,27 +19,13 @@ type Checkable m err v =
 -------------------------
 
 
--- | Execute the action with the given identifier bound with the given type.
-withTypedVariable :: (Monad m, HasTyVal v (Maybe t) Expr, HasBinderMap m Name v) =>
-  Name -> Expr -> m a -> m a
-withTypedVariable v t = withBinding (mkTag :: BinderMap) (v, fromTyVal (Nothing, t))
-
-
 -- | Execute the action with the binder from the abstraction active.
-withAbsBinding :: (Monad m, HasTyVal v (Maybe t) Expr, HasBinderMap m Name v) =>
-  Abstraction -> m a -> m a
+withAbsBinding :: Abstraction -> CM a -> CM a
 withAbsBinding ab = withTypedVariable (absVar ab) (absTy ab)
 
 
--- | 'withExprNormalisingTo e nf m' runs 'm', but causes
--- | any expressions that would usually normalise to (the normal form of)
--- | 'e' to instead normalise to 'nf'.
-withExprNormalisingTo :: (Checkable m err v) => Expr -> Expr -> m a -> m a
-withExprNormalisingTo e nf m = normalise e >>= \e -> withBinding (mkTag :: NormalFormMap) (e, nf) m
-
-
 -- | Normalise an abstraction via a series of reductions.
-normaliseAbs :: (Checkable m err v) => Abstraction -> m Abstraction
+normaliseAbs :: Abstraction -> CM Abstraction
 normaliseAbs ab = do
   t <- normalise (absTy ab)
   e <- withAbsBinding ab (normalise (absExpr ab))
@@ -86,19 +35,18 @@ normaliseAbs ab = do
 -- | Indicate that the expresion is now in an irreducible normal form.
 -- |
 -- | This allows for e.g., substituting normal forms.
-finalNormalForm :: (Functor m, HasNormalFormMap m Expr Expr) => Expr -> m Expr
-finalNormalForm e = maybe e id <$> getBinder (mkTag :: NormalFormMap) e
+finalNormalForm :: Expr -> CM Expr
+finalNormalForm e = maybe e id <$> lookupNormalForm e
 
 
 -- | Normalise the expression via a series of reductions.
-normalise :: (Checkable m err v) => Expr -> m Expr
+normalise :: Expr -> CM Expr
 normalise Implicit = finalNormalForm Implicit
 normalise (Var x) = do
-  val <- getBinderValue (mkTag :: BinderMap) x
+  val <- lookupValue x
   case val of
     Nothing -> finalNormalForm $ Var x
-    Just Nothing  -> finalNormalForm $ Var x
-    Just (Just e) -> normalise e
+    Just e -> normalise e
 normalise (FunTy ab) = finalNormalForm =<< FunTy <$> normaliseAbs ab
 normalise (Abs ab) = finalNormalForm =<< Abs <$> normaliseAbs ab
 normalise (ProductTy ab) = finalNormalForm =<< ProductTy <$> normaliseAbs ab
@@ -242,7 +190,7 @@ normalise e = notImplemented $ "normalise does not yet support '" <> pprint e <>
 
 
 -- | Check if two expressions are equal under normalisation.
-equalExprs :: (Checkable m err v) => Expr -> Expr -> m Bool
+equalExprs :: Expr -> Expr -> CM Bool
 equalExprs e1 e2 = do
   ne1 <- normalise e1
   ne2 <- normalise e2
@@ -276,7 +224,7 @@ equalExprs e1 e2 = do
     (Builtin b1, Builtin b2) -> pure (b1 == b2)
     (LitLevel n, LitLevel m) -> pure (n == m)
     (_, _) -> pure False
-  where equalAbs :: (Checkable m err v) => Abstraction -> Abstraction -> m Bool
+  where equalAbs :: Abstraction -> Abstraction -> CM Bool
         equalAbs ab1 ab2 = do
           -- checking \(x : a) -> b = \(y : c) -> d
           -- we say:
@@ -289,14 +237,14 @@ equalExprs e1 e2 = do
 
 
 -- | Try and register the name with the given type
-registerTypeForName :: (HasBinderMap m Name v, HasTyVal v (Maybe a) Expr) => Name -> Expr -> m ()
+registerTypeForName :: Name -> Expr -> CM ()
 registerTypeForName n t = do
-  setBinder (mkTag :: BinderMap) n (fromTyVal (Nothing, t))
+  setType n t
 
 
 -- | Attempt to infer the types of a definition, and check this against the declared
 -- | type, if any.
-doDeclarationInference :: (Checkable m err v) => Declaration -> m Declaration
+doDeclarationInference :: Declaration -> CM Declaration
 doDeclarationInference (TypeSig n t) = do
   -- make sure that the type is actually a type
   checkExprValidForSignature t
@@ -308,7 +256,7 @@ doDeclarationInference (TypeSig n t) = do
     -- |
     -- | This usually means that the expression is a type, but allows
     -- | for the possibility of holes that haven't yet been resolved.
-    checkExprValidForSignature :: (Checkable m err v) => Expr -> m ()
+    checkExprValidForSignature :: Expr -> CM ()
     checkExprValidForSignature Implicit = pure ()
     checkExprValidForSignature expr = inferUniverseLevel expr >> pure ()
 
@@ -316,24 +264,25 @@ doDeclarationInference (FunEqn (FLHSName v) (FRHSAssign e)) = do
 
   -- try and get a prescribed type for the equation,
   -- treating it as an implicit if no type is given
-  t <- getBinderType (mkTag :: BinderMap) v
+  t <- lookupType v
   exprTy <- case t of
               Nothing -> checkOrInferType mkImplicit e
               Just ty -> checkOrInferType ty e
 
   -- assign the appopriate equation and normalised/inferred type for the name
-  setBinder (mkTag :: BinderMap) v (fromTyVal (Just e, exprTy))
+  setValue v e
+  setType v exprTy
   pure (FunEqn (FLHSName v) (FRHSAssign e))
 
 
 -- | Attempt to infer the types of each definition in the AST, failing if a type
 -- | mismatch is found.
-doASTInference :: (Checkable m err v) => AST -> m AST
+doASTInference :: AST -> CM AST
 doASTInference (AST ds) = fmap AST $ mapM doDeclarationInference ds
 
 
 -- | Infer a level for the given type.
-inferUniverseLevel :: (Checkable m err v) => Expr -> m Expr
+inferUniverseLevel :: Expr -> CM Expr
 inferUniverseLevel e = do
   u <- synthType e
   norm <- normalise u
@@ -344,7 +293,7 @@ inferUniverseLevel e = do
 
 -- | 'ensureEqualTypes expr tyExpected tyActual' checks that 'tyExpected' and 'tyActual'
 -- | represent the same type (under normalisation), and fails if they differ.
-ensureEqualTypes :: (Checkable m err v) => Expr -> Expr -> Expr -> m Expr
+ensureEqualTypes :: Expr -> Expr -> Expr -> CM Expr
 ensureEqualTypes expr tyExpected tyActual = do
   typesEqual <- equalExprs tyActual tyExpected
   if typesEqual then pure tyActual
@@ -353,7 +302,7 @@ ensureEqualTypes expr tyExpected tyActual = do
 
 -- | Retrieve an Abstraction from a function type expression, failing if the
 -- | expression is not a function type.
-getAbsFromFunTy :: (MonadError err m, InjErr TypeError err) => Expr -> Expr -> m Abstraction
+getAbsFromFunTy :: Expr -> Expr -> CM Abstraction
 getAbsFromFunTy expr t =
   case t of
     FunTy ab -> pure ab
@@ -362,7 +311,7 @@ getAbsFromFunTy expr t =
 
 -- | Retrieve an Abstraction from a product type expression, failing if the
 -- | expression is not a product type.
-getAbsFromProductTy :: (MonadError err m, InjErr TypeError err) => Expr -> Expr -> m Abstraction
+getAbsFromProductTy :: Expr -> Expr -> CM Abstraction
 getAbsFromProductTy expr t =
   case t of
     ProductTy ab -> pure ab
@@ -371,7 +320,7 @@ getAbsFromProductTy expr t =
 
 -- | 'checkOrInferType ty ex' checks that the type of 'ex' matches 'ty', or infers
 -- | it 'ty' is a wild. Evaluates to the calculated type.
-checkOrInferType :: (Checkable m err v) => Expr -> Expr -> m Expr
+checkOrInferType :: Expr -> Expr -> CM Expr
 --------------
 -- Builtins --
 --------------
@@ -439,7 +388,7 @@ checkOrInferType t expr@LitLevel{} = ensureEqualTypes expr t (builtinBody levelT
 -}
 checkOrInferType t expr@(Var x) = do
   -- x : A in G
-  tA <- getBinderType (mkTag :: BinderMap) x >>= maybe (unknownNameErr x) pure
+  tA <- lookupType x >>= maybe (unknownNameErr x) pure
 
   -- G |- A : Type l
   _l <- inferUniverseLevel tA
@@ -522,7 +471,7 @@ checkOrInferType t expr@(App e1 e2) = do
   t2forXinB <- substitute (x, e2) tB
   ensureEqualTypes expr t t2forXinB
 
-  where inferFunTy :: (Checkable m err v) => Expr -> m Abstraction
+  where inferFunTy :: Expr -> CM Abstraction
         inferFunTy e = do
           t <- synthType e >>= normalise
           getAbsFromFunTy e t
@@ -601,7 +550,8 @@ checkOrInferType t expr@(PairElim (z, tC) (x, y, g) p) = do
   -- G, x : A, y : B |- t2 : [(x, y)/z]C
   let pairXY = Pair (Var x) (Var y)
   xyForZinC <- withTypedVariable x tA $ withTypedVariable y tB $ substitute (z, pairXY) tC
-  _ <- withTypedVariable x tA $ withTypedVariable y tB $ withExprNormalisingTo p pairXY $ checkOrInferType xyForZinC g
+  p' <- normalise p
+  _ <- withTypedVariable x tA $ withTypedVariable y tB $ withExprNormalisingTo p' pairXY $ checkOrInferType xyForZinC g
 
   -- x, y nin FV(C)
   when (x `elem` freeVars tC || y `elem` freeVars tC) $
@@ -614,7 +564,7 @@ checkOrInferType t expr@(PairElim (z, tC) (x, y, g) p) = do
   t1ForZinC <- substitute (z, p) tC
   ensureEqualTypes expr t t1ForZinC
 
-  where inferProductTy :: (Checkable m err v) => Expr -> m Abstraction
+  where inferProductTy :: Expr -> CM Abstraction
         inferProductTy e = do
           t <- checkOrInferType (ProductTy (mkAbs x mkImplicit mkImplicit)) e >>= normalise
           getAbsFromProductTy e t
@@ -660,18 +610,19 @@ checkOrInferType t expr@(CoproductCase (z, tC) (x, c) (y, d) e) = do
   -- G, x : A |- c : [inl x/z]C
   let inlX = inlTermApp l1 l2 tA tB (Var x)
   inlxforzinC <- substitute (z, inlX) tC
-  _ <- withTypedVariable x tA $ withExprNormalisingTo e inlX $ checkOrInferType inlxforzinC c
+  e' <- normalise e
+  _ <- withTypedVariable x tA $ withExprNormalisingTo e' inlX $ checkOrInferType inlxforzinC c
 
   -- G, y : B |- d : [inr y/z]C
   let inrY = inrTermApp l1 l2 tA tB (Var y)
   inryforzinC <- substitute (z, inrY) tC
-  _ <- withTypedVariable y tB $ withExprNormalisingTo e inrY $ checkOrInferType inryforzinC d
+  _ <- withTypedVariable y tB $ withExprNormalisingTo e' inrY $ checkOrInferType inryforzinC d
 
   -- G |- case z@e of (Inl x -> c; Inr y -> d) : C : [e/z]C
   eforzinC <- substitute (z, e) tC
   ensureEqualTypes expr t eforzinC
 
-  where inferCoproductTy :: (Checkable m err v) => Expr -> m (Expr, Expr)
+  where inferCoproductTy :: Expr -> CM (Expr, Expr)
         inferCoproductTy e = do
           t <- synthType e >>= normalise
           case t of
@@ -818,5 +769,5 @@ checkOrInferType t e =
 
 
 -- | Attempt to synthesise a type for the given expression.
-synthType :: (Checkable m err v) => Expr -> m Expr
+synthType :: Expr -> CM Expr
 synthType = checkOrInferType mkImplicit
