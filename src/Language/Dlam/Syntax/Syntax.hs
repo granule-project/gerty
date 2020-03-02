@@ -364,42 +364,13 @@ dnsuccApp = mkApp (builtinBody dnsucc)
 ----------------------------
 
 class Term t where
-  boundVars :: t -> Set.Set Name
   freeVars  :: t -> Set.Set Name
 
-
-boundVarsAbs :: Abstraction -> Set.Set Name
-boundVarsAbs ab = absVar ab `Set.insert` boundVars (absExpr ab)
 
 freeVarsAbs :: Abstraction -> Set.Set Name
 freeVarsAbs ab = Set.delete (absVar ab) (freeVars (absExpr ab))
 
 instance Term Expr where
-  boundVars (Abs ab)                     = boundVarsAbs ab
-  boundVars (FunTy ab)                   = boundVarsAbs ab
-  boundVars (ProductTy ab)               = boundVarsAbs ab
-  boundVars (App e1 e2)                  = boundVars e1 `Set.union` boundVars e2
-  boundVars (Pair e1 e2)                 = boundVars e1 `Set.union` boundVars e2
-  boundVars (Coproduct t1 t2) = boundVars t1 `Set.union` boundVars t2
-  boundVars (CoproductCase (_z, _tC) (x, c) (y, d) _e) =
-    Set.insert x (Set.insert y (boundVars c `Set.union` boundVars d))
-  boundVars (NatCase (x, tC) cz (w, y, cs) _n) =
-    Set.insert w $ Set.insert x $ Set.insert y (boundVars cz `Set.union` boundVars cs `Set.union` boundVars tC)
-  boundVars (Var _)                      = Set.empty
-  boundVars (Sig e _)                    = boundVars e
-  boundVars Hole                         = Set.empty
-  boundVars Implicit                     = Set.empty
-  boundVars LitLevel{}                   = Set.empty
-  boundVars Builtin{}                    = Set.empty
-  boundVars (PairElim (z, tC) (x, y, g) p) =
-    Set.insert z (x `Set.insert` (y `Set.insert` (boundVars g `Set.union` boundVars p `Set.union` boundVars tC)))
-  -- TODO: I'm not entirely convinced the boundVars for RewriteExpr is actually correct (2020-02-27)
-  boundVars (RewriteExpr _x _y _p _tC _z c _a _b _p') = boundVars c
-  boundVars (UnitElim (x, tC) c a) =
-    Set.insert x $ boundVars tC `Set.union` boundVars c `Set.union` boundVars a
-  boundVars (EmptyElim (x, tC) a) =
-    Set.insert x $ boundVars tC `Set.union` boundVars a
-
   freeVars (FunTy ab)                    = freeVarsAbs ab
   freeVars (Abs ab)                      = freeVarsAbs ab
   freeVars (ProductTy ab)                = freeVarsAbs ab
