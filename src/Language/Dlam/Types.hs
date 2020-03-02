@@ -288,6 +288,12 @@ equalExprs e1 e2 = do
             (&&) <$> equalExprs (absTy ab1) (absTy ab2) <*> equalExprs (absExpr ab1) e2s
 
 
+-- | Try and register the name with the given type
+registerTypeForName :: (HasBinderMap m Name v, HasTyVal v (Maybe a) Expr) => Name -> Expr -> m ()
+registerTypeForName n t = do
+  setBinder (mkTag :: BinderMap) n (fromTyVal (Nothing, t))
+
+
 -- | Attempt to infer the types of a definition, and check this against the declared
 -- | type, if any.
 doDeclarationInference :: (Checkable m err v) => Declaration -> m Declaration
