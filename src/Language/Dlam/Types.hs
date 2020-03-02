@@ -1,5 +1,6 @@
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE MonoLocalBinds #-}
 module Language.Dlam.Types
   ( doASTInference
   , Checkable
@@ -275,7 +276,8 @@ equalExprs e1 e2 = do
     (Builtin b1, Builtin b2) -> pure (b1 == b2)
     (LitLevel n, LitLevel m) -> pure (n == m)
     (_, _) -> pure False
-  where equalAbs ab1 ab2 = do
+  where equalAbs :: (Checkable m err v) => Abstraction -> Abstraction -> m Bool
+        equalAbs ab1 ab2 = do
           -- checking \(x : a) -> b = \(y : c) -> d
           -- we say:
           -- d' = [y/x]d
@@ -514,7 +516,8 @@ checkOrInferType t expr@(App e1 e2) = do
   t2forXinB <- substitute (x, e2) tB
   ensureEqualTypes expr t t2forXinB
 
-  where inferFunTy e = do
+  where inferFunTy :: (Checkable m err v) => Expr -> m Abstraction
+        inferFunTy e = do
           t <- synthType e >>= normalise
           getAbsFromFunTy e t
 
@@ -577,7 +580,7 @@ checkOrInferType t expr@(Pair e1 e2) = do
 checkOrInferType t expr@(PairElim (z, tC) (x, y, g) p) = do
 
   -- G |- t1 : (x : A) * B
-  pTy <- inferProductTy x p
+  pTy <- inferProductTy p
   tA <- substitute (absVar pTy, Var x) (absTy pTy)
   tB <- substitute (absVar pTy, Var x) (absExpr pTy)
 
@@ -605,7 +608,8 @@ checkOrInferType t expr@(PairElim (z, tC) (x, y, g) p) = do
   t1ForZinC <- substitute (z, p) tC
   ensureEqualTypes expr t t1ForZinC
 
-  where inferProductTy x e = do
+  where inferProductTy :: (Checkable m err v) => Expr -> m Abstraction
+        inferProductTy e = do
           t <- checkOrInferType (ProductTy (mkAbs x mkImplicit mkImplicit)) e >>= normalise
           getAbsFromProductTy e t
 
@@ -661,7 +665,8 @@ checkOrInferType t expr@(CoproductCase (z, tC) (x, c) (y, d) e) = do
   eforzinC <- substitute (z, e) tC
   ensureEqualTypes expr t eforzinC
 
-  where inferCoproductTy e = do
+  where inferCoproductTy :: (Checkable m err v) => Expr -> m (Expr, Expr)
+        inferCoproductTy e = do
           t <- synthType e >>= normalise
           case t of
             (Coproduct tA tB) -> pure (tA, tB)
