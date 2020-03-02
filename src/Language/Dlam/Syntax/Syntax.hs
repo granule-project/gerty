@@ -154,6 +154,9 @@ data Expr where
   -- | Identity eliminator.
   RewriteExpr :: Name -> Name -> Name -> Expr -> Name -> Expr -> Expr -> Expr -> Expr -> Expr
 
+  -- | Unit eliminator.
+  UnitElim :: (Name, Expr) -> Expr -> Expr -> Expr
+
   App :: Expr ->  Expr   -> Expr -- e1 e2
 
   Sig :: Expr -> Expr       -> Expr -- e : A
@@ -382,6 +385,8 @@ instance Term Expr where
     Set.insert z (x `Set.insert` (y `Set.insert` (boundVars g `Set.union` boundVars p `Set.union` boundVars tC)))
   -- TODO: I'm not entirely convinced the boundVars for RewriteExpr is actually correct (2020-02-27)
   boundVars (RewriteExpr _x _y _p _tC _z c _a _b _p') = boundVars c
+  boundVars (UnitElim (x, tC) c a) =
+    Set.insert x $ boundVars tC `Set.union` boundVars c `Set.union` boundVars a
 
   freeVars (FunTy ab)                    = freeVarsAbs ab
   freeVars (Abs ab)                      = freeVarsAbs ab
@@ -399,6 +404,8 @@ instance Term Expr where
     Set.delete z (Set.delete x (Set.delete y (freeVars g `Set.union` freeVars p `Set.union` freeVars tC)))
   -- TODO: I'm not entirely convinced the freeVars for RewriteExpr is actually correct (2020-02-27)
   freeVars (RewriteExpr _x _y _p _tC _z c _a _b _p') = freeVars c
+  freeVars (UnitElim (x, tC) c a) =
+    Set.delete x $ freeVars tC `Set.union` (freeVars c `Set.union` freeVars a)
   freeVars Hole                          = Set.empty
   freeVars Implicit                      = Set.empty
   freeVars LitLevel{}                    = Set.empty

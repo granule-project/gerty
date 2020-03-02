@@ -112,6 +112,8 @@ Expr :: { ParseExpr }
 
   | let '(' Ident ',' Ident ')' '=' Expr in Expr { PairElim (ignoreVar, mkImplicit) ($3, $5, $10) $8 }
 
+  | let Ident '@' '*' '=' Expr in '(' Expr ':' Expr ')' { UnitElim ($2, $11) $9 $6 }
+
   | rewrite '(' Ident '.' Ident '.' Ident '.' Expr ',' Ident '.' Expr ',' Expr ',' Expr ',' Expr ')' { RewriteExpr $3 $5 $7 $9 $11 $13 $15 $17 $19 }
 
   | case Ident '@' Expr of '(' inl Ident '->' Expr ';' inr Ident '->' Expr ')' ':' Expr

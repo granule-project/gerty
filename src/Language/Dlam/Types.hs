@@ -219,6 +219,18 @@ normalise (NatCase (x, tC) cz (w, y, cs) n) = do
 normalise (Coproduct e1 e2) = finalNormalForm =<< Coproduct <$> normalise e1 <*> normalise e2
 normalise (Pair e1 e2) = finalNormalForm =<< Pair <$> normalise e1 <*> normalise e2
 normalise e@Builtin{} = finalNormalForm e
+normalise (UnitElim (x, tC) c a) = do
+  a <- normalise a
+  case a of
+
+    -- let x@* = unit in (c : C) ---> c : [unit/x]C
+    (Builtin DUnitTerm) -> normalise c
+
+    -- otherwise just reduce components
+    _ -> do
+      tC <- normalise tC
+      c  <- normalise c
+      finalNormalForm $ UnitElim (x, tC) c a
 normalise e = notImplemented $ "normalise does not yet support '" <> pprint e <> "'"
 
 
@@ -725,6 +737,34 @@ checkOrInferType t expr@(RewriteExpr x y p tC z c a b p') = do
   aforxbforypforpinC <-
     substitute (x, a) tC >>= substitute (y, b) >>= substitute (p, p')
   ensureEqualTypes expr t aforxbforypforpinC
+
+----------
+-- Unit --
+----------
+
+{-
+   G, x : Unit |- C : Type l
+   G |- c : [unit/x]C
+   G |- a : Unit
+   ------------------------------------ :: UnitElim
+   G |- let x@* = c in (c : C) : [a/x]C
+-}
+checkOrInferType t expr@(UnitElim (x, tC) c a) = do
+  let unitTy' = builtinBody unitTy
+
+  -- G |- a : Unit
+  _ <- checkOrInferType unitTy' a
+
+  -- G |- c : [unit/x]C
+  unitforxinC <- substitute (x, builtinBody unitTerm) tC
+  _ <- checkOrInferType unitforxinC c
+
+  -- G, x : Unit |- C : Type l
+  _l <- withTypedVariable x unitTy' $ inferUniverseLevel tC
+
+  -- G |- let x@* = c in (c : [a/x]C)
+  aforxinC <- substitute (x, a) tC
+  ensureEqualTypes expr t aforxinC
 
 -------------------------------------
 -- When we don't know how to synth --

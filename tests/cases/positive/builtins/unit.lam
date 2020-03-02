@@ -1,0 +1,15 @@
+------------------------------------------------------------------
+----- Tests for checking the typing of the builtin unit type -----
+------------------------------------------------------------------
+
+
+unitTy : Type 0
+unitTy = Unit
+
+
+unit' : unitTy
+unit' = unit
+
+
+unitElim : (l : Level) (C : unitTy -> Type l) (c : C unit') (a : unitTy) -> C a
+unitElim = \l C c a -> let x@* = a in (c : C x)
