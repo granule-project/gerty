@@ -75,6 +75,7 @@ instance PrettyPrint Expr where
     pprint (PairElim (Ignore, Implicit{}) (x, y, g) p) = "let (" <> pprint x <> ", " <> pprint y <> ") = " <> pprint p <> " in " <> pprint g
     pprint (PairElim (z, tC) (x, y, g) p) = "let " <> pprint z <> "@(" <> pprint x <> ", " <> pprint y <> ") = " <> pprint p <> " in (" <> pprint g <> " : " <> pprint tC <> ")"
     pprint (UnitElim (x, tC) c a) = "let " <> pprint x <> "@* = " <> pprint a <> " in (" <> pprint c <> " : " <> pprint tC <> ")"
+    pprint (EmptyElim (x, tC) a) = "let " <> pprint x <> "@() = " <> pprint a <> " : " <> pprint tC
 
 instance PrettyPrint Name where
   pprint (Ident v) = v
@@ -96,6 +97,7 @@ instance PrettyPrint BuiltinTerm where
   pprint DUnitTerm = pprint . builtinName $ unitTerm
   pprint IdTy      = pprint . builtinName $ idTy
   pprint DRefl     = pprint . builtinName $ reflTerm
+  pprint DEmptyTy  = pprint . builtinName $ emptyTy
 
 instance PrettyPrint AST where
   pprint (AST decls) = concat . intersperse "\n\n" $ fmap pprint decls

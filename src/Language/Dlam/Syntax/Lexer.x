@@ -69,6 +69,7 @@ tokens :-
   ";"                           { \p _ -> TokenSemiColon p }
   \.                            { \p _ -> TokenDot p }
   \@                            { \p _ -> TokenAt p }
+  "()"                          { \p _ -> TokenAbsurd p }
 
 {
 
@@ -103,6 +104,7 @@ data Token
   | TokenSemiColon AlexPosn
   | TokenZero AlexPosn
   | TokenSucc AlexPosn
+  | TokenAbsurd AlexPosn
   deriving (Eq, Show, Generic)
 
 symString :: Token -> String

@@ -407,6 +407,9 @@ checkOrInferType t expr@(Builtin e) =
       -- unit : Unit
       DUnitTerm -> builtinType unitTerm
 
+      -- Empty : Type 0
+      DEmptyTy -> builtinType emptyTy
+
       -- Id : (l : Level) (a : Type l) -> a -> a -> Type l
       IdTy -> builtinType idTy
 
@@ -763,6 +766,30 @@ checkOrInferType t expr@(UnitElim (x, tC) c a) = do
   _l <- withTypedVariable x unitTy' $ inferUniverseLevel tC
 
   -- G |- let x@* = c in (c : [a/x]C)
+  aforxinC <- substitute (x, a) tC
+  ensureEqualTypes expr t aforxinC
+
+-----------
+-- Empty --
+-----------
+
+{-
+   G, x : Empty |- C : Type l
+   G |- a : Empty
+   ------------------------------ :: EmptyElim
+   G |- let x@() = a : C : [a/x]C
+-}
+checkOrInferType t expr@(EmptyElim (x, tC) a) = do
+  let emptyTy' = builtinBody emptyTy
+
+  -- G, x : Empty |- C : Type l
+  _l <- withTypedVariable x emptyTy' $ inferUniverseLevel tC
+
+  -- G |- a : Empty
+  _ <- checkOrInferType emptyTy' a
+
+
+  -- G |- let x@() = a : C : [a/x]C
   aforxinC <- substitute (x, a) tC
   ensureEqualTypes expr t aforxinC
 

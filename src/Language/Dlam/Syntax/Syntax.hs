@@ -52,6 +52,8 @@ module Language.Dlam.Syntax.Syntax
   -- ** Unit
   , unitTy
   , unitTerm
+  -- ** Empty type
+  , emptyTy
   -- ** Identity
   , idTy
   , idTyApp
@@ -157,6 +159,9 @@ data Expr where
   -- | Unit eliminator.
   UnitElim :: (Name, Expr) -> Expr -> Expr -> Expr
 
+  -- | Empty eliminator.
+  EmptyElim :: (Name, Expr) -> Expr -> Expr
+
   App :: Expr ->  Expr   -> Expr -- e1 e2
 
   Sig :: Expr -> Expr       -> Expr -- e : A
@@ -224,6 +229,9 @@ data BuiltinTerm =
 
   -- | Natural number successor.
   | DNSucc
+
+  -- | Empty type.
+  | DEmptyTy
   deriving (Show, Eq, Ord)
 
 
@@ -261,7 +269,8 @@ levelTy, lzero, lsuc, lmax,
  inlTerm, inrTerm,
  unitTy, unitTerm,
  idTy, reflTerm,
- natTy, dnzero, dnsucc :: Builtin
+ natTy, dnzero, dnsucc,
+ emptyTy :: Builtin
 
 levelTy = mkBuiltin "Level" LevelTy typeZero
 lzero = mkBuiltin "lzero" LZero levelTy'
@@ -324,6 +333,7 @@ natTy = mkBuiltin "Nat" DNat typeZero
 natTy' = builtinBody natTy
 dnzero = mkBuiltin "zero" DNZero natTy'
 dnsucc = mkBuiltin "succ" DNSucc (mkFunTy ignoreVar natTy' natTy')
+emptyTy = mkBuiltin "Empty" DEmptyTy typeZero
 
 
 lsucApp :: Expr -> Expr
@@ -387,6 +397,8 @@ instance Term Expr where
   boundVars (RewriteExpr _x _y _p _tC _z c _a _b _p') = boundVars c
   boundVars (UnitElim (x, tC) c a) =
     Set.insert x $ boundVars tC `Set.union` boundVars c `Set.union` boundVars a
+  boundVars (EmptyElim (x, tC) a) =
+    Set.insert x $ boundVars tC `Set.union` boundVars a
 
   freeVars (FunTy ab)                    = freeVarsAbs ab
   freeVars (Abs ab)                      = freeVarsAbs ab
@@ -406,6 +418,8 @@ instance Term Expr where
   freeVars (RewriteExpr _x _y _p _tC _z c _a _b _p') = freeVars c
   freeVars (UnitElim (x, tC) c a) =
     Set.delete x $ freeVars tC `Set.union` (freeVars c `Set.union` freeVars a)
+  freeVars (EmptyElim (x, tC) a) =
+    Set.delete x $ freeVars tC `Set.union` freeVars a
   freeVars Hole                          = Set.empty
   freeVars Implicit                      = Set.empty
   freeVars LitLevel{}                    = Set.empty

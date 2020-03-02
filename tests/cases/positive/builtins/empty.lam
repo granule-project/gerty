@@ -1,0 +1,11 @@
+-------------------------------------------------------------------
+----- Tests for checking the typing of the builtin empty type -----
+-------------------------------------------------------------------
+
+
+emptyTy : Type 0
+emptyTy = Empty
+
+
+emptyElim : (l : Level) (C : emptyTy -> Type l) (a : emptyTy) -> C a
+emptyElim = \l C a -> let x@() = a : C x

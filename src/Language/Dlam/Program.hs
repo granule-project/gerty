@@ -39,6 +39,7 @@ builtins = M.fromList
    , natTy, dnzero, dnsucc
    , unitTerm, unitTy
    , idTy, reflTerm
+   , emptyTy
    ])
 
 type ProgState = (Int, ProgMaps)
