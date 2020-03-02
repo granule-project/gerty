@@ -16,7 +16,6 @@ import Language.Dlam.Binders
   , NormalFormMap
   , HasTyVal(..)
   )
-import Language.Dlam.Syntax.PrettyPrint (pprint)
 import Language.Dlam.Syntax.Syntax
 import Language.Dlam.Substitution (Freshenable(..))
 
