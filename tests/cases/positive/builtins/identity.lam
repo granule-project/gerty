@@ -1,0 +1,22 @@
+----------------------------------------------------------------------
+----- Tests for checking the typing of the builtin identity type -----
+----------------------------------------------------------------------
+
+
+Id' : (l : Level) (a : Type l) -> a -> a -> Type l
+Id' = Id
+
+
+refl' : (l : Level) (a : Type l) (x : a) -> Id' l a x x
+refl' = refl
+
+
+rewrite' :
+  (l1 l2 : Level)
+  (A : Type l1)
+  (C : (x : A) -> (y : A) -> Id' l1 A x y -> Type l2) ->
+  (c : (z : A) -> C z z (refl' l1 A z))
+  (a b : A)
+  (p' : Id' l1 A a b)
+  -> C a b p'
+rewrite' = \l1 l2 A C c a b p' -> rewrite (x.y.p.C x y p, z.c z, a, b, p')
