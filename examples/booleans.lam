@@ -28,7 +28,7 @@ ifFunDep : (l1 l2 : Level) (a : Type l1) (b : Type l2) (e : Bool) -> a -> b -> i
 ifFunDep = \l1 l2 a b e t f -> ifThenElse l1 l2 a b e t f
 
 prog1 : Level
-prog1 = ifThenElse false (Type 0) lzero
+prog1 = ifThenElse 2 0 (Type 1) Level false (Type 0) lzero
 
 prog2 : Level
-prog2 = ifThenElse true lzero (Type 0)
+prog2 = ifThenElse 0 2 Level (Type 1) true lzero (Type 0)
