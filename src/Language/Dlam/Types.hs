@@ -344,19 +344,19 @@ checkOrInferType t expr@(Builtin e) =
       -- lmax : Level -> Level -> Level
       LMax -> builtinType lmax
 
-      -- | inl : (l1 l2 : Level) (a : Type l1) (b : Type l2) -> a -> a + b
+      -- inl : (l1 l2 : Level) (a : Type l1) (b : Type l2) -> a -> a + b
       Inl -> builtinType inlTerm
 
-      -- | inr : (l1 l2 : Level) (a : Type l1) (b : Type l2) -> b -> a + b
+      -- inr : (l1 l2 : Level) (a : Type l1) (b : Type l2) -> b -> a + b
       Inr -> builtinType inrTerm
 
-      -- | Nat : Type 0
+      -- Nat : Type 0
       DNat -> builtinType natTy
 
-      -- | zero : Nat
+      -- zero : Nat
       DNZero -> builtinType dnzero
 
-      -- | succ : Nat -> Nat
+      -- succ : Nat -> Nat
       DNSucc -> builtinType dnsucc
 
       -- Unit : Type 0
