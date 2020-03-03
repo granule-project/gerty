@@ -232,8 +232,8 @@ equalExprs e1 e2 = do
           -- then check:
           -- a = c and b = d' (with (x : a) in scope)
           e2s <- substitute (absVar ab2, Var (absVar ab1)) (absExpr ab2)
-          withAbsBinding ab1 $
-            (&&) <$> equalExprs (absTy ab1) (absTy ab2) <*> equalExprs (absExpr ab1) e2s
+          (&&) <$> equalExprs (absTy ab1) (absTy ab2)
+               <*> withAbsBinding ab1 (equalExprs (absExpr ab1) e2s)
 
 
 -- | Try and register the name with the given type
