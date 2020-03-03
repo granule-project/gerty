@@ -52,8 +52,8 @@ import Control.Monad.State
 import Control.Monad.Writer
 import qualified Data.Map as M
 
-import Language.Dlam.Syntax.PrettyPrint (pprint)
 import Language.Dlam.Syntax.Syntax
+import Language.Dlam.Util.Pretty (pprintShow)
 
 
 type Counter = Int
@@ -223,18 +223,18 @@ data TCError
 
 instance Show TCError where
   show (NotImplemented e) = e
-  show (NotInScope n) = "Unknown identifier '" <> pprint n <> "'"
+  show (NotInScope n) = "Unknown identifier '" <> pprintShow n <> "'"
   show (CannotSynthTypeForExpr expr) =
-    "I was asked to try and synthesise a type for '" <> pprint expr <> "' but I wasn't able to do so."
+    "I was asked to try and synthesise a type for '" <> pprintShow expr <> "' but I wasn't able to do so."
   show (CannotSynthExprForType t) =
-    "I was asked to try and synthesise a term of type '" <> pprint t <> "' but I wasn't able to do so."
+    "I was asked to try and synthesise a term of type '" <> pprintShow t <> "' but I wasn't able to do so."
   show (TypeMismatch expr tyExpected tyActual) =
-    "Error when checking the type of '" <> pprint expr <>
-    "', expected '" <> pprint tyExpected <> "' but got '" <> pprint tyActual <> "'"
+    "Error when checking the type of '" <> pprintShow expr <>
+    "', expected '" <> pprintShow tyExpected <> "' but got '" <> pprintShow tyActual <> "'"
   show (ExpectedInferredTypeForm descr expr t) =
-    "I was expecting the expression '" <> pprint expr
+    "I was expecting the expression '" <> pprintShow expr
     <> "' to have a " <> descr <> " type, but instead I found its type to be '"
-    <> pprint t <> "'"
+    <> pprintShow t <> "'"
   show (ParseError e) = e
 
 instance Exception TCError

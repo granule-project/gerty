@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 34c4bc2d4c84f1bae3312b811d58a945cb64b154bb4b4f067df22d438890bbad
+-- hash: c2a505eba681f919bfcb8319600ea15f668c941931a8c63a375208149927991b
 
 name:           dependent-lamb
 version:        0.0.1
@@ -20,7 +20,6 @@ library
       Language.Dlam.Interpreter
       Language.Dlam.Substitution
       Language.Dlam.Syntax.Parser
-      Language.Dlam.Syntax.PrettyPrint
       Language.Dlam.Syntax.Syntax
       Language.Dlam.Types
       Language.Dlam.TypeChecking.Monad
@@ -29,6 +28,7 @@ library
       Language.Dlam.Syntax.Free
       Language.Dlam.Syntax.Lexer
       Language.Dlam.TypeChecking.Monad.Base
+      Language.Dlam.Util.Pretty
   hs-source-dirs:
       src
   ghc-options: -O0 -Wall -Werror -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns -Wredundant-constraints -Wno-name-shadowing -Wno-type-defaults
@@ -40,6 +40,7 @@ library
     , base >=4.10 && <5
     , containers
     , mtl
+    , pretty
     , text
     , transformers
   default-language: Haskell2010

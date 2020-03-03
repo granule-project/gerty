@@ -9,10 +9,10 @@ import Control.Exception (displayException)
 import Control.Monad.Writer (tell)
 
 import Language.Dlam.Syntax.Parser      (parseProgram)
-import Language.Dlam.Syntax.PrettyPrint (PrettyPrint(pprint))
 import Language.Dlam.Syntax.Syntax
 import Language.Dlam.Types
 import Language.Dlam.TypeChecking.Monad
+import Language.Dlam.Util.Pretty (pprintShow)
 
 type InterpreterError = TCError
 type InterpreterResult = AST
@@ -28,7 +28,7 @@ run fname input =
       tell $ "\n " <> ansi_bold <> "AST: " <> ansi_reset <> show ast
 
       -- Pretty print
-      tell $ "\n " <> ansi_bold <> "Pretty:\n" <> ansi_reset <> pprint ast
+      tell $ "\n " <> ansi_bold <> "Pretty:\n" <> ansi_reset <> pprintShow ast
 
       -- Typing
       doASTInference ast

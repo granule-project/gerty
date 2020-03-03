@@ -26,6 +26,7 @@ library:
   dependencies:
    - containers
    - mtl
+   - pretty
    - transformers
    - array
    - text
@@ -33,7 +34,6 @@ library:
    - Language.Dlam.Interpreter
    - Language.Dlam.Substitution
    - Language.Dlam.Syntax.Parser
-   - Language.Dlam.Syntax.PrettyPrint
    - Language.Dlam.Syntax.Syntax
    - Language.Dlam.Types
    - Language.Dlam.TypeChecking.Monad
@@ -42,6 +42,7 @@ library:
    - Language.Dlam.Syntax.Free
    - Language.Dlam.Syntax.Lexer
    - Language.Dlam.TypeChecking.Monad.Base
+   - Language.Dlam.Util.Pretty
 
 executables:
   dlam:

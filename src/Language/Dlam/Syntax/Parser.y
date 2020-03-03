@@ -11,8 +11,8 @@ import Control.Monad.Trans.Reader
 import Control.Monad.Trans.Class (lift)
 
 import Language.Dlam.Syntax.Lexer
-import Language.Dlam.Syntax.PrettyPrint (pprint)
 import Language.Dlam.Syntax.Syntax
+import Language.Dlam.Util.Pretty (pprintShow)
 
 }
 
@@ -202,6 +202,6 @@ funAssignOrTypeSig :: FLHS -> FRHSOrTypeSig -> Declaration
 funAssignOrTypeSig n (IsRHS e) = FunEqn n e
 funAssignOrTypeSig (FLHSName n) (IsTypeSig t) = TypeSig n t
 -- TODO: improve error system in parser here to use a monad (2020-03-01)
-funAssignOrTypeSig lhs (IsTypeSig _) = error $ "'" <> pprint lhs <> "' is not allowed a type signature"
+funAssignOrTypeSig lhs (IsTypeSig _) = error $ "'" <> pprintShow lhs <> "' is not allowed a type signature"
 
 }

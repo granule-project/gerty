@@ -8,10 +8,9 @@ import Language.Dlam.Substitution
   ( Substitutable(substitute)
   )
 import Language.Dlam.Syntax.Free (freeVars)
-import Language.Dlam.Syntax.PrettyPrint
 import Language.Dlam.Syntax.Syntax
-
 import Language.Dlam.TypeChecking.Monad
+import Language.Dlam.Util.Pretty (pprintShow)
 
 
 -------------------------
@@ -181,7 +180,7 @@ normalise (UnitElim (x, tC) c a) = do
       tC <- normalise tC
       c  <- normalise c
       finalNormalForm $ UnitElim (x, tC) c a
-normalise e = notImplemented $ "normalise does not yet support '" <> pprint e <> "'"
+normalise e = notImplemented $ "normalise does not yet support '" <> pprintShow e <> "'"
 
 
 ------------------------------
@@ -555,9 +554,9 @@ checkOrInferType t expr@(PairElim (z, tC) (x, y, g) p) = do
 
   -- x, y nin FV(C)
   when (x `elem` freeVars tC || y `elem` freeVars tC) $
-       error $ concat [ "neither '", pprint x, "' nor '", pprint y
-                      , "' are allowed to occur in the type of '", pprint g
-                      , "' (which was found to be '", pprint tC, "'), but one or more of them did."
+       error $ concat [ "neither '", pprintShow x, "' nor '", pprintShow y
+                      , "' are allowed to occur in the type of '", pprintShow g
+                      , "' (which was found to be '", pprintShow tC, "'), but one or more of them did."
                       ]
 
   -- G |- let (z, x, y) = t1 in (t2 : C) : [t1/z]C
@@ -765,7 +764,7 @@ checkOrInferType t Implicit    = cannotSynthExprForType t
 -- Currently unsupported checks --
 ----------------------------------
 checkOrInferType t e =
-  notImplemented $ "I don't yet know how to check the type of expression '" <> pprint e <> "' against the type '" <> pprint t
+  notImplemented $ "I don't yet know how to check the type of expression '" <> pprintShow e <> "' against the type '" <> pprintShow t
 
 
 -- | Attempt to synthesise a type for the given expression.
