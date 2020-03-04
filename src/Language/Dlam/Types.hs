@@ -2,13 +2,11 @@ module Language.Dlam.Types
   ( doASTInference
   ) where
 
-import Control.Monad (when)
-
 import Language.Dlam.Substitution
   ( Substitutable(substitute)
+  , freshen
   )
 import Language.Dlam.Syntax.Abstract
-import Language.Dlam.Syntax.Free (freeVars)
 import Language.Dlam.TypeChecking.Monad
 import Language.Dlam.Util.Pretty (pprintShow)
 
@@ -121,12 +119,6 @@ normalise (App e1 e2) = do
     ------------------------
 
     _ -> finalNormalForm $ App e1' e2'
-normalise (PairElim z tC x y g p) = do
-  p' <- normalise p
-  tC' <- normalise tC
-  case p' of
-    (Pair l r) -> substitute (x, l) g >>= substitute (y, r) >>= normalise
-    _          -> finalNormalForm $ PairElim z tC' x y g p'
 normalise (CoproductCase (z, tC) (x, c) (y, d) e) = do
   e' <- normalise e
   case e' of
@@ -168,18 +160,14 @@ normalise (NatCase (x, tC) cz (w, y, cs) n) = do
 normalise (Coproduct e1 e2) = finalNormalForm =<< Coproduct <$> normalise e1 <*> normalise e2
 normalise (Pair e1 e2) = finalNormalForm =<< Pair <$> normalise e1 <*> normalise e2
 normalise e@Builtin{} = finalNormalForm e
-normalise (UnitElim x tC c a) = do
-  a <- normalise a
-  case a of
 
-    -- let x@* = unit in (c : C) ---> c : [unit/x]C
-    (Builtin DUnitTerm) -> normalise c
-
-    -- otherwise just reduce components
-    _ -> do
-      tC <- normalise tC
-      c  <- normalise c
-      finalNormalForm $ UnitElim x tC c a
+normalise (Let (LetPatBound p e1) e2) = do
+  e1' <- normalise e1
+  case maybeGetPatternSubst p e1' of
+    Nothing -> normalise e2 >>= finalNormalForm . Let (LetPatBound p e1')
+    -- TODO: perform the subject-type substitution only in the type (2020-03-04)
+    Just (ssubst, tsubst) -> normalise =<< substitute tsubst =<< substitute ssubst e2
+normalise (Sig e t) = Sig <$> normalise e <*> normalise t
 normalise e = notImplemented $ "normalise does not yet support '" <> pprintShow e <> "'"
 
 
@@ -206,11 +194,6 @@ equalExprs e1 e2 = do
       dsOK <- equalExprs d' =<< substitute (y, Var y') d
       esOK <- equalExprs e e'
       pure $ typesOK && csOK && dsOK && esOK
-    (PairElim z tC x y g p, PairElim z' tC' x' y' g' p') -> do
-      typesOK <- equalExprs tC' =<< substitute (z, Var z') tC
-      gsOK <- equalExprs g' =<< (substitute (x, Var x') g >>= substitute (y, Var y'))
-      psOK <- equalExprs p p'
-      pure $ typesOK && gsOK && psOK
     (NatCase (x, tC) cz (w, y, cs) n, NatCase (x', tC') cz' (w', y', cs') n') -> do
       typesOK <- equalExprs tC' =<< substitute (x, Var x') tC
       csOK <- equalExprs cs' =<< (substitute (w, Var w') cs >>= substitute (y, Var y'))
@@ -222,6 +205,22 @@ equalExprs e1 e2 = do
     (_, Implicit) -> pure True
     (Builtin b1, Builtin b2) -> pure (b1 == b2)
     (LitLevel n, LitLevel m) -> pure (n == m)
+
+    (Let (LetPatBound p e1) e2, Let (LetPatBound p' e1') e2') -> do
+      case maybeGetPatternUnificationSubst p p' of
+        Nothing -> pure False
+        Just subst -> do
+          e1sOK <- equalExprs e1 e1'
+          -- check that e2 and e2' are equal under the pattern substitution
+          e2sOK <- (`equalExprs` e2') =<< substitute subst e2
+          pure $ e1sOK && e2sOK
+
+    -- when there are two Sigs, we make sure their expressions and types are the same
+    (Sig e1 t1, Sig e2 t2) -> (&&) <$> equalExprs e1 e2 <*> equalExprs t1 t2
+    -- otherwise we just ignore the type in the Sig
+    (Sig e1 _, e2) -> equalExprs e1 e2
+    (e1, Sig e2 _) -> equalExprs e1 e2
+
     (_, _) -> pure False
   where equalAbs :: Abstraction -> Abstraction -> CM Bool
         equalAbs ab1 ab2 = do
@@ -524,50 +523,6 @@ checkOrInferType t expr@(Pair e1 e2) = do
   -- G |- (t1, t2) : (x : A) * B
   ensureEqualTypes expr t (ProductTy (mkAbs x tA tB))
 
-{-
-   G, z : (x : A) * B |- C : Type l
-   G, x : A, y : B |- t2 : [(x, y)/z]C
-   G |- t1 : (x : A) * B
-   -------------------------------------------- :: PairElim
-   G |- let z@(x, y) = t1 in (t2 : C) : [t1/z]C
--}
-checkOrInferType t expr@(PairElim z tC x y g p) = do
-
-  -- G |- t1 : (x : A) * B
-  pTy <- inferProductTy p
-  tA <- substitute (absVar pTy, Var x) (absTy pTy)
-  tB <- substitute (absVar pTy, Var x) (absExpr pTy)
-
-  -- G, z : (x : A) * B |- C : Type l
-  tC <- case tC of
-          -- if tC is implicit then assume it is okay for now, as we don't have unification variables
-          Implicit -> normalise t
-          _ -> do
-            _l <- withTypedVariable z (ProductTy (mkAbs x tA tB)) $ inferUniverseLevel tC
-            normalise tC
-
-  -- G, x : A, y : B |- t2 : [(x, y)/z]C
-  let pairXY = Pair (Var x) (Var y)
-  xyForZinC <- withTypedVariable x tA $ withTypedVariable y tB $ substitute (z, pairXY) tC
-  p' <- normalise p
-  _ <- withTypedVariable x tA $ withTypedVariable y tB $ withExprNormalisingTo p' pairXY $ checkOrInferType xyForZinC g
-
-  -- x, y nin FV(C)
-  when (x `elem` freeVars tC || y `elem` freeVars tC) $
-       error $ concat [ "neither '", pprintShow x, "' nor '", pprintShow y
-                      , "' are allowed to occur in the type of '", pprintShow g
-                      , "' (which was found to be '", pprintShow tC, "'), but one or more of them did."
-                      ]
-
-  -- G |- let (z, x, y) = t1 in (t2 : C) : [t1/z]C
-  t1ForZinC <- substitute (z, p) tC
-  ensureEqualTypes expr t t1ForZinC
-
-  where inferProductTy :: Expr -> CM Abstraction
-        inferProductTy e = do
-          t <- checkOrInferType (ProductTy (mkAbs x mkImplicit mkImplicit)) e >>= normalise
-          getAbsFromProductTy e t
-
 ----------------
 -- Coproducts --
 ----------------
@@ -703,34 +658,6 @@ checkOrInferType t expr@(RewriteExpr (x, y, p, tC) (z, c) a b p') = do
     substitute (x, a) tC >>= substitute (y, b) >>= substitute (p, p')
   ensureEqualTypes expr t aforxbforypforpinC
 
-----------
--- Unit --
-----------
-
-{-
-   G, x : Unit |- C : Type l
-   G |- c : [unit/x]C
-   G |- a : Unit
-   ------------------------------------ :: UnitElim
-   G |- let x@* = c in (c : C) : [a/x]C
--}
-checkOrInferType t expr@(UnitElim x tC c a) = do
-  let unitTy' = builtinBody unitTy
-
-  -- G |- a : Unit
-  _ <- checkOrInferType unitTy' a
-
-  -- G |- c : [unit/x]C
-  unitforxinC <- substitute (x, builtinBody unitTerm) tC
-  _ <- checkOrInferType unitforxinC c
-
-  -- G, x : Unit |- C : Type l
-  _l <- withTypedVariable x unitTy' $ inferUniverseLevel tC
-
-  -- G |- let x@* = c in (c : [a/x]C)
-  aforxinC <- substitute (x, a) tC
-  ensureEqualTypes expr t aforxinC
-
 -----------
 -- Empty --
 -----------
@@ -755,6 +682,95 @@ checkOrInferType t expr@(EmptyElim (x, tC) a) = do
   aforxinC <- substitute (x, a) tC
   ensureEqualTypes expr t aforxinC
 
+{-
+   G, tass(pat) |- C : Type l
+   G, sass(pats) |- e2 : [Intro(T, sass(pat))/z]C
+   G |- e1 : T
+   ---------------------------------------------- :: Let
+   G |- let z@pat = e1 in e2 : [e1/z]C
+-}
+checkOrInferType t expr@(Let (LetPatBound p e1) e2) = do
+
+  -- G |- e1 : T
+  -- the type we are going to try and eliminate
+  toElimTy <- synthTypePatGuided p e1
+
+  -- TODO: support cases when e2 isn't a Sig (but normalises to one,
+  -- when it is well-typed) (2020-03-04)
+  let (e2', tC) =
+        case e2 of
+          (Sig e2'' tC') -> (e2'', tC')
+          -- if we don't have an explicit type for e2, just assume it
+          -- is t for now (2020-03-04)
+          _           -> (e2, t)
+
+  -- gather some information about the constructor
+  (svars, tvars) <- patternVarsForType p toElimTy
+  con <- findConstructorForType toElimTy
+
+  -- TODO: generalise the 'z' to arbitrary type vars---make sure the
+  -- introConstructed gets substituted in for the vars
+  -- correctly(2020-03-04)
+  let z = patTyVar p
+
+  -- G, tass(pat) |- C : Type l
+  _l <- withBinders tvars $ inferUniverseLevel tC
+
+  -- G, sass(pat) |- e2 : [Intro(T, sass...)/z]C
+
+  -- build the general element
+  let introConstructed = applyCon con svars
+
+  introForzinC <-
+    maybe (pure tC) (\z -> substitute (z, introConstructed) tC) z
+  e1 <- normalise e1
+  _ <- withBinders svars $
+       withExprNormalisingTo e1 introConstructed $
+       checkOrInferType introForzinC e2'
+
+  e1forzinC <- maybe (pure tC) (\z -> substitute (z, e1) tC) z
+  ensureEqualTypes expr t e1forzinC
+
+  where
+        withBinders :: [(Name, Expr)] -> CM a -> CM a
+        withBinders [] m = m
+        withBinders (b:bs) m = uncurry withTypedVariable b $ withBinders bs m
+
+        -- TODO (maybe?): support arbitrarily nested typing patterns (e.g.,
+        -- (x@(y, z), a)) (2020-03-04)
+        -- | Get the typing variable of a pattern.
+        patTyVar :: Pattern -> Maybe Name
+        patTyVar (PAt b _) = Just (unBindName b)
+        patTyVar _ = Nothing
+
+        applyCon :: Expr -> [(Name, Expr)] -> Expr
+        applyCon con args = foldl App con (fmap (Var . fst) args)
+
+        findConstructorForType :: Expr -> CM Expr
+        -- constructor for (x : A) * B
+        -- is
+        -- \(x : A) -> \(y : B) -> (x, y)
+        findConstructorForType (ProductTy ab) = do
+          xv <- freshen (absVar ab)
+          yv <- freshen xv
+          pure $ Abs (mkAbs xv (absTy ab)
+                      (Abs (mkAbs yv (absExpr ab) (Pair (Var xv) (Var yv)))))
+        findConstructorForType (Builtin DUnitTy) = pure (Builtin DUnitTerm)
+        findConstructorForType t = notImplemented
+          $ "I don't yet know how to form a constructor of type '" <> pprintShow t <> "'"
+
+
+---------
+-- Sig --
+---------
+
+{-
+  For a Sig, we simply check that the expression has the stated type
+  (and this matches the final expected type).
+-}
+checkOrInferType t expr@(Sig e t') = do
+  ty <- checkOrInferType t' e
+  ensureEqualTypes expr t ty
 -------------------------------------
 -- When we don't know how to synth --
 -------------------------------------
@@ -770,3 +786,71 @@ checkOrInferType t e =
 -- | Attempt to synthesise a type for the given expression.
 synthType :: Expr -> CM Expr
 synthType = checkOrInferType mkImplicit
+
+
+--------------------
+----- Patterns -----
+--------------------
+
+
+-- | Compare a pattern against a type, and attempt to build a mapping
+-- | from subject binders and subject type binders to their
+-- | respective types.
+patternVarsForType :: Pattern -> Expr -> CM ([(Name, Expr)], [(Name, Expr)])
+patternVarsForType (PPair pl pr) (ProductTy ab) =
+  (<>) <$> patternVarsForType pl (absTy ab)
+       <*> patternVarsForType pr (absExpr ab)
+patternVarsForType (PAt n p) t =
+  (([], [(unBindName n, t)]) <>) <$> patternVarsForType p t
+patternVarsForType (PVar n) t = pure ([(unBindName n, t)], [])
+patternVarsForType PUnit (Builtin DUnitTy) = pure ([], [])
+patternVarsForType p t = patternMismatch p t
+
+
+-- | Try and map components of a term to names in a pattern.
+maybeGetPatternSubst :: Pattern -> Expr -> Maybe ([(Name, Expr)], [(Name, Expr)])
+maybeGetPatternSubst (PPair p1 p2) (Pair l r) =
+  maybeGetPatternSubst p1 l <> maybeGetPatternSubst p2 r
+-- maybeGetPatternSubst PUnit (Builtin DUnitTerm) = pure []
+maybeGetPatternSubst (PAt n p) e =
+  (([], [(unBindName n, e)]) <>) <$> maybeGetPatternSubst p e
+maybeGetPatternSubst PUnit (Builtin DUnitTerm) = pure ([], [])
+maybeGetPatternSubst (PVar n) e = pure ([(unBindName n, e)], [])
+maybeGetPatternSubst _ _ = Nothing
+
+
+-- TODO: maybe this should account for cases where you have different
+-- patterns (e.g., (x, y) and z---then the 'z' should normalise to
+-- '(x, y)') (2020-03-04)
+-- | Try and map the variables of one pattern to the variables of another.
+maybeGetPatternUnificationSubst :: Pattern -> Pattern -> Maybe [(Name, Expr)]
+maybeGetPatternUnificationSubst (PVar n) (PVar m) =
+  pure . pure $ (unBindName n, Var (unBindName m))
+maybeGetPatternUnificationSubst (PPair l1 r1) (PPair l2 r2) =
+  maybeGetPatternUnificationSubst l1 l2 <> maybeGetPatternUnificationSubst r1 r2
+maybeGetPatternUnificationSubst _ _ = Nothing
+
+
+-- | Synthesise a type for a term, guided by a pattern it should match.
+synthTypePatGuided :: Pattern -> Expr -> CM Expr
+synthTypePatGuided p e = do
+  ty <- checkOrInferType (patToImplTy p) e
+  patGuideTyNames p ty
+  where
+    -- | Build up a type with implicits for the expression.
+    patToImplTy :: Pattern -> Expr
+    patToImplTy (PAt _ p) = patToImplTy p
+    patToImplTy (PPair (PVar n) r) =
+      ProductTy (mkAbs (unBindName n) Implicit (patToImplTy r))
+    patToImplTy PUnit = Builtin DUnitTy
+    patToImplTy _ = Implicit
+
+    -- | Try and unify pattern variables with bound variables in the type.
+    patGuideTyNames :: Pattern -> Expr -> CM Expr
+    patGuideTyNames (PPair (PVar x) r) (ProductTy ab) = do
+      let xv = unBindName x
+      ae <- patGuideTyNames r =<< substitute (absVar ab, Var xv) (absExpr ab)
+      pure $ ProductTy (mkAbs xv (absTy ab) ae)
+    patGuideTyNames (PAt _ p) t = patGuideTyNames p t
+    -- don't know how to guide the types beyond this point, so we just give them back
+    patGuideTyNames _ t = pure t

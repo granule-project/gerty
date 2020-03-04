@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FunctionalDependencies #-}
 module Language.Dlam.Substitution
   ( Substitutable(..)
@@ -5,6 +6,7 @@ module Language.Dlam.Substitution
   ) where
 
 
+import qualified Data.Foldable as F
 import qualified Data.Set as Set
 
 import Language.Dlam.Syntax.Abstract
@@ -14,8 +16,8 @@ import Language.Dlam.TypeChecking.Monad.Base
 class Freshenable m n | m -> n where
   freshen :: n -> m n
 
-class Substitutable m n e | m -> n, m -> e where
-  substitute :: (n, e) -> e -> m e
+class Substitutable m n e where
+  substitute :: n -> e -> m e
 
 
 substAbs :: (Name, Expr) -> Abstraction -> CM Abstraction
@@ -28,7 +30,11 @@ substAbs s ab = do
     pure $ mkAbs v' t e
 
 
-instance Substitutable CM Name Expr where
+instance {-# OVERLAPPABLE #-} (Monad m, Substitutable m n e, Foldable t) => Substitutable m (t n) e where
+  substitute n e = F.foldrM substitute e n
+
+
+instance {-# OVERLAPS #-} Substitutable CM (Name, Expr) Expr where
   substitute (v, e) (Var x)
     | v == x    = pure e
     | otherwise = pure (Var x)

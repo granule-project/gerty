@@ -15,9 +15,6 @@ module Language.Dlam.Syntax.Abstract
   , absVar
   , absTy
   , absExpr
-  -- ** Helpers
-  , pattern UnitElim
-  , pattern PairElim
   -- ** Let bindings
   , LetBinding(..)
   , Pattern(..)
@@ -175,20 +172,6 @@ data Expr
 
   | Let LetBinding Expr
   deriving (Show, Eq, Ord)
-
-
--- | let x@* = e1 in (e2 : C)
-pattern UnitElim :: Name -> Expr -> Expr -> Expr -> Expr
-pattern UnitElim z tC c a =
-  Let (LetPatBound (PAt (BindName z) PUnit) a) (Sig c tC)
-
-
--- | let z@(x, y) = e1 in (e2 : C)
-pattern PairElim :: Name -> Expr -> Name -> Name -> Expr -> Expr -> Expr
-pattern PairElim z tC x y g p =
-  Let (LetPatBound
-       (PAt (BindName z) (PPair (PVar (BindName x)) (PVar (BindName y)))) p)
-      (Sig g tC)
 
 
 -- | Make a new, unnamed, implicit term.

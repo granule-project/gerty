@@ -42,6 +42,9 @@ module Language.Dlam.TypeChecking.Monad.Base
   , tyMismatch
   , expectedInferredTypeForm
 
+  -- ** Pattern errors
+  , patternMismatch
+
   -- ** Parse errors
   , parseError
   ) where
@@ -212,6 +215,12 @@ data TCError
 
   | ExpectedInferredTypeForm String Expr Expr
 
+  --------------------
+  -- Pattern Errors --
+  --------------------
+
+  | PatternMismatch Pattern Expr
+
   ------------------
   -- Parse Errors --
   ------------------
@@ -235,6 +244,8 @@ instance Show TCError where
     "I was expecting the expression '" <> pprintShow expr
     <> "' to have a " <> descr <> " type, but instead I found its type to be '"
     <> pprintShow t <> "'"
+  show (PatternMismatch p t) =
+    "The pattern '" <> pprintShow p <> "' is not valid for type '" <> pprintShow t <> "'"
   show (ParseError e) = e
 
 instance Exception TCError
@@ -267,6 +278,10 @@ tyMismatch expr tyExpected tyActual =
 expectedInferredTypeForm :: String -> Expr -> Expr -> CM a
 expectedInferredTypeForm descr expr t =
   throwError (ExpectedInferredTypeForm descr expr t)
+
+
+patternMismatch :: Pattern -> Expr -> CM a
+patternMismatch p t = throwError (PatternMismatch p t)
 
 
 parseError :: String -> CM a
