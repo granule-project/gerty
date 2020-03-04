@@ -60,8 +60,10 @@ module Language.Dlam.Syntax.Concrete
   ) where
 
 
-import Language.Dlam.Util.Pretty
 import Prelude hiding ((<>))
+
+import Language.Dlam.Syntax.Concrete.Name
+import Language.Dlam.Util.Pretty
 
 
 ------------------
@@ -92,17 +94,6 @@ data Declaration =
   -- ^ A type signature.
   | TypeSig Name Expr
   deriving (Show)
-
-data Name = Ident String | GenIdent (String, Int) | Ignore
-  deriving (Show, Eq, Ord)
-
--- | Create a new identifier from a (syntactic) string.
-mkIdent :: String -> Name
-mkIdent = Ident
-
--- | Name for use when the value is unused.
-ignoreVar :: Name
-ignoreVar = Ignore
 
 newtype Abstraction = Abst { getAbst :: (Name, Expr, Expr) }
   deriving (Show, Eq, Ord)
@@ -438,11 +429,6 @@ instance Pretty Expr where
       text "let" <+> pprint x <> at <> char '*' <+> equals <+> pprint a <+> text "in" <+> parens (pprint c <+> colon <+> pprint tC)
     pprint (EmptyElim (x, tC) a) =
       text "let" <+> pprint x <> at <> text "()" <+> equals <+> pprint a <+> colon <+> pprint tC
-
-instance Pretty Name where
-  pprint (Ident v) = text v
-  pprint (GenIdent (v, i)) = text v <> char '_' <> int i
-  pprint Ignore = char '_'
 
 instance Pretty BuiltinTerm where
   pprint LZero     = pprint . builtinName $ lzero
