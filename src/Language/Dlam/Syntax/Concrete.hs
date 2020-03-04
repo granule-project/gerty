@@ -3,7 +3,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE StandaloneDeriving #-}
 
-module Language.Dlam.Syntax.Syntax
+module Language.Dlam.Syntax.Concrete
   ( Expr(..)
   , Name(..)
   , mkIdent

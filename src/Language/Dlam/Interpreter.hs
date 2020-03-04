@@ -8,8 +8,8 @@ module Language.Dlam.Interpreter
 import Control.Exception (displayException)
 import Control.Monad.Writer (tell)
 
+import Language.Dlam.Syntax.Concrete
 import Language.Dlam.Syntax.Parser      (parseProgram)
-import Language.Dlam.Syntax.Syntax
 import Language.Dlam.Types
 import Language.Dlam.TypeChecking.Monad
 import Language.Dlam.Util.Pretty (pprintShow)

@@ -4,7 +4,8 @@ module Language.Dlam.Syntax.Free
 
 
 import qualified Data.Set as Set
-import qualified Language.Dlam.Syntax.Syntax as C
+
+import qualified Language.Dlam.Syntax.Concrete as C
 
 
 class Free t where

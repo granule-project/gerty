@@ -52,7 +52,7 @@ import Control.Monad.State
 import Control.Monad.Writer
 import qualified Data.Map as M
 
-import Language.Dlam.Syntax.Syntax
+import Language.Dlam.Syntax.Concrete
 import Language.Dlam.Util.Pretty (pprintShow)
 
 

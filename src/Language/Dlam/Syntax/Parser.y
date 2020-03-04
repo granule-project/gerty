@@ -10,8 +10,8 @@ import System.Exit
 import Control.Monad.Trans.Reader
 import Control.Monad.Trans.Class (lift)
 
+import Language.Dlam.Syntax.Concrete
 import Language.Dlam.Syntax.Lexer
-import Language.Dlam.Syntax.Syntax
 import Language.Dlam.Util.Pretty (pprintShow)
 
 }
