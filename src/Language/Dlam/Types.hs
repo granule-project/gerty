@@ -121,12 +121,12 @@ normalise (App e1 e2) = do
     ------------------------
 
     _ -> finalNormalForm $ App e1' e2'
-normalise (PairElim (z, tC) (x, y, g) p) = do
+normalise (PairElim z tC x y g p) = do
   p' <- normalise p
   tC' <- normalise tC
   case p' of
     (Pair l r) -> substitute (x, l) g >>= substitute (y, r) >>= normalise
-    _          -> finalNormalForm $ PairElim (z, tC') (x, y, g) p'
+    _          -> finalNormalForm $ PairElim z tC' x y g p'
 normalise (CoproductCase (z, tC) (x, c) (y, d) e) = do
   e' <- normalise e
   case e' of
@@ -168,7 +168,7 @@ normalise (NatCase (x, tC) cz (w, y, cs) n) = do
 normalise (Coproduct e1 e2) = finalNormalForm =<< Coproduct <$> normalise e1 <*> normalise e2
 normalise (Pair e1 e2) = finalNormalForm =<< Pair <$> normalise e1 <*> normalise e2
 normalise e@Builtin{} = finalNormalForm e
-normalise (UnitElim (x, tC) c a) = do
+normalise (UnitElim x tC c a) = do
   a <- normalise a
   case a of
 
@@ -179,7 +179,7 @@ normalise (UnitElim (x, tC) c a) = do
     _ -> do
       tC <- normalise tC
       c  <- normalise c
-      finalNormalForm $ UnitElim (x, tC) c a
+      finalNormalForm $ UnitElim x tC c a
 normalise e = notImplemented $ "normalise does not yet support '" <> pprintShow e <> "'"
 
 
@@ -206,7 +206,7 @@ equalExprs e1 e2 = do
       dsOK <- equalExprs d' =<< substitute (y, Var y') d
       esOK <- equalExprs e e'
       pure $ typesOK && csOK && dsOK && esOK
-    (PairElim (z, tC) (x, y, g) p, PairElim (z', tC') (x', y', g') p') -> do
+    (PairElim z tC x y g p, PairElim z' tC' x' y' g' p') -> do
       typesOK <- equalExprs tC' =<< substitute (z, Var z') tC
       gsOK <- equalExprs g' =<< (substitute (x, Var x') g >>= substitute (y, Var y'))
       psOK <- equalExprs p p'
@@ -531,7 +531,7 @@ checkOrInferType t expr@(Pair e1 e2) = do
    -------------------------------------------- :: PairElim
    G |- let z@(x, y) = t1 in (t2 : C) : [t1/z]C
 -}
-checkOrInferType t expr@(PairElim (z, tC) (x, y, g) p) = do
+checkOrInferType t expr@(PairElim z tC x y g p) = do
 
   -- G |- t1 : (x : A) * B
   pTy <- inferProductTy p
@@ -714,7 +714,7 @@ checkOrInferType t expr@(RewriteExpr (x, y, p, tC) (z, c) a b p') = do
    ------------------------------------ :: UnitElim
    G |- let x@* = c in (c : C) : [a/x]C
 -}
-checkOrInferType t expr@(UnitElim (x, tC) c a) = do
+checkOrInferType t expr@(UnitElim x tC c a) = do
   let unitTy' = builtinBody unitTy
 
   -- G |- a : Unit

@@ -45,7 +45,7 @@ instance ToAbstract C.Expr A.Expr where
     tC' <- toAbstract tC
     c'  <- toAbstract c
     p'  <- toAbstract p
-    pure $ A.PairElim (z, tC') (x, y, c') p'
+    pure $ A.PairElim z tC' x y c' p'
   toAbstract (C.Coproduct t1 t2) = A.Coproduct <$> toAbstract t1 <*> toAbstract t2
   toAbstract (C.CoproductCase (z, tC) (x, c) (y, d) p) = do
     tC' <- toAbstract tC
@@ -70,7 +70,7 @@ instance ToAbstract C.Expr A.Expr where
     tC' <- toAbstract tC
     c' <- toAbstract c
     a' <- toAbstract a
-    pure $ A.UnitElim (x, tC') c' a'
+    pure $ A.UnitElim x tC' c' a'
   toAbstract (C.EmptyElim (x, tC) a) = do
     tC' <- toAbstract tC
     a' <- toAbstract a

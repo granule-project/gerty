@@ -4,8 +4,12 @@ module Language.Dlam.Substitution
   , Freshenable(..)
   ) where
 
+
+import qualified Data.Set as Set
+
 import Language.Dlam.Syntax.Abstract
 import Language.Dlam.TypeChecking.Monad.Base
+
 
 class Freshenable m n | m -> n where
   freshen :: n -> m n
@@ -32,11 +36,6 @@ instance Substitutable CM Name Expr where
   substitute s (Abs   abs) = Abs   <$> substAbs s abs
   substitute s (ProductTy abs) = ProductTy <$> substAbs s abs
   substitute s (Pair e1 e2) = Pair <$> substitute s e1 <*> substitute s e2
-  substitute s@(v, _) (PairElim (z, tC) (x, y, g) p) = do
-    p' <- substitute s p
-    g' <- if v == x || v == y then pure g else substitute s g
-    tC' <- if v == z then pure tC else substitute s tC
-    pure $ PairElim (z, tC') (x, y, g') p'
   substitute s (App e1 e2) = do
     e1' <- substitute s e1
     e2' <- substitute s e2
@@ -65,16 +64,20 @@ instance Substitutable CM Name Expr where
     b' <- substitute s b
     pe' <- substitute s pe
     pure $ RewriteExpr (x, y, pv, tC') (z, c') a' b' pe'
-  substitute s@(v, _) (UnitElim (x, tC) c a) = do
-    tC' <- if v == x then pure tC else substitute s tC
-    c' <- substitute s c
-    a' <- substitute s a
-    pure $ UnitElim (x, tC') c' a'
   substitute s@(v, _) (EmptyElim (x, tC) a) = do
     tC' <- if v == x then pure tC else substitute s tC
     a' <- substitute s a
     pure $ EmptyElim (x, tC') a'
   substitute _ e@Builtin{} = pure e
+  substitute s@(v, _) (Let (LetPatBound p e) (LetUntyped r)) = do
+    e' <- substitute s e
+    r' <- if v `Set.member` (Set.map unBindName (boundSubjectVars p)) then pure r else substitute s r
+    pure $ Let (LetPatBound p e') (LetUntyped r')
+  substitute s@(v, _) (Let (LetPatBound p e) (LetTyped r t)) = do
+    e' <- substitute s e
+    r' <- if v `Set.member` (Set.map unBindName (boundSubjectVars p)) then pure r else substitute s r
+    t' <- if v `Set.member` (Set.map unBindName (boundTypingVars p)) then pure t else substitute s t
+    pure $ Let (LetPatBound p e') (LetTyped r' t')
 
 
 instance Freshenable CM Name where

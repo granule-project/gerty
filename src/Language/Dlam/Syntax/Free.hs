@@ -33,13 +33,18 @@ instance Free A.Expr where
     (Set.delete x (freeVars tC)) `Set.union` (freeVars cz) `Set.union` (Set.delete w $ Set.delete y $ freeVars cs)
   freeVars (A.Var var)                     = Set.singleton var
   freeVars (A.Sig e _)                     = freeVars e
-  freeVars (A.PairElim (z, tC) (x, y, g) p) =
-    Set.delete z (Set.delete x (Set.delete y (freeVars (g, (p, tC)))))
   freeVars (A.RewriteExpr (x, y, p, tC) (z, c) a b p') =
     (Set.delete x (Set.delete y (Set.delete p (freeVars tC)))) `Set.union` (Set.delete z (freeVars c)) `Set.union` (freeVars (a, (b, p')))
-  freeVars (A.UnitElim (x, tC) c a)        = Set.delete x $ freeVars (tC, (c, a))
   freeVars (A.EmptyElim (x, tC) a)         = Set.delete x $ freeVars (tC, a)
   freeVars A.Hole                          = Set.empty
   freeVars A.Implicit                      = Set.empty
   freeVars A.LitLevel{}                    = Set.empty
   freeVars A.Builtin{}                     = Set.empty
+  freeVars (A.Let pb e) = Set.difference (freeVars e) (boundVars pb)
+    where boundVars (A.LetPatBound p _) =
+            Set.map A.unBindName $ A.boundSubjectVars p <> A.boundTypingVars p
+
+
+instance Free A.LetExpr where
+  freeVars (A.LetTyped e t) = freeVars (e, t)
+  freeVars (A.LetUntyped e) = freeVars e

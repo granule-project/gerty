@@ -1,10 +1,13 @@
 {-# LANGUAGE EmptyDataDeriving #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE StandaloneDeriving #-}
 
 module Language.Dlam.Syntax.Abstract
-  ( Expr(..)
+  (
+   -- * Expressions
+    Expr(..)
   , Name(..)
   , mkIdent
   , ignoreVar
@@ -12,6 +15,16 @@ module Language.Dlam.Syntax.Abstract
   , absVar
   , absTy
   , absExpr
+  -- ** Helpers
+  , pattern UnitElim
+  , pattern PairElim
+  -- ** Let bindings
+  , LetBinding(..)
+  , Pattern(..)
+  , BindName(..)
+  , LetExpr(..)
+  , boundTypingVars
+  , boundSubjectVars
   -- * AST
   , AST(..)
   -- ** Declarations
@@ -61,6 +74,7 @@ module Language.Dlam.Syntax.Abstract
 
 
 import Prelude hiding ((<>))
+import qualified Data.Set as Set
 
 import Language.Dlam.Syntax.Concrete.Name
 import Language.Dlam.Util.Pretty
@@ -132,9 +146,6 @@ data Expr
   -- | Pairs.
   | Pair Expr Expr
 
-  -- | Pair eliminator.
-  | PairElim (Name, Expr) (Name, Name, Expr) Expr
-
   -- | Coproduct type.
   | Coproduct Expr Expr
 
@@ -146,9 +157,6 @@ data Expr
 
   -- | Identity eliminator.
   | RewriteExpr (Name, Name, Name, Expr) (Name, Expr) Expr Expr Expr
-
-  -- | Unit eliminator.
-  | UnitElim (Name, Expr) Expr Expr
 
   -- | Empty eliminator.
   | EmptyElim (Name, Expr) Expr
@@ -165,12 +173,77 @@ data Expr
 
   -- | Builtin terms, with a unique identifying name.
   | Builtin BuiltinTerm
+
+  | Let LetBinding LetExpr
   deriving (Show, Eq, Ord)
+
+
+-- | let x@* = e1 in (e2 : C)
+pattern UnitElim :: Name -> Expr -> Expr -> Expr -> Expr
+pattern UnitElim z tC c a =
+  Let (LetPatBound (PAt (BindName z) PUnit) a) (LetTyped c tC)
+
+
+-- | let z@(x, y) = e1 in (e2 : C)
+pattern PairElim :: Name -> Expr -> Name -> Name -> Expr -> Expr -> Expr
+pattern PairElim z tC x y g p =
+  Let (LetPatBound
+       (PAt (BindName z) (PPair (PVar (BindName x)) (PVar (BindName y)))) p)
+      (LetTyped g tC)
 
 
 -- | Make a new, unnamed, implicit term.
 mkImplicit :: Expr
 mkImplicit = Implicit
+
+
+------------------
+-- Let bindings --
+------------------
+
+
+data LetBinding
+  = LetPatBound Pattern Expr
+  deriving (Show, Eq, Ord)
+
+
+data LetExpr
+  = LetTyped Expr Expr
+  | LetUntyped Expr
+  deriving (Show, Eq, Ord)
+
+
+-- TODO: update this to compare equality on concrete name as well (see
+-- https://hackage.haskell.org/package/Agda-2.6.0.1/docs/Agda-Syntax-Abstract.html#t:BindName)
+-- (2020-03-04)
+newtype BindName = BindName { unBindName :: Name }
+  deriving (Show, Eq, Ord)
+
+
+data Pattern
+  = PVar BindName
+  -- ^ x.
+  | PAt  BindName Pattern
+  -- ^ x@p.
+  | PPair Pattern Pattern
+  -- ^ (p1, p2).
+  | PUnit
+  -- ^ unit (*).
+  deriving (Show, Eq, Ord)
+
+
+boundTypingVars :: Pattern -> Set.Set BindName
+boundTypingVars (PPair l r) = boundTypingVars l `Set.union` boundTypingVars r
+boundTypingVars (PVar _) = mempty
+boundTypingVars (PAt n p) = Set.singleton n `Set.union` boundTypingVars p
+boundTypingVars PUnit = mempty
+
+
+boundSubjectVars :: Pattern -> Set.Set BindName
+boundSubjectVars (PPair l r) = boundSubjectVars l `Set.union` boundSubjectVars r
+boundSubjectVars (PVar n) = Set.singleton n
+boundSubjectVars (PAt _ p) = boundSubjectVars p
+boundSubjectVars PUnit = mempty
 
 
 --------------------
@@ -421,14 +494,25 @@ instance Pretty Expr where
     pprint Hole = char '?'
     pprint Implicit{} = char '_'
     pprint (Builtin s) = pprint s
-    pprint (PairElim (Ignore, Implicit{}) (x, y, g) p) =
-      text "let" <+> parens (pprint x <> comma <+> pprint y) <+> equals <+> pprint p <+> text "in" <+> pprint g
-    pprint (PairElim (z, tC) (x, y, g) p) =
-      text "let" <+> pprint z <> at <> parens (pprint x <> comma <+> pprint y) <+> equals <+> pprint p <+> text "in" <+> parens (pprint g <+> colon <+> pprint tC)
-    pprint (UnitElim (x, tC) c a) =
-      text "let" <+> pprint x <> at <> char '*' <+> equals <+> pprint a <+> text "in" <+> parens (pprint c <+> colon <+> pprint tC)
     pprint (EmptyElim (x, tC) a) =
       text "let" <+> pprint x <> at <> text "()" <+> equals <+> pprint a <+> colon <+> pprint tC
+    pprint (Let lb e) = text "let" <+> pprint lb <+> text "in" <+> pprint e
+
+instance Pretty LetBinding where
+  pprint (LetPatBound p e) = pprint p <+> equals <+> pprint e
+
+instance Pretty LetExpr where
+  pprint (LetTyped e t) = parens $ pprint e <+> colon <+> pprint t
+  pprint (LetUntyped e) = pprint e
+
+instance Pretty Pattern where
+  pprint (PVar v) = pprint v
+  pprint (PPair l r) = parens $ pprint l <> comma <+> pprint r
+  pprint (PAt v p) = pprint v <> at <> pprint p
+  pprint PUnit = char '*'
+
+instance Pretty BindName where
+  pprint = pprint . unBindName
 
 instance Pretty BuiltinTerm where
   pprint LZero     = pprint . builtinName $ lzero
