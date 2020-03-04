@@ -28,10 +28,13 @@ run fname input =
       -- Show CST
       tell $ "\n " <> ansi_bold <> "CST: " <> ansi_reset <> show cst
 
-      -- Pretty print
-      tell $ "\n " <> ansi_bold <> "Pretty:\n" <> ansi_reset <> pprintShow cst
+      -- Pretty print CST
+      tell $ "\n " <> ansi_bold <> "Pretty CST:\n" <> ansi_reset <> pprintShow cst
 
       ast <- toAbstract cst
+
+      -- Pretty print AST
+      tell $ "\n " <> ansi_bold <> "Pretty AST:\n" <> ansi_reset <> pprintShow ast
 
       -- Typing
       doASTInference ast
