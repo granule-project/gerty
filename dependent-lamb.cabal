@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: af1ac49262a7d9b4cd06f5e884e8c5b048d1c87b091351c9a9706b5b3b721217
+-- hash: 2792d9dbfd62bc79fec84630ed63f276ca1e5094b09d050951346742b02c3332
 
 name:           dependent-lamb
 version:        0.0.1
@@ -25,9 +25,11 @@ library
       Language.Dlam.TypeChecking.Monad
   other-modules:
       Language.Dlam.FirstParameter
+      Language.Dlam.Syntax.Abstract
       Language.Dlam.Syntax.Concrete.Name
       Language.Dlam.Syntax.Free
       Language.Dlam.Syntax.Lexer
+      Language.Dlam.Syntax.Translation.ConcreteToAbstract
       Language.Dlam.TypeChecking.Monad.Base
       Language.Dlam.Util.Pretty
   hs-source-dirs:

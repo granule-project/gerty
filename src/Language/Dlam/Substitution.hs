@@ -4,7 +4,7 @@ module Language.Dlam.Substitution
   , Freshenable(..)
   ) where
 
-import Language.Dlam.Syntax.Concrete
+import Language.Dlam.Syntax.Abstract
 import Language.Dlam.TypeChecking.Monad.Base
 
 class Freshenable m n | m -> n where

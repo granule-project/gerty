@@ -7,7 +7,7 @@ import Control.Monad (when)
 import Language.Dlam.Substitution
   ( Substitutable(substitute)
   )
-import Language.Dlam.Syntax.Concrete
+import Language.Dlam.Syntax.Abstract
 import Language.Dlam.Syntax.Free (freeVars)
 import Language.Dlam.TypeChecking.Monad
 import Language.Dlam.Util.Pretty (pprintShow)

@@ -39,9 +39,11 @@ library:
    - Language.Dlam.TypeChecking.Monad
   other-modules:
    - Language.Dlam.FirstParameter
+   - Language.Dlam.Syntax.Abstract
    - Language.Dlam.Syntax.Concrete.Name
    - Language.Dlam.Syntax.Free
    - Language.Dlam.Syntax.Lexer
+   - Language.Dlam.Syntax.Translation.ConcreteToAbstract
    - Language.Dlam.TypeChecking.Monad.Base
    - Language.Dlam.Util.Pretty
 
