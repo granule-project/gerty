@@ -41,11 +41,6 @@ instance ToAbstract C.Expr A.Expr where
   toAbstract (C.Abs ab) = A.Abs <$> toAbstract ab
   toAbstract (C.ProductTy ab) = A.ProductTy <$> toAbstract ab
   toAbstract (C.Pair l r) = A.Pair <$> toAbstract l <*> toAbstract r
-  toAbstract (C.PairElim (z, tC) (x, y, c) p) = do
-    tC' <- toAbstract tC
-    c'  <- toAbstract c
-    p'  <- toAbstract p
-    pure $ A.PairElim z tC' x y c' p'
   toAbstract (C.Coproduct t1 t2) = A.Coproduct <$> toAbstract t1 <*> toAbstract t2
   toAbstract (C.CoproductCase (z, tC) (x, c) (y, d) p) = do
     tC' <- toAbstract tC
@@ -66,11 +61,6 @@ instance ToAbstract C.Expr A.Expr where
     b' <- toAbstract b
     e' <- toAbstract e
     pure $ A.RewriteExpr (x, y, p, tC') (z, c') a' b' e'
-  toAbstract (C.UnitElim (x, tC) c a) = do
-    tC' <- toAbstract tC
-    c' <- toAbstract c
-    a' <- toAbstract a
-    pure $ A.UnitElim x tC' c' a'
   toAbstract (C.EmptyElim (x, tC) a) = do
     tC' <- toAbstract tC
     a' <- toAbstract a
@@ -79,6 +69,18 @@ instance ToAbstract C.Expr A.Expr where
   toAbstract (C.Sig e t) = A.Sig <$> toAbstract e <*> toAbstract t
   toAbstract C.Hole = pure A.Hole
   toAbstract C.Implicit = pure A.Implicit
+  toAbstract (C.Let pb e) = A.Let <$> toAbstract pb <*> toAbstract e
+
+
+instance ToAbstract C.LetBinding A.LetBinding where
+  toAbstract (C.LetPatBound p e) = A.LetPatBound <$> toAbstract p <*> toAbstract e
+
+
+instance ToAbstract C.Pattern A.Pattern where
+  toAbstract (C.PIdent n) = pure $ A.PVar (A.BindName n)
+  toAbstract (C.PPair p1 p2) = A.PPair <$> toAbstract p1 <*> toAbstract p2
+  toAbstract (C.PAt n p) = A.PAt (A.BindName n) <$> toAbstract p
+  toAbstract C.PUnit = pure A.PUnit
 
 
 instance ToAbstract C.Abstraction A.Abstraction where

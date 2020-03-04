@@ -22,7 +22,6 @@ module Language.Dlam.Syntax.Abstract
   , LetBinding(..)
   , Pattern(..)
   , BindName(..)
-  , LetExpr(..)
   , boundTypingVars
   , boundSubjectVars
   -- * AST
@@ -174,14 +173,14 @@ data Expr
   -- | Builtin terms, with a unique identifying name.
   | Builtin BuiltinTerm
 
-  | Let LetBinding LetExpr
+  | Let LetBinding Expr
   deriving (Show, Eq, Ord)
 
 
 -- | let x@* = e1 in (e2 : C)
 pattern UnitElim :: Name -> Expr -> Expr -> Expr -> Expr
 pattern UnitElim z tC c a =
-  Let (LetPatBound (PAt (BindName z) PUnit) a) (LetTyped c tC)
+  Let (LetPatBound (PAt (BindName z) PUnit) a) (Sig c tC)
 
 
 -- | let z@(x, y) = e1 in (e2 : C)
@@ -189,7 +188,7 @@ pattern PairElim :: Name -> Expr -> Name -> Name -> Expr -> Expr -> Expr
 pattern PairElim z tC x y g p =
   Let (LetPatBound
        (PAt (BindName z) (PPair (PVar (BindName x)) (PVar (BindName y)))) p)
-      (LetTyped g tC)
+      (Sig g tC)
 
 
 -- | Make a new, unnamed, implicit term.
@@ -204,12 +203,6 @@ mkImplicit = Implicit
 
 data LetBinding
   = LetPatBound Pattern Expr
-  deriving (Show, Eq, Ord)
-
-
-data LetExpr
-  = LetTyped Expr Expr
-  | LetUntyped Expr
   deriving (Show, Eq, Ord)
 
 
@@ -500,10 +493,6 @@ instance Pretty Expr where
 
 instance Pretty LetBinding where
   pprint (LetPatBound p e) = pprint p <+> equals <+> pprint e
-
-instance Pretty LetExpr where
-  pprint (LetTyped e t) = parens $ pprint e <+> colon <+> pprint t
-  pprint (LetUntyped e) = pprint e
 
 instance Pretty Pattern where
   pprint (PVar v) = pprint v

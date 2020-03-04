@@ -109,11 +109,7 @@ Expr :: { ParseExpr }
 
   | Expr '+' Expr   { Coproduct $1 $3 }
 
-  | let Ident '@' '(' Ident ',' Ident ')' '=' Expr in '(' Expr ':' Expr ')' { PairElim ($2, $15) ($5, $7, $13) $10 }
-
-  | let '(' Ident ',' Ident ')' '=' Expr in Expr { PairElim (ignoreVar, mkImplicit) ($3, $5, $10) $8 }
-
-  | let Ident '@' '*' '=' Expr in '(' Expr ':' Expr ')' { UnitElim ($2, $11) $9 $6 }
+  | let LetBinding in Expr { Let $2 $4 }
 
   | let Ident '@' absurd '=' Expr ':' Expr { EmptyElim ($2, $8) $6 }
 
@@ -133,6 +129,17 @@ Expr :: { ParseExpr }
 
   | Juxt
     { $1 }
+
+
+LetBinding :: { LetBinding }
+  : Pattern '=' Expr { LetPatBound $1 $3 }
+
+
+Pattern :: { Pattern }
+  : Ident '@' Pattern { PAt $1 $3 }
+  | Ident { PIdent $1 }
+  | '(' Pattern ',' Pattern ')' { PPair $2 $4 }
+  | '*' { PUnit }
 
 
 Juxt :: { ParseExpr }

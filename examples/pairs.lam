@@ -29,7 +29,7 @@ fst' = \l1 l2 a b p -> fst l1 l2 a (\x -> b) p
 
 -- The second projection
 snd : (l1 l2 : Level) (a : Type l1) (b : a -> Type l2) (p : ((x : a) * b x)) -> b (fst l1 l2 a b p)
-snd = \l1 l2 a b p -> let z@(x, y) = p in (y : b (fst l1 l2 a b z))
+snd = \l1 l2 a b p -> let z@(x, y) = p in y : b (fst l1 l2 a b z)
 
 -- Second projection on non-dependent pairs
 snd' : (l1 l2 : Level) (a : Type l1) (b : Type l2) -> a * b -> b

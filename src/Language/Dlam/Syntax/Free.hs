@@ -43,8 +43,3 @@ instance Free A.Expr where
   freeVars (A.Let pb e) = Set.difference (freeVars e) (boundVars pb)
     where boundVars (A.LetPatBound p _) =
             Set.map A.unBindName $ A.boundSubjectVars p <> A.boundTypingVars p
-
-
-instance Free A.LetExpr where
-  freeVars (A.LetTyped e t) = freeVars (e, t)
-  freeVars (A.LetUntyped e) = freeVars e

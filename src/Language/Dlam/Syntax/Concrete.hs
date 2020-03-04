@@ -4,7 +4,9 @@
 {-# LANGUAGE StandaloneDeriving #-}
 
 module Language.Dlam.Syntax.Concrete
-  ( Expr(..)
+  (
+  -- * Expressions
+    Expr(..)
   , Name(..)
   , mkIdent
   , ignoreVar
@@ -12,6 +14,9 @@ module Language.Dlam.Syntax.Concrete
   , absVar
   , absTy
   , absExpr
+  -- ** Let bindings and patterns
+  , LetBinding(..)
+  , Pattern(..)
   -- * AST
   , AST(..)
   -- ** Declarations
@@ -95,9 +100,6 @@ data Expr
   -- | Pairs.
   | Pair Expr Expr
 
-  -- | Pair eliminator.
-  | PairElim (Name, Expr) (Name, Name, Expr) Expr
-
   -- | Coproduct type.
   | Coproduct Expr Expr
 
@@ -109,9 +111,6 @@ data Expr
 
   -- | Identity eliminator.
   | RewriteExpr (Name, Name, Name, Expr) (Name, Expr) Expr Expr Expr
-
-  -- | Unit eliminator.
-  | UnitElim (Name, Expr) Expr Expr
 
   -- | Empty eliminator.
   | EmptyElim (Name, Expr) Expr
@@ -125,12 +124,38 @@ data Expr
 
   -- | Implicits for synthesis.
   | Implicit
+
+
+  | Let LetBinding Expr
+  -- ^ Let binding (@let x in y@).
   deriving (Show, Eq, Ord)
 
 
 -- | Make a new, unnamed, implicit term.
 mkImplicit :: Expr
 mkImplicit = Implicit
+
+
+------------------
+-- Let bindings --
+------------------
+
+
+data LetBinding
+  = LetPatBound Pattern Expr
+  deriving (Show, Eq, Ord)
+
+
+data Pattern
+  = PIdent Name
+  -- ^ x.
+  | PAt  Name Pattern
+  -- ^ x@p.
+  | PPair Pattern Pattern
+  -- ^ (p1, p2).
+  | PUnit
+  -- ^ unit (*).
+  deriving (Show, Eq, Ord)
 
 
 ---------------------------
@@ -200,14 +225,18 @@ instance Pretty Expr where
     pprint (Sig e t) = pprintParened e <+> colon <+> pprint t
     pprint Hole = char '?'
     pprint Implicit{} = char '_'
-    pprint (PairElim (Ignore, Implicit{}) (x, y, g) p) =
-      text "let" <+> parens (pprint x <> comma <+> pprint y) <+> equals <+> pprint p <+> text "in" <+> pprint g
-    pprint (PairElim (z, tC) (x, y, g) p) =
-      text "let" <+> pprint z <> at <> parens (pprint x <> comma <+> pprint y) <+> equals <+> pprint p <+> text "in" <+> parens (pprint g <+> colon <+> pprint tC)
-    pprint (UnitElim (x, tC) c a) =
-      text "let" <+> pprint x <> at <> char '*' <+> equals <+> pprint a <+> text "in" <+> parens (pprint c <+> colon <+> pprint tC)
     pprint (EmptyElim (x, tC) a) =
       text "let" <+> pprint x <> at <> text "()" <+> equals <+> pprint a <+> colon <+> pprint tC
+    pprint (Let lb e) = text "let" <+> pprint lb <+> text "in" <+> pprint e
+
+instance Pretty LetBinding where
+  pprint (LetPatBound p e) = pprint p <+> equals <+> pprint e
+
+instance Pretty Pattern where
+  pprint (PIdent v) = pprint v
+  pprint (PPair l r) = parens $ pprint l <> comma <+> pprint r
+  pprint (PAt v p) = pprint v <> at <> pprint p
+  pprint PUnit = char '*'
 
 instance Pretty AST where
   pprint (AST decls) = vcat $ fmap pprint decls

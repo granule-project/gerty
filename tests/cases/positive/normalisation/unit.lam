@@ -8,5 +8,5 @@
 ---------------------------------------------
 
 t1 : (l : Level) (C : Unit -> Type l) (c : C unit)
-  -> Id l (C unit) (let x@* = unit in (c : C x)) c
+  -> Id l (C unit) (let x@* = unit in c : C x) c
 t1 = \l C c -> refl l (C unit) c

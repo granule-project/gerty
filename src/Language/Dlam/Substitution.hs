@@ -69,15 +69,15 @@ instance Substitutable CM Name Expr where
     a' <- substitute s a
     pure $ EmptyElim (x, tC') a'
   substitute _ e@Builtin{} = pure e
-  substitute s@(v, _) (Let (LetPatBound p e) (LetUntyped r)) = do
-    e' <- substitute s e
-    r' <- if v `Set.member` (Set.map unBindName (boundSubjectVars p)) then pure r else substitute s r
-    pure $ Let (LetPatBound p e') (LetUntyped r')
-  substitute s@(v, _) (Let (LetPatBound p e) (LetTyped r t)) = do
+  substitute s@(v, _) (Let (LetPatBound p e) (Sig r t)) = do
     e' <- substitute s e
     r' <- if v `Set.member` (Set.map unBindName (boundSubjectVars p)) then pure r else substitute s r
     t' <- if v `Set.member` (Set.map unBindName (boundTypingVars p)) then pure t else substitute s t
-    pure $ Let (LetPatBound p e') (LetTyped r' t')
+    pure $ Let (LetPatBound p e') (Sig r' t')
+  substitute s@(v, _) (Let (LetPatBound p e) r) = do
+    e' <- substitute s e
+    r' <- if v `Set.member` (Set.map unBindName (boundSubjectVars p)) then pure r else substitute s r
+    pure $ Let (LetPatBound p e') r'
 
 
 instance Freshenable CM Name where

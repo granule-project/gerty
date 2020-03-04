@@ -12,4 +12,4 @@ unit' = unit
 
 
 unitElim : (l : Level) (C : unitTy -> Type l) (c : C unit') (a : unitTy) -> C a
-unitElim = \l C c a -> let x@* = a in (c : C x)
+unitElim = \l C c a -> let x@* = a in c : C x
