@@ -79,25 +79,6 @@ instance ToAbstract C.Expr A.Expr where
   toAbstract (C.Sig e t) = A.Sig <$> toAbstract e <*> toAbstract t
   toAbstract C.Hole = pure A.Hole
   toAbstract C.Implicit = pure A.Implicit
-  toAbstract (C.Builtin b) = A.Builtin <$> toAbstract b
-
-
-instance ToAbstract C.BuiltinTerm A.BuiltinTerm where
-  toAbstract C.LevelTy = pure A.LevelTy
-  toAbstract C.LZero = pure A.LZero
-  toAbstract C.LSuc = pure A.LSuc
-  toAbstract C.LMax = pure A.LMax
-  toAbstract C.TypeTy = pure A.TypeTy
-  toAbstract C.Inl = pure A.Inl
-  toAbstract C.Inr = pure A.Inr
-  toAbstract C.DUnitTerm = pure A.DUnitTerm
-  toAbstract C.DUnitTy = pure A.DUnitTy
-  toAbstract C.IdTy = pure A.IdTy
-  toAbstract C.DRefl = pure A.DRefl
-  toAbstract C.DNat = pure A.DNat
-  toAbstract C.DNZero = pure A.DNZero
-  toAbstract C.DNSucc = pure A.DNSucc
-  toAbstract C.DEmptyTy = pure A.DEmptyTy
 
 
 instance ToAbstract C.Abstraction A.Abstraction where

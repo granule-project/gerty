@@ -20,43 +20,6 @@ module Language.Dlam.Syntax.Concrete
   , Declaration(..)
   , Abstraction
   , mkImplicit
-
-  -- * Builtins
-  , BuiltinTerm(..)
-  , Builtin
-  , builtinName
-  , builtinBody
-  , builtinType
-  -- ** Levels
-  , levelTy
-  , lzero
-  , lsuc
-  , lsucApp
-  , lmax
-  , lmaxApp
-  -- ** Type Universes
-  , typeTy
-  , mkUnivTy
-  -- ** Coproducts
-  , inlTerm
-  , inlTermApp
-  , inrTerm
-  , inrTermApp
-  -- ** Natural numbers
-  , natTy
-  , dnzero
-  , dnsucc
-  , dnsuccApp
-  -- ** Unit
-  , unitTy
-  , unitTerm
-  -- ** Empty type
-  , emptyTy
-  -- ** Identity
-  , idTy
-  , idTyApp
-  , reflTerm
-  , reflTermApp
   ) where
 
 
@@ -162,194 +125,12 @@ data Expr
 
   -- | Implicits for synthesis.
   | Implicit
-
-  -- | Builtin terms, with a unique identifying name.
-  | Builtin BuiltinTerm
   deriving (Show, Eq, Ord)
 
 
 -- | Make a new, unnamed, implicit term.
 mkImplicit :: Expr
 mkImplicit = Implicit
-
-
---------------------
------ Builtins -----
---------------------
-
-
-data BuiltinTerm =
-  -- | Level type.
-    LevelTy
-
-  -- | Level zero.
-  | LZero
-
-  -- | Level successor.
-  | LSuc
-
-  -- | Level maximum.
-  | LMax
-
-  -- | Universe type.
-  | TypeTy
-
-  -- | inl.
-  | Inl
-
-  -- | inr.
-  | Inr
-
-  -- | Unit term.
-  | DUnitTerm
-
-  -- | Unit type.
-  | DUnitTy
-
-  -- | Identity type.
-  | IdTy
-
-  -- | Reflexivity.
-  | DRefl
-
-  -- | Natural number type.
-  | DNat
-
-  -- | Natural number zero.
-  | DNZero
-
-  -- | Natural number successor.
-  | DNSucc
-
-  -- | Empty type.
-  | DEmptyTy
-  deriving (Show, Eq, Ord)
-
-
-newtype Builtin = MkBuiltin (Name, BuiltinTerm, Expr)
-
-mkBuiltin :: String -> BuiltinTerm -> Expr -> Builtin
-mkBuiltin name exprRef ty = MkBuiltin (mkIdent name, exprRef, ty)
-
--- | Syntactic name of a builtin term.
-builtinName :: Builtin -> Name
-builtinName (MkBuiltin (n, _, _)) = n
-
--- | Body for a builtin term (essentially an Agda postulate).
-builtinBody :: Builtin -> Expr
-builtinBody (MkBuiltin (_, e, _)) = Builtin e
-
--- | The type of a builtin term.
-builtinType :: Builtin -> Expr
-builtinType (MkBuiltin (_, _, t)) = t
-
-
-mkFunTy :: Name -> Expr -> Expr -> Expr
-mkFunTy n t e = FunTy $ mkAbs n t e
-
-typeZero, levelTy', natTy' :: Expr
-typeZero = mkUnivTy (LitLevel 0)
-
-mkApp :: Expr -> Expr -> Expr
-mkApp = App
-
-levelTy' = builtinBody levelTy
-
-levelTy, lzero, lsuc, lmax,
- typeTy,
- inlTerm, inrTerm,
- unitTy, unitTerm,
- idTy, reflTerm,
- natTy, dnzero, dnsucc,
- emptyTy :: Builtin
-
-levelTy = mkBuiltin "Level" LevelTy typeZero
-lzero = mkBuiltin "lzero" LZero levelTy'
-lsuc = mkBuiltin "lsuc" LSuc (mkFunTy ignoreVar levelTy' levelTy')
-lmax = mkBuiltin "lmax" LMax (mkFunTy ignoreVar levelTy' (mkFunTy ignoreVar levelTy' levelTy'))
-typeTy = mkBuiltin "Type" TypeTy
-         (let l = mkIdent "l" in mkFunTy l levelTy' (mkUnivTy (lsucApp (Var l))))
-inlTerm = mkBuiltin "inl" Inl inlTermTY
-  where
-    inlTermTY =
-      let l1 = mkIdent "l1"; l1v = Var l1
-          l2 = mkIdent "l2"; l2v = Var l2
-          a = mkIdent "a"; av = Var a
-          b = mkIdent "b"; bv = Var b
-      in mkFunTy l1 levelTy'
-          (mkFunTy l2 levelTy'
-           (mkFunTy a (mkUnivTy l1v)
-            (mkFunTy b (mkUnivTy l2v)
-             (mkFunTy ignoreVar av (Coproduct av bv)))))
-inrTerm = mkBuiltin "inr" Inr inrTermTY
-  where
-    inrTermTY =
-      let l1 = mkIdent "l1"; l1v = Var l1
-          l2 = mkIdent "l2"; l2v = Var l2
-          a = mkIdent "a"; av = Var a
-          b = mkIdent "b"; bv = Var b
-      in mkFunTy l1 levelTy'
-          (mkFunTy l2 levelTy'
-           (mkFunTy a (mkUnivTy l1v)
-            (mkFunTy b (mkUnivTy l2v)
-             (mkFunTy ignoreVar bv (Coproduct av bv)))))
-
-unitTy = mkBuiltin "Unit" DUnitTy typeZero
-
-unitTerm = mkBuiltin "unit" DUnitTerm (builtinBody unitTy)
-
-idTy = mkBuiltin "Id" IdTy idTyTY
-  where
-    idTyTY :: Expr
-    idTyTY =
-      let l = mkIdent "l"
-          lv = Var l
-          a = mkIdent "a"
-          av = Var a
-      in mkFunTy l levelTy' (mkFunTy a (mkUnivTy lv) (mkFunTy ignoreVar av (mkFunTy ignoreVar av (mkUnivTy lv))))
-
-reflTerm = mkBuiltin "refl" DRefl reflTermTY
-  where
-    reflTermTY :: Expr
-    reflTermTY =
-      let l = mkIdent "l"
-          lv = Var l
-          a = mkIdent "a"
-          av = Var a
-          x = mkIdent "x"
-          xv = Var x
-      in mkFunTy l levelTy' (mkFunTy a (mkUnivTy lv) (mkFunTy x av (idTyApp lv av xv xv)))
-
-natTy = mkBuiltin "Nat" DNat typeZero
-natTy' = builtinBody natTy
-dnzero = mkBuiltin "zero" DNZero natTy'
-dnsucc = mkBuiltin "succ" DNSucc (mkFunTy ignoreVar natTy' natTy')
-emptyTy = mkBuiltin "Empty" DEmptyTy typeZero
-
-
-lsucApp :: Expr -> Expr
-lsucApp = mkApp (builtinBody lsuc)
-
-lmaxApp :: Expr -> Expr -> Expr
-lmaxApp l1 l2 = mkApp (mkApp (builtinBody lmax) l1) l2
-
-mkUnivTy :: Expr -> Expr
-mkUnivTy = mkApp (builtinBody typeTy)
-
-inlTermApp :: Expr -> Expr -> Expr -> Expr -> Expr -> Expr
-inlTermApp l1 l2 a b v = mkApp (mkApp (mkApp (mkApp (mkApp (builtinBody inlTerm) l1) l2) a) b) v
-
-inrTermApp :: Expr -> Expr -> Expr -> Expr -> Expr -> Expr
-inrTermApp l1 l2 a b v = mkApp (mkApp (mkApp (mkApp (mkApp (builtinBody inrTerm) l1) l2) a) b) v
-
-idTyApp :: Expr -> Expr -> Expr -> Expr -> Expr
-idTyApp l t x y = mkApp (mkApp (mkApp (mkApp (builtinBody idTy) l) t) x) y
-
-reflTermApp :: Expr -> Expr -> Expr -> Expr
-reflTermApp l t x = mkApp (mkApp (mkApp (builtinBody reflTerm) l) t) x
-
-dnsuccApp :: Expr -> Expr
-dnsuccApp = mkApp (builtinBody dnsucc)
 
 
 ---------------------------
@@ -378,7 +159,6 @@ dot = char '.'
 instance Pretty Expr where
     isLexicallyAtomic (Var _) = True
     isLexicallyAtomic LitLevel{} = True
-    isLexicallyAtomic Builtin{}  = True
     isLexicallyAtomic Pair{}     = True
     isLexicallyAtomic Hole{}     = True
     isLexicallyAtomic Implicit{} = True
@@ -420,7 +200,6 @@ instance Pretty Expr where
     pprint (Sig e t) = pprintParened e <+> colon <+> pprint t
     pprint Hole = char '?'
     pprint Implicit{} = char '_'
-    pprint (Builtin s) = pprint s
     pprint (PairElim (Ignore, Implicit{}) (x, y, g) p) =
       text "let" <+> parens (pprint x <> comma <+> pprint y) <+> equals <+> pprint p <+> text "in" <+> pprint g
     pprint (PairElim (z, tC) (x, y, g) p) =
@@ -429,23 +208,6 @@ instance Pretty Expr where
       text "let" <+> pprint x <> at <> char '*' <+> equals <+> pprint a <+> text "in" <+> parens (pprint c <+> colon <+> pprint tC)
     pprint (EmptyElim (x, tC) a) =
       text "let" <+> pprint x <> at <> text "()" <+> equals <+> pprint a <+> colon <+> pprint tC
-
-instance Pretty BuiltinTerm where
-  pprint LZero     = pprint . builtinName $ lzero
-  pprint LMax      = pprint . builtinName $ lmax
-  pprint LSuc      = pprint . builtinName $ lsuc
-  pprint LevelTy   = pprint . builtinName $ levelTy
-  pprint TypeTy    = pprint . builtinName $ typeTy
-  pprint Inl       = pprint . builtinName $ inlTerm
-  pprint Inr       = pprint . builtinName $ inrTerm
-  pprint DNat      = pprint . builtinName $ natTy
-  pprint DNZero    = pprint . builtinName $ dnzero
-  pprint DNSucc    = pprint . builtinName $ dnsucc
-  pprint DUnitTy   = pprint . builtinName $ unitTy
-  pprint DUnitTerm = pprint . builtinName $ unitTerm
-  pprint IdTy      = pprint . builtinName $ idTy
-  pprint DRefl     = pprint . builtinName $ reflTerm
-  pprint DEmptyTy  = pprint . builtinName $ emptyTy
 
 instance Pretty AST where
   pprint (AST decls) = vcat $ fmap pprint decls
