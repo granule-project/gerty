@@ -64,6 +64,7 @@ Program :: { ParseAST }
 Declarations :: { [ParseDeclaration] }
   : Declaration NL Declarations { $1 : $3 }
   | Declaration          { pure $1 }
+  | {- empty -}         { [] }
 
 NL :: { () }
   : nl NL                     { }
