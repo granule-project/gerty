@@ -25,7 +25,6 @@ type Locals = [(C.Name, A.Name)]
 instance ToAbstract C.AST A.AST where
   toAbstract (C.AST []) = pure $ A.AST []
   toAbstract (C.AST ((C.TypeSig n e):ds)) = do
-    -- TODO: make sure name isn't already defined here (2020-03-05)
     n' <- toAbstract (mustBeNew n ISSig)
     e' <- toAbstract e
     (A.AST ds') <- toAbstract (C.AST ds)
