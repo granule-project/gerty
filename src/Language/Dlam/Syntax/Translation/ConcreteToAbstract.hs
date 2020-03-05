@@ -5,14 +5,13 @@ module Language.Dlam.Syntax.Translation.ConcreteToAbstract
   ) where
 
 
+import Control.Monad.Except (throwError)
+
+
 import Language.Dlam.Substitution (fresh)
 import qualified Language.Dlam.Syntax.Abstract as A
 import qualified Language.Dlam.Syntax.Concrete as C
-import Language.Dlam.TypeChecking.Monad
-
-
--- Scope checking monad (Checker monad alias).
-type SM = CM
+import Language.Dlam.Scoping.Monad
 
 
 class ToAbstract c a where
@@ -75,7 +74,7 @@ instance ToAbstract OldName A.Name where
     rn <- lookupLocalVar n
     case rn of
       Just v -> pure v
-      Nothing -> unknownNameErr n
+      Nothing -> throwError $ unknownNameErr n
 
 
 instance ToAbstract C.Expr A.Expr where

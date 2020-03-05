@@ -21,13 +21,6 @@ module Language.Dlam.TypeChecking.Monad.Base
   , lookupValue
   , setValue
 
-  -- ** Environment
-
-  -- *** Scope
-  , ScopeInfo(..)
-  , lookupLocalVar
-  , withLocals
-
   -- ** Normalisation
   , lookupNormalForm
   , withExprNormalisingTo
@@ -39,7 +32,7 @@ module Language.Dlam.TypeChecking.Monad.Base
   , notImplemented
 
   -- ** Scope errors
-  , unknownNameErr
+  , scoperError
 
   -- ** Synthesis errors
   , cannotSynthTypeForExpr
@@ -63,8 +56,9 @@ import Control.Monad.State
 import Control.Monad.Writer
 import qualified Data.Map as M
 
+import Language.Dlam.Builtins
+import qualified Language.Dlam.Scoping.Monad.Exception as SE
 import Language.Dlam.Syntax.Abstract
-import qualified Language.Dlam.Syntax.Concrete as C
 import Language.Dlam.Syntax.Common (NameId)
 import Language.Dlam.Util.Pretty (pprintShow)
 
@@ -89,24 +83,6 @@ startCheckerState =
                , normalFormEquivalences = M.empty
                , nextNameId = 0
                }
-  where
-    builtinsTypes = M.fromList
-      (fmap (\bin -> (builtinName bin, builtinType bin)) builtins)
-    builtinsValues = M.fromList
-      (fmap (\bin -> (builtinName bin, builtinBody bin)) builtins)
-
-
--- | The list of builtins.
-builtins :: [Builtin]
-builtins =
-   [ typeTy
-   , levelTy, lzero, lsuc, lmax
-   , inlTerm, inrTerm
-   , natTy, dnzero, dnsucc
-   , unitTerm, unitTy
-   , idTy, reflTerm
-   , emptyTy
-   ]
 
 
 -- | The checker monad.
@@ -197,45 +173,13 @@ withExprNormalisingTo e nf p = do
 -- * Type checking environment
 ------------------------------
 
+
 -- | Type-checking environment.
-data TCEnv = TCEnv
-  { tcScope :: ScopeInfo
-  -- ^ Current scope information.
-  }
-
-
-data ScopeInfo = ScopeInfo
-  { localVars :: M.Map C.Name Name }
-    -- ^ Local variables in scope.
-    -- TODO: add support for mapping to multiple names for ambiguity
-    -- situations (like Agda does) (2020-03-05)
-
-
-startScopeInfo :: ScopeInfo
-startScopeInfo =
-  ScopeInfo {
-    localVars = M.fromList (fmap (\b -> (nameConcrete (builtinName b), builtinName b)) builtins)
-  }
+data TCEnv = TCEnv ()
 
 
 startEnv :: TCEnv
-startEnv = TCEnv { tcScope = startScopeInfo }
-
-
-addLocals :: [(C.Name, Name)] -> TCEnv -> TCEnv
-addLocals locals sc =
-  let oldVars = localVars (tcScope sc)
-  in sc { tcScope = (tcScope sc) { localVars = oldVars <> M.fromList locals } }
-
-
-lookupLocalVar :: C.Name -> CM (Maybe Name)
-lookupLocalVar n = M.lookup n . localVars <$> reader tcScope
-
-
--- | Execute the given action with the specified local variables
--- | (additionally) bound. This restores the scope after checking.
-withLocals :: [(C.Name, Name)] -> CM a -> CM a
-withLocals locals = local (addLocals locals)
+startEnv = TCEnv ()
 
 
 -----------------------------------------
@@ -254,7 +198,7 @@ data TCError
   -- Scope Errors --
   ------------------
 
-  | NotInScope C.Name
+  | ScoperError SE.SCError
 
   ------------------
   -- Synth Errors --
@@ -289,7 +233,7 @@ data TCError
 
 instance Show TCError where
   show (NotImplemented e) = e
-  show (NotInScope n) = "Unknown identifier '" <> pprintShow n <> "'"
+  show (ScoperError e) = "The following was raised when scope-checking: " <> show e
   show (CannotSynthTypeForExpr expr) =
     "I was asked to try and synthesise a type for '" <> pprintShow expr <> "' but I wasn't able to do so."
   show (CannotSynthExprForType t) =
@@ -312,9 +256,9 @@ notImplemented :: String -> CM a
 notImplemented descr = throwError (NotImplemented descr)
 
 
--- | Indicate that an identifier is not known to be defined.
-unknownNameErr :: C.Name -> CM a
-unknownNameErr n = throwError (NotInScope n)
+-- | Indicate that an issue occurred when performing a scope analysis.
+scoperError :: SE.SCError -> CM a
+scoperError e = throwError (ScoperError e)
 
 
 cannotSynthTypeForExpr :: Expr -> CM a

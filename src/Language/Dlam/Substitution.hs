@@ -17,7 +17,10 @@ import qualified Data.Set as Set
 
 import Language.Dlam.Syntax.Abstract
 import Language.Dlam.Syntax.Common (NameId)
-import Language.Dlam.TypeChecking.Monad.Base
+import qualified Language.Dlam.Scoping.Monad as SM
+import Language.Dlam.Scoping.Monad (SM)
+import qualified Language.Dlam.TypeChecking.Monad as CM
+import Language.Dlam.TypeChecking.Monad (CM)
 
 
 class Fresh m i | m -> i where
@@ -41,7 +44,7 @@ substAbs s ab = do
   let v = absVar ab
   v' <- freshen v
   t <- substitute s (absTy ab)
-  withTypedVariable v' t $ do
+  CM.withTypedVariable v' t $ do
     e <- substitute (v, Var v') (absExpr ab) >>= substitute s
     pure $ mkAbs v' t e
 
@@ -103,8 +106,10 @@ instance {-# OVERLAPS #-} Substitutable CM (Name, Expr) Expr where
 
 
 instance Fresh CM NameId where
-  fresh = getFreshNameId
+  fresh = CM.getFreshNameId
 
+instance Fresh SM NameId where
+  fresh = SM.getFreshNameId
 
 instance Freshenable CM NameId Name where
   freshenWithSeed i v = pure $ v { nameId = i }
