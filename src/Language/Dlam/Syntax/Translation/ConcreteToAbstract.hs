@@ -26,6 +26,7 @@ instance ToAbstract C.AST A.AST where
   toAbstract (C.AST ((C.TypeSig n e):ds)) = do
     -- TODO: make sure name isn't already defined here (2020-03-05)
     n' <- toAbstract n
+    bindNameCurrentScope n n'
     e' <- toAbstract e
     (A.AST ds') <- withLocals [(n, n')] $ toAbstract (C.AST ds)
     pure . A.AST $ (A.TypeSig n' e'):ds'

@@ -18,6 +18,7 @@ module Language.Dlam.Scoping.Monad.Base
   , ScopeInfo(..)
   , lookupLocalVar
   , withLocals
+  , bindNameCurrentScope
   ) where
 
 import Control.Monad.Except
@@ -30,12 +31,14 @@ import Language.Dlam.Builtins
 import Language.Dlam.Syntax.Abstract
 import qualified Language.Dlam.Syntax.Concrete as C
 import Language.Dlam.Syntax.Common (NameId)
-import Language.Dlam.Scoping.Monad.Exception (SCError)
+import Language.Dlam.Scoping.Monad.Exception
+import Language.Dlam.Scoping.Scope
 
 
 data ScoperState
   = ScoperState
     { nextNameId :: NameId
+    , scScope :: Scope
     -- ^ Unique NameId for naming.
     }
 
@@ -43,7 +46,9 @@ data ScoperState
 -- | The starting checker state.
 startScoperState :: ScoperState
 startScoperState =
-  ScoperState { nextNameId = 0 }
+  ScoperState { nextNameId = 0, scScope = startScope }
+    where startScope = Scope { scopeNameSpace = emptyNameSpace }
+          emptyNameSpace = M.empty
 
 
 -- | The checker monad.
@@ -89,7 +94,7 @@ getFreshNameId = get >>= \s -> let c = nextNameId s in put s { nextNameId = succ
 
 -- | Scope-checking environment.
 data SCEnv = SCEnv
-  { scScope :: ScopeInfo
+  { scScopeLocals :: ScopeInfo
   -- ^ Current scope information.
   }
 
@@ -109,20 +114,49 @@ startScopeInfo =
 
 
 startEnv :: SCEnv
-startEnv = SCEnv { scScope = startScopeInfo }
+startEnv = SCEnv { scScopeLocals = startScopeInfo }
 
 
 addLocals :: [(C.Name, Name)] -> SCEnv -> SCEnv
 addLocals locals sc =
-  let oldVars = localVars (scScope sc)
-  in sc { scScope = (scScope sc) { localVars = oldVars <> M.fromList locals } }
+  let oldVars = localVars (scScopeLocals sc)
+  in sc { scScopeLocals = (scScopeLocals sc) { localVars = oldVars <> M.fromList locals } }
 
 
 lookupLocalVar :: C.Name -> SM (Maybe Name)
-lookupLocalVar n = M.lookup n . localVars <$> reader scScope
+lookupLocalVar n = M.lookup n . localVars <$> reader scScopeLocals
 
 
 -- | Execute the given action with the specified local variables
 -- | (additionally) bound. This restores the scope after checking.
 withLocals :: [(C.Name, Name)] -> SM a -> SM a
 withLocals locals = local (addLocals locals)
+
+
+-----------------------
+-- * Scopes and Binding
+-----------------------
+
+
+getCurrentScope :: SM Scope
+getCurrentScope = scScope <$> get
+
+
+modifyCurrentScope :: (Scope -> Scope) -> SM ()
+modifyCurrentScope f = modify (\s -> s { scScope = f (scScope s) })
+
+
+maybeResolveNameCurrentScope :: C.Name -> SM (Maybe InScopeName)
+maybeResolveNameCurrentScope n = lookupInScope n <$> getCurrentScope
+
+
+doesNameExistInCurrentScope :: C.Name -> SM Bool
+doesNameExistInCurrentScope n = maybe False (const True) <$> maybeResolveNameCurrentScope n
+
+
+bindNameCurrentScope :: C.Name -> Name -> SM ()
+bindNameCurrentScope cn an = do
+  isBound <- doesNameExistInCurrentScope cn
+  if isBound
+  then throwError $ nameClash cn
+  else modifyCurrentScope (addNameToScope cn an)

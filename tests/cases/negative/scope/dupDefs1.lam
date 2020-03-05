@@ -1,0 +1,4 @@
+-- duplicate type signatures
+
+t : Nat
+t : Nat

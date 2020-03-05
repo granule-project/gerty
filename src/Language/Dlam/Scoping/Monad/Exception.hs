@@ -9,6 +9,7 @@ module Language.Dlam.Scoping.Monad.Exception
 
   -- ** Scope errors
   , unknownNameErr
+  , nameClash
   ) where
 
 import Control.Exception (Exception)
@@ -35,10 +36,13 @@ data SCError
 
   | NotInScope C.Name
 
+  | NameClash C.Name
+
 
 instance Show SCError where
   show (NotImplemented e) = e
   show (NotInScope n) = "Unknown identifier '" <> pprintShow n <> "'"
+  show (NameClash n) = "Already defined '" <> pprintShow n <> "'"
 
 
 instance Exception SCError
@@ -51,3 +55,7 @@ notImplemented = NotImplemented
 -- | Indicate that an identifier is not known to be defined.
 unknownNameErr :: C.Name -> SCError
 unknownNameErr = NotInScope
+
+
+nameClash :: C.Name -> SCError
+nameClash = NameClash
