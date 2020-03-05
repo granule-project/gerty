@@ -83,7 +83,7 @@ mkAbs v e1 e2 = Abst (v, e1, e2)
 
 data Expr
   -- | Variable.
-  = Var Name
+  = Ident Name
 
   -- | Level literals.
   | LitLevel Int
@@ -182,7 +182,7 @@ dot = char '.'
 
 
 instance Pretty Expr where
-    isLexicallyAtomic (Var _) = True
+    isLexicallyAtomic (Ident _) = True
     isLexicallyAtomic LitLevel{} = True
     isLexicallyAtomic Pair{}     = True
     isLexicallyAtomic Hole{}     = True
@@ -221,7 +221,7 @@ instance Pretty Expr where
          , pprint a
          , pprint b
          , pprint p'])
-    pprint (Var var) = pprint var
+    pprint (Ident var) = pprint var
     pprint (Sig e t) = pprintParened e <+> colon <+> pprint t
     pprint Hole = char '?'
     pprint Implicit{} = char '_'

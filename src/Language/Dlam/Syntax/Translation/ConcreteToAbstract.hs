@@ -79,7 +79,7 @@ instance ToAbstract OldName A.Name where
 
 
 instance ToAbstract C.Expr A.Expr where
-  toAbstract (C.Var v) = A.Var <$> toAbstract (OldName v)
+  toAbstract (C.Ident v) = A.Var <$> toAbstract (OldName v)
   toAbstract (C.LitLevel n) = pure $ A.LitLevel n
   toAbstract (C.FunTy ab) = A.FunTy <$> toAbstract ab
   toAbstract (C.Abs ab) = A.Abs <$> toAbstract ab

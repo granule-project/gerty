@@ -148,7 +148,7 @@ Juxt :: { ParseExpr }
 
 Atom :: { ParseExpr }
   : '(' Expr ')'              { $2 }
-  | Ident                       { Var $1 }
+  | Ident                       { Ident $1 }
   | '_'                       { mkImplicit }
   | NAT                       { LitLevel (natTokenToInt $1) }
   | '(' Expr ',' Expr ')'     { Pair $2 $4 }
