@@ -1,0 +1,6 @@
+-- equation binds the function in scope (inferring a type)
+-- the type signature then is an attempt at redefining the
+-- already-inferred type
+
+t = zero
+t : Nat

@@ -1,4 +1,5 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE PatternSynonyms #-}
 module Language.Dlam.Scoping.Monad.Base
   (
    -- * Scope checking monad
@@ -18,7 +19,13 @@ module Language.Dlam.Scoping.Monad.Base
   , ScopeInfo(..)
   , lookupLocalVar
   , withLocals
+  -- *** Binding
   , bindNameCurrentScope
+  , maybeResolveNameCurrentScope
+  , HowBind(..)
+  , NameClassifier(..)
+  , pattern NCAll
+  , pattern NCNone
   ) where
 
 import Control.Monad.Except
@@ -150,13 +157,45 @@ maybeResolveNameCurrentScope :: C.Name -> SM (Maybe InScopeName)
 maybeResolveNameCurrentScope n = lookupInScope n <$> getCurrentScope
 
 
-doesNameExistInCurrentScope :: C.Name -> SM Bool
-doesNameExistInCurrentScope n = maybe False (const True) <$> maybeResolveNameCurrentScope n
+doesNameExistInCurrentScope :: NameClassifier -> C.Name -> SM Bool
+doesNameExistInCurrentScope nc n = maybe False (any (willItClash nc) . howBound) <$> maybeResolveNameCurrentScope n
 
 
-bindNameCurrentScope :: C.Name -> Name -> SM ()
-bindNameCurrentScope cn an = do
-  isBound <- doesNameExistInCurrentScope cn
+bindNameCurrentScope :: HowBind -> C.Name -> Name -> SM ()
+bindNameCurrentScope hb cn an = do
+  isBound <- doesNameExistInCurrentScope (hbClashesWith hb) cn
   if isBound
   then throwError $ nameClash cn
-  else modifyCurrentScope (addNameToScope cn an)
+  else modifyCurrentScope (addNameToScope (hbBindsAs hb) cn an)
+
+
+data NameClassifier
+  -- | Clashes with the given scope type.
+  = NCT InScopeType
+  -- | Clashes with all of the given classifiers.
+  | NCAnd [NameClassifier]
+  -- | Clashes with everything except the given classifiers.
+  | AllExcept [NameClassifier]
+
+
+-- | Clashes with everything.
+pattern NCAll :: NameClassifier
+pattern NCAll = AllExcept []
+
+
+-- | Doesn't clash with anything.
+pattern NCNone :: NameClassifier
+pattern NCNone = NCAnd []
+
+
+-- | Information for performing a binding.
+data HowBind = HowBind
+  { hbBindsAs :: InScopeType
+  , hbClashesWith :: NameClassifier
+  }
+
+
+willItClash :: NameClassifier -> InScopeType -> Bool
+willItClash (AllExcept ps) t = not $ any (`willItClash` t) ps
+willItClash (NCAnd ps) t = any (`willItClash` t) ps
+willItClash (NCT t1) t2 = t1 == t2

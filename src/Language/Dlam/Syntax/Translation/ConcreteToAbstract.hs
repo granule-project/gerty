@@ -12,6 +12,7 @@ import Language.Dlam.Substitution (fresh)
 import qualified Language.Dlam.Syntax.Abstract as A
 import qualified Language.Dlam.Syntax.Concrete as C
 import Language.Dlam.Scoping.Monad
+import Language.Dlam.Scoping.Scope
 
 
 class ToAbstract c a where
@@ -25,15 +26,14 @@ instance ToAbstract C.AST A.AST where
   toAbstract (C.AST []) = pure $ A.AST []
   toAbstract (C.AST ((C.TypeSig n e):ds)) = do
     -- TODO: make sure name isn't already defined here (2020-03-05)
-    n' <- toAbstract n
-    bindNameCurrentScope n n'
+    n' <- toAbstract (mustBeNew n ISSig)
     e' <- toAbstract e
-    (A.AST ds') <- withLocals [(n, n')] $ toAbstract (C.AST ds)
+    (A.AST ds') <- toAbstract (C.AST ds)
     pure . A.AST $ (A.TypeSig n' e'):ds'
   toAbstract (C.AST ((C.FunEqn (C.FLHSName n) r):ds)) = do
-    n' <- toAbstract (MaybeOldName n)
+    n' <- toAbstract (fdefLookingForSignature n)
     r' <- toAbstract r
-    (A.AST ds') <- withLocals [(n, n')] $ toAbstract (C.AST ds)
+    (A.AST ds') <- toAbstract (C.AST ds)
     pure . A.AST $ (A.FunEqn (A.FLHSName n') r'):ds'
 
 
@@ -56,16 +56,44 @@ instance ToAbstract C.Name A.Name where
     pure $ A.Name { A.nameId = i, A.nameConcrete = n }
 
 
-newtype MaybeOldName = MaybeOldName C.Name
+mkMaybeOldName :: C.Name -> InScopeType -> NameClassifier -> MaybeOldName
+mkMaybeOldName n c nc =
+  MaybeOldName { monName = n, monHowBind = HowBind { hbBindsAs = c, hbClashesWith = nc } }
+
+
+mustBeNew :: C.Name -> InScopeType -> MaybeOldName
+mustBeNew n c = mkMaybeOldName n c NCAll
+
+
+fdefLookingForSignature :: C.Name -> MaybeOldName
+fdefLookingForSignature n = mkMaybeOldName n ISDef (AllExcept [NCT ISSig])
+
+
+data MaybeOldName = MaybeOldName
+  { monName :: C.Name
+  , monHowBind :: HowBind
+  }
 
 instance ToAbstract MaybeOldName A.Name where
   -- we try to find an existing instance of the name, but if the name
   -- isn't in scope, then we initialise it here.
-  toAbstract (MaybeOldName n) = do
+  toAbstract mon = do
+    let n = monName mon
     rn <- lookupLocalVar n
     case rn of
-      Just v -> pure v
-      Nothing -> toAbstract n
+      -- currently we should always clash with locals, as
+      -- this is treated as a 'top-level' definitions check
+      Just _ -> throwError $ nameClash n
+      Nothing -> do
+        res <- maybeResolveNameCurrentScope n
+        case res of
+          Nothing -> do
+            n' <- toAbstract n
+            bindNameCurrentScope (monHowBind mon) n n'
+            pure n'
+          Just (InScopeName _ n') -> do
+            bindNameCurrentScope (monHowBind mon) n n'
+            pure n'
 
 
 newtype OldName = OldName C.Name
@@ -74,8 +102,15 @@ instance ToAbstract OldName A.Name where
   toAbstract (OldName n) = do
     rn <- lookupLocalVar n
     case rn of
+      -- locals always override
       Just v -> pure v
-      Nothing -> throwError $ unknownNameErr n
+      -- if there's no matching locals, try and resolve the name in
+      -- the definitions scope
+      Nothing -> do
+        res <- maybeResolveNameCurrentScope n
+        case res of
+          Nothing -> throwError $ unknownNameErr n
+          Just inScope -> pure (isnName inScope)
 
 
 instance ToAbstract C.Expr A.Expr where

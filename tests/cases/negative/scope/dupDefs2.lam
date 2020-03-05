@@ -1,0 +1,6 @@
+-- we attempt to define the function equation
+-- multiple times after the type signature
+
+t : Nat
+t = zero
+t = zero
