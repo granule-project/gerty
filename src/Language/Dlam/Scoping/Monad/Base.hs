@@ -45,17 +45,16 @@ import Language.Dlam.Scoping.Scope
 data ScoperState
   = ScoperState
     { nextNameId :: NameId
-    , scScope :: Scope
     -- ^ Unique NameId for naming.
+    , scScope :: ScopeInfo
+    -- ^ Information about the current scope.
     }
 
 
 -- | The starting checker state.
 startScoperState :: ScoperState
 startScoperState =
-  ScoperState { nextNameId = 0, scScope = startScope }
-    where startScope = Scope { scopeNameSpace = emptyNameSpace }
-          emptyNameSpace = M.empty
+  ScoperState { nextNameId = 0, scScope = startScopeInfo }
 
 
 -- | The checker monad.
@@ -100,44 +99,11 @@ getFreshNameId = get >>= \s -> let c = nextNameId s in put s { nextNameId = succ
 
 
 -- | Scope-checking environment.
-data SCEnv = SCEnv
-  { scScopeLocals :: ScopeInfo
-  -- ^ Current scope information.
-  }
-
-
-data ScopeInfo = ScopeInfo
-  { localVars :: M.Map C.Name Name }
-    -- ^ Local variables in scope.
-    -- TODO: add support for mapping to multiple names for ambiguity
-    -- situations (like Agda does) (2020-03-05)
-
-
-startScopeInfo :: ScopeInfo
-startScopeInfo =
-  ScopeInfo {
-    localVars = M.fromList (fmap (\b -> (nameConcrete (builtinName b), builtinName b)) builtins)
-  }
+data SCEnv = SCEnv ()
 
 
 startEnv :: SCEnv
-startEnv = SCEnv { scScopeLocals = startScopeInfo }
-
-
-addLocals :: [(C.Name, Name)] -> SCEnv -> SCEnv
-addLocals locals sc =
-  let oldVars = localVars (scScopeLocals sc)
-  in sc { scScopeLocals = (scScopeLocals sc) { localVars = oldVars <> M.fromList locals } }
-
-
-lookupLocalVar :: C.Name -> SM (Maybe Name)
-lookupLocalVar n = M.lookup n . localVars <$> reader scScopeLocals
-
-
--- | Execute the given action with the specified local variables
--- | (additionally) bound. This restores the scope after checking.
-withLocals :: [(C.Name, Name)] -> SM a -> SM a
-withLocals locals = local (addLocals locals)
+startEnv = SCEnv ()
 
 
 -----------------------
@@ -145,12 +111,70 @@ withLocals locals = local (addLocals locals)
 -----------------------
 
 
+type LocalVars = M.Map C.Name Name
+
+
+data ScopeInfo = ScopeInfo
+  { scopeLocals :: LocalVars
+    -- ^ Local variables in scope.
+    -- TODO: add support for mapping to multiple names for ambiguity
+    -- situations (like Agda does) (2020-03-05)
+  , scopeCurrent :: Scope
+  -- ^ Current definition scope.
+  }
+
+
+startScopeInfo :: ScopeInfo
+startScopeInfo = ScopeInfo
+  { scopeLocals = M.fromList (fmap (\b -> (nameConcrete (builtinName b), builtinName b)) builtins)
+  , scopeCurrent = Scope { scopeNameSpace = M.empty }
+  }
+
+
+onScopeInfo :: (ScopeInfo -> ScopeInfo) -> ScoperState -> ScoperState
+onScopeInfo f s = s { scScope = f (scScope s) }
+
+
+addLocals :: [(C.Name, Name)] -> ScoperState -> ScoperState
+addLocals locals =
+  onScopeInfo $ \si ->
+    let oldVars = scopeLocals si
+    in si { scopeLocals = oldVars <> M.fromList locals }
+
+
+setLocals :: LocalVars -> ScoperState -> ScoperState
+setLocals locals = onScopeInfo $ \si -> si { scopeLocals = locals }
+
+
+getScopeInfo :: SM ScopeInfo
+getScopeInfo = scScope <$> get
+
+
+getScopeLocals :: SM LocalVars
+getScopeLocals = scopeLocals <$> getScopeInfo
+
+
+lookupLocalVar :: C.Name -> SM (Maybe Name)
+lookupLocalVar n = M.lookup n <$> getScopeLocals
+
+
+-- | Execute the given action with the specified local variables
+-- | (additionally) bound. This restores the scope after checking.
+withLocals :: [(C.Name, Name)] -> SM a -> SM a
+withLocals locals act = do
+  oldLocals <- getScopeLocals
+  modify $ addLocals locals
+  res <- act
+  modify (setLocals oldLocals)
+  pure res
+
+
 getCurrentScope :: SM Scope
-getCurrentScope = scScope <$> get
+getCurrentScope = scopeCurrent <$> getScopeInfo
 
 
 modifyCurrentScope :: (Scope -> Scope) -> SM ()
-modifyCurrentScope f = modify (\s -> s { scScope = f (scScope s) })
+modifyCurrentScope f = modify $ onScopeInfo (\si -> si { scopeCurrent = f (scopeCurrent si) })
 
 
 maybeResolveNameCurrentScope :: C.Name -> SM (Maybe InScopeName)
