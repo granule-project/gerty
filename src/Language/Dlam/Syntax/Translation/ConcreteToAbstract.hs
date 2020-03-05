@@ -36,11 +36,6 @@ instance ToAbstract C.AST A.AST where
     pure . A.AST $ (A.FunEqn (A.FLHSName n') r'):ds'
 
 
-instance ToAbstract C.Declaration A.Declaration where
-  toAbstract (C.FunEqn l r) = A.FunEqn <$> toAbstract l <*> toAbstract r
-  toAbstract (C.TypeSig n e) = A.TypeSig <$> toAbstract n <*> toAbstract e
-
-
 instance ToAbstract C.FLHS A.FLHS where
   toAbstract (C.FLHSName n) = A.FLHSName <$> toAbstract n
 
