@@ -25,7 +25,11 @@ import Language.Dlam.Util.Pretty (pprintShow)
 %token
     nl      { TokenNL _ }
     let     { TokenLet _ }
+    record  { TokenRecord _ }
+    where   { TokenWhere _ }
     rewrite { TokenRewrite _ }
+    constructor { TokenConstructor _ }
+    field   { TokenField _ }
     '_'     { TokenImplicit _ }
     case    { TokenCase _ }
     inl     { TokenInl _ }
@@ -62,8 +66,8 @@ Program :: { ParseAST }
   : Declarations  { AST $1 }
 
 Declarations :: { [ParseDeclaration] }
-  : Declaration NL Declarations { $1 : $3 }
-  | Declaration          { pure $1 }
+  : Declaration NL Declarations { $1 <> $3 }
+  | Declaration          { $1 }
   | {- empty -}         { [] }
 
 NL :: { () }
@@ -80,8 +84,10 @@ FLHS :: { FLHS }
   : Ident { FLHSName $1 }
   -- TODO: add support for parsing patterns on the LHS (2020-02-29)
 
-Declaration :: { Declaration }
-  : FunctionDeclaration { $1 }
+Declaration :: { [Declaration] }
+  : FunctionDeclaration { [$1] }
+  | RecordDef { [$1] }
+  | Field { $1 }
 
 FunctionDeclaration :: { Declaration }
   : FLHS FRHS { funAssignOrTypeSig $1 $2 }
@@ -92,6 +98,47 @@ FRHS :: { FRHSOrTypeSig }
   : '=' Expr { IsRHS (FRHSAssign $2) }
   -- Type signature
   | ':' Expr { IsTypeSig $2 }
+
+
+-----------------------
+-- Record definition --
+-----------------------
+
+RecordDef :: { Declaration }
+  : record Ident LambdaBindingsOrEmpty ':' Expr where constructor Ident Declarations
+      { RecordDef $2 (Just $8) $3 $5 $9 }
+  | record Ident LambdaBindingsOrEmpty ':' Expr where Declarations
+      { RecordDef $2 Nothing $3 $5 $7 }
+
+TypedBinding :: { TypedBinding }
+  : '(' Ident VarsSpaced ':' Expr ')' { TypedBinding ($2 : $3) $5 }
+  | '(' Ident ':' Expr ')'            { TypedBinding [$2] $4 }
+
+LambdaBinding :: { LambdaBinding }
+  : TypedBinding { NamedBinding $1 }
+  -- TODO: add support for simple names/expressions, currently not
+  -- working because of parsing precedence (2020-03-05)
+  -- | Expr         { UnnamedBinding $1 }
+
+LambdaBindingsOrEmpty :: { [LambdaBinding] }
+  : LambdaBinding                       { [$1] }
+  | LambdaBinding LambdaBindingsOrEmpty { $1 : $2 }
+  | {- empty -}                         { [] }
+
+
+Field :: { [Declaration] }
+  : field EmptyOrTypeSigs { fmap (uncurry Field) $2 }
+
+
+EmptyOrTypeSigs :: { [(Name, Expr)] }
+  : TypeSig { [$1] }
+  | TypeSig NL EmptyOrTypeSigs { $1 : $3 }
+  | {- empty -}                { [] }
+
+
+TypeSig :: { (Name, Expr) }
+  : Ident ':' Expr { ($1, $3) }
+
 
 Ident :: { Name }
   : VAR { mkIdentFromSym $1 }

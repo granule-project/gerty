@@ -34,6 +34,9 @@ instance ToAbstract C.AST A.AST where
     r' <- toAbstract r
     (A.AST ds') <- toAbstract (C.AST ds)
     pure . A.AST $ (A.FunEqn (A.FLHSName n') r'):ds'
+  -- currently just ignoring records pending implementation (2020-03-05, GD)
+  toAbstract (C.AST ((C.RecordDef _n _con _p _e _decls):ds)) = toAbstract (C.AST ds)
+  toAbstract (C.AST ((C.Field _n _t):ds)) = toAbstract (C.AST ds)
 
 
 instance ToAbstract C.FLHS A.FLHS where

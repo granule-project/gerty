@@ -14,6 +14,8 @@ module Language.Dlam.Syntax.Concrete
   , absVar
   , absTy
   , absExpr
+  , LambdaBinding(..)
+  , TypedBinding(..)
   -- ** Let bindings and patterns
   , LetBinding(..)
   , Pattern(..)
@@ -56,11 +58,23 @@ data FRHS =
   deriving (Show)
 
 
-data Declaration =
-  -- ^ A single clause for a function.
-    FunEqn FLHS FRHS
-  -- ^ A type signature.
+data LambdaBinding = NamedBinding TypedBinding | UnnamedBinding Expr
+  deriving (Show)
+
+
+data TypedBinding = TypedBinding [Name] Expr
+  deriving (Show)
+
+
+data Declaration
+  -- | A single clause for a function.
+  = FunEqn FLHS FRHS
+  -- | A type signature.
   | TypeSig Name Expr
+  -- | A record definition.
+  | RecordDef Name (Maybe Name) [LambdaBinding] Expr [Declaration]
+  -- | A record field.
+  | Field Name Expr
   deriving (Show)
 
 newtype Abstraction = Abst { getAbst :: (Name, Expr, Expr) }
@@ -247,6 +261,17 @@ instance Pretty FLHS where
 instance Pretty FRHS where
   pprint (FRHSAssign e) = equals <+> pprint e
 
+instance Pretty TypedBinding where
+  pprint (TypedBinding ns e) = parens $ hsep (fmap pprint ns) <+> colon <+> pprint e
+
+instance Pretty LambdaBinding where
+  pprint (NamedBinding t) = pprint t
+  pprint (UnnamedBinding e) = pprint e
+
 instance Pretty Declaration where
   pprint (TypeSig n t) = pprint n <+> colon <+> pprint t
   pprint (FunEqn lhs rhs) = pprint lhs <+> pprint rhs
+  pprint (RecordDef n con params ty decls) =
+    text "record" <+> pprint n <+> hsep (fmap pprint params) <+> colon <+> pprint ty <+> text "where"
+         $+$ vcat (fmap (nest 2) $ (maybe empty (\conName -> (text "constructor" <+> pprint conName)) con) : fmap pprint decls)
+  pprint (Field n e) = text "field" <+> pprint n <+> colon <+> pprint e

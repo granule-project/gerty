@@ -42,6 +42,10 @@ tokens :-
   "--".*                        ;
   @nat                          { \p s -> TokenNat p (read s) }
   lang\.@langPrag               { \p s -> TokenLang p s }
+  record                        { \p _ -> TokenRecord p }
+  where                         { \p _ -> TokenWhere p }
+  constructor                   { \p _ -> TokenConstructor p }
+  field                         { \p _ -> TokenField p }
   let                           { \p s -> TokenLet p }
   in                            { \p s -> TokenIn p }
   case                          { \p s -> TokenCase p }
@@ -75,6 +79,10 @@ tokens :-
 
 data Token
   = TokenLang     AlexPosn String
+  | TokenRecord   AlexPosn
+  | TokenWhere    AlexPosn
+  | TokenConstructor AlexPosn
+  | TokenField    AlexPosn
   | TokenCase     AlexPosn
   | TokenOf       AlexPosn
   | TokenInl      AlexPosn

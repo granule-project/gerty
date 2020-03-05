@@ -1,0 +1,23 @@
+-- no field or constructors
+record MyEmpty : Type 0 where
+
+-- only a constructor
+record MyUnit : Type 0 where
+  constructor unit
+
+-- params
+record Test1 (l : Level) : Type 0 where
+
+-- multi params
+record Test2 (l1 : Level) (l2 : Level) : Type 0 where
+
+-- params and constructor
+record Test3 (l : Level) : Type 0 where
+  constructor test3
+
+-- constructor and fields, with parameters
+record MyPair (l1 l2 : Level) (A : Set l1) (B : Set l2) : Type (lmax l1 l2) where
+  constructor mkPair
+  field
+    fst : A
+    snd : B
