@@ -72,7 +72,8 @@ module Language.Dlam.Syntax.Abstract
 import Prelude hiding ((<>))
 import qualified Data.Set as Set
 
-import Language.Dlam.Syntax.Concrete.Name
+import Language.Dlam.Syntax.Common (NameId(..))
+import qualified Language.Dlam.Syntax.Concrete.Name as C
 import Language.Dlam.Util.Pretty
 
 
@@ -221,6 +222,28 @@ boundSubjectVars (PVar n) = Set.singleton n
 boundSubjectVars (PAt _ p) = boundSubjectVars p
 boundSubjectVars PUnit = mempty
 
+
+---------
+-- * Name
+---------
+
+
+data Name = Name
+  { nameId :: NameId
+    -- ^ Unique identifier of the name.
+  , nameConcrete :: C.Name
+    -- ^ Concrete representation of the name.
+  } deriving (Show, Eq, Ord)
+
+
+
+-- TODO: move builtins to a different phase so we don't need these
+-- (names might not be unique!) (2020-03-05)
+ignoreVar :: Name
+ignoreVar = Name { nameId = NameId 0, nameConcrete = C.NoName (NameId 0) }
+
+mkIdent :: String -> Name
+mkIdent s = Name { nameId = NameId 0, nameConcrete = C.Name s }
 
 --------------------
 ----- Builtins -----
@@ -412,8 +435,8 @@ pprintAbs :: Doc -> Abstraction -> Doc
 pprintAbs sep ab =
   let leftTyDoc =
         case absVar ab of
-          Ignore -> pprint (absTy ab)
-          _      -> parens (pprint (absVar ab) <+> colon <+> pprint (absTy ab))
+          Name _ C.NoName{} -> pprint (absTy ab)
+          _        -> parens (pprint (absVar ab) <+> colon <+> pprint (absTy ab))
   in leftTyDoc <+> sep <+> pprint (absExpr ab)
 
 
@@ -444,7 +467,7 @@ instance Pretty Expr where
     pprint (App e1 e2) = pprint e1 <+> pprintParened e2
     pprint (Pair e1 e2) = parens (pprint e1 <> comma <+> pprint e2)
     pprint (Coproduct e1 e2) = pprint e1 <+> char '+' <+> pprint e2
-    pprint (CoproductCase (Ignore, Implicit) (x, c) (y, d) e) =
+    pprint (CoproductCase (Name _ C.NoName{}, Implicit) (x, c) (y, d) e) =
       caset <+> pprint e <+> text "of"
               <+> text "Inl" <+> pprint x <+> arrow <+> pprint c <> semi
               <+> text "Inr" <+> pprint y <+> arrow <+> pprint d
@@ -502,6 +525,9 @@ instance Pretty BuiltinTerm where
   pprint IdTy      = pprint . builtinName $ idTy
   pprint DRefl     = pprint . builtinName $ reflTerm
   pprint DEmptyTy  = pprint . builtinName $ emptyTy
+
+instance Pretty Name where
+  pprint = pprint . nameConcrete
 
 instance Pretty AST where
   pprint (AST decls) = vcat $ fmap pprint decls

@@ -11,7 +11,7 @@ module Language.Dlam.TypeChecking.Monad.Base
   , tcrLog
   , tcrRes
 
-  , getUniqueCounter
+  , getFreshNameId
 
   -- ** Scope
   , lookupType
@@ -20,6 +20,13 @@ module Language.Dlam.TypeChecking.Monad.Base
 
   , lookupValue
   , setValue
+
+  -- ** Environment
+
+  -- *** Scope
+  , ScopeInfo(..)
+  , lookupLocalVar
+  , withLocals
 
   -- ** Normalisation
   , lookupNormalForm
@@ -51,15 +58,15 @@ module Language.Dlam.TypeChecking.Monad.Base
 
 import Control.Exception (Exception)
 import Control.Monad.Except
+import Control.Monad.Reader
 import Control.Monad.State
 import Control.Monad.Writer
 import qualified Data.Map as M
 
 import Language.Dlam.Syntax.Abstract
+import qualified Language.Dlam.Syntax.Concrete as C
+import Language.Dlam.Syntax.Common (NameId)
 import Language.Dlam.Util.Pretty (pprintShow)
-
-
-type Counter = Int
 
 
 data CheckerState
@@ -69,8 +76,8 @@ data CheckerState
     , normalFormEquivalences :: M.Map Expr Expr
     -- ^ If (e1, e2) is in the normalFormEquivalences map, we treat them as equivalent
     -- ^ under normalisation.
-    , counter :: Counter
-    -- ^ Unique counter.
+    , nextNameId :: NameId
+    -- ^ Unique NameId for naming.
     }
 
 
@@ -80,29 +87,33 @@ startCheckerState =
   CheckerState { typingScope = builtinsTypes
                , valueScope = builtinsValues
                , normalFormEquivalences = M.empty
-               , counter = 0
+               , nextNameId = 0
                }
   where
     builtinsTypes = M.fromList
       (fmap (\bin -> (builtinName bin, builtinType bin)) builtins)
     builtinsValues = M.fromList
       (fmap (\bin -> (builtinName bin, builtinBody bin)) builtins)
-    builtins =
-       [ typeTy
-       , levelTy, lzero, lsuc, lmax
-       , inlTerm, inrTerm
-       , natTy, dnzero, dnsucc
-       , unitTerm, unitTy
-       , idTy, reflTerm
-       , emptyTy
-       ]
 
+
+-- | The list of builtins.
+builtins :: [Builtin]
+builtins =
+   [ typeTy
+   , levelTy, lzero, lsuc, lmax
+   , inlTerm, inrTerm
+   , natTy, dnzero, dnsucc
+   , unitTerm, unitTy
+   , idTy, reflTerm
+   , emptyTy
+   ]
 
 
 -- | The checker monad.
 newtype CM a =
-  CM { runCM :: ExceptT TCError (WriterT TCLog (State CheckerState)) a }
+  CM { runCM :: ExceptT TCError (WriterT TCLog (ReaderT TCEnv (State CheckerState))) a }
   deriving ( Applicative, Functor, Monad
+           , MonadReader TCEnv
            , MonadState CheckerState
            , MonadWriter TCLog
            , MonadError TCError)
@@ -118,19 +129,20 @@ data TCResult a
     }
 
 
-runChecker :: CheckerState -> CM a -> TCResult a
-runChecker st p =
-  let (res, log) = evalState (runWriterT $ (runExceptT (runCM p))) st
+runChecker :: TCEnv -> CheckerState -> CM a -> TCResult a
+runChecker env st p =
+  let (res, log) = evalState (runReaderT (runWriterT $ (runExceptT (runCM p))) env) st
   in TCResult { tcrLog = log, tcrRes = res }
 
 
 runNewChecker :: CM a -> TCResult a
-runNewChecker = runChecker startCheckerState
+runNewChecker = runChecker startEnv startCheckerState
 
 
--- | Get a unique counter.
-getUniqueCounter :: CM Counter
-getUniqueCounter = get >>= \s -> let c = counter s in put s { counter = c + 1 } >> pure c
+
+-- | Get a unique NameId.
+getFreshNameId :: CM NameId
+getFreshNameId = get >>= \s -> let c = nextNameId s in put s { nextNameId = succ c } >> pure c
 
 
 lookupType :: Name -> CM (Maybe Expr)
@@ -181,6 +193,51 @@ withExprNormalisingTo e nf p = do
   pure res
 
 
+------------------------------
+-- * Type checking environment
+------------------------------
+
+-- | Type-checking environment.
+data TCEnv = TCEnv
+  { tcScope :: ScopeInfo
+  -- ^ Current scope information.
+  }
+
+
+data ScopeInfo = ScopeInfo
+  { localVars :: M.Map C.Name Name }
+    -- ^ Local variables in scope.
+    -- TODO: add support for mapping to multiple names for ambiguity
+    -- situations (like Agda does) (2020-03-05)
+
+
+startScopeInfo :: ScopeInfo
+startScopeInfo =
+  ScopeInfo {
+    localVars = M.fromList (fmap (\b -> (nameConcrete (builtinName b), builtinName b)) builtins)
+  }
+
+
+startEnv :: TCEnv
+startEnv = TCEnv { tcScope = startScopeInfo }
+
+
+addLocals :: [(C.Name, Name)] -> TCEnv -> TCEnv
+addLocals locals sc =
+  let oldVars = localVars (tcScope sc)
+  in sc { tcScope = (tcScope sc) { localVars = oldVars <> M.fromList locals } }
+
+
+lookupLocalVar :: C.Name -> CM (Maybe Name)
+lookupLocalVar n = M.lookup n . localVars <$> reader tcScope
+
+
+-- | Execute the given action with the specified local variables
+-- | (additionally) bound. This restores the scope after checking.
+withLocals :: [(C.Name, Name)] -> CM a -> CM a
+withLocals locals = local (addLocals locals)
+
+
 -----------------------------------------
 ----- Exceptions and error handling -----
 -----------------------------------------
@@ -197,7 +254,7 @@ data TCError
   -- Scope Errors --
   ------------------
 
-  | NotInScope Name
+  | NotInScope C.Name
 
   ------------------
   -- Synth Errors --
@@ -256,7 +313,7 @@ notImplemented descr = throwError (NotImplemented descr)
 
 
 -- | Indicate that an identifier is not known to be defined.
-unknownNameErr :: Name -> CM a
+unknownNameErr :: C.Name -> CM a
 unknownNameErr n = throwError (NotInScope n)
 
 

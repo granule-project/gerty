@@ -169,8 +169,8 @@ pprintAbs :: Doc -> Abstraction -> Doc
 pprintAbs sep ab =
   let leftTyDoc =
         case absVar ab of
-          Ignore -> pprint (absTy ab)
-          _      -> parens (pprint (absVar ab) <+> colon <+> pprint (absTy ab))
+          NoName{} -> pprint (absTy ab)
+          _        -> parens (pprint (absVar ab) <+> colon <+> pprint (absTy ab))
   in leftTyDoc <+> sep <+> pprint (absExpr ab)
 
 
@@ -200,7 +200,7 @@ instance Pretty Expr where
     pprint (App e1 e2) = pprint e1 <+> pprintParened e2
     pprint (Pair e1 e2) = parens (pprint e1 <> comma <+> pprint e2)
     pprint (Coproduct e1 e2) = pprint e1 <+> char '+' <+> pprint e2
-    pprint (CoproductCase (Ignore, Implicit) (x, c) (y, d) e) =
+    pprint (CoproductCase (NoName{}, Implicit) (x, c) (y, d) e) =
       caset <+> pprint e <+> text "of"
               <+> text "Inl" <+> pprint x <+> arrow <+> pprint c <> semi
               <+> text "Inr" <+> pprint y <+> arrow <+> pprint d

@@ -386,7 +386,7 @@ checkOrInferType t expr@LitLevel{} = ensureEqualTypes expr t (builtinBody levelT
 -}
 checkOrInferType t expr@(Var x) = do
   -- x : A in G
-  tA <- lookupType x >>= maybe (unknownNameErr x) pure
+  tA <- lookupType x >>= maybe (unknownNameErr (nameConcrete x)) pure
 
   -- G |- A : Type l
   _l <- inferUniverseLevel tA

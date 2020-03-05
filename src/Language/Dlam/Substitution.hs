@@ -1,8 +1,14 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FunctionalDependencies #-}
 module Language.Dlam.Substitution
-  ( Substitutable(..)
+  (
+  -- * Substitution
+    Substitutable(..)
+
+  -- * Freshening
+  , Fresh(..)
   , Freshenable(..)
+  , freshen
   ) where
 
 
@@ -10,11 +16,21 @@ import qualified Data.Foldable as F
 import qualified Data.Set as Set
 
 import Language.Dlam.Syntax.Abstract
+import Language.Dlam.Syntax.Common (NameId)
 import Language.Dlam.TypeChecking.Monad.Base
 
 
-class Freshenable m n | m -> n where
-  freshen :: n -> m n
+class Fresh m i | m -> i where
+  fresh :: m i
+
+
+class (Fresh m i) => Freshenable m i e | m -> i where
+  freshenWithSeed :: i -> e -> m e
+
+
+freshen :: (Monad m, Freshenable m i e) => e -> m e
+freshen e = fresh >>= (`freshenWithSeed` e)
+
 
 class Substitutable m n e where
   substitute :: n -> e -> m e
@@ -86,10 +102,9 @@ instance {-# OVERLAPS #-} Substitutable CM (Name, Expr) Expr where
     pure $ Let (LetPatBound p e') r'
 
 
-instance Freshenable CM Name where
-  freshen v = do
-    count <- getUniqueCounter
-    pure $ case v of
-      Ignore -> GenIdent ("_", count)
-      Ident v -> GenIdent (v, count)
-      GenIdent (v, _) -> GenIdent (v, count)
+instance Fresh CM NameId where
+  fresh = getFreshNameId
+
+
+instance Freshenable CM NameId Name where
+  freshenWithSeed i v = pure $ v { nameId = i }

@@ -7,24 +7,28 @@ module Language.Dlam.Syntax.Concrete.Name
 
 import Prelude hiding ((<>))
 
+import Language.Dlam.Syntax.Common (NameId(..))
 import Language.Dlam.Util.Pretty
 
 
-data Name = Ident String | GenIdent (String, Int) | Ignore
+data Name
+  = Name String
+  -- ^ Concrete name.
+  | NoName NameId
+  -- ^ Unused/generated name.
   deriving (Show, Eq, Ord)
 
 
 -- | Create a new identifier from a (syntactic) string.
 mkIdent :: String -> Name
-mkIdent = Ident
+mkIdent = Name
 
 
 -- | Name for use when the value is unused.
 ignoreVar :: Name
-ignoreVar = Ignore
+ignoreVar = NoName (NameId 0)
 
 
 instance Pretty Name where
-  pprint (Ident v) = text v
-  pprint (GenIdent (v, i)) = text v <> char '_' <> int i
-  pprint Ignore = char '_'
+  pprint (Name v) = text v
+  pprint NoName{} = char '_'

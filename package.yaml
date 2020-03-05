@@ -40,6 +40,7 @@ library:
   other-modules:
    - Language.Dlam.FirstParameter
    - Language.Dlam.Syntax.Abstract
+   - Language.Dlam.Syntax.Common
    - Language.Dlam.Syntax.Concrete.Name
    - Language.Dlam.Syntax.Free
    - Language.Dlam.Syntax.Lexer
