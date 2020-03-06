@@ -440,11 +440,10 @@ pprintAbs sep ab =
   in leftTyDoc <+> sep <+> pprint (absExpr ab)
 
 
-arrow, at, caset, dot :: Doc
+arrow, at, caset :: Doc
 arrow = text "->"
 at = char '@'
 caset = text "case"
-dot = char '.'
 
 
 instance Pretty Expr where
@@ -483,8 +482,8 @@ instance Pretty Expr where
     pprint (RewriteExpr (x, y, p, tC) (z, c) a b p') =
       text "rewrite" <> parens
         (hcat $ punctuate (comma <> space)
-         [ hcat $ punctuate dot [pprint x, pprint y, pprint p, pprint tC]
-         , pprint z <> dot <> pprint c
+         [ char '\\' <> hsep [pprint x, pprint y, pprint p, arrow, pprint tC]
+         , char '\\' <> pprint z <+> arrow <+> pprint c
          , pprint a
          , pprint b
          , pprint p'])

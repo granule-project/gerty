@@ -82,13 +82,14 @@ instance ToAbstract MaybeOldName A.Name where
   -- isn't in scope, then we initialise it here.
   toAbstract mon = do
     let n = monName mon
+        qn = C.Unqualified n
     rn <- lookupLocalVar n
     case rn of
       -- currently we should always clash with locals, as
       -- this is treated as a 'top-level' definitions check
       Just _ -> throwError $ nameClash n
       Nothing -> do
-        res <- maybeResolveNameCurrentScope n
+        res <- maybeResolveNameCurrentScope qn
         case res of
           Nothing -> do
             n' <- toAbstract n
@@ -99,21 +100,23 @@ instance ToAbstract MaybeOldName A.Name where
             pure n'
 
 
-newtype OldName = OldName C.Name
+newtype OldQName = OldQName C.QName
 
-instance ToAbstract OldName A.Name where
-  toAbstract (OldName n) = do
-    rn <- lookupLocalVar n
+instance ToAbstract OldQName A.Expr where
+  toAbstract (OldQName n) = do
+    rn <- lookupLocalQVar n
     case rn of
       -- locals always override
-      Just v -> pure v
+      Just v -> pure (A.Var v)
       -- if there's no matching locals, try and resolve the name in
       -- the definitions scope
       Nothing -> do
         res <- maybeResolveNameCurrentScope n
         case res of
           Nothing -> throwError $ unknownNameErr n
-          Just inScope -> pure (isnName inScope)
+          -- TODO: support disambiguating definitions here (so we
+          -- return a Def) (2020-03-06)
+          Just inScope -> pure $ A.Var (isnName inScope)
 
 
 instance ToAbstract C.PiBindings ([(A.Name, A.Expr)], Locals) where
@@ -143,7 +146,7 @@ instance ToAbstract C.LambdaArgs ([(A.Name, A.Expr)], Locals) where
 
 
 instance ToAbstract C.Expr A.Expr where
-  toAbstract (C.Ident v) = A.Var <$> toAbstract (OldName v)
+  toAbstract (C.Ident v) = toAbstract (OldQName v)
   toAbstract (C.LitLevel n) = pure $ A.LitLevel n
   toAbstract (C.Fun e1 e2) = do
     name <- newIgnoredName

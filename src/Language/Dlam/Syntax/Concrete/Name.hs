@@ -1,5 +1,6 @@
 module Language.Dlam.Syntax.Concrete.Name
   ( Name(..)
+  , QName(..)
   , mkIdent
   , ignoreVar
   ) where
@@ -19,6 +20,11 @@ data Name
   deriving (Show, Eq, Ord)
 
 
+-- | A name can be qualified or unqualified.
+data QName = Qualified Name QName | Unqualified Name
+  deriving (Show, Eq, Ord)
+
+
 -- | Create a new identifier from a (syntactic) string.
 mkIdent :: String -> Name
 mkIdent = Name
@@ -32,3 +38,8 @@ ignoreVar = NoName (NameId 0)
 instance Pretty Name where
   pprint (Name v) = text v
   pprint NoName{} = char '_'
+
+
+instance Pretty QName where
+  pprint (Qualified n qs) = pprint n <> char '.' <> pprint qs
+  pprint (Unqualified n)  = pprint n

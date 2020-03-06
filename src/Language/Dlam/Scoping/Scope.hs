@@ -4,6 +4,7 @@ module Language.Dlam.Scoping.Scope
   , InScopeType(..)
   , lookupInScope
   , addNameToScope
+  , ResolvedName(..)
   ) where
 
 
@@ -24,6 +25,7 @@ type NameSpace = M.Map C.Name InScopeName
 data InScopeName
   -- | A name in scope, with an explanation as to why it is in scope.
   = InScopeName { howBound :: [InScopeType], isnName :: A.Name }
+  deriving (Show)
 
 
 -- | Different types of things we can have in scope.
@@ -32,16 +34,24 @@ data InScopeType
   = ISSig
   -- | A definition.
   | ISDef
-  deriving (Eq)
+  deriving (Show, Eq)
 
+
+-- | A name that has been resolved in scope.
+data ResolvedName
+  -- | A local variable.
+  = ResolvedVar A.Name
+  -- | A definition name.
+  | ResolvedDef A.Name
 
 
 lookupInNameSpace :: C.Name -> NameSpace -> Maybe InScopeName
 lookupInNameSpace = M.lookup
 
 
-lookupInScope :: C.Name -> Scope -> Maybe InScopeName
-lookupInScope n = lookupInNameSpace n . scopeNameSpace
+lookupInScope :: C.QName -> Scope -> Maybe InScopeName
+lookupInScope (C.Unqualified n) = lookupInNameSpace n . scopeNameSpace
+lookupInScope (C.Qualified _n _q) = error "qualified lookups not yet supported"
 
 
 addNameToNameSpace :: InScopeType -> C.Name -> A.Name -> NameSpace -> NameSpace

@@ -18,10 +18,12 @@ module Language.Dlam.Scoping.Monad.Base
   -- ** Scope
   , ScopeInfo(..)
   , lookupLocalVar
+  , lookupLocalQVar
   , withLocals
   -- *** Binding
   , bindNameCurrentScope
   , maybeResolveNameCurrentScope
+  , resolveNameCurrentScope
   , HowBind(..)
   , NameClassifier(..)
   , pattern NCAll
@@ -158,6 +160,10 @@ lookupLocalVar :: C.Name -> SM (Maybe Name)
 lookupLocalVar n = M.lookup n <$> getScopeLocals
 
 
+lookupLocalQVar :: C.QName -> SM (Maybe Name)
+lookupLocalQVar n = (M.lookup n . M.mapKeys C.Unqualified) <$> getScopeLocals
+
+
 -- | Execute the given action with the specified local variables
 -- | (additionally) bound. This restores the scope after checking.
 withLocals :: [(C.Name, Name)] -> SM a -> SM a
@@ -177,17 +183,17 @@ modifyCurrentScope :: (Scope -> Scope) -> SM ()
 modifyCurrentScope f = modify $ onScopeInfo (\si -> si { scopeCurrent = f (scopeCurrent si) })
 
 
-maybeResolveNameCurrentScope :: C.Name -> SM (Maybe InScopeName)
+maybeResolveNameCurrentScope :: C.QName -> SM (Maybe InScopeName)
 maybeResolveNameCurrentScope n = lookupInScope n <$> getCurrentScope
 
 
-doesNameExistInCurrentScope :: NameClassifier -> C.Name -> SM Bool
+doesNameExistInCurrentScope :: NameClassifier -> C.QName -> SM Bool
 doesNameExistInCurrentScope nc n = maybe False (any (willItClash nc) . howBound) <$> maybeResolveNameCurrentScope n
 
 
 bindNameCurrentScope :: HowBind -> C.Name -> Name -> SM ()
 bindNameCurrentScope hb cn an = do
-  isBound <- doesNameExistInCurrentScope (hbClashesWith hb) cn
+  isBound <- doesNameExistInCurrentScope (hbClashesWith hb) (C.Unqualified cn)
   if isBound
   then throwError $ nameClash cn
   else modifyCurrentScope (addNameToScope (hbBindsAs hb) cn an)
@@ -223,3 +229,17 @@ willItClash :: NameClassifier -> InScopeType -> Bool
 willItClash (AllExcept ps) t = not $ any (`willItClash` t) ps
 willItClash (NCAnd ps) t = any (`willItClash` t) ps
 willItClash (NCT t1) t2 = t1 == t2
+
+
+resolveNameCurrentScope :: C.QName -> SM ResolvedName
+resolveNameCurrentScope n = do
+  local <- lookupLocalQVar n
+  case local of
+    Just ld -> pure (ResolvedVar ld)
+    Nothing -> do
+      ot <- maybeResolveNameCurrentScope n
+      case ot of
+        Nothing -> throwError $ unknownNameErr n
+        Just r  ->
+          if (ISDef `elem` howBound r) then pure (ResolvedDef (isnName r))
+          else throwError . notImplemented $ "I don't yet know how to resolve " <> show r

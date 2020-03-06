@@ -24,6 +24,7 @@ import Language.Dlam.Util.Pretty (pprintShow)
 
 %token
     nl      { TokenNL _ }
+    QID     { TokenQid _ _ }
     let     { TokenLet _ }
     record  { TokenRecord _ }
     where   { TokenWhere _ }
@@ -73,6 +74,22 @@ Declarations :: { [ParseDeclaration] }
 NL :: { () }
   : nl NL                     { }
   | nl                        { }
+
+
+---------------------------------
+----- Names and identifiers -----
+---------------------------------
+
+
+Ident :: { Name }
+  : VAR { mkIdentFromSym $1 }
+
+
+
+QId :: { QName }
+  : QID { mkQualFromSym $1 }
+  | Ident { Unqualified $1 }
+
 
 ----------------------
 ---- Declarations ----
@@ -144,10 +161,6 @@ TypeSig :: { (Name, Expr) }
   : Ident ':' Expr { ($1, $3) }
 
 
-Ident :: { Name }
-  : VAR { mkIdentFromSym $1 }
-
-
 PiBindings :: { PiBindings }
   : TypedBindings { PiBindings $1 }
 
@@ -169,7 +182,7 @@ Expr :: { ParseExpr }
 
   | let Ident '@' absurd '=' Expr ':' Expr { EmptyElim ($2, $8) $6 }
 
-  | rewrite '(' Ident '.' Ident '.' Ident '.' Expr ',' Ident '.' Expr ',' Expr ',' Expr ',' Expr ')' { RewriteExpr ($3, $5, $7, $9) ($11, $13) $15 $17 $19 }
+  | rewrite '(' '\\' Ident Ident Ident '->' Expr ',' '\\' Ident '->' Expr ',' Expr ',' Expr ',' Expr ')' { RewriteExpr ($4, $5, $6, $8) ($11, $13) $15 $17 $19 }
 
   | case Ident '@' Expr of '(' inl Ident '->' Expr ';' inr Ident '->' Expr ')' ':' Expr
     { CoproductCase ($2, $18) ($8, $10) ($13, $15) $4 }
@@ -204,7 +217,7 @@ Juxt :: { ParseExpr }
 
 Atom :: { ParseExpr }
   : '(' Expr ')'              { $2 }
-  | Ident                       { Ident $1 }
+  | QId                       { Ident $1 }
   | '_'                       { mkImplicit }
   | NAT                       { LitLevel (natTokenToInt $1) }
   | '(' Expr ',' Expr ')'     { Pair $2 $4 }
@@ -261,6 +274,14 @@ natTokenToInt (TokenNat _ x) = x
 
 mkIdentFromSym :: Token -> Name
 mkIdentFromSym = mkIdent . symString
+
+mkQualFromSym :: Token -> QName
+mkQualFromSym t = mkQualFromString (symString t)
+  where mkQualFromString st =
+          case break (=='.') st of
+            (s, []) -> Unqualified (Name s)
+            (s, '.':q)  -> Qualified (Name s) (mkQualFromString q)
+
 
 data FRHSOrTypeSig = IsRHS FRHS | IsTypeSig Expr
 

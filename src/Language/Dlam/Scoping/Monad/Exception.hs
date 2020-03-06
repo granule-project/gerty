@@ -34,7 +34,7 @@ data SCError
   -- Scope Errors --
   ------------------
 
-  | NotInScope C.Name
+  | NotInScope C.QName
 
   | NameClash C.Name
 
@@ -53,7 +53,7 @@ notImplemented = NotImplemented
 
 
 -- | Indicate that an identifier is not known to be defined.
-unknownNameErr :: C.Name -> SCError
+unknownNameErr :: C.QName -> SCError
 unknownNameErr = NotInScope
 
 

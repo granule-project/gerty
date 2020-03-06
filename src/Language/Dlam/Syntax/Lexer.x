@@ -27,6 +27,7 @@ $letter = [a-zA-Z]
 $eol    = [\n]
 $alphanum  = [$alpha $digit \_]
 @sym    = $letter ($alphanum | \')*
+@qid    = (@sym \.)+ @sym
 @int    = \-? $digit+
 @nat    = $digit+
 @charLiteral = \' ([\\.]|[^\']| . ) \'
@@ -42,6 +43,7 @@ tokens :-
   "--".*                        ;
   @nat                          { \p s -> TokenNat p (read s) }
   lang\.@langPrag               { \p s -> TokenLang p s }
+  @qid                          { \p s -> TokenQid p s }
   record                        { \p _ -> TokenRecord p }
   where                         { \p _ -> TokenWhere p }
   constructor                   { \p _ -> TokenConstructor p }
@@ -79,6 +81,7 @@ tokens :-
 
 data Token
   = TokenLang     AlexPosn String
+  | TokenQid      AlexPosn String
   | TokenRecord   AlexPosn
   | TokenWhere    AlexPosn
   | TokenConstructor AlexPosn

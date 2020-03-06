@@ -7,6 +7,7 @@ import Language.Dlam.Substitution
   , freshen
   )
 import Language.Dlam.Syntax.Abstract
+import qualified Language.Dlam.Syntax.Concrete as C
 import Language.Dlam.TypeChecking.Monad
 import Language.Dlam.Util.Pretty (pprintShow)
 import qualified Language.Dlam.Scoping.Monad as SE
@@ -388,7 +389,7 @@ checkOrInferType t expr@LitLevel{} = ensureEqualTypes expr t (builtinBody levelT
 checkOrInferType t expr@(Var x) = do
   -- x : A in G
   -- TODO: remove this possible failure---the scope checker should prevent this (2020-03-05)
-  tA <- lookupType x >>= maybe (scoperError $ SE.unknownNameErr (nameConcrete x)) pure
+  tA <- lookupType x >>= maybe (scoperError $ SE.unknownNameErr (C.Unqualified $ nameConcrete x)) pure
 
   -- G |- A : Type l
   _l <- inferUniverseLevel tA
