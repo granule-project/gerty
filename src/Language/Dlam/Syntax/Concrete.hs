@@ -5,11 +5,10 @@
 
 module Language.Dlam.Syntax.Concrete
   (
+  -- * Names
+    module Language.Dlam.Syntax.Concrete.Name
   -- * Expressions
-    Expr(..)
-  , Name(..)
-  , mkIdent
-  , ignoreVar
+  , Expr(..)
   , mkAbs
   , absVar
   , absTy
