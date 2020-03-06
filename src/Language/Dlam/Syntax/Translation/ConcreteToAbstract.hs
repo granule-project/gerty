@@ -126,6 +126,22 @@ instance ToAbstract C.PiBindings ([(A.Name, A.Expr)], Locals) where
     pure $ (zip ns' (repeat s') <> piBinds, nsLocs <> locals)
 
 
+instance ToAbstract C.LambdaArgs ([(A.Name, A.Expr)], Locals) where
+  toAbstract [] = pure ([], [])
+  toAbstract ((C.LamArgTyped (C.TypedBinding ns s)):bs) = do
+    ns' <- mapM toAbstract ns
+    s' <- toAbstract s
+    let nsLocs = zip ns ns'
+    (args, locals) <- withLocals nsLocs $ toAbstract bs
+    pure $ (zip ns' (repeat s') <> args, nsLocs <> locals)
+  toAbstract ((C.LamArgUntyped (C.BoundName n)):bs) = do
+    n' <- toAbstract n
+    let nTy = A.Implicit
+        nsBind = [(n, n')]
+    (args, locals) <- withLocals nsBind $ toAbstract bs
+    pure $ ([(n', nTy)] <> args, nsBind <> locals)
+
+
 instance ToAbstract C.Expr A.Expr where
   toAbstract (C.Ident v) = A.Var <$> toAbstract (OldName v)
   toAbstract (C.LitLevel n) = pure $ A.LitLevel n
@@ -138,7 +154,10 @@ instance ToAbstract C.Expr A.Expr where
     (piBinds' :: [(A.Name, A.Expr)], mySpace) <- toAbstract piBinds
     expr' <- withLocals mySpace $ toAbstract expr
     pure $ foldr (\(arg, space) f -> A.FunTy (A.mkAbs arg space f)) expr' piBinds'
-  toAbstract (C.Abs ab) = A.Abs <$> toAbstract ab
+  toAbstract (C.Abs args expr) = do
+    (args' :: [(A.Name, A.Expr)], mySpace) <- toAbstract args
+    expr' <- withLocals mySpace $ toAbstract expr
+    pure $ foldr (\(arg, space) f -> A.Abs (A.mkAbs arg space f)) expr' args'
   toAbstract (C.ProductTy ab) = A.ProductTy <$> toAbstract ab
   toAbstract (C.Pair l r) = A.Pair <$> toAbstract l <*> toAbstract r
   toAbstract (C.Coproduct t1 t2) = A.Coproduct <$> toAbstract t1 <*> toAbstract t2

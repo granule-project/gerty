@@ -14,7 +14,11 @@ module Language.Dlam.Syntax.Concrete
   , absVar
   , absTy
   , absExpr
+  -- ** Bindings
+  , BoundName(..)
   , LambdaBinding(..)
+  , LambdaArg(..)
+  , LambdaArgs
   , TypedBinding(..)
   , PiBindings(..)
   -- ** Let bindings and patterns
@@ -59,8 +63,21 @@ data FRHS =
   deriving (Show)
 
 
+-- | A name in a binder.
+data BoundName = BoundName { unBoundName :: Name }
+  deriving (Show, Eq, Ord)
+
+
+-- | Lambda arguments are either typed or untyped.
+data LambdaArg = LamArgTyped TypedBinding | LamArgUntyped BoundName
+  deriving (Show, Eq, Ord)
+
+
+type LambdaArgs = [LambdaArg]
+
+
 data LambdaBinding = NamedBinding TypedBinding | UnnamedBinding Expr
-  deriving (Show)
+  deriving (Show, Eq, Ord)
 
 
 data TypedBinding = TypedBinding [Name] Expr
@@ -115,7 +132,7 @@ data Expr
   | Fun Expr Expr
 
   -- | Lambda abstraction.
-  | Abs Abstraction
+  | Abs LambdaArgs Expr
 
   -- | Dependent tensor type.
   | ProductTy Abstraction
@@ -204,6 +221,15 @@ caset = text "case"
 dot = char '.'
 
 
+instance Pretty BoundName where
+  pprint = pprint . unBoundName
+
+
+instance Pretty LambdaArg where
+  pprint (LamArgTyped t) = pprint t
+  pprint (LamArgUntyped n) = pprint n
+
+
 instance Pretty Expr where
     isLexicallyAtomic (Ident _) = True
     isLexicallyAtomic LitLevel{} = True
@@ -213,11 +239,12 @@ instance Pretty Expr where
     isLexicallyAtomic _       = False
 
     pprint (LitLevel n)           = int n
-    pprint (Abs ab) = text "\\ " <> pprintAbs arrow ab
+    pprint (Abs binders finE) =
+      text "\\" <+> (hsep $ fmap pprint binders) <+> arrow <+> pprint finE
     pprint (Pi binders finTy) = pprint binders <+> arrow <+> pprint finTy
     pprint (Fun i o) = pprint i <+> arrow <+> pprint o
     pprint (ProductTy ab) = pprintAbs (char '*') ab
-    pprint (App abs@(Abs _) e2) =
+    pprint (App abs@Abs{} e2) =
       pprintParened abs <+> pprintParened e2
     pprint (App (Sig e1 t) e2) =
       pprintParened (Sig e1 t) <+> pprintParened e2

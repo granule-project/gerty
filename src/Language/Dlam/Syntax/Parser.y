@@ -156,8 +156,7 @@ Expr :: { ParseExpr }
   : Expr '->' Expr   { Fun $1 $3 }
   | PiBindings '->' Expr { Pi $1 $3 }
 
-  | '\\' LambdaArgs '->' Expr
-    { foldr (\(n, ty) rty -> Abs (mkAbs n ty rty)) $4 $2 }
+  | '\\' LambdaArgs '->' Expr { Abs $2 $4 }
 
 
   | Expr '*' Expr   { ProductTy (mkAbs ignoreVar $1 $3) }
@@ -218,14 +217,21 @@ VarsSpaced :: { [Name] }
   : Ident            { [$1] }
   | Ident VarsSpaced { $1 : $2 }
 
--- Arguments for a lambda term.
-LambdaArg :: { [(Name, ParseExpr)] }
-  : Ident       { [($1, mkImplicit)] }
-  | TyBinding { $1 }
 
-LambdaArgs :: { [(Name, ParseExpr)] }
-  : LambdaArg { $1 }
-  | LambdaArg LambdaArgs { $1 <> $2 }
+BoundName :: { BoundName }
+  : Ident { BoundName $1 }
+
+-- Arguments for a lambda term.
+LambdaArg :: { LambdaArg }
+  : BoundName   { LamArgUntyped $1 }
+  | TypedBinding { LamArgTyped $1 }
+
+LambdaArgsOrEmpty :: { LambdaArgs }
+  : LambdaArg LambdaArgsOrEmpty { $1 : $2 }
+  | {- empty -}                 { [] }
+
+LambdaArgs :: { LambdaArgs }
+  : LambdaArg LambdaArgsOrEmpty { $1 : $2 }
 
 -- syntax for bindings in a type
 TyBinding :: { [(Name, ParseExpr)] }
