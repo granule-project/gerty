@@ -56,7 +56,7 @@ tokens :-
   Succ                          { \p _ -> TokenSucc p}
   rewrite                       { \p _ -> TokenRewrite p }
   "|"                           { \p s -> TokenSep p }
-  @sym				                  { \p s -> TokenSym p s }
+  @sym                          { \p s -> TokenSym p s }
   "->"                          { \p s -> TokenArrow p }
   \\                            { \p s -> TokenLambda p }
   \=                            { \p s -> TokenEq p }
