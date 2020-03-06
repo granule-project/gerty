@@ -114,6 +114,10 @@ TypedBinding :: { TypedBinding }
   : '(' Ident VarsSpaced ':' Expr ')' { TypedBinding ($2 : $3) $5 }
   | '(' Ident ':' Expr ')'            { TypedBinding [$2] $4 }
 
+TypedBindings :: { [TypedBinding] }
+  : TypedBinding { [$1] }
+  | TypedBinding TypedBindings { $1 : $2 }
+
 LambdaBinding :: { LambdaBinding }
   : TypedBinding { NamedBinding $1 }
   -- TODO: add support for simple names/expressions, currently not
@@ -143,9 +147,14 @@ TypeSig :: { (Name, Expr) }
 Ident :: { Name }
   : VAR { mkIdentFromSym $1 }
 
+
+PiBindings :: { PiBindings }
+  : TypedBindings { PiBindings $1 }
+
+
 Expr :: { ParseExpr }
-  : Expr '->' Expr   { FunTy (mkAbs ignoreVar $1 $3) }
-  | TyBindings '->' Expr { foldr (\(n, ty) fty -> FunTy (mkAbs n ty fty)) $3 $1 }
+  : Expr '->' Expr   { Fun $1 $3 }
+  | PiBindings '->' Expr { Pi $1 $3 }
 
   | '\\' LambdaArgs '->' Expr
     { foldr (\(n, ty) rty -> Abs (mkAbs n ty rty)) $4 $2 }
@@ -223,10 +232,6 @@ TyBinding :: { [(Name, ParseExpr)] }
   : '(' Ident VarsSpaced ':' Expr ')'
     { let ty = $5 in fmap (\n -> (n, ty)) ($2 : $3) }
   | '(' Ident ':' Expr ')'        { [($2, $4)] }
-
-TyBindings :: { [(Name, ParseExpr)] }
-  : TyBinding            { $1 }
-  | TyBinding TyBindings { $1 <> $2 }
 
 {
 

@@ -16,6 +16,7 @@ module Language.Dlam.Syntax.Concrete
   , absExpr
   , LambdaBinding(..)
   , TypedBinding(..)
+  , PiBindings(..)
   -- ** Let bindings and patterns
   , LetBinding(..)
   , Pattern(..)
@@ -63,7 +64,12 @@ data LambdaBinding = NamedBinding TypedBinding | UnnamedBinding Expr
 
 
 data TypedBinding = TypedBinding [Name] Expr
-  deriving (Show)
+  deriving (Show, Eq, Ord)
+
+
+-- | A list of typed bindings in a dependent function space.
+newtype PiBindings = PiBindings [TypedBinding]
+  deriving (Show, Eq, Ord)
 
 
 data Declaration
@@ -102,8 +108,11 @@ data Expr
   -- | Level literals.
   | LitLevel Int
 
-  -- | Dependent function type.
-  | FunTy Abstraction
+  -- | Dependent function space.
+  | Pi PiBindings Expr
+
+  -- | Non-dependent function space.
+  | Fun Expr Expr
 
   -- | Lambda abstraction.
   | Abs Abstraction
@@ -205,7 +214,8 @@ instance Pretty Expr where
 
     pprint (LitLevel n)           = int n
     pprint (Abs ab) = text "\\ " <> pprintAbs arrow ab
-    pprint (FunTy ab) = pprintAbs arrow ab
+    pprint (Pi binders finTy) = pprint binders <+> arrow <+> pprint finTy
+    pprint (Fun i o) = pprint i <+> arrow <+> pprint o
     pprint (ProductTy ab) = pprintAbs (char '*') ab
     pprint (App abs@(Abs _) e2) =
       pprintParened abs <+> pprintParened e2
@@ -251,6 +261,9 @@ instance Pretty Pattern where
   pprint (PPair l r) = parens $ pprint l <> comma <+> pprint r
   pprint (PAt v p) = pprint v <> at <> pprint p
   pprint PUnit = char '*'
+
+instance Pretty PiBindings where
+  pprint (PiBindings binds) = hsep (fmap pprint binds)
 
 instance Pretty AST where
   pprint (AST decls) = vcat $ fmap pprint decls

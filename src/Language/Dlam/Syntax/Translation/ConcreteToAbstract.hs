@@ -1,5 +1,6 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 module Language.Dlam.Syntax.Translation.ConcreteToAbstract
   ( ToAbstract(..)
   ) where
@@ -20,6 +21,11 @@ class ToAbstract c a where
 
 
 type Locals = [(C.Name, A.Name)]
+
+
+-- | Generate a new, ignored name.
+newIgnoredName :: SM A.Name
+newIgnoredName = toAbstract C.ignoreVar
 
 
 instance ToAbstract C.AST A.AST where
@@ -110,10 +116,28 @@ instance ToAbstract OldName A.Name where
           Just inScope -> pure (isnName inScope)
 
 
+instance ToAbstract C.PiBindings ([(A.Name, A.Expr)], Locals) where
+  toAbstract (C.PiBindings []) = pure ([], [])
+  toAbstract (C.PiBindings ((C.TypedBinding ns s):bs)) = do
+    ns' <- mapM toAbstract ns
+    s' <- toAbstract s
+    let nsLocs = zip ns ns'
+    (piBinds, locals) <- withLocals nsLocs $ toAbstract (C.PiBindings bs)
+    pure $ (zip ns' (repeat s') <> piBinds, nsLocs <> locals)
+
+
 instance ToAbstract C.Expr A.Expr where
   toAbstract (C.Ident v) = A.Var <$> toAbstract (OldName v)
   toAbstract (C.LitLevel n) = pure $ A.LitLevel n
-  toAbstract (C.FunTy ab) = A.FunTy <$> toAbstract ab
+  toAbstract (C.Fun e1 e2) = do
+    name <- newIgnoredName
+    e1' <- toAbstract e1
+    e2' <- toAbstract e2
+    pure $ A.FunTy (A.mkAbs name e1' e2')
+  toAbstract (C.Pi piBinds expr) = do
+    (piBinds' :: [(A.Name, A.Expr)], mySpace) <- toAbstract piBinds
+    expr' <- withLocals mySpace $ toAbstract expr
+    pure $ foldr (\(arg, space) f -> A.FunTy (A.mkAbs arg space f)) expr' piBinds'
   toAbstract (C.Abs ab) = A.Abs <$> toAbstract ab
   toAbstract (C.ProductTy ab) = A.ProductTy <$> toAbstract ab
   toAbstract (C.Pair l r) = A.Pair <$> toAbstract l <*> toAbstract r
