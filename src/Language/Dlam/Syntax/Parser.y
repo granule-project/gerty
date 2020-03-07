@@ -265,12 +265,6 @@ LambdaArgsOrEmpty :: { LambdaArgs }
 LambdaArgs :: { LambdaArgs }
   : LambdaArg LambdaArgsOrEmpty { $1 : $2 }
 
--- syntax for bindings in a type
-TyBinding :: { [(Name, ParseExpr)] }
-  : '(' Ident VarsSpaced ':' Expr ')'
-    { let ty = $5 in fmap (\n -> (n, ty)) ($2 : $3) }
-  | '(' Ident ':' Expr ')'        { [($2, $4)] }
-
 {
 
 type ParseExpr = Expr
