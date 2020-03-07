@@ -143,8 +143,7 @@ LambdaBinding :: { LambdaBinding }
   -- | Expr         { UnnamedBinding $1 }
 
 LambdaBindingsOrEmpty :: { [LambdaBinding] }
-  : LambdaBinding                       { [$1] }
-  | LambdaBinding LambdaBindingsOrEmpty { $1 : $2 }
+  : LambdaBinding LambdaBindingsOrEmpty { $1 : $2 }
   | {- empty -}                         { [] }
 
 
