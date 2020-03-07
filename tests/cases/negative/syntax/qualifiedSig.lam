@@ -1,0 +1,2 @@
+-- you can't qualify a type signature
+foo.bar : Level
