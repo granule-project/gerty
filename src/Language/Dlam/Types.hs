@@ -2,6 +2,7 @@ module Language.Dlam.Types
   ( doASTInference
   ) where
 
+import Language.Dlam.Builtins
 import Language.Dlam.Substitution
   ( Substitutable(substitute)
   , freshen
