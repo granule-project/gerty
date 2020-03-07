@@ -23,6 +23,11 @@ import Language.Dlam.Util.Pretty (pprintShow)
 %monad { ReaderT String (Either String) }
 
 %nonassoc LOWEST
+%right in
+%right '->'
+%left ':'
+%right '*'
+%left '+' '-'
 
 %token
     nl      { TokenNL _ }
@@ -57,11 +62,6 @@ import Language.Dlam.Util.Pretty (pprintShow)
     ';'     { TokenSemiColon _ }
     '@'     { TokenAt _ }
 
-%right in
-%right '->'
-%left ':'
-%right '*'
-%left '+' '-'
 %%
 
 Program :: { ParseAST }
