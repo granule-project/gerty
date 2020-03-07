@@ -240,6 +240,7 @@ instance Pretty Expr where
     pprint (Abs binders finE) =
       text "\\" <+> (hsep $ fmap pprint binders) <+> arrow <+> pprint finE
     pprint (Pi binders finTy) = pprint binders <+> arrow <+> pprint finTy
+    pprint (Fun i@Fun{} o) = pprintParened i <+> arrow <+> pprint o
     pprint (Fun i o) = pprint i <+> arrow <+> pprint o
     pprint (ProductTy ab) = pprintAbs (char '*') ab
     pprint (App abs@Abs{} e2) =
