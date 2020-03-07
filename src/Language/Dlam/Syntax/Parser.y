@@ -101,6 +101,11 @@ BoundName :: { BoundName }
   : Ident { BoundName $1 }
 
 
+BoundNames :: { [BoundName] }
+  : BoundName { [$1] }
+  | BoundName BoundNames { $1 : $2 }
+
+
 ----------------------
 ---- Declarations ----
 ----------------------
@@ -157,8 +162,8 @@ TypeSig :: { (Name, Expr) }
 
 
 TypedBinding :: { TypedBinding }
-  : '(' Idents ':' Expr ')' { TypedBinding (Arg IsExplicit ($2, $4)) }
-  | '{' Idents ':' Expr '}' { TypedBinding (Arg IsImplicit ($2, $4)) }
+  : '(' BoundNames ':' Expr ')' { mkTypedBinding IsExplicit $2 $4 }
+  | '{' BoundNames ':' Expr '}' { mkTypedBinding IsImplicit $2 $4 }
 
 
 TypedBindings :: { [TypedBinding] }

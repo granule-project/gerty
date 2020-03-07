@@ -14,13 +14,18 @@ module Language.Dlam.Syntax.Concrete
   , absTy
   , absExpr
   -- ** Bindings
+  , Binds(..)
   , Arg(..)
   , Implicity(..)
+  , HasImplicity(..)
+  , Typed(..)
+  , IsTyped(..)
   , BoundName(..)
   , LambdaBinding(..)
   , LambdaArg(..)
   , LambdaArgs
-  , TypedBinding(..)
+  , TypedBinding
+  , mkTypedBinding
   , PiBindings(..)
   -- ** Let bindings and patterns
   , LetBinding(..)
@@ -87,12 +92,74 @@ data LambdaBinding = NamedBinding TypedBinding | UnnamedBinding Expr
   deriving (Show, Eq, Ord)
 
 
+---------------------
+----- Implicity -----
+---------------------
+
+
 data Implicity = IsImplicit | IsExplicit
   deriving (Show, Eq, Ord)
 
 
-data TypedBinding = TypedBinding (Arg ([Name], Expr))
+class HasImplicity a where
+  relOf :: a -> Implicity
+
+
+instance HasImplicity (Arg a) where
+  relOf = argRel
+
+
+instance (HasImplicity a) => HasImplicity (Typed a) where
+  relOf = relOf . unTyped
+
+
+-----------------
+----- Typed -----
+-----------------
+
+
+-- | A thing with a type.
+data Typed a = Typed { unTyped :: a, typedTy :: Expr }
   deriving (Show, Eq, Ord)
+
+
+class IsTyped a where
+  typeOf :: a -> Expr
+
+
+instance IsTyped (Typed a) where
+  typeOf = typedTy
+
+
+instance (IsTyped a) => IsTyped (Arg a) where
+  typeOf = typeOf . unArg
+
+
+type TypedBinding = Arg (Typed [BoundName])
+
+
+mkTypedBinding :: Implicity -> [BoundName] -> Expr -> TypedBinding
+mkTypedBinding i ns t = Arg { unArg = Typed { unTyped = ns, typedTy = t }, argRel = i }
+
+
+class Binds a where
+  bindsWhat :: a -> [BoundName]
+
+
+instance (Binds a) => Binds (Arg a) where
+  bindsWhat = bindsWhat . unArg
+
+
+instance (Binds a) => Binds (Typed a) where
+  bindsWhat = bindsWhat . unTyped
+
+
+instance Binds BoundName where
+  bindsWhat = pure
+
+
+instance Binds [BoundName] where
+  bindsWhat = id
 
 
 -- | A list of typed bindings in a dependent function space.
@@ -327,10 +394,8 @@ instance Pretty FLHS where
 instance Pretty FRHS where
   pprint (FRHSAssign e) = equals <+> pprint e
 
-instance Pretty TypedBinding where
-  pprint (TypedBinding a) =
-    (if argRel a == IsExplicit then parens else braces)
-    $ let (ns, e) = unArg a in hsep (fmap pprint ns) <+> colon <+> pprint e
+instance (Pretty a) => Pretty (Typed a) where
+  pprint t = pprint (unTyped t) <+> colon <+> pprint (typeOf t)
 
 instance Pretty LambdaBinding where
   pprint (NamedBinding t) = pprint t
