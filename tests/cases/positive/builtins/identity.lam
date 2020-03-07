@@ -19,4 +19,4 @@ rewrite' :
   (a b : A)
   (p' : Id' l1 A a b)
   -> C a b p'
-rewrite' = \l1 l2 A C c a b p' -> rewrite (\x y p -> C x y p, \z -> c z, a, b, p')
+rewrite' = \l1 l2 A C c a b p' -> rewrite (\x y p -> C x y p | \z -> c z | a | b | p')

@@ -305,7 +305,12 @@ instance Pretty Expr where
     pprint (LitLevel n)           = int n
     pprint (Abs ab) = text "\\ " <> pprintAbs arrow ab
     pprint (FunTy ab) = pprintAbs arrow ab
-    pprint (ProductTy ab) = pprintAbs (char '*') ab
+    pprint (ProductTy ab) =
+      let leftTyDoc =
+            case absVar ab of
+              Name _ C.NoName{} -> pprint (absTy ab)
+              _        -> pprint (absVar ab) <+> colon <> colon <+> pprint (absTy ab)
+      in leftTyDoc <+> char '*' <+> pprint (absExpr ab)
     pprint (App abs@(Abs _) e2) =
       pprintParened abs <+> pprintParened e2
     pprint (App (Sig e1 t) e2) =
@@ -328,7 +333,7 @@ instance Pretty Expr where
               <+> colon <+> pprint tC
     pprint (RewriteExpr (x, y, p, tC) (z, c) a b p') =
       text "rewrite" <> parens
-        (hcat $ punctuate (comma <> space)
+        (hcat $ punctuate (space <> char '|' <> space)
          [ char '\\' <> hsep [pprint x, pprint y, pprint p, arrow, pprint tC]
          , char '\\' <> pprint z <+> arrow <+> pprint c
          , pprint a

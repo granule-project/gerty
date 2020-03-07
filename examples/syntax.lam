@@ -52,8 +52,8 @@ lamMixedArgs = \(l1 l2 : Level) (a : Type l1) b -> b
 -- Dependent tensor types --
 ----------------------------
 
--- the dependent tensor type uses the syntax '(x : a) * b'
-tenSimple : (x : Type 2) * x
+-- the dependent tensor type uses the syntax 'x :: a * b'
+tenSimple : x :: Type 2 * x
 tenSimple = (Type 1, Type 0)
 
 -- when the type of the second element does not depend upon the value

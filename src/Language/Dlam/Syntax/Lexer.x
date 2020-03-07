@@ -67,8 +67,10 @@ tokens :-
   ","                           { \p _ -> TokenComma p }
   "_"                           { \p _ -> TokenImplicit p }
   ";"                           { \p _ -> TokenSemiColon p }
+  "::"                          { \p _ -> TokenDoubleColon p }
   \.                            { \p _ -> TokenDot p }
   \@                            { \p _ -> TokenAt p }
+  \|                            { \p _ -> TokenPipe p }
   "()"                          { \p _ -> TokenAbsurd p }
 
 {
@@ -106,6 +108,8 @@ data Token
   | TokenZero AlexPosn
   | TokenSucc AlexPosn
   | TokenAbsurd AlexPosn
+  | TokenDoubleColon AlexPosn
+  | TokenPipe AlexPosn
   deriving (Eq, Show, Generic)
 
 symString :: Token -> String

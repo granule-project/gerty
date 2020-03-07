@@ -204,17 +204,6 @@ data Pattern
 ---------------------------
 
 
--- | Pretty-print an Abstraction, separating the (possibly named)
--- | binder from the expression using the given separator.
-pprintAbs :: Doc -> Abstraction -> Doc
-pprintAbs sep ab =
-  let leftTyDoc =
-        case absVar ab of
-          NoName{} -> pprint (absTy ab)
-          _        -> parens (pprint (absVar ab) <+> colon <+> pprint (absTy ab))
-  in leftTyDoc <+> sep <+> pprint (absExpr ab)
-
-
 arrow, at, caset :: Doc
 arrow = text "->"
 at = char '@'
@@ -244,7 +233,12 @@ instance Pretty Expr where
     pprint (Pi binders finTy) = pprint binders <+> arrow <+> pprint finTy
     pprint (Fun i@Fun{} o) = pprintParened i <+> arrow <+> pprint o
     pprint (Fun i o) = pprint i <+> arrow <+> pprint o
-    pprint (ProductTy ab) = pprintAbs (char '*') ab
+    pprint (ProductTy ab) =
+      let leftTyDoc =
+            case absVar ab of
+              NoName{} -> pprint (absTy ab)
+              _        -> pprint (absVar ab) <+> colon <> colon <+> pprint (absTy ab)
+      in leftTyDoc <+> char '*' <+> pprint (absExpr ab)
     pprint (App abs@Abs{} e2) =
       pprintParened abs <+> pprintParened e2
     pprint (App (Sig e1 t) e2) =
@@ -267,7 +261,7 @@ instance Pretty Expr where
               <+> colon <+> pprint tC
     pprint (RewriteExpr (x, y, p, tC) (z, c) a b p') =
       text "rewrite" <> parens
-        (hcat $ punctuate (comma <> space)
+        (hcat $ punctuate (space <> char '|' <> space)
          [ char '\\' <> hsep [pprint x, pprint y, pprint p, arrow, pprint tC]
          , char '\\' <> pprint z <+> arrow <+> pprint c
          , pprint a

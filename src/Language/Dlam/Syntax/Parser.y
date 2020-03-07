@@ -57,6 +57,9 @@ import Language.Dlam.Util.Pretty (pprintShow)
     '.'     { TokenDot _ }
     ';'     { TokenSemiColon _ }
     '@'     { TokenAt _ }
+    '|'     { TokenPipe _ }
+    -- temporary tokens until we can parse mixfix names
+    '::'    { TokenDoubleColon _ }
 
 %%
 
@@ -182,8 +185,9 @@ Expr0 :: { Expr }
 Expr1 :: { Expr }
   : Application { mkAppFromExprs $1 }
   | Expr1 '*' Expr1   { ProductTy (mkAbs ignoreVar $1 $3) }
-  | '(' Ident ':' Expr ')' '*' Expr1 { ProductTy (mkAbs $2 $4 $7) }
+  | Ident '::' Expr1 '*' Expr1 { ProductTy (mkAbs $1 $3 $5) }
   | Expr1 '+' Expr1   { Coproduct $1 $3 }
+  | Expr1 ',' Expr1 { Pair $1 $3 }
 
 Application :: { [Expr] }
   : Expr2 { [$1] }
@@ -203,7 +207,7 @@ Expr2 :: { ParseExpr }
 
   | let Ident '@' absurd '=' Expr ':' Expr { EmptyElim ($2, $8) $6 }
 
-  | rewrite '(' '\\' Ident Ident Ident '->' Expr ',' '\\' Ident '->' Expr ',' Expr ',' Expr ',' Expr ')' { RewriteExpr ($4, $5, $6, $8) ($11, $13) $15 $17 $19 }
+  | rewrite '(' '\\' Ident Ident Ident '->' Expr '|' '\\' Ident '->' Expr '|' Expr '|' Expr '|' Expr ')' { RewriteExpr ($4, $5, $6, $8) ($11, $13) $15 $17 $19 }
 
   | case Ident '@' Expr of '(' inl Ident '->' Expr ';' inr Ident '->' Expr ')' ':' Expr
     { CoproductCase ($2, $18) ($8, $10) ($13, $15) $4 }
@@ -227,7 +231,6 @@ Atom :: { ParseExpr }
   | QId                       { Ident $1 }
   | '_'                       { mkImplicit }
   | NAT                       { LitLevel (natTokenToInt $1) }
-  | '(' Expr ',' Expr ')'     { Pair $2 $4 }
 
   -- For later
   -- | '?' { Hole }
@@ -239,6 +242,7 @@ LetBinding :: { LetBinding }
 
 Pattern :: { Pattern }
   : QId SomeAtomicPatterns     { PApp $1 $2 }
+  | Pattern ',' Pattern { PPair $1 $3 }
   | PatternAtomic %prec LOWEST { $1 }
 
 
@@ -258,7 +262,6 @@ PatternAtomic :: { Pattern }
   | QId             { PIdent $1 }
   | '*'             { PUnit }
   | Ident '@' PatternAtomic { PAt $1 $3 }
-  | '(' Pattern ',' Pattern ')' { PPair $2 $4 }
 
 
 -- List of space-separated identifiers.

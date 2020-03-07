@@ -32,12 +32,12 @@ funEta = \l a x -> refl l a x
 
 -- we eliminate identities by using the 'rewrite pfEq in pf' construct
 pfSuc : (m n : Level) -> Id 0 Level m n -> Id 0 Level (lsuc m) (lsuc n)
-pfSuc = \m n p -> rewrite(\x y p -> Id 0 Level (lsuc x) (lsuc y), \z -> refl 0 Level (lsuc z), m, n, p)
+pfSuc = \m n p -> rewrite(\x y p -> Id 0 Level (lsuc x) (lsuc y) | \z -> refl 0 Level (lsuc z) | m | n | p)
 
 
 -- we can generalise the above to work on arbitrary functions (the 'cong' rule):
 cong : (l1 l2 : Level) (a : Type l1) (b : Type l2) (f : a -> b) (x y : a) -> Id l1 a x y -> Id l2 b (f x) (f y)
-cong = \l1 l2 a b f x y p -> rewrite (\x y p -> Id l2 b (f x) (f y), \z -> refl l2 b (f z), x, y, p)
+cong = \l1 l2 a b f x y p -> rewrite (\x y p -> Id l2 b (f x) (f y) | \z -> refl l2 b (f z) | x | y | p)
 
 
 -- then we can rewrite pfSuc in terms of cong

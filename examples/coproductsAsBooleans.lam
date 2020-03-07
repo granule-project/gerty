@@ -17,7 +17,7 @@ ifThenElse : (l1 l2 : Level) (a : Type l1) (b : Type l2) (t : Bool) (thn : a) (e
 ifThenElse = \l1 l2 a b t thn els -> case z@t of (Inl x -> thn; Inr y -> els) : case z@t of (Inl x -> a; Inr y -> b) : Type (case z@t of (Inl x -> l1; Inr y -> l2) : Level)
 
 coproduct : (l1 l2 : Level) -> Type l1 -> Type l2 -> Type (lsuc (lmax l1 l2))
-coproduct = \l1 l2 lt rt -> (x : Bool) * (ifThenElse (lsuc l1) (lsuc l2) (Type l1) (Type l2) x lt rt)
+coproduct = \l1 l2 lt rt -> x :: Bool * (ifThenElse (lsuc l1) (lsuc l2) (Type l1) (Type l2) x lt rt)
 
 inl' : (l1 l2 : Level) (lt : Type l1) (rt : Type l2) -> lt -> coproduct l1 l2 lt rt
 inl' = \l1 l2 lt rt lv -> (true, lv)
