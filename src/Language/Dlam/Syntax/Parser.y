@@ -85,10 +85,18 @@ Ident :: { Name }
   : VAR { mkIdentFromSym $1 }
 
 
+Idents :: { [Name] }
+  : Ident { [$1] }
+  | Ident Idents { $1 : $2 }
+
 
 QId :: { QName }
   : QID { mkQualFromSym $1 }
   | Ident { Unqualified $1 }
+
+
+BoundName :: { BoundName }
+  : Ident { BoundName $1 }
 
 
 ----------------------
@@ -127,25 +135,6 @@ RecordDef :: { Declaration }
   | record Ident LambdaBindingsOrEmpty ':' Expr where Declarations
       { RecordDef $2 Nothing $3 $5 $7 }
 
-TypedBinding :: { TypedBinding }
-  : '(' Ident VarsSpaced ':' Expr ')' { TypedBinding ($2 : $3) $5 }
-  | '(' Ident ':' Expr ')'            { TypedBinding [$2] $4 }
-
-TypedBindings :: { [TypedBinding] }
-  : TypedBinding { [$1] }
-  | TypedBinding TypedBindings { $1 : $2 }
-
-LambdaBinding :: { LambdaBinding }
-  : TypedBinding { NamedBinding $1 }
-  -- TODO: add support for simple names/expressions, currently not
-  -- working because of parsing precedence (2020-03-05)
-  -- | Expr         { UnnamedBinding $1 }
-
-LambdaBindingsOrEmpty :: { [LambdaBinding] }
-  : LambdaBinding LambdaBindingsOrEmpty { $1 : $2 }
-  | {- empty -}                         { [] }
-
-
 Field :: { [Declaration] }
   : field EmptyOrTypeSigs { fmap (uncurry Field) $2 }
 
@@ -158,6 +147,32 @@ EmptyOrTypeSigs :: { [(Name, Expr)] }
 
 TypeSig :: { (Name, Expr) }
   : Ident ':' Expr { ($1, $3) }
+
+
+-------------------
+----- Binders -----
+-------------------
+
+
+TypedBinding :: { TypedBinding }
+  : '(' Idents ':' Expr ')' { TypedBinding $2 $4 }
+
+
+TypedBindings :: { [TypedBinding] }
+  : TypedBinding { [$1] }
+  | TypedBinding TypedBindings { $1 : $2 }
+
+
+LambdaBinding :: { LambdaBinding }
+  : TypedBinding { NamedBinding $1 }
+  -- TODO: add support for simple names/expressions, currently not
+  -- working because of parsing precedence (2020-03-05)
+  -- | Expr         { UnnamedBinding $1 }
+
+
+LambdaBindingsOrEmpty :: { [LambdaBinding] }
+  : LambdaBinding LambdaBindingsOrEmpty { $1 : $2 }
+  | {- empty -}                         { [] }
 
 
 PiBindings :: { PiBindings }
@@ -177,7 +192,6 @@ Expr :: { Expr }
 Expr0 :: { Expr }
   : Expr1 '->' Expr   { Fun $1 $3 }
   | PiBindings '->' Expr { Pi $1 $3 }
-  | '(' Expr ':' Expr ')' { Sig $2 $4 }
   | Expr1 %prec LOWEST { $1 }
 
 
@@ -263,15 +277,6 @@ PatternAtomic :: { Pattern }
   | '*'             { PUnit }
   | Ident '@' PatternAtomic { PAt $1 $3 }
 
-
--- List of space-separated identifiers.
-VarsSpaced :: { [Name] }
-  : Ident            { [$1] }
-  | Ident VarsSpaced { $1 : $2 }
-
-
-BoundName :: { BoundName }
-  : Ident { BoundName $1 }
 
 -- Arguments for a lambda term.
 LambdaArg :: { LambdaArg }
