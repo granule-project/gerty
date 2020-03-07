@@ -21,8 +21,9 @@ module Language.Dlam.Syntax.Concrete
   , Typed(..)
   , IsTyped(..)
   , BoundName(..)
-  , LambdaBinding(..)
-  , LambdaArg(..)
+  , Param(..)
+  , LambdaBinding
+  , LambdaArg
   , LambdaArgs
   , TypedBinding
   , mkTypedBinding
@@ -80,16 +81,20 @@ data Arg a = Arg
   } deriving (Show, Eq, Ord)
 
 
--- | Lambda arguments are either typed or untyped.
-data LambdaArg = LamArgTyped TypedBinding | LamArgUntyped (Arg [BoundName])
+-- | A Param either captures some typed names, or an @a@.
+data Param a = ParamNamed TypedBinding | ParamUnnamed a
   deriving (Show, Eq, Ord)
+
+
+-- | Lambda abstraction binder.
+type LambdaArg = Param (Arg [BoundName])
 
 
 type LambdaArgs = [LambdaArg]
 
 
-data LambdaBinding = NamedBinding TypedBinding | UnnamedBinding Expr
-  deriving (Show, Eq, Ord)
+-- | The left-hand-side of a function type.
+type LambdaBinding = Param Expr
 
 
 ---------------------
@@ -305,11 +310,6 @@ instance (Pretty e) => Pretty (Arg e) where
          IsExplicit -> (if isLexicallyAtomic e then id else parens) $ pprint e
 
 
-instance Pretty LambdaArg where
-  pprint (LamArgTyped t) = pprint t
-  pprint (LamArgUntyped n) = pprint n
-
-
 instance Pretty Expr where
     isLexicallyAtomic (Ident _) = True
     isLexicallyAtomic LitLevel{} = True
@@ -397,9 +397,9 @@ instance Pretty FRHS where
 instance (Pretty a) => Pretty (Typed a) where
   pprint t = pprint (unTyped t) <+> colon <+> pprint (typeOf t)
 
-instance Pretty LambdaBinding where
-  pprint (NamedBinding t) = pprint t
-  pprint (UnnamedBinding e) = pprint e
+instance (Pretty a) => Pretty (Param a) where
+  pprint (ParamNamed nb) = pprint nb
+  pprint (ParamUnnamed a) = pprint a
 
 instance Pretty Declaration where
   pprint (TypeSig n t) = pprint n <+> colon <+> pprint t

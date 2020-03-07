@@ -172,7 +172,7 @@ TypedBindings :: { [TypedBinding] }
 
 
 LambdaBinding :: { LambdaBinding }
-  : TypedBinding { NamedBinding $1 }
+  : TypedBinding { ParamNamed $1 }
   -- TODO: add support for simple names/expressions, currently not
   -- working because of parsing precedence (2020-03-05)
   -- | Expr         { UnnamedBinding $1 }
@@ -288,8 +288,8 @@ PatternAtomic :: { Pattern }
 
 -- Arguments for a lambda term.
 LambdaArg :: { LambdaArg }
-  : BoundName   { LamArgUntyped (Arg IsExplicit [$1]) }
-  | TypedBinding { LamArgTyped $1 }
+  : BoundName   { ParamUnnamed (Arg IsExplicit [$1]) }
+  | TypedBinding { ParamNamed $1 }
 
 LambdaArgsOrEmpty :: { LambdaArgs }
   : LambdaArg LambdaArgsOrEmpty { $1 : $2 }

@@ -136,7 +136,7 @@ instance ToAbstract C.PiBindings ([(C.Implicity, A.Name, A.Expr)], Locals) where
 
 instance ToAbstract C.LambdaArgs ([(C.Implicity, A.Name, A.Expr)], Locals) where
   toAbstract [] = pure ([], [])
-  toAbstract ((C.LamArgTyped arg):bs) = do
+  toAbstract ((C.ParamNamed arg):bs) = do
     let i = C.relOf arg
         ns = fmap C.unBoundName $ C.bindsWhat arg
         s = C.typeOf arg
@@ -145,8 +145,8 @@ instance ToAbstract C.LambdaArgs ([(C.Implicity, A.Name, A.Expr)], Locals) where
     let nsLocs = zip ns ns'
     (args, locals) <- withLocals nsLocs $ toAbstract bs
     pure $ (zip3 (repeat i) ns' (repeat s') <> args, nsLocs <> locals)
-  toAbstract ((C.LamArgUntyped arg):bs) =
-    toAbstract (((C.LamArgTyped (C.mkTypedBinding (C.relOf arg) (C.bindsWhat arg) C.Implicit))):bs)
+  toAbstract ((C.ParamUnnamed arg):bs) =
+    toAbstract (((C.ParamNamed (C.mkTypedBinding (C.relOf arg) (C.bindsWhat arg) C.Implicit))):bs)
 
 
 instance ToAbstract C.Expr A.Expr where
