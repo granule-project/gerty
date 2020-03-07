@@ -23,11 +23,7 @@ import Language.Dlam.Util.Pretty (pprintShow)
 %monad { ReaderT String (Either String) }
 
 %nonassoc LOWEST
-%right in
-%right '->'
-%left ':'
-%right '*'
-%left '+' '-'
+%nonassoc '->'
 
 %token
     nl      { TokenNL _ }
@@ -165,20 +161,45 @@ PiBindings :: { PiBindings }
   : TypedBindings { PiBindings $1 }
 
 
-Expr :: { ParseExpr }
-  : Expr '->' Expr   { Fun $1 $3 }
+-----------------------
+----- Expressions -----
+-----------------------
+
+
+Expr :: { Expr }
+  : Expr0 { $1 }
+
+
+-- function types
+Expr0 :: { Expr }
+  : Expr1 '->' Expr   { Fun $1 $3 }
   | PiBindings '->' Expr { Pi $1 $3 }
+  | '(' Expr ':' Expr ')' { Sig $2 $4 }
+  | Expr1 %prec LOWEST { $1 }
 
-  | '\\' LambdaArgs '->' Expr { Abs $2 $4 }
+
+-- applications
+Expr1 :: { Expr }
+  : Application { mkAppFromExprs $1 }
+  | Expr1 '*' Expr1   { ProductTy (mkAbs ignoreVar $1 $3) }
+  | '(' Ident ':' Expr ')' '*' Expr1 { ProductTy (mkAbs $2 $4 $7) }
+  | Expr1 '+' Expr1   { Coproduct $1 $3 }
+
+Application :: { [Expr] }
+  : Expr2 { [$1] }
+  | Expr3 Application { $1 : $2 }
 
 
-  | Expr '*' Expr   { ProductTy (mkAbs ignoreVar $1 $3) }
+ExprOrSig :: { Expr }
+  : Expr { $1 }
+  | Expr ':' Expr { Sig $1 $3 }
 
-  | '(' Ident ':' Expr ')' '*' Expr { ProductTy (mkAbs $2 $4 $7) }
 
-  | Expr '+' Expr   { Coproduct $1 $3 }
+-- lambdas, lets, cases
+Expr2 :: { ParseExpr }
+  : '\\' LambdaArgs '->' Expr { Abs $2 $4 }
 
-  | let LetBinding in Expr { Let $2 $4 }
+  | let LetBinding in ExprOrSig { Let $2 $4 }
 
   | let Ident '@' absurd '=' Expr ':' Expr { EmptyElim ($2, $8) $6 }
 
@@ -193,11 +214,23 @@ Expr :: { ParseExpr }
   | case Ident '@' Expr of '(' zero '->' Expr ';' succ Ident '@' Ident '->' Expr ')' ':' Expr
     { NatCase ($2, $19) $9 ($12, $14, $16) $4 }
 
-  -- TODO: this might cause issues with binders in dependent function types? (2020-02-22)
-  | Expr ':' Expr  { Sig $1 $3 }
+  | Expr3 { $1 }
 
-  | Juxt
-    { $1 }
+
+-- atomic values
+Expr3 :: { Expr }
+  : Atom { $1 }
+
+
+Atom :: { ParseExpr }
+  : '(' Expr ')'              { $2 }
+  | QId                       { Ident $1 }
+  | '_'                       { mkImplicit }
+  | NAT                       { LitLevel (natTokenToInt $1) }
+  | '(' Expr ',' Expr ')'     { Pair $2 $4 }
+
+  -- For later
+  -- | '?' { Hole }
 
 
 LetBinding :: { LetBinding }
@@ -227,20 +260,6 @@ PatternAtomic :: { Pattern }
   | Ident '@' PatternAtomic { PAt $1 $3 }
   | '(' Pattern ',' Pattern ')' { PPair $2 $4 }
 
-
-Juxt :: { ParseExpr }
-  : Juxt Atom                 { App $1 $2 }
-  | Atom                      { $1 }
-
-Atom :: { ParseExpr }
-  : '(' Expr ')'              { $2 }
-  | QId                       { Ident $1 }
-  | '_'                       { mkImplicit }
-  | NAT                       { LitLevel (natTokenToInt $1) }
-  | '(' Expr ',' Expr ')'     { Pair $2 $4 }
-
-  -- For later
-  -- | '?' { Hole }
 
 -- List of space-separated identifiers.
 VarsSpaced :: { [Name] }
@@ -292,6 +311,10 @@ mkQualFromSym t = mkQualFromString (symString t)
           case break (=='.') st of
             (s, []) -> Unqualified (Name s)
             (s, '.':q)  -> Qualified (Name s) (mkQualFromString q)
+
+
+mkAppFromExprs :: [Expr] -> Expr
+mkAppFromExprs = foldl1 App
 
 
 data FRHSOrTypeSig = IsRHS FRHS | IsTypeSig Expr
