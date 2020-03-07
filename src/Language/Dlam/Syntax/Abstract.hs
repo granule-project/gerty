@@ -197,6 +197,9 @@ newtype BindName = BindName { unBindName :: Name }
   deriving (Show, Eq, Ord)
 
 
+type ConName = Name
+
+
 data Pattern
   = PVar BindName
   -- ^ x.
@@ -206,6 +209,8 @@ data Pattern
   -- ^ (p1, p2).
   | PUnit
   -- ^ unit (*).
+  | PCon ConName [Pattern]
+  -- ^ Constructor application.
   deriving (Show, Eq, Ord)
 
 
@@ -214,6 +219,7 @@ boundTypingVars (PPair l r) = boundTypingVars l `Set.union` boundTypingVars r
 boundTypingVars (PVar _) = mempty
 boundTypingVars (PAt n p) = Set.singleton n `Set.union` boundTypingVars p
 boundTypingVars PUnit = mempty
+boundTypingVars (PCon _ args) = Set.unions $ fmap boundTypingVars args
 
 
 boundSubjectVars :: Pattern -> Set.Set BindName
@@ -221,6 +227,7 @@ boundSubjectVars (PPair l r) = boundSubjectVars l `Set.union` boundSubjectVars r
 boundSubjectVars (PVar n) = Set.singleton n
 boundSubjectVars (PAt _ p) = boundSubjectVars p
 boundSubjectVars PUnit = mempty
+boundSubjectVars (PCon _ args) = Set.unions $ fmap boundSubjectVars args
 
 
 ---------
@@ -504,6 +511,7 @@ instance Pretty Pattern where
   pprint (PPair l r) = parens $ pprint l <> comma <+> pprint r
   pprint (PAt v p) = pprint v <> at <> pprint p
   pprint PUnit = char '*'
+  pprint (PCon c args) = pprint c <+> (hsep $ fmap pprintParened args)
 
 instance Pretty BindName where
   pprint = pprint . unBindName

@@ -10,6 +10,10 @@ module Language.Dlam.Scoping.Monad.Exception
   -- ** Scope errors
   , unknownNameErr
   , nameClash
+
+  -- ** Pattern errors
+  , notAValidPattern
+  , nonConstructorInPattern
   ) where
 
 import Control.Exception (Exception)
@@ -38,11 +42,23 @@ data SCError
 
   | NameClash C.Name
 
+  --------------------
+  -- Pattern Errors --
+  --------------------
+
+  | NotAValidPattern C.Pattern
+
+  | NonConstructorInPattern C.QName
+
 
 instance Show SCError where
   show (NotImplemented e) = e
   show (NotInScope n) = "Unknown identifier '" <> pprintShow n <> "'"
   show (NameClash n) = "Already defined '" <> pprintShow n <> "'"
+  show (NotAValidPattern p) =
+    "'" <> pprintShow p <> "' is not a valid pattern"
+  show (NonConstructorInPattern n) =
+    "Cannot use non-constructor '" <> pprintShow n <> "' in pattern"
 
 
 instance Exception SCError
@@ -59,3 +75,11 @@ unknownNameErr = NotInScope
 
 nameClash :: C.Name -> SCError
 nameClash = NameClash
+
+
+notAValidPattern  :: C.Pattern -> SCError
+notAValidPattern = NotAValidPattern
+
+
+nonConstructorInPattern  :: C.QName -> SCError
+nonConstructorInPattern = NonConstructorInPattern

@@ -6,6 +6,7 @@ module Language.Dlam.Syntax.Translation.ConcreteToAbstract
   ) where
 
 
+import Control.Arrow (second)
 import Control.Monad.Except (throwError)
 
 
@@ -82,41 +83,42 @@ instance ToAbstract MaybeOldName A.Name where
   -- isn't in scope, then we initialise it here.
   toAbstract mon = do
     let n = monName mon
+        -- let's pretend it's unqualified for now
+        -- TODO: fail if they try and use an actually-qualified name here (2020-03-07)
         qn = C.Unqualified n
-    rn <- lookupLocalVar n
+    rn <- maybeResolveNameCurrentScope qn
     case rn of
-      -- currently we should always clash with locals, as
-      -- this is treated as a 'top-level' definitions check
-      Just _ -> throwError $ nameClash n
+
+      -- we didn't find anything in scope, so we bind fresh
       Nothing -> do
-        res <- maybeResolveNameCurrentScope qn
-        case res of
-          Nothing -> do
-            n' <- toAbstract n
-            bindNameCurrentScope (monHowBind mon) n n'
-            pure n'
-          Just (InScopeName _ n') -> do
-            bindNameCurrentScope (monHowBind mon) n n'
-            pure n'
+        n' <- toAbstract n
+        bindNameCurrentScope (monHowBind mon) n n'
+        pure n'
+
+      -- we found a local variable, so we can't make a new definition (yet)
+      -- (currently we should always clash with locals, as
+      -- this is treated as a 'top-level' definitions check)
+      Just ResolvedVar{} -> throwError $ nameClash n
+
+      -- we found something else we don't clash with, so we override!
+      -- (this lets you switch a signature to a definition, for example)
+      Just r -> do
+        let n' = nameOf r
+        bindNameCurrentScope (monHowBind mon) n n'
+        pure n'
 
 
 newtype OldQName = OldQName C.QName
 
 instance ToAbstract OldQName A.Expr where
   toAbstract (OldQName n) = do
-    rn <- lookupLocalQVar n
-    case rn of
-      -- locals always override
-      Just v -> pure (A.Var v)
-      -- if there's no matching locals, try and resolve the name in
-      -- the definitions scope
-      Nothing -> do
-        res <- maybeResolveNameCurrentScope n
-        case res of
-          Nothing -> throwError $ unknownNameErr n
-          -- TODO: support disambiguating definitions here (so we
-          -- return a Def) (2020-03-06)
-          Just inScope -> pure $ A.Var (isnName inScope)
+    -- this will fail if the name isn't in scope (which is exactly
+    -- what we want to happen, as we are trying to look up an existing
+    -- name)
+    rn <- resolveNameCurrentScope n
+    -- TODO: support disambiguating definitions here (so we
+    -- return a Def) (2020-03-06)
+    pure $ A.Var (nameOf rn)
 
 
 instance ToAbstract C.PiBindings ([(A.Name, A.Expr)], Locals) where
@@ -213,8 +215,20 @@ instance ToAbstract C.Pattern (A.Pattern, Locals) where
   -- TODO: make sure we don't allow repeated names in patterns (2020-03-05)
   -- TODO: add support for binding the vars for the type (2020-03-05)
   toAbstract (C.PIdent n) = do
-    n' <- toAbstract n
-    pure (A.PVar (A.BindName n'), [(n, n')])
+    c  <- maybeResolveMeAConstructor n
+    case c of
+      -- the name was a constructor, so we treat it as an empty application
+      Just c' -> pure (A.PCon c' [], [])
+
+      -- we couldn't find a constructor
+      Nothing -> do
+        -- we check if this is a qualified name---if it is qualified then
+        -- it must be a constructor, so we fail---otherwise we bind the name
+        case toUnqualifiedName n of
+          Nothing -> throwError $ nonConstructorInPattern n
+          Just n' -> do
+            n'' <- toAbstract n'
+            pure (A.PVar (A.BindName n''), [(n', n'')])
   toAbstract (C.PPair p1 p2) = do
     (p1', p1vs) <- toAbstract p1
     (p2', p2vs) <- toAbstract p2
@@ -224,6 +238,28 @@ instance ToAbstract C.Pattern (A.Pattern, Locals) where
     (p', pvs) <- toAbstract p
     pure $ (A.PAt (A.BindName n') p', (n, n') : pvs)
   toAbstract C.PUnit = pure (A.PUnit, [])
+  toAbstract p@(C.PApp c args) = do
+    c' <- maybeResolveMeAConstructor c
+    c' <- case c' of
+            Nothing -> throwError $ notAValidPattern p
+            Just c' -> pure c'
+    (args', binds) <- fmap (second concat) $ fmap unzip $ mapM toAbstract args
+    pure $ (A.PCon c' args', binds)
+
+
+-- | Try and resolve the name as a constructor.
+maybeResolveMeAConstructor :: C.QName -> SM (Maybe A.Name)
+maybeResolveMeAConstructor n = do
+  res <- maybeResolveNameCurrentScope n
+  case res of
+    Just (ResolvedCon cname) -> pure (Just cname)
+    _ -> pure Nothing
+
+
+-- | Only yield the name if it is unqualified.
+toUnqualifiedName :: C.QName -> Maybe C.Name
+toUnqualifiedName C.Qualified{} = Nothing
+toUnqualifiedName (C.Unqualified n) = pure n
 
 
 instance ToAbstract C.Abstraction A.Abstraction where

@@ -186,14 +186,16 @@ data LetBinding
 
 
 data Pattern
-  = PIdent Name
-  -- ^ x.
+  = PIdent QName
+  -- ^ x. (or could be a constructor).
   | PAt  Name Pattern
   -- ^ x@p.
   | PPair Pattern Pattern
   -- ^ (p1, p2).
   | PUnit
   -- ^ unit (*).
+  | PApp QName [Pattern]
+  -- ^ Constructor application.
   deriving (Show, Eq, Ord)
 
 
@@ -283,9 +285,16 @@ instance Pretty LetBinding where
   pprint (LetPatBound p e) = pprint p <+> equals <+> pprint e
 
 instance Pretty Pattern where
+  isLexicallyAtomic PIdent{} = True
+  isLexicallyAtomic PPair{}  = True
+  isLexicallyAtomic PAt{}    = True
+  isLexicallyAtomic PUnit    = True
+  isLexicallyAtomic _        = False
+
   pprint (PIdent v) = pprint v
   pprint (PPair l r) = parens $ pprint l <> comma <+> pprint r
   pprint (PAt v p) = pprint v <> at <> pprint p
+  pprint (PApp v args) = pprint v <+> (hsep $ fmap pprintParened args)
   pprint PUnit = char '*'
 
 instance Pretty PiBindings where

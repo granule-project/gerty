@@ -22,6 +22,8 @@ import Language.Dlam.Util.Pretty (pprintShow)
 %error { parseError }
 %monad { ReaderT String (Either String) }
 
+%nonassoc LOWEST
+
 %token
     nl      { TokenNL _ }
     QID     { TokenQid _ _ }
@@ -205,10 +207,27 @@ LetBinding :: { LetBinding }
 
 
 Pattern :: { Pattern }
-  : Ident '@' Pattern { PAt $1 $3 }
-  | Ident { PIdent $1 }
+  : QId SomeAtomicPatterns     { PApp $1 $2 }
+  | PatternAtomic %prec LOWEST { $1 }
+
+
+SomeAtomicPatterns :: { [Pattern] }
+  : PatternAtomic AtomicPatternsOrEmpty { $1 : $2 }
+
+
+AtomicPatternsOrEmpty :: { [Pattern] }
+  : PatternAtomic AtomicPatternsOrEmpty { $1 : $2 }
+  | {- empty -}                         { [] }
+
+
+PatternAtomic :: { Pattern }
+  : '(' Pattern ')' { $2 }
+  -- if the name is in scope, then try and treat it as a constructor, otherwise
+  -- we will bind it as a new name
+  | QId             { PIdent $1 }
+  | '*'             { PUnit }
+  | Ident '@' PatternAtomic { PAt $1 $3 }
   | '(' Pattern ',' Pattern ')' { PPair $2 $4 }
-  | '*' { PUnit }
 
 
 Juxt :: { ParseExpr }

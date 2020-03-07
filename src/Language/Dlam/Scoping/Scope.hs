@@ -5,6 +5,7 @@ module Language.Dlam.Scoping.Scope
   , lookupInScope
   , addNameToScope
   , ResolvedName(..)
+  , nameOf
   ) where
 
 
@@ -13,6 +14,7 @@ import qualified Data.Map as M
 
 import qualified Language.Dlam.Syntax.Abstract as A
 import qualified Language.Dlam.Syntax.Concrete as C
+import Language.Dlam.Util.Pretty (Pretty(..), text)
 
 
 data Scope = Scope
@@ -34,6 +36,8 @@ data InScopeType
   = ISSig
   -- | A definition.
   | ISDef
+  -- | A constructor.
+  | ISCon
   deriving (Show, Eq)
 
 
@@ -43,6 +47,18 @@ data ResolvedName
   = ResolvedVar A.Name
   -- | A definition name.
   | ResolvedDef A.Name
+  -- | A resolved constructor.
+  | ResolvedCon A.Name
+  -- | An associated type signature.
+  | ResolvedSig A.Name
+
+
+-- | The associated name.
+nameOf :: ResolvedName -> A.Name
+nameOf (ResolvedVar n) = n
+nameOf (ResolvedDef n) = n
+nameOf (ResolvedCon n) = n
+nameOf (ResolvedSig n) = n
 
 
 lookupInNameSpace :: C.Name -> NameSpace -> Maybe InScopeName
@@ -64,3 +80,14 @@ addNameToNameSpace st cn an =
 addNameToScope :: InScopeType -> C.Name -> A.Name -> Scope -> Scope
 addNameToScope st cn an s
   = let sn = scopeNameSpace s in s { scopeNameSpace = addNameToNameSpace st cn an sn }
+
+
+--------------------------
+----- Prettification -----
+--------------------------
+
+
+instance Pretty InScopeType where
+  pprint ISCon = text "constructor"
+  pprint ISDef = text "definition"
+  pprint ISSig = text "signature"

@@ -120,6 +120,7 @@ data Token
 
 symString :: Token -> String
 symString (TokenSym _ x) = x
+symString (TokenQid _ x) = x
 symString _ = error "Not a symbol"
 
 scanTokens = alexScanTokens >>= (return . trim)

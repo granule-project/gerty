@@ -183,12 +183,13 @@ modifyCurrentScope :: (Scope -> Scope) -> SM ()
 modifyCurrentScope f = modify $ onScopeInfo (\si -> si { scopeCurrent = f (scopeCurrent si) })
 
 
-maybeResolveNameCurrentScope :: C.QName -> SM (Maybe InScopeName)
-maybeResolveNameCurrentScope n = lookupInScope n <$> getCurrentScope
+-- TODO: we might want this to check locals as well? (2020-03-07)
+maybeResolveNameCurrentScope' :: C.QName -> SM (Maybe InScopeName)
+maybeResolveNameCurrentScope' n = lookupInScope n <$> getCurrentScope
 
 
 doesNameExistInCurrentScope :: NameClassifier -> C.QName -> SM Bool
-doesNameExistInCurrentScope nc n = maybe False (any (willItClash nc) . howBound) <$> maybeResolveNameCurrentScope n
+doesNameExistInCurrentScope nc n = maybe False (any (willItClash nc) . howBound) <$> maybeResolveNameCurrentScope' n
 
 
 bindNameCurrentScope :: HowBind -> C.Name -> Name -> SM ()
@@ -231,15 +232,21 @@ willItClash (NCAnd ps) t = any (`willItClash` t) ps
 willItClash (NCT t1) t2 = t1 == t2
 
 
-resolveNameCurrentScope :: C.QName -> SM ResolvedName
-resolveNameCurrentScope n = do
+maybeResolveNameCurrentScope :: C.QName -> SM (Maybe ResolvedName)
+maybeResolveNameCurrentScope n = do
   local <- lookupLocalQVar n
   case local of
-    Just ld -> pure (ResolvedVar ld)
+    Just ld -> pure . Just $ ResolvedVar ld
     Nothing -> do
-      ot <- maybeResolveNameCurrentScope n
+      ot <- lookupInScope n <$> getCurrentScope
       case ot of
-        Nothing -> throwError $ unknownNameErr n
+        Nothing -> pure Nothing
         Just r  ->
-          if (ISDef `elem` howBound r) then pure (ResolvedDef (isnName r))
+          if (ISDef `elem` howBound r) then pure . Just $ ResolvedDef (isnName r)
+          else if (ISSig `elem` howBound r) then pure . Just $ ResolvedSig (isnName r)
           else throwError . notImplemented $ "I don't yet know how to resolve " <> show r
+
+
+resolveNameCurrentScope :: C.QName -> SM ResolvedName
+resolveNameCurrentScope n =
+  maybe (throwError $ unknownNameErr n) pure =<< maybeResolveNameCurrentScope n
