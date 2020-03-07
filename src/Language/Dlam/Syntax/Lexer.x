@@ -33,8 +33,6 @@ $alphanum  = [$alpha $digit \_]
 @charLiteral = \' ([\\.]|[^\']| . ) \'
 @stringLiteral = \"(\\.|[^\"]|\n)*\"
 
-@langPrag = [a-z]+
-
 tokens :-
 
   $white*$eol                   { \p s -> TokenNL p }
@@ -42,7 +40,6 @@ tokens :-
   $white+                       ;
   "--".*                        ;
   @nat                          { \p s -> TokenNat p (read s) }
-  lang\.@langPrag               { \p s -> TokenLang p s }
   @qid                          { \p s -> TokenQid p s }
   record                        { \p _ -> TokenRecord p }
   where                         { \p _ -> TokenWhere p }
@@ -57,7 +54,6 @@ tokens :-
   Zero                          { \p _ -> TokenZero p}
   Succ                          { \p _ -> TokenSucc p}
   rewrite                       { \p _ -> TokenRewrite p }
-  "|"                           { \p s -> TokenSep p }
   @sym                          { \p s -> TokenSym p s }
   "->"                          { \p s -> TokenArrow p }
   \\                            { \p s -> TokenLambda p }
@@ -68,8 +64,6 @@ tokens :-
   "?"                           { \p _ -> TokenHole p }
   "*"                           { \p s -> TokenProd p }
   "+"                           { \p _ -> TokenPlus p }
-  "<"                           { \p s -> TokenLPair p }
-  ">"                           { \p s -> TokenRPair p }
   ","                           { \p _ -> TokenComma p }
   "_"                           { \p _ -> TokenImplicit p }
   ";"                           { \p _ -> TokenSemiColon p }
@@ -80,8 +74,7 @@ tokens :-
 {
 
 data Token
-  = TokenLang     AlexPosn String
-  | TokenQid      AlexPosn String
+  = TokenQid      AlexPosn String
   | TokenRecord   AlexPosn
   | TokenWhere    AlexPosn
   | TokenConstructor AlexPosn
@@ -90,7 +83,6 @@ data Token
   | TokenOf       AlexPosn
   | TokenInl      AlexPosn
   | TokenInr      AlexPosn
-  | TokenSep      AlexPosn
   | TokenLet      AlexPosn
   | TokenIn       AlexPosn
   | TokenLambda   AlexPosn
@@ -105,8 +97,6 @@ data Token
   | TokenImplicit AlexPosn
   | TokenProd     AlexPosn
   | TokenComma    AlexPosn
-  | TokenLPair    AlexPosn
-  | TokenRPair    AlexPosn
   | TokenDot      AlexPosn
   | TokenAt       AlexPosn
   | TokenNat      AlexPosn Int

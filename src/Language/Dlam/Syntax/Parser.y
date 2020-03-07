@@ -42,7 +42,6 @@ import Language.Dlam.Util.Pretty (pprintShow)
     of      { TokenOf _ }
     in      { TokenIn  _  }
     VAR     { TokenSym _ _ }
-    LANG    { TokenLang _ _ }
     NAT     { TokenNat _ _ }
     absurd  { TokenAbsurd _ }
     '\\'    { TokenLambda _ }
