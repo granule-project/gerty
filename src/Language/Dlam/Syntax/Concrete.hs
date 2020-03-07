@@ -14,6 +14,7 @@ module Language.Dlam.Syntax.Concrete
   , absTy
   , absExpr
   -- ** Bindings
+  , Arg(..)
   , Implicity(..)
   , BoundName(..)
   , LambdaBinding(..)
@@ -68,8 +69,14 @@ data BoundName = BoundName { unBoundName :: Name }
   deriving (Show, Eq, Ord)
 
 
+data Arg a = Arg
+  { argRel  :: Implicity
+  , unArg   :: a
+  } deriving (Show, Eq, Ord)
+
+
 -- | Lambda arguments are either typed or untyped.
-data LambdaArg = LamArgTyped TypedBinding | LamArgUntyped BoundName
+data LambdaArg = LamArgTyped TypedBinding | LamArgUntyped (Arg [BoundName])
   deriving (Show, Eq, Ord)
 
 
@@ -84,7 +91,7 @@ data Implicity = IsImplicit | IsExplicit
   deriving (Show, Eq, Ord)
 
 
-data TypedBinding = TypedBinding Implicity [Name] Expr
+data TypedBinding = TypedBinding (Arg ([Name], Expr))
   deriving (Show, Eq, Ord)
 
 
@@ -219,6 +226,18 @@ instance Pretty BoundName where
   pprint = pprint . unBoundName
 
 
+instance Pretty [BoundName] where
+  pprint = hsep . fmap pprint
+
+
+instance (Pretty e) => Pretty (Arg e) where
+  pprint arg =
+    let e = unArg arg
+    in case argRel arg of
+         IsImplicit -> braces (pprint e)
+         IsExplicit -> (if isLexicallyAtomic e then id else parens) $ pprint e
+
+
 instance Pretty LambdaArg where
   pprint (LamArgTyped t) = pprint t
   pprint (LamArgUntyped n) = pprint n
@@ -309,8 +328,9 @@ instance Pretty FRHS where
   pprint (FRHSAssign e) = equals <+> pprint e
 
 instance Pretty TypedBinding where
-  pprint (TypedBinding i ns e) = (if i == IsExplicit then parens else braces)
-                                 $ hsep (fmap pprint ns) <+> colon <+> pprint e
+  pprint (TypedBinding a) =
+    (if argRel a == IsExplicit then parens else braces)
+    $ let (ns, e) = unArg a in hsep (fmap pprint ns) <+> colon <+> pprint e
 
 instance Pretty LambdaBinding where
   pprint (NamedBinding t) = pprint t

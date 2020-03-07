@@ -123,7 +123,9 @@ instance ToAbstract OldQName A.Expr where
 
 instance ToAbstract C.PiBindings ([(C.Implicity, A.Name, A.Expr)], Locals) where
   toAbstract (C.PiBindings []) = pure ([], [])
-  toAbstract (C.PiBindings ((C.TypedBinding i ns s):bs)) = do
+  toAbstract (C.PiBindings ((C.TypedBinding arg):bs)) = do
+    let (ns, s) = C.unArg arg
+        i       = C.argRel arg
     ns' <- mapM toAbstract ns
     s' <- toAbstract s
     let nsLocs = zip ns ns'
@@ -133,18 +135,15 @@ instance ToAbstract C.PiBindings ([(C.Implicity, A.Name, A.Expr)], Locals) where
 
 instance ToAbstract C.LambdaArgs ([(C.Implicity, A.Name, A.Expr)], Locals) where
   toAbstract [] = pure ([], [])
-  toAbstract ((C.LamArgTyped (C.TypedBinding i ns s)):bs) = do
+  toAbstract ((C.LamArgTyped (C.TypedBinding arg)):bs) = do
+    let (i, (ns, s)) = (C.argRel arg, C.unArg arg)
     ns' <- mapM toAbstract ns
     s' <- toAbstract s
     let nsLocs = zip ns ns'
     (args, locals) <- withLocals nsLocs $ toAbstract bs
     pure $ (zip3 (repeat i) ns' (repeat s') <> args, nsLocs <> locals)
-  toAbstract ((C.LamArgUntyped (C.BoundName n)):bs) = do
-    n' <- toAbstract n
-    let nTy = A.Implicit
-        nsBind = [(n, n')]
-    (args, locals) <- withLocals nsBind $ toAbstract bs
-    pure $ ([(C.IsExplicit, n', nTy)] <> args, nsBind <> locals)
+  toAbstract ((C.LamArgUntyped arg):bs) =
+    toAbstract ((C.LamArgTyped (C.TypedBinding (C.Arg (C.argRel arg) (fmap C.unBoundName (C.unArg arg), C.Implicit)))):bs)
 
 
 instance ToAbstract C.Expr A.Expr where

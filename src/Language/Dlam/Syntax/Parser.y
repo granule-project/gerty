@@ -157,8 +157,8 @@ TypeSig :: { (Name, Expr) }
 
 
 TypedBinding :: { TypedBinding }
-  : '(' Idents ':' Expr ')' { TypedBinding IsExplicit $2 $4 }
-  | '{' Idents ':' Expr '}' { TypedBinding IsImplicit $2 $4 }
+  : '(' Idents ':' Expr ')' { TypedBinding (Arg IsExplicit ($2, $4)) }
+  | '{' Idents ':' Expr '}' { TypedBinding (Arg IsImplicit ($2, $4)) }
 
 
 TypedBindings :: { [TypedBinding] }
@@ -283,7 +283,7 @@ PatternAtomic :: { Pattern }
 
 -- Arguments for a lambda term.
 LambdaArg :: { LambdaArg }
-  : BoundName   { LamArgUntyped $1 }
+  : BoundName   { LamArgUntyped (Arg IsExplicit [$1]) }
   | TypedBinding { LamArgTyped $1 }
 
 LambdaArgsOrEmpty :: { LambdaArgs }
