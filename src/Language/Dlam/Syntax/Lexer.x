@@ -60,6 +60,8 @@ tokens :-
   \=                            { \p s -> TokenEq p }
   \(                            { \p s -> TokenLParen p }
   \)                            { \p s -> TokenRParen p }
+  \{                            { \p s -> TokenLBrace p }
+  \}                            { \p s -> TokenRBrace p }
   \:                            { \p s -> TokenSig p }
   "?"                           { \p _ -> TokenHole p }
   "*"                           { \p s -> TokenProd p }
@@ -93,6 +95,8 @@ data Token
   | TokenEq       AlexPosn
   | TokenLParen   AlexPosn
   | TokenRParen   AlexPosn
+  | TokenLBrace   AlexPosn
+  | TokenRBrace   AlexPosn
   | TokenNL       AlexPosn
   | TokenSig      AlexPosn
   | TokenHole     AlexPosn

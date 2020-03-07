@@ -52,6 +52,8 @@ import Language.Dlam.Util.Pretty (pprintShow)
     '='     { TokenEq _ }
     '('     { TokenLParen _ }
     ')'     { TokenRParen _ }
+    '{'     { TokenLBrace _ }
+    '}'     { TokenRBrace _ }
     ':'     { TokenSig _ }
     ','     { TokenComma _ }
     '.'     { TokenDot _ }
@@ -155,7 +157,8 @@ TypeSig :: { (Name, Expr) }
 
 
 TypedBinding :: { TypedBinding }
-  : '(' Idents ':' Expr ')' { TypedBinding $2 $4 }
+  : '(' Idents ':' Expr ')' { TypedBinding IsExplicit $2 $4 }
+  | '{' Idents ':' Expr '}' { TypedBinding IsImplicit $2 $4 }
 
 
 TypedBindings :: { [TypedBinding] }

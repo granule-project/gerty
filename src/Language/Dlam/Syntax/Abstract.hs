@@ -12,6 +12,7 @@ module Language.Dlam.Syntax.Abstract
   , mkIdent
   , ignoreVar
   , mkAbs
+  , mkAbs'
   , absVar
   , absTy
   , absExpr
@@ -39,7 +40,7 @@ import Prelude hiding ((<>))
 import qualified Data.Set as Set
 
 import Language.Dlam.Syntax.Common (NameId(..))
-import qualified Language.Dlam.Syntax.Concrete.Name as C
+import qualified Language.Dlam.Syntax.Concrete as C
 import Language.Dlam.Util.Pretty
 
 
@@ -72,23 +73,37 @@ data Declaration =
   | TypeSig Name Expr
   deriving (Show)
 
-newtype Abstraction = Abst { getAbst :: (Name, Expr, Expr) }
-  deriving (Show, Eq, Ord)
+data Arg = Arg
+  {
+  -- | Name of the argument.
+    argName :: BindName
+  -- | Argument type.
+  , argTy   :: Expr
+  -- | Argument relevance---is it implicit or explicit?
+  , argRel  :: C.Implicity
+  } deriving (Show, Eq, Ord)
+
+data Abstraction = Abst
+  {
+  -- | Argument of the abstraction.
+    absArg :: Arg
+  -- | Target expression of the abstraction.
+  , absExpr :: Expr
+  } deriving (Show, Eq, Ord)
 
 -- | Variable bound in the abstraction.
 absVar :: Abstraction -> Name
-absVar (Abst (v, _, _)) = v
+absVar = unBindName . argName . absArg
 
 -- | Type of the bound variable in the abstraction.
 absTy :: Abstraction -> Expr
-absTy (Abst (_, t, _)) = t
-
--- | Target expression of the abstraction.
-absExpr :: Abstraction -> Expr
-absExpr (Abst (_, _, t)) = t
+absTy = argTy . absArg
 
 mkAbs :: Name -> Expr -> Expr -> Abstraction
-mkAbs v e1 e2 = Abst (v, e1, e2)
+mkAbs v e1 e2 = Abst { absArg = Arg { argName = BindName v, argTy = e1, argRel = C.IsExplicit }, absExpr = e2 }
+
+mkAbs' :: C.Implicity -> Name -> Expr -> Expr -> Abstraction
+mkAbs' i v e1 e2 = Abst { absArg = Arg { argName = BindName v, argTy = e1, argRel = i }, absExpr = e2 }
 
 data Expr
   -- | Variable.

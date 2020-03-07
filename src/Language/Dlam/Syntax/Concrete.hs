@@ -14,6 +14,7 @@ module Language.Dlam.Syntax.Concrete
   , absTy
   , absExpr
   -- ** Bindings
+  , Implicity(..)
   , BoundName(..)
   , LambdaBinding(..)
   , LambdaArg(..)
@@ -79,7 +80,11 @@ data LambdaBinding = NamedBinding TypedBinding | UnnamedBinding Expr
   deriving (Show, Eq, Ord)
 
 
-data TypedBinding = TypedBinding [Name] Expr
+data Implicity = IsImplicit | IsExplicit
+  deriving (Show, Eq, Ord)
+
+
+data TypedBinding = TypedBinding Implicity [Name] Expr
   deriving (Show, Eq, Ord)
 
 
@@ -304,7 +309,8 @@ instance Pretty FRHS where
   pprint (FRHSAssign e) = equals <+> pprint e
 
 instance Pretty TypedBinding where
-  pprint (TypedBinding ns e) = parens $ hsep (fmap pprint ns) <+> colon <+> pprint e
+  pprint (TypedBinding i ns e) = (if i == IsExplicit then parens else braces)
+                                 $ hsep (fmap pprint ns) <+> colon <+> pprint e
 
 instance Pretty LambdaBinding where
   pprint (NamedBinding t) = pprint t
