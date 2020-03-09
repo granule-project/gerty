@@ -17,16 +17,15 @@ module Language.Dlam.TypeChecking.Monad.Base
   , lookupType
   , setType
   , withTypedVariable
-
   , lookupValue
   , setValue
+
+  -- * Environment
+  , withLocalCheckingOf
 
   -- ** Normalisation
   , lookupNormalForm
   , withExprNormalisingTo
-
-  -- * Environment
-  , withLocalCheckingOf
 
   -- * Exceptions and error handling
   , TCErr
@@ -70,9 +69,6 @@ data CheckerState
   = CheckerState
     { typingScope :: M.Map Name Expr
     , valueScope :: M.Map Name Expr
-    , normalFormEquivalences :: M.Map Expr Expr
-    -- ^ If (e1, e2) is in the normalFormEquivalences map, we treat them as equivalent
-    -- ^ under normalisation.
     , nextNameId :: NameId
     -- ^ Unique NameId for naming.
     }
@@ -83,7 +79,6 @@ startCheckerState :: CheckerState
 startCheckerState =
   CheckerState { typingScope = builtinsTypes
                , valueScope = builtinsValues
-               , normalFormEquivalences = M.empty
                , nextNameId = 0
                }
 
@@ -151,12 +146,44 @@ setValue :: Name -> Expr -> CM ()
 setValue n t = modify (\s -> s { valueScope = M.insert n t (valueScope s) })
 
 
+------------------------------
+-- * Type checking environment
+------------------------------
+
+
+type NormalFormMap = M.Map Expr Expr
+
+
+-- | Type-checking environment.
+data TCEnv = TCEnv
+  { tceCurrentExpr :: Maybe Expr
+  -- ^ Expression currently being checked (if any).
+  , normalFormEquivalences :: M.Map Expr Expr
+  -- ^ If (e1, e2) is in the normalFormEquivalences map, we treat them as equivalent
+  -- ^ under normalisation.
+  }
+
+
+tceSetCurrentExpr :: Expr -> TCEnv -> TCEnv
+tceSetCurrentExpr e env = env { tceCurrentExpr = Just e }
+
+
+withNormalFormEquivalances :: (NormalFormMap -> NormalFormMap) -> CM a -> CM a
+withNormalFormEquivalances f =
+  local (\env -> env { normalFormEquivalences = f (normalFormEquivalences env) })
+
+
+startEnv :: TCEnv
+startEnv = TCEnv { tceCurrentExpr = Nothing, normalFormEquivalences = M.empty }
+
+
+-- | Indicate that we are now checking the given expression when running the action.
+withLocalCheckingOf :: Expr -> CM a -> CM a
+withLocalCheckingOf e = local (tceSetCurrentExpr e)
+
+
 lookupNormalForm :: Expr -> CM (Maybe Expr)
-lookupNormalForm n = M.lookup n . normalFormEquivalences <$> get
-
-
-addNormalFormEquivalence :: Expr -> Expr -> CM ()
-addNormalFormEquivalence nf1 nf2 = modify (\s -> s { normalFormEquivalences = M.insert nf1 nf2 (normalFormEquivalences s) })
+lookupNormalForm n = M.lookup n . normalFormEquivalences <$> ask
 
 
 -- DISCUSSION:
@@ -178,43 +205,10 @@ addNormalFormEquivalence nf1 nf2 = modify (\s -> s { normalFormEquivalences = M.
 -- TODO: [ ] investigate HOTT's computation rules that normalise both
 -- the term and type (2020-03-09, GD)
 --
--- | 'withExprNormalisingTo e nf m' runs 'm', but causes
--- | any expressions that would usually normalise to (the normal form of)
--- | 'e' to instead normalise to 'nf'.
+-- | Execute the given action with the given expressions treated as equal under
+-- | normalisation.
 withExprNormalisingTo :: Expr -> Expr -> CM a -> CM a
-withExprNormalisingTo e nf p = do
-  st <- get
-  addNormalFormEquivalence e nf
-  res <- p
-  -- restore the normal forms
-  modify (\s -> s { normalFormEquivalences = normalFormEquivalences st})
-  pure res
-
-
-------------------------------
--- * Type checking environment
-------------------------------
-
-
--- | Type-checking environment.
-data TCEnv = TCEnv
-  { tceCurrentExpr :: Maybe Expr
-  -- ^ Expression currently being checked (if any).
-  }
-
-
-tceSetCurrentExpr :: Expr -> TCEnv -> TCEnv
-tceSetCurrentExpr e env = env { tceCurrentExpr = Just e }
-
-
-startEnv :: TCEnv
-startEnv = TCEnv { tceCurrentExpr = Nothing }
-
-
-
--- | Indicate that we are now checking the given expression when running the action.
-withLocalCheckingOf :: Expr -> CM a -> CM a
-withLocalCheckingOf e = local (tceSetCurrentExpr e)
+withExprNormalisingTo e nf = withNormalFormEquivalances (M.insert e nf)
 
 
 -----------------------------------------
