@@ -7,6 +7,9 @@ module Language.Dlam.Syntax.Common
   -- * NameId
     NameId(..)
 
+  -- * MightBe
+  , MightBe
+
   -- * Un
   , Un(..)
 
@@ -49,6 +52,28 @@ import Language.Dlam.Util.Pretty (Pretty(..), (<+>), braces, colon, parens)
 -- Int64 would be. (2020-03-05, GD)
 newtype NameId = NameId Int64
   deriving (Show, Eq, Ord, Num, Enum)
+
+
+data MightBe a e = ItIs (a e) | ItIsNot e
+  deriving (Show, Eq, Ord)
+
+
+isIt :: MightBe a e -> Bool
+isIt ItIs{} = True
+isIt ItIsNot{} = False
+
+
+itIs :: (e -> a e) -> e -> MightBe a e
+itIs f = ItIs . f
+
+
+itIsNot :: e -> MightBe a e
+itIsNot = ItIsNot
+
+
+instance (Un (t e) e) => Un (MightBe t e) e where
+  un (ItIs x) = un x
+  un (ItIsNot x) = x
 
 
 -------
@@ -100,16 +125,19 @@ data IsHiddenOrNot = IsHidden | NotHidden
   deriving (Show, Eq, Ord)
 
 
-newtype MightHide a = MightHide (IsHiddenOrNot, a)
+newtype Hidden e = Hidden e
   deriving (Show, Eq, Ord)
 
 
-unHide :: MightHide a -> a
-unHide (MightHide (_, x)) = x
+unHide :: Hidden a -> a
+unHide (Hidden a) = a
 
 
-instance Un (MightHide a) a where
+instance Un (Hidden a) a where
   un = unHide
+
+
+type MightHide = MightBe Hidden
 
 
 instance (IsTyped a t) => IsTyped (MightHide a) t where
@@ -138,11 +166,12 @@ class Hiding a where
 
 
 instance Hiding (MightHide a) where
-  isHidden (MightHide (h, _)) = h
+  isHidden h = if isIt h then IsHidden else NotHidden
 
 
 instance CanHide MightHide a where
-  makeWithHiding = curry MightHide
+  makeWithHiding IsHidden = itIs Hidden
+  makeWithHiding NotHidden = itIsNot
 
 
 --------
