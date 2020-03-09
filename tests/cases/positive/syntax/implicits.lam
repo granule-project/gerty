@@ -1,0 +1,18 @@
+-- implicits in signature
+idImpl1 : {l : Level} {a : Type l} -> a -> a
+idImpl1 = \x -> x
+
+-- implicits in signature and lambda
+idImpl2 : {l : Level} {a : Type l} -> a -> a
+idImpl2 = \{l : Level} {a} x -> x
+
+idImplApp1 : Level
+idImplApp1 = idImpl1 lzero
+
+-- passing implicit
+idImplApp2 : Level
+idImplApp2 = idImpl1 {1} lzero
+
+-- passing named implicit
+idImplApp3 : Level
+idImplApp3 = idImpl1 {a = Level} lzero

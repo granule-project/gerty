@@ -243,9 +243,15 @@ Expr2 :: { ParseExpr }
   | Expr3 { $1 }
 
 
+Expr3Braces :: { Expr }
+  : Ident '=' Expr { BraceArg (Named $1 $3) }
+  | Expr           { BraceArg (Unnamed $1) }
+
+
 -- atomic values
 Expr3 :: { Expr }
-  : Atom { $1 }
+  : '{' Expr3Braces '}' { $2 }
+  | Atom { $1 }
 
 
 Atom :: { ParseExpr }
@@ -289,6 +295,7 @@ PatternAtomic :: { Pattern }
 -- Arguments for a lambda term.
 LambdaArg :: { LambdaArg }
   : BoundName   { ParamUnnamed (Arg IsExplicit [$1]) }
+  | '{' BoundNames '}'   { ParamUnnamed (Arg IsImplicit $2) }
   | TypedBinding { ParamNamed $1 }
 
 LambdaArgsOrEmpty :: { LambdaArgs }

@@ -1,6 +1,7 @@
 {-# LANGUAGE EmptyDataDeriving #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE StandaloneDeriving #-}
 
 module Language.Dlam.Syntax.Concrete
@@ -13,6 +14,9 @@ module Language.Dlam.Syntax.Concrete
   , absVar
   , absTy
   , absExpr
+  -- ** Naming
+  , Un(..)
+  , MaybeNamed(..)
   -- ** Bindings
   , Binds(..)
   , Arg(..)
@@ -95,6 +99,24 @@ type LambdaArgs = [LambdaArg]
 
 -- | The left-hand-side of a function type.
 type LambdaBinding = Param Expr
+
+
+------------------
+----- Naming -----
+------------------
+
+
+class Un a e where
+  un :: a -> e
+
+
+data MaybeNamed a = Named Name a | Unnamed a
+  deriving (Show, Eq, Ord)
+
+
+instance Un (MaybeNamed a) a where
+  un (Named _ e) = e
+  un (Unnamed e) = e
 
 
 ---------------------
@@ -251,6 +273,9 @@ data Expr
 
   | Let LetBinding Expr
   -- ^ Let binding (@let x in y@).
+
+  -- | Argument wrapped in braces.
+  | BraceArg (MaybeNamed Expr)
   deriving (Show, Eq, Ord)
 
 
@@ -310,6 +335,11 @@ instance (Pretty e) => Pretty (Arg e) where
          IsExplicit -> (if isLexicallyAtomic e then id else parens) $ pprint e
 
 
+instance (Pretty e) => Pretty (MaybeNamed e) where
+  pprint (Named n e) = pprint n <+> equals <+> pprint e
+  pprint (Unnamed e) = pprint e
+
+
 instance Pretty Expr where
     isLexicallyAtomic (Ident _) = True
     isLexicallyAtomic LitLevel{} = True
@@ -365,6 +395,7 @@ instance Pretty Expr where
     pprint (EmptyElim (x, tC) a) =
       text "let" <+> pprint x <> at <> text "()" <+> equals <+> pprint a <+> colon <+> pprint tC
     pprint (Let lb e) = text "let" <+> pprint lb <+> text "in" <+> pprint e
+    pprint (BraceArg e) = braces $ pprint e
 
 instance Pretty LetBinding where
   pprint (LetPatBound p e) = pprint p <+> equals <+> pprint e

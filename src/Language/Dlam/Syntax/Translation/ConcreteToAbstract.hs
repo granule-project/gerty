@@ -211,6 +211,8 @@ instance ToAbstract C.Expr A.Expr where
     e1' <- toAbstract e1
     e2' <- withLocals names $ toAbstract e2
     pure $ A.Let (A.LetPatBound p' e1') e2'
+  -- TODO: add special handling for brace arguments (2020-03-09)
+  toAbstract (C.BraceArg e) = toAbstract ((C.un e) :: C.Expr)
 
 
 instance ToAbstract C.Pattern (A.Pattern, Locals) where
