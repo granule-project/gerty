@@ -156,6 +156,25 @@ addNormalFormEquivalence :: Expr -> Expr -> CM ()
 addNormalFormEquivalence nf1 nf2 = modify (\s -> s { normalFormEquivalences = M.insert nf1 nf2 (normalFormEquivalences s) })
 
 
+-- DISCUSSION:
+--
+-- 'withExprNormalisingTo' is an attempt to remember definitional
+-- equality obtained via a pattern/case binding. For example, if we do
+-- 'case p of Inl x -> ...', then in the 'Inl' branch, we know that 'p
+-- = Inl x'.
+--
+-- However, I am not sure this is very robust, especially as we
+-- generalise patterns more, as this requires us to use a direct
+-- equality (trying to do a lookup on (monadic) expression equality
+-- would be extremely expensive), and thus won't e.g., map
+-- abstractions with differently-named binders to one another.
+--
+-- I feel like there should be a better way of handling this, but I am
+-- presently not sure how to do so!
+--
+-- TODO: [ ] investigate HOTT's computation rules that normalise both
+-- the term and type (2020-03-09, GD)
+--
 -- | 'withExprNormalisingTo e nf m' runs 'm', but causes
 -- | any expressions that would usually normalise to (the normal form of)
 -- | 'e' to instead normalise to 'nf'.
