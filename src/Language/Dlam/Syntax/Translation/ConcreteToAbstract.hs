@@ -11,6 +11,7 @@ import Control.Monad.Except (throwError)
 
 
 import Language.Dlam.Substitution (fresh)
+import Language.Dlam.Syntax.Common
 import qualified Language.Dlam.Syntax.Abstract as A
 import qualified Language.Dlam.Syntax.Concrete as C
 import Language.Dlam.Scoping.Monad
@@ -124,9 +125,9 @@ instance ToAbstract OldQName A.Expr where
 instance ToAbstract C.PiBindings ([(C.Implicity, A.Name, A.Expr)], Locals) where
   toAbstract (C.PiBindings []) = pure ([], [])
   toAbstract (C.PiBindings (arg:bs)) = do
-    let i  = C.relOf arg
+    let i  = relOf arg
         ns = fmap C.unBoundName $ C.bindsWhat arg
-        s  = C.typeOf arg
+        s  :: C.Expr = typeOf arg
     ns' <- mapM toAbstract ns
     s' <- toAbstract s
     let nsLocs = zip ns ns'
@@ -137,16 +138,16 @@ instance ToAbstract C.PiBindings ([(C.Implicity, A.Name, A.Expr)], Locals) where
 instance ToAbstract C.LambdaArgs ([(C.Implicity, A.Name, A.Expr)], Locals) where
   toAbstract [] = pure ([], [])
   toAbstract ((C.ParamNamed arg):bs) = do
-    let i = C.relOf arg
+    let i = relOf arg
         ns = fmap C.unBoundName $ C.bindsWhat arg
-        s = C.typeOf arg
+        s :: C.Expr = typeOf arg
     ns' <- mapM toAbstract ns
     s' <- toAbstract s
     let nsLocs = zip ns ns'
     (args, locals) <- withLocals nsLocs $ toAbstract bs
     pure $ (zip3 (repeat i) ns' (repeat s') <> args, nsLocs <> locals)
   toAbstract ((C.ParamUnnamed arg):bs) =
-    toAbstract (((C.ParamNamed (C.mkTypedBinding (C.relOf arg) (C.bindsWhat arg) C.Implicit))):bs)
+    toAbstract (((C.ParamNamed (C.mkTypedBinding (relOf arg) (C.bindsWhat arg) C.Implicit))):bs)
 
 
 instance ToAbstract C.Expr A.Expr where
@@ -212,7 +213,7 @@ instance ToAbstract C.Expr A.Expr where
     e2' <- withLocals names $ toAbstract e2
     pure $ A.Let (A.LetPatBound p' e1') e2'
   -- TODO: add special handling for brace arguments (2020-03-09)
-  toAbstract (C.BraceArg e) = toAbstract ((C.un e) :: C.Expr)
+  toAbstract (C.BraceArg e) = toAbstract (un e)
 
 
 instance ToAbstract C.Pattern (A.Pattern, Locals) where

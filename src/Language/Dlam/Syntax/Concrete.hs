@@ -1,5 +1,3 @@
-{-# LANGUAGE EmptyDataDeriving #-}
-{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE StandaloneDeriving #-}
@@ -15,15 +13,11 @@ module Language.Dlam.Syntax.Concrete
   , absTy
   , absExpr
   -- ** Naming
-  , Un(..)
   , MaybeNamed(..)
   -- ** Bindings
   , Binds(..)
   , Arg(..)
   , Implicity(..)
-  , HasImplicity(..)
-  , Typed(..)
-  , IsTyped(..)
   , BoundName(..)
   , Param(..)
   , LambdaBinding
@@ -49,6 +43,8 @@ module Language.Dlam.Syntax.Concrete
 import Prelude hiding ((<>))
 
 import Language.Dlam.Syntax.Concrete.Name
+import Language.Dlam.Syntax.Common hiding (Typed)
+import qualified Language.Dlam.Syntax.Common as C
 import Language.Dlam.Util.Pretty
 
 
@@ -106,10 +102,6 @@ type LambdaBinding = Param Expr
 ------------------
 
 
-class Un a e where
-  un :: a -> e
-
-
 data MaybeNamed a = Named Name a | Unnamed a
   deriving (Show, Eq, Ord)
 
@@ -124,20 +116,8 @@ instance Un (MaybeNamed a) a where
 ---------------------
 
 
-data Implicity = IsImplicit | IsExplicit
-  deriving (Show, Eq, Ord)
-
-
-class HasImplicity a where
-  relOf :: a -> Implicity
-
-
 instance HasImplicity (Arg a) where
   relOf = argRel
-
-
-instance (HasImplicity a) => HasImplicity (Typed a) where
-  relOf = relOf . unTyped
 
 
 -----------------
@@ -145,20 +125,10 @@ instance (HasImplicity a) => HasImplicity (Typed a) where
 -----------------
 
 
--- | A thing with a type.
-data Typed a = Typed { unTyped :: a, typedTy :: Expr }
-  deriving (Show, Eq, Ord)
+type Typed = C.Typed Expr
 
 
-class IsTyped a where
-  typeOf :: a -> Expr
-
-
-instance IsTyped (Typed a) where
-  typeOf = typedTy
-
-
-instance (IsTyped a) => IsTyped (Arg a) where
+instance (IsTyped a t) => IsTyped (Arg a) t where
   typeOf = typeOf . unArg
 
 
@@ -166,7 +136,7 @@ type TypedBinding = Arg (Typed [BoundName])
 
 
 mkTypedBinding :: Implicity -> [BoundName] -> Expr -> TypedBinding
-mkTypedBinding i ns t = Arg { unArg = Typed { unTyped = ns, typedTy = t }, argRel = i }
+mkTypedBinding i ns t = Arg { unArg = typeWith ns t, argRel = i }
 
 
 class Binds a where
@@ -424,9 +394,6 @@ instance Pretty FLHS where
 
 instance Pretty FRHS where
   pprint (FRHSAssign e) = equals <+> pprint e
-
-instance (Pretty a) => Pretty (Typed a) where
-  pprint t = pprint (unTyped t) <+> colon <+> pprint (typeOf t)
 
 instance (Pretty a) => Pretty (Param a) where
   pprint (ParamNamed nb) = pprint nb
