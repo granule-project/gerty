@@ -16,9 +16,15 @@ module Language.Dlam.Syntax.Common
   , IsTyped(..)
   , typeWith
 
-  -- * Implicity
-  , HasImplicity(..)
-  , Implicity(..)
+  -- * Hiding
+  , IsHiddenOrNot(..)
+  , CanHide(..)
+  , MightHide
+  , Hiding
+  , isHidden
+  , hide
+  , notHidden
+  , unHide
   ) where
 
 
@@ -81,18 +87,55 @@ instance (Pretty t, Pretty a) => Pretty (Typed t a) where
   pprint e = pprint (un e) <+> colon <+> pprint (unTyped e)
 
 
---------------
--- * Implicity
---------------
+-----------
+-- * Hiding
+-----------
 
 
-data Implicity = IsImplicit | IsExplicit
+data IsHiddenOrNot = IsHidden | NotHidden
   deriving (Show, Eq, Ord)
 
 
-class HasImplicity a where
-  relOf :: a -> Implicity
+newtype MightHide a = MightHide (IsHiddenOrNot, a)
+  deriving (Show, Eq, Ord)
 
 
-instance (HasImplicity a) => HasImplicity (Typed t a) where
-  relOf = relOf . unTyped
+unHide :: MightHide a -> a
+unHide (MightHide (_, x)) = x
+
+
+instance Un (MightHide a) a where
+  un = unHide
+
+
+instance (IsTyped a t) => IsTyped (MightHide a) t where
+  typeOf = typeOf . un
+
+
+-- | 'CanHide a e' means that 'a' contains possibly hidden values
+-- | of type 'e'.
+class (Hiding (a e)) => CanHide a e where
+  makeWithHiding :: IsHiddenOrNot -> e -> a e
+
+
+-- | Hide a value.
+hide :: (CanHide a e) => e -> a e
+hide = makeWithHiding IsHidden
+
+
+-- | A value that isn't hidden.
+notHidden :: (CanHide a e) => e -> a e
+notHidden = makeWithHiding NotHidden
+
+
+class Hiding a where
+  -- | Is the value hidden or not?
+  isHidden :: a -> IsHiddenOrNot
+
+
+instance Hiding (MightHide a) where
+  isHidden (MightHide (h, _)) = h
+
+
+instance CanHide MightHide a where
+  makeWithHiding = curry MightHide

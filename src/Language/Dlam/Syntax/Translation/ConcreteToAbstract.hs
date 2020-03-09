@@ -122,10 +122,10 @@ instance ToAbstract OldQName A.Expr where
     pure $ A.Var (nameOf rn)
 
 
-instance ToAbstract C.PiBindings ([(C.Implicity, A.Name, A.Expr)], Locals) where
+instance ToAbstract C.PiBindings ([(IsHiddenOrNot, A.Name, A.Expr)], Locals) where
   toAbstract (C.PiBindings []) = pure ([], [])
   toAbstract (C.PiBindings (arg:bs)) = do
-    let i  = relOf arg
+    let i  = isHidden arg
         ns = fmap C.unBoundName $ C.bindsWhat arg
         s  :: C.Expr = typeOf arg
     ns' <- mapM toAbstract ns
@@ -135,10 +135,10 @@ instance ToAbstract C.PiBindings ([(C.Implicity, A.Name, A.Expr)], Locals) where
     pure $ (zip3 (repeat i) ns' (repeat s') <> piBinds, nsLocs <> locals)
 
 
-instance ToAbstract C.LambdaArgs ([(C.Implicity, A.Name, A.Expr)], Locals) where
+instance ToAbstract C.LambdaArgs ([(IsHiddenOrNot, A.Name, A.Expr)], Locals) where
   toAbstract [] = pure ([], [])
   toAbstract ((C.ParamNamed arg):bs) = do
-    let i = relOf arg
+    let i = isHidden arg
         ns = fmap C.unBoundName $ C.bindsWhat arg
         s :: C.Expr = typeOf arg
     ns' <- mapM toAbstract ns
@@ -147,7 +147,7 @@ instance ToAbstract C.LambdaArgs ([(C.Implicity, A.Name, A.Expr)], Locals) where
     (args, locals) <- withLocals nsLocs $ toAbstract bs
     pure $ (zip3 (repeat i) ns' (repeat s') <> args, nsLocs <> locals)
   toAbstract ((C.ParamUnnamed arg):bs) =
-    toAbstract (((C.ParamNamed (C.mkTypedBinding (relOf arg) (C.bindsWhat arg) C.Implicit))):bs)
+    toAbstract (((C.ParamNamed (C.mkTypedBinding (isHidden arg) (C.bindsWhat arg) C.Implicit))):bs)
 
 
 instance ToAbstract C.Expr A.Expr where
@@ -159,11 +159,11 @@ instance ToAbstract C.Expr A.Expr where
     e2' <- toAbstract e2
     pure $ A.FunTy (A.mkAbs name e1' e2')
   toAbstract (C.Pi piBinds expr) = do
-    (piBinds' :: [(C.Implicity, A.Name, A.Expr)], mySpace) <- toAbstract piBinds
+    (piBinds' :: [(IsHiddenOrNot, A.Name, A.Expr)], mySpace) <- toAbstract piBinds
     expr' <- withLocals mySpace $ toAbstract expr
     pure $ foldr (\(i, arg, space) f -> A.FunTy (A.mkAbs' i arg space f)) expr' piBinds'
   toAbstract (C.Abs args expr) = do
-    (args' :: [(C.Implicity, A.Name, A.Expr)], mySpace) <- toAbstract args
+    (args' :: [(IsHiddenOrNot, A.Name, A.Expr)], mySpace) <- toAbstract args
     expr' <- withLocals mySpace $ toAbstract expr
     pure $ foldr (\(i, arg, space) f -> A.Abs (A.mkAbs' i arg space f)) expr' args'
   toAbstract (C.ProductTy ab) = A.ProductTy <$> toAbstract ab

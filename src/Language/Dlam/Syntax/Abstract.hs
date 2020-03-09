@@ -1,6 +1,7 @@
 {-# LANGUAGE EmptyDataDeriving #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE StandaloneDeriving #-}
 
@@ -39,9 +40,13 @@ module Language.Dlam.Syntax.Abstract
 import Prelude hiding ((<>))
 import qualified Data.Set as Set
 
-import Language.Dlam.Syntax.Common (NameId(..))
+import Language.Dlam.Syntax.Common hiding (Typed)
+import qualified Language.Dlam.Syntax.Common as Com
 import qualified Language.Dlam.Syntax.Concrete as C
 import Language.Dlam.Util.Pretty
+
+
+type Typed = Com.Typed Expr
 
 
 ------------------
@@ -73,15 +78,43 @@ data Declaration =
   | TypeSig Name Expr
   deriving (Show)
 
-data Arg = Arg
-  {
-  -- | Name of the argument.
-    argName :: BindName
-  -- | Argument type.
-  , argTy   :: Expr
-  -- | Argument relevance---is it implicit or explicit?
-  , argRel  :: C.Implicity
-  } deriving (Show, Eq, Ord)
+
+newtype Arg' a = Arg' { unArg :: MightHide a }
+  deriving (Show, Eq, Ord)
+
+
+type Arg = Arg' (Typed BindName)
+
+
+instance Hiding (Arg' e) where
+  isHidden (Arg' e) = isHidden e
+
+
+instance CanHide Arg' a where
+  makeWithHiding h = Arg' . makeWithHiding h
+
+
+instance (IsTyped a t) => IsTyped (Arg' a) t where
+  typeOf = typeOf . un
+
+
+instance Un (Arg' a) a where
+  un = un . unArg
+
+
+mkArg :: IsHiddenOrNot -> Name -> Expr -> Arg
+mkArg isHid n t = makeWithHiding isHid (BindName n `typeWith` t)
+
+
+-- | Name of the argument.
+argName :: Arg -> BindName
+argName = un . un
+
+
+-- | Argument type.
+argTy :: Arg -> Expr
+argTy = typeOf
+
 
 data Abstraction = Abst
   {
@@ -91,19 +124,24 @@ data Abstraction = Abst
   , absExpr :: Expr
   } deriving (Show, Eq, Ord)
 
+
 -- | Variable bound in the abstraction.
 absVar :: Abstraction -> Name
 absVar = unBindName . argName . absArg
+
 
 -- | Type of the bound variable in the abstraction.
 absTy :: Abstraction -> Expr
 absTy = argTy . absArg
 
-mkAbs :: Name -> Expr -> Expr -> Abstraction
-mkAbs v e1 e2 = Abst { absArg = Arg { argName = BindName v, argTy = e1, argRel = C.IsExplicit }, absExpr = e2 }
 
-mkAbs' :: C.Implicity -> Name -> Expr -> Expr -> Abstraction
-mkAbs' i v e1 e2 = Abst { absArg = Arg { argName = BindName v, argTy = e1, argRel = i }, absExpr = e2 }
+mkAbs :: Name -> Expr -> Expr -> Abstraction
+mkAbs v e1 e2 = Abst { absArg = mkArg NotHidden v e1, absExpr = e2 }
+
+
+mkAbs' :: IsHiddenOrNot -> Name -> Expr -> Expr -> Abstraction
+mkAbs' isHid v e1 e2 = Abst { absArg = mkArg isHid v e1, absExpr = e2 }
+
 
 data Expr
   -- | Variable.

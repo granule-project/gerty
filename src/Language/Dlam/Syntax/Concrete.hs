@@ -17,7 +17,7 @@ module Language.Dlam.Syntax.Concrete
   -- ** Bindings
   , Binds(..)
   , Arg(..)
-  , Implicity(..)
+  , mkArg
   , BoundName(..)
   , Param(..)
   , LambdaBinding
@@ -75,10 +75,28 @@ data BoundName = BoundName { unBoundName :: Name }
   deriving (Show, Eq, Ord)
 
 
-data Arg a = Arg
-  { argRel  :: Implicity
-  , unArg   :: a
-  } deriving (Show, Eq, Ord)
+newtype Arg a = Arg { unArg :: MightHide a }
+  deriving (Show, Eq, Ord)
+
+
+instance Hiding (Arg a) where
+  isHidden (Arg e) = isHidden e
+
+
+instance CanHide Arg a where
+  makeWithHiding h = Arg . makeWithHiding h
+
+
+instance Un (Arg a) a where
+  un = un . unArg
+
+
+instance (IsTyped a t) => IsTyped (Arg a) t where
+  typeOf = typeOf . un
+
+
+mkArg :: IsHiddenOrNot -> a -> Arg a
+mkArg = makeWithHiding
 
 
 -- | A Param either captures some typed names, or an @a@.
@@ -111,15 +129,6 @@ instance Un (MaybeNamed a) a where
   un (Unnamed e) = e
 
 
----------------------
------ Implicity -----
----------------------
-
-
-instance HasImplicity (Arg a) where
-  relOf = argRel
-
-
 -----------------
 ----- Typed -----
 -----------------
@@ -128,19 +137,19 @@ instance HasImplicity (Arg a) where
 type Typed = C.Typed Expr
 
 
-instance (IsTyped a t) => IsTyped (Arg a) t where
-  typeOf = typeOf . unArg
-
-
 type TypedBinding = Arg (Typed [BoundName])
 
 
-mkTypedBinding :: Implicity -> [BoundName] -> Expr -> TypedBinding
-mkTypedBinding i ns t = Arg { unArg = typeWith ns t, argRel = i }
+mkTypedBinding :: IsHiddenOrNot -> [BoundName] -> Expr -> TypedBinding
+mkTypedBinding isHid ns t = mkArg isHid (ns `typeWith` t)
 
 
 class Binds a where
   bindsWhat :: a -> [BoundName]
+
+
+instance (Binds a) => Binds (MightHide a) where
+  bindsWhat = bindsWhat . un
 
 
 instance (Binds a) => Binds (Arg a) where
@@ -298,11 +307,11 @@ instance Pretty [BoundName] where
 
 
 instance (Pretty e) => Pretty (Arg e) where
-  pprint arg =
-    let e = unArg arg
-    in case argRel arg of
-         IsImplicit -> braces (pprint e)
-         IsExplicit -> (if isLexicallyAtomic e then id else parens) $ pprint e
+  pprint h =
+    let e = un h
+    in case isHidden h of
+         IsHidden -> braces (pprint e)
+         NotHidden -> (if isLexicallyAtomic e then id else parens) $ pprint e
 
 
 instance (Pretty e) => Pretty (MaybeNamed e) where

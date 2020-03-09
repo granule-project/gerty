@@ -10,6 +10,7 @@ import System.Exit
 import Control.Monad.Trans.Reader
 import Control.Monad.Trans.Class (lift)
 
+import Language.Dlam.Syntax.Common
 import Language.Dlam.Syntax.Concrete
 import Language.Dlam.Syntax.Lexer
 import Language.Dlam.Util.Pretty (pprintShow)
@@ -162,8 +163,8 @@ TypeSig :: { (Name, Expr) }
 
 
 TypedBinding :: { TypedBinding }
-  : '(' BoundNames ':' Expr ')' { mkTypedBinding IsExplicit $2 $4 }
-  | '{' BoundNames ':' Expr '}' { mkTypedBinding IsImplicit $2 $4 }
+  : '(' BoundNames ':' Expr ')' { mkTypedBinding NotHidden $2 $4 }
+  | '{' BoundNames ':' Expr '}' { mkTypedBinding IsHidden $2 $4 }
 
 
 TypedBindings :: { [TypedBinding] }
@@ -294,8 +295,8 @@ PatternAtomic :: { Pattern }
 
 -- Arguments for a lambda term.
 LambdaArg :: { LambdaArg }
-  : BoundName   { ParamUnnamed (Arg IsExplicit [$1]) }
-  | '{' BoundNames '}'   { ParamUnnamed (Arg IsImplicit $2) }
+  : BoundName   { ParamUnnamed (mkArg NotHidden [$1]) }
+  | '{' BoundNames '}'   { ParamUnnamed (mkArg IsHidden $2) }
   | TypedBinding { ParamNamed $1 }
 
 LambdaArgsOrEmpty :: { LambdaArgs }
