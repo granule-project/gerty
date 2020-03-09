@@ -40,7 +40,7 @@ module Language.Dlam.Syntax.Abstract
 import Prelude hiding ((<>))
 import qualified Data.Set as Set
 
-import Language.Dlam.Syntax.Common hiding (Typed)
+import Language.Dlam.Syntax.Common hiding (Arg, Typed)
 import qualified Language.Dlam.Syntax.Common as Com
 import qualified Language.Dlam.Syntax.Concrete as C
 import Language.Dlam.Util.Pretty
@@ -79,31 +79,7 @@ data Declaration =
   deriving (Show)
 
 
-newtype Arg' a = Arg' { unArg :: MightHide a }
-  deriving (Show, Eq, Ord)
-
-
-type Arg = Arg' (Typed BindName)
-
-
-instance Hiding (Arg' e) where
-  isHidden (Arg' e) = isHidden e
-
-
-instance CanHide Arg' a where
-  makeWithHiding h = Arg' . makeWithHiding h
-
-
-instance (IsTyped a t) => IsTyped (Arg' a) t where
-  typeOf = typeOf . un
-
-
-instance Un (Arg' a) a where
-  un = un . unArg
-
-
-mkArg :: IsHiddenOrNot -> Name -> Expr -> Arg
-mkArg isHid n t = makeWithHiding isHid (BindName n `typeWith` t)
+type Arg = Com.Arg (Typed BindName)
 
 
 -- | Name of the argument.
@@ -136,11 +112,11 @@ absTy = argTy . absArg
 
 
 mkAbs :: Name -> Expr -> Expr -> Abstraction
-mkAbs v e1 e2 = Abst { absArg = mkArg NotHidden v e1, absExpr = e2 }
+mkAbs v e1 e2 = Abst { absArg = mkArg NotHidden (BindName v `typeWith` e1), absExpr = e2 }
 
 
 mkAbs' :: IsHiddenOrNot -> Name -> Expr -> Expr -> Abstraction
-mkAbs' isHid v e1 e2 = Abst { absArg = mkArg isHid v e1, absExpr = e2 }
+mkAbs' isHid v e1 e2 = Abst { absArg = mkArg isHid (BindName v `typeWith` e1), absExpr = e2 }
 
 
 data Expr

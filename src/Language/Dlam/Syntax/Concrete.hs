@@ -16,7 +16,6 @@ module Language.Dlam.Syntax.Concrete
   , MaybeNamed(..)
   -- ** Bindings
   , Binds(..)
-  , Arg(..)
   , mkArg
   , BoundName(..)
   , Param(..)
@@ -75,30 +74,6 @@ data BoundName = BoundName { unBoundName :: Name }
   deriving (Show, Eq, Ord)
 
 
-newtype Arg a = Arg { unArg :: MightHide a }
-  deriving (Show, Eq, Ord)
-
-
-instance Hiding (Arg a) where
-  isHidden (Arg e) = isHidden e
-
-
-instance CanHide Arg a where
-  makeWithHiding h = Arg . makeWithHiding h
-
-
-instance Un (Arg a) a where
-  un = un . unArg
-
-
-instance (IsTyped a t) => IsTyped (Arg a) t where
-  typeOf = typeOf . un
-
-
-mkArg :: IsHiddenOrNot -> a -> Arg a
-mkArg = makeWithHiding
-
-
 -- | A Param either captures some typed names, or an @a@.
 data Param a = ParamNamed TypedBinding | ParamUnnamed a
   deriving (Show, Eq, Ord)
@@ -153,7 +128,7 @@ instance (Binds a) => Binds (MightHide a) where
 
 
 instance (Binds a) => Binds (Arg a) where
-  bindsWhat = bindsWhat . unArg
+  bindsWhat = bindsWhat . un
 
 
 instance (Binds a) => Binds (Typed a) where
@@ -304,14 +279,6 @@ instance Pretty BoundName where
 
 instance Pretty [BoundName] where
   pprint = hsep . fmap pprint
-
-
-instance (Pretty e) => Pretty (Arg e) where
-  pprint h =
-    let e = un h
-    in case isHidden h of
-         IsHidden -> braces (pprint e)
-         NotHidden -> (if isLexicallyAtomic e then id else parens) $ pprint e
 
 
 instance (Pretty e) => Pretty (MaybeNamed e) where

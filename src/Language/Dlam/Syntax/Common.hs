@@ -25,13 +25,17 @@ module Language.Dlam.Syntax.Common
   , hide
   , notHidden
   , unHide
+
+  -- * Arguments
+  , Arg
+  , mkArg
   ) where
 
 
 import Data.Int (Int64)
 
 
-import Language.Dlam.Util.Pretty (Pretty(..), (<+>), colon)
+import Language.Dlam.Util.Pretty (Pretty(..), (<+>), braces, colon, parens)
 
 
 -----------
@@ -139,3 +143,41 @@ instance Hiding (MightHide a) where
 
 instance CanHide MightHide a where
   makeWithHiding = curry MightHide
+
+
+--------
+-- * Arg
+--------
+
+
+-- | Arguments can be hidden.
+newtype Arg a = Arg { unArg :: MightHide a }
+  deriving (Show, Eq, Ord)
+
+
+instance Hiding (Arg e) where
+  isHidden (Arg e) = isHidden e
+
+
+instance CanHide Arg a where
+  makeWithHiding h = Arg . makeWithHiding h
+
+
+instance (IsTyped a t) => IsTyped (Arg a) t where
+  typeOf = typeOf . un
+
+
+instance Un (Arg a) a where
+  un = un . unArg
+
+
+mkArg :: IsHiddenOrNot -> a -> Arg a
+mkArg = makeWithHiding
+
+
+instance (Pretty e) => Pretty (Arg e) where
+  pprint h =
+    let e = un h
+    in case isHidden h of
+         IsHidden -> braces (pprint e)
+         NotHidden -> (if isLexicallyAtomic e then id else parens) $ pprint e
