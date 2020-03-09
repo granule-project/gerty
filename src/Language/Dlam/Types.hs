@@ -9,6 +9,7 @@ import Language.Dlam.Substitution
   )
 import Language.Dlam.Syntax.Abstract
 import qualified Language.Dlam.Syntax.Concrete as C
+import Language.Dlam.Syntax.Internal
 import Language.Dlam.TypeChecking.Monad
 import Language.Dlam.Util.Pretty (pprintShow)
 import qualified Language.Dlam.Scoping.Monad as SE
@@ -238,7 +239,7 @@ equalExprs e1 e2 = do
 
 
 -- | Try and register the name with the given type
-registerTypeForName :: Name -> Expr -> CM ()
+registerTypeForName :: Name -> Type -> CM ()
 registerTypeForName n t = do
   setType n t
 
@@ -283,7 +284,7 @@ doASTInference (AST ds) = fmap AST $ mapM doDeclarationInference ds
 
 
 -- | Infer a level for the given type.
-inferUniverseLevel :: Expr -> CM Expr
+inferUniverseLevel :: Type -> CM Level
 inferUniverseLevel e = do
   u <- synthType e
   norm <- normalise u
@@ -294,7 +295,7 @@ inferUniverseLevel e = do
 
 -- | 'ensureEqualTypes expr tyExpected tyActual' checks that 'tyExpected' and 'tyActual'
 -- | represent the same type (under normalisation), and fails if they differ.
-ensureEqualTypes :: Expr -> Expr -> Expr -> CM Expr
+ensureEqualTypes :: Expr -> Type -> Type -> CM Type
 ensureEqualTypes expr tyExpected tyActual = do
   typesEqual <- equalExprs tyActual tyExpected
   if typesEqual then pure tyActual
@@ -303,7 +304,7 @@ ensureEqualTypes expr tyExpected tyActual = do
 
 -- | Retrieve an Abstraction from a function type expression, failing if the
 -- | expression is not a function type.
-getAbsFromFunTy :: Expr -> Expr -> CM Abstraction
+getAbsFromFunTy :: Expr -> Type -> CM Abstraction
 getAbsFromFunTy expr t =
   case t of
     FunTy ab -> pure ab
@@ -312,7 +313,7 @@ getAbsFromFunTy expr t =
 
 -- | Retrieve an Abstraction from a product type expression, failing if the
 -- | expression is not a product type.
-getAbsFromProductTy :: Expr -> Expr -> CM Abstraction
+getAbsFromProductTy :: Expr -> Type -> CM Abstraction
 getAbsFromProductTy expr t =
   case t of
     ProductTy ab -> pure ab
@@ -321,7 +322,7 @@ getAbsFromProductTy expr t =
 
 -- | 'checkOrInferType ty ex' checks that the type of 'ex' matches 'ty', or infers
 -- | it 'ty' is a wild. Evaluates to the calculated type.
-checkOrInferType :: Expr -> Expr -> CM Expr
+checkOrInferType :: Type -> Expr -> CM Expr
 --------------
 -- Builtins --
 --------------
@@ -800,7 +801,7 @@ synthType = checkOrInferType mkImplicit
 -- | Compare a pattern against a type, and attempt to build a mapping
 -- | from subject binders and subject type binders to their
 -- | respective types.
-patternVarsForType :: Pattern -> Expr -> CM ([(Name, Expr)], [(Name, Expr)])
+patternVarsForType :: Pattern -> Type -> CM ([(Name, Type)], [(Name, Type)])
 patternVarsForType (PPair pl pr) (ProductTy ab) =
   (<>) <$> patternVarsForType pl (absTy ab)
        <*> patternVarsForType pr (absExpr ab)
@@ -836,7 +837,7 @@ maybeGetPatternUnificationSubst _ _ = Nothing
 
 
 -- | Synthesise a type for a term, guided by a pattern it should match.
-synthTypePatGuided :: Pattern -> Expr -> CM Expr
+synthTypePatGuided :: Pattern -> Expr -> CM Type
 synthTypePatGuided p e = do
   ty <- checkOrInferType (patToImplTy p) e
   patGuideTyNames p ty

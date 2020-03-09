@@ -44,6 +44,7 @@ library:
    - Language.Dlam.Syntax.Common
    - Language.Dlam.Syntax.Concrete.Name
    - Language.Dlam.Syntax.Free
+   - Language.Dlam.Syntax.Internal
    - Language.Dlam.Syntax.Lexer
    - Language.Dlam.Syntax.Translation.ConcreteToAbstract
    - Language.Dlam.Scoping.Monad
