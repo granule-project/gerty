@@ -285,51 +285,55 @@ doASTInference (AST ds) = fmap AST $ mapM doDeclarationInference ds
 
 -- | Infer a level for the given type.
 inferUniverseLevel :: Type -> CM Level
-inferUniverseLevel e = do
+inferUniverseLevel e = withLocalCheckingOf e $ do
   u <- synthType e
   norm <- normalise u
   case norm of
     (App (Builtin TypeTy) l) -> pure l
-    _        -> expectedInferredTypeForm "universe" e norm
+    _        -> expectedInferredTypeForm "universe" norm
 
 
--- | 'ensureEqualTypes expr tyExpected tyActual' checks that 'tyExpected' and 'tyActual'
+-- | 'ensureEqualTypes tyExpected tyActual' checks that 'tyExpected' and 'tyActual'
 -- | represent the same type (under normalisation), and fails if they differ.
-ensureEqualTypes :: Expr -> Type -> Type -> CM Type
-ensureEqualTypes expr tyExpected tyActual = do
+ensureEqualTypes :: Type -> Type -> CM Type
+ensureEqualTypes tyExpected tyActual = do
   typesEqual <- equalExprs tyActual tyExpected
   if typesEqual then pure tyActual
-  else tyMismatch expr tyExpected tyActual
+  else tyMismatch tyExpected tyActual
 
 
 -- | Retrieve an Abstraction from a function type expression, failing if the
 -- | expression is not a function type.
-getAbsFromFunTy :: Expr -> Type -> CM Abstraction
-getAbsFromFunTy expr t =
+getAbsFromFunTy :: Type -> CM Abstraction
+getAbsFromFunTy t =
   case t of
     FunTy ab -> pure ab
-    t        -> expectedInferredTypeForm "function" expr t
+    t        -> expectedInferredTypeForm "function" t
 
 
 -- | Retrieve an Abstraction from a product type expression, failing if the
 -- | expression is not a product type.
-getAbsFromProductTy :: Expr -> Type -> CM Abstraction
-getAbsFromProductTy expr t =
+getAbsFromProductTy :: Type -> CM Abstraction
+getAbsFromProductTy t =
   case t of
     ProductTy ab -> pure ab
-    t            -> expectedInferredTypeForm "product" expr t
+    t            -> expectedInferredTypeForm "product" t
 
 
 -- | 'checkOrInferType ty ex' checks that the type of 'ex' matches 'ty', or infers
 -- | it 'ty' is a wild. Evaluates to the calculated type.
 checkOrInferType :: Type -> Expr -> CM Expr
+checkOrInferType t e = withLocalCheckingOf e $ checkOrInferType' t e
+
+
+checkOrInferType' :: Type -> Expr -> CM Expr
 --------------
 -- Builtins --
 --------------
-checkOrInferType t expr@(Builtin e) =
+checkOrInferType' t (Builtin e) =
   -- here we simply check that the expected type
   -- matches the type defined for the builtin
-  ensureEqualTypes expr t $
+  ensureEqualTypes t $
     case e of
       -- lzero : Level
       LZero -> builtinType lzero
@@ -378,7 +382,7 @@ checkOrInferType t expr@(Builtin e) =
 ----------------------
 -- Level expression --
 ----------------------
-checkOrInferType t expr@LitLevel{} = ensureEqualTypes expr t (builtinBody levelTy)
+checkOrInferType' t LitLevel{} = ensureEqualTypes t (builtinBody levelTy)
 -------------------------
 -- Variable expression --
 -------------------------
@@ -388,7 +392,7 @@ checkOrInferType t expr@LitLevel{} = ensureEqualTypes expr t (builtinBody levelT
    --------------- :: Var
    G |- x : A
 -}
-checkOrInferType t expr@(Var x) = do
+checkOrInferType' t (Var x) = do
   -- x : A in G
   -- TODO: remove this possible failure---the scope checker should prevent this (2020-03-05)
   tA <- lookupType x >>= maybe (scoperError $ SE.unknownNameErr (C.Unqualified $ nameConcrete x)) pure
@@ -398,7 +402,7 @@ checkOrInferType t expr@(Var x) = do
   tA <- normalise tA
 
   -- G |- x : A
-  ensureEqualTypes expr t tA
+  ensureEqualTypes t tA
 
 -------------------------------
 ----- Dependent Functions -----
@@ -410,7 +414,7 @@ checkOrInferType t expr@(Var x) = do
    ------------------------------------- :: FunTy
    G |- (x : A) -> B : Type (lmax l1 l2)
 -}
-checkOrInferType t expr@(FunTy ab) = do
+checkOrInferType' t (FunTy ab) = do
   -- G |- A : Type l1
   l1 <- inferUniverseLevel (absTy ab)
 
@@ -419,12 +423,12 @@ checkOrInferType t expr@(FunTy ab) = do
 
   -- G |- (x : A) -> B : Type (lmax l1 l2)
   lmaxl1l2 <- normalise (lmaxApp l1 l2)
-  ensureEqualTypes expr t (mkUnivTy lmaxl1l2)
+  ensureEqualTypes t (mkUnivTy lmaxl1l2)
 
 --------------------------------------------
 -- Abstraction expression, with wild type --
 --------------------------------------------
-checkOrInferType Implicit expr@(Abs ab) = do
+checkOrInferType' Implicit expr@(Abs ab) = do
   rTy <- withAbsBinding ab $ checkOrInferType mkImplicit (absExpr ab)
   checkOrInferType (FunTy (mkAbs (absVar ab) (absTy ab) rTy)) expr
 
@@ -433,9 +437,9 @@ checkOrInferType Implicit expr@(Abs ab) = do
    --------------------------------- :: Abs
    G |- \(x : A) -> e : (x : A) -> B
 -}
-checkOrInferType t expr@(Abs abE) = do
+checkOrInferType' t (Abs abE) = do
   _l <- inferUniverseLevel t
-  abT <- normalise t >>= getAbsFromFunTy expr
+  abT <- normalise t >>= getAbsFromFunTy
 
   let x = absVar  abE
       e = absExpr abE
@@ -450,7 +454,7 @@ checkOrInferType t expr@(Abs abE) = do
   tB <- withTypedVariable x tA (checkOrInferType tB e)
 
   -- G |- \x -> e : (x : A) -> B
-  ensureEqualTypes expr t (FunTy (mkAbs x tA tB))
+  ensureEqualTypes t (FunTy (mkAbs x tA tB))
 
 {-
    G |- t1 : (x : A) -> B
@@ -458,7 +462,7 @@ checkOrInferType t expr@(Abs abE) = do
    ---------------------- :: App
    G |- t1 t2 : [t2/x]B
 -}
-checkOrInferType t expr@(App e1 e2) = do
+checkOrInferType' t (App e1 e2) = do
 
   -- G |- t1 : (x : A) -> B
   e1Ty <- inferFunTy e1
@@ -472,12 +476,12 @@ checkOrInferType t expr@(App e1 e2) = do
 
   -- G |- t1 t2 : [t2/x]B
   t2forXinB <- substitute (x, e2) tB
-  ensureEqualTypes expr t t2forXinB
+  ensureEqualTypes t t2forXinB
 
   where inferFunTy :: Expr -> CM Abstraction
-        inferFunTy e = do
+        inferFunTy e = withLocalCheckingOf e $ do
           t <- synthType e >>= normalise
-          getAbsFromFunTy e t
+          getAbsFromFunTy t
 
 -----------------------------
 ----- Dependent Tensors -----
@@ -489,7 +493,7 @@ checkOrInferType t expr@(App e1 e2) = do
    ------------------------------------ :: ProductTy
    G |- (x : A) * B : Type (lmax l1 l2)
 -}
-checkOrInferType t expr@(ProductTy ab) = do
+checkOrInferType' t (ProductTy ab) = do
   -- G |- A : Type l1
   l1 <- inferUniverseLevel (absTy ab)
 
@@ -498,7 +502,7 @@ checkOrInferType t expr@(ProductTy ab) = do
 
   -- G |- (x : A) * B : Type (lmax l1 l2)
   lmaxl1l2 <- normalise (lmaxApp l1 l2)
-  ensureEqualTypes expr t (mkUnivTy lmaxl1l2)
+  ensureEqualTypes t (mkUnivTy lmaxl1l2)
 
 {-
    G |- t1 : A
@@ -507,9 +511,9 @@ checkOrInferType t expr@(ProductTy ab) = do
    --------------------------- :: Pair
    G |- (t1, t2) : (x : A) * B
 -}
-checkOrInferType t expr@(Pair e1 e2) = do
+checkOrInferType' t (Pair e1 e2) = do
   _l <- inferUniverseLevel t
-  abT <- normalise t >>= getAbsFromProductTy expr
+  abT <- normalise t >>= getAbsFromProductTy
 
   let x = absVar abT
       tB = absExpr abT
@@ -526,7 +530,7 @@ checkOrInferType t expr@(Pair e1 e2) = do
   _e2Ty <- checkOrInferType t1forXinB e2
 
   -- G |- (t1, t2) : (x : A) * B
-  ensureEqualTypes expr t (ProductTy (mkAbs x tA tB))
+  ensureEqualTypes t (ProductTy (mkAbs x tA tB))
 
 ----------------
 -- Coproducts --
@@ -538,7 +542,7 @@ checkOrInferType t expr@(Pair e1 e2) = do
    ------------------------------ :: Coproduct
    G |- A + B : Type (lmax l1 l2)
 -}
-checkOrInferType t expr@(Coproduct tA tB) = do
+checkOrInferType' t (Coproduct tA tB) = do
   -- G |- A : Type l1
   l1 <- inferUniverseLevel tA
 
@@ -547,7 +551,7 @@ checkOrInferType t expr@(Coproduct tA tB) = do
 
   -- G |- (x : A) -> B : Type (lmax l1 l2)
   lmaxl1l2 <- normalise (lmaxApp l1 l2)
-  ensureEqualTypes expr t (mkUnivTy lmaxl1l2)
+  ensureEqualTypes t (mkUnivTy lmaxl1l2)
 
 {-
    G, z : A + B |- C : Type l
@@ -557,7 +561,7 @@ checkOrInferType t expr@(Coproduct tA tB) = do
    ------------------------------------------------------ :: CoproductCase
    G |- case z@e of (Inl x -> c; Inr y -> d) : C : [e/z]C
 -}
-checkOrInferType t expr@(CoproductCase (z, tC) (x, c) (y, d) e) = do
+checkOrInferType' t (CoproductCase (z, tC) (x, c) (y, d) e) = do
   -- G |- e : A + B
   (tA, tB) <- inferCoproductTy e
   l1 <- inferUniverseLevel tA
@@ -579,14 +583,14 @@ checkOrInferType t expr@(CoproductCase (z, tC) (x, c) (y, d) e) = do
 
   -- G |- case z@e of (Inl x -> c; Inr y -> d) : C : [e/z]C
   eforzinC <- substitute (z, e) tC
-  ensureEqualTypes expr t eforzinC
+  ensureEqualTypes t eforzinC
 
   where inferCoproductTy :: Expr -> CM (Expr, Expr)
-        inferCoproductTy e = do
+        inferCoproductTy e = withLocalCheckingOf e $ do
           t <- synthType e >>= normalise
           case t of
             (Coproduct tA tB) -> pure (tA, tB)
-            t -> expectedInferredTypeForm "coproduct" e t
+            t -> expectedInferredTypeForm "coproduct" t
 
 ---------------------------
 ----- Natural numbers -----
@@ -600,7 +604,7 @@ checkOrInferType t expr@(CoproductCase (z, tC) (x, c) (y, d) e) = do
    ---------------------------------------------------------- :: NatCase
    G |- case x@n of (Zero -> cz; Succ w@y -> cs) : C : [n/x]C
 -}
-checkOrInferType t expr@(NatCase (x, tC) cz (w, y, cs) n) = do
+checkOrInferType' t (NatCase (x, tC) cz (w, y, cs) n) = do
   -- G, x : Nat |- C : Type l
   let natTy' = builtinBody natTy
   _l <- withTypedVariable x natTy' $ inferUniverseLevel tC
@@ -621,7 +625,7 @@ checkOrInferType t expr@(NatCase (x, tC) cz (w, y, cs) n) = do
 
   -- G |- case x@n of (Zero -> cz; Succ w@y -> cs) : C : [n/x]C
   nforxinC <- substitute (x, n) tC
-  ensureEqualTypes expr t nforxinC
+  ensureEqualTypes t nforxinC
 
 --------------------
 ----- Identity -----
@@ -637,7 +641,7 @@ checkOrInferType t expr@(NatCase (x, tC) cz (w, y, cs) n) = do
    --------------------------------------------------------- :: RewriteExpr
    G |- rewrite(x.y.p.C, l1, A, a, b, p) : [a/x][b/y][p'/p]C
 -}
-checkOrInferType t expr@(RewriteExpr (x, y, p, tC) (z, c) a b p') = do
+checkOrInferType' t (RewriteExpr (x, y, p, tC) (z, c) a b p') = do
   -- G |- a : A
   tA <- synthType a
 
@@ -661,7 +665,7 @@ checkOrInferType t expr@(RewriteExpr (x, y, p, tC) (z, c) a b p') = do
   -- G |- rewrite(x.y.p.C, l1, A, a, b, p) : [a/x][b/y][p'/p]C
   aforxbforypforpinC <-
     substitute (x, a) tC >>= substitute (y, b) >>= substitute (p, p')
-  ensureEqualTypes expr t aforxbforypforpinC
+  ensureEqualTypes t aforxbforypforpinC
 
 -----------
 -- Empty --
@@ -673,7 +677,7 @@ checkOrInferType t expr@(RewriteExpr (x, y, p, tC) (z, c) a b p') = do
    ------------------------------ :: EmptyElim
    G |- let x@() = a : C : [a/x]C
 -}
-checkOrInferType t expr@(EmptyElim (x, tC) a) = do
+checkOrInferType' t (EmptyElim (x, tC) a) = do
   let emptyTy' = builtinBody emptyTy
 
   -- G, x : Empty |- C : Type l
@@ -685,7 +689,7 @@ checkOrInferType t expr@(EmptyElim (x, tC) a) = do
 
   -- G |- let x@() = a : C : [a/x]C
   aforxinC <- substitute (x, a) tC
-  ensureEqualTypes expr t aforxinC
+  ensureEqualTypes t aforxinC
 
 {-
    G, tass(pat) |- C : Type l
@@ -694,7 +698,7 @@ checkOrInferType t expr@(EmptyElim (x, tC) a) = do
    ---------------------------------------------- :: Let
    G |- let z@pat = e1 in e2 : [e1/z]C
 -}
-checkOrInferType t expr@(Let (LetPatBound p e1) e2) = do
+checkOrInferType' t (Let (LetPatBound p e1) e2) = do
 
   -- G |- e1 : T
   -- the type we are going to try and eliminate
@@ -734,7 +738,7 @@ checkOrInferType t expr@(Let (LetPatBound p e1) e2) = do
        checkOrInferType introForzinC e2'
 
   e1forzinC <- maybe (pure tC) (\z -> substitute (z, e1) tC) z
-  ensureEqualTypes expr t e1forzinC
+  ensureEqualTypes t e1forzinC
 
   where
         withBinders :: [(Name, Expr)] -> CM a -> CM a
@@ -773,18 +777,18 @@ checkOrInferType t expr@(Let (LetPatBound p e1) e2) = do
   For a Sig, we simply check that the expression has the stated type
   (and this matches the final expected type).
 -}
-checkOrInferType t expr@(Sig e t') = do
+checkOrInferType' t (Sig e t') = do
   ty <- checkOrInferType t' e
-  ensureEqualTypes expr t ty
+  ensureEqualTypes t ty
 -------------------------------------
 -- When we don't know how to synth --
 -------------------------------------
-checkOrInferType Implicit expr = cannotSynthTypeForExpr expr
-checkOrInferType t Implicit    = cannotSynthExprForType t
+checkOrInferType' Implicit _ = cannotSynthTypeForExpr
+checkOrInferType' t Implicit = cannotSynthExprForType t
 ----------------------------------
 -- Currently unsupported checks --
 ----------------------------------
-checkOrInferType t e =
+checkOrInferType' t e =
   notImplemented $ "I don't yet know how to check the type of expression '" <> pprintShow e <> "' against the type '" <> pprintShow t
 
 

@@ -25,8 +25,11 @@ module Language.Dlam.TypeChecking.Monad.Base
   , lookupNormalForm
   , withExprNormalisingTo
 
+  -- * Environment
+  , withLocalCheckingOf
+
   -- * Exceptions and error handling
-  , TCError
+  , TCErr
 
   -- ** Implementation errors
   , notImplemented
@@ -87,12 +90,12 @@ startCheckerState =
 
 -- | The checker monad.
 newtype CM a =
-  CM { runCM :: ExceptT TCError (WriterT TCLog (ReaderT TCEnv (State CheckerState))) a }
+  CM { runCM :: ExceptT TCErr (WriterT TCLog (ReaderT TCEnv (State CheckerState))) a }
   deriving ( Applicative, Functor, Monad
            , MonadReader TCEnv
            , MonadState CheckerState
            , MonadWriter TCLog
-           , MonadError TCError)
+           , MonadError TCErr)
 
 
 type TCLog = String
@@ -101,7 +104,7 @@ type TCLog = String
 data TCResult a
   = TCResult
     { tcrLog :: TCLog
-    , tcrRes :: Either TCError a
+    , tcrRes :: Either TCErr a
     }
 
 
@@ -194,11 +197,24 @@ withExprNormalisingTo e nf p = do
 
 
 -- | Type-checking environment.
-data TCEnv = TCEnv ()
+data TCEnv = TCEnv
+  { tceCurrentExpr :: Maybe Expr
+  -- ^ Expression currently being checked (if any).
+  }
+
+
+tceSetCurrentExpr :: Expr -> TCEnv -> TCEnv
+tceSetCurrentExpr e env = env { tceCurrentExpr = Just e }
 
 
 startEnv :: TCEnv
-startEnv = TCEnv ()
+startEnv = TCEnv { tceCurrentExpr = Nothing }
+
+
+
+-- | Indicate that we are now checking the given expression when running the action.
+withLocalCheckingOf :: Expr -> CM a -> CM a
+withLocalCheckingOf e = local (tceSetCurrentExpr e)
 
 
 -----------------------------------------
@@ -223,7 +239,7 @@ data TCError
   -- Synth Errors --
   ------------------
 
-  | CannotSynthTypeForExpr Expr
+  | CannotSynthTypeForExpr
 
   | CannotSynthExprForType Expr
 
@@ -231,9 +247,9 @@ data TCError
   -- Type Errors --
   -----------------
 
-  | TypeMismatch Expr Expr Expr
+  | TypeMismatch Expr Expr
 
-  | ExpectedInferredTypeForm String Expr Expr
+  | ExpectedInferredTypeForm String Expr
 
   --------------------
   -- Pattern Errors --
@@ -253,16 +269,14 @@ data TCError
 instance Show TCError where
   show (NotImplemented e) = e
   show (ScoperError e) = "The following was raised when scope-checking: " <> show e
-  show (CannotSynthTypeForExpr expr) =
-    "I was asked to try and synthesise a type for '" <> pprintShow expr <> "' but I wasn't able to do so."
+  show CannotSynthTypeForExpr = "I couldn't synthesise a type for the expression."
   show (CannotSynthExprForType t) =
     "I was asked to try and synthesise a term of type '" <> pprintShow t <> "' but I wasn't able to do so."
-  show (TypeMismatch expr tyExpected tyActual) =
-    "Error when checking the type of '" <> pprintShow expr <>
-    "', expected '" <> pprintShow tyExpected <> "' but got '" <> pprintShow tyActual <> "'"
-  show (ExpectedInferredTypeForm descr expr t) =
-    "I was expecting the expression '" <> pprintShow expr
-    <> "' to have a " <> descr <> " type, but instead I found its type to be '"
+  show (TypeMismatch tyExpected tyActual) =
+    "Expected type '" <> pprintShow tyExpected <> "' but got '" <> pprintShow tyActual <> "'"
+  show (ExpectedInferredTypeForm descr t) =
+    "I was expecting the expression to have a "
+    <> descr <> " type, but instead I found its type to be '"
     <> pprintShow t <> "'"
   show (PatternMismatch p t) =
     "The pattern '" <> pprintShow p <> "' is not valid for type '" <> pprintShow t <> "'"
@@ -272,37 +286,68 @@ instance Exception TCError
 
 
 notImplemented :: String -> CM a
-notImplemented descr = throwError (NotImplemented descr)
+notImplemented descr = throwCM (NotImplemented descr)
 
 
 -- | Indicate that an issue occurred when performing a scope analysis.
 scoperError :: SE.SCError -> CM a
-scoperError e = throwError (ScoperError e)
+scoperError e = throwCM (ScoperError e)
 
 
-cannotSynthTypeForExpr :: Expr -> CM a
-cannotSynthTypeForExpr expr = throwError (CannotSynthTypeForExpr expr)
+cannotSynthTypeForExpr :: CM a
+cannotSynthTypeForExpr = throwCM CannotSynthTypeForExpr
 
 
 cannotSynthExprForType :: Expr -> CM a
-cannotSynthExprForType t = throwError (CannotSynthExprForType t)
+cannotSynthExprForType t = throwCM (CannotSynthExprForType t)
 
 
 -- | 'tyMismatch expr tyExpected tyActual' indicates that an expression
 -- | was found to have a type that differs from expected.
-tyMismatch :: Expr -> Expr -> Expr -> CM a
-tyMismatch expr tyExpected tyActual =
-  throwError (TypeMismatch expr tyExpected tyActual)
+tyMismatch :: Expr -> Expr -> CM a
+tyMismatch tyExpected tyActual =
+  throwCM (TypeMismatch tyExpected tyActual)
 
 
-expectedInferredTypeForm :: String -> Expr -> Expr -> CM a
-expectedInferredTypeForm descr expr t =
-  throwError (ExpectedInferredTypeForm descr expr t)
+expectedInferredTypeForm :: String -> Expr -> CM a
+expectedInferredTypeForm descr t =
+  throwCM (ExpectedInferredTypeForm descr t)
 
 
 patternMismatch :: Pattern -> Expr -> CM a
-patternMismatch p t = throwError (PatternMismatch p t)
+patternMismatch p t = throwCM (PatternMismatch p t)
 
 
 parseError :: String -> CM a
-parseError = throwError . ParseError
+parseError = throwCM . ParseError
+
+
+-----------------------------------------
+----- Errors and exception handling -----
+-----------------------------------------
+
+
+data TCErr = TCErr
+  { tcErrErr :: TCError
+  -- ^ The underlying error.
+  , tcErrEnv :: TCEnv
+  -- ^ Environment at point of the error.
+  }
+
+
+instance Exception TCErr
+
+
+-- | Expression being checked when failure occurred.
+tcErrExpr :: TCErr -> Maybe Expr
+tcErrExpr = tceCurrentExpr . tcErrEnv
+
+
+throwCM :: TCError -> CM a
+throwCM e = do
+  env <- ask
+  throwError $ TCErr { tcErrErr = e, tcErrEnv = env }
+
+
+instance Show TCErr where
+  show e = "The following error occurred when type-checking" <> (maybe ": " (\expr -> " '" <> pprintShow expr <> "': ") (tcErrExpr e)) <> show (tcErrErr e)

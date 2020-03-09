@@ -17,7 +17,7 @@ import Language.Dlam.Types
 import Language.Dlam.TypeChecking.Monad
 import Language.Dlam.Util.Pretty (pprintShow)
 
-type InterpreterError = TCError
+type InterpreterError = TCErr
 type InterpreterResult = AST
 
 formatError :: InterpreterError -> String
