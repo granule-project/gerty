@@ -1,0 +1,5 @@
+-- multiple fields in a single field clause
+record Test : Type 0 where
+  field
+    t1 : Level
+    t2 : Level
