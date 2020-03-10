@@ -165,10 +165,14 @@ FRHS :: { FRHSOrTypeSig }
 -----------------------
 
 RecordDef :: { Declaration }
-  : record Ident LambdaBindingsOrEmpty ':' Expr where constructor Ident Declarations
+  : record Ident LambdaBindingsOrEmpty ':' Expr where constructor Ident RecordDeclBody
       { RecordDef $2 (Just $8) $3 $5 $9 }
-  | record Ident LambdaBindingsOrEmpty ':' Expr where Declarations
+  | record Ident LambdaBindingsOrEmpty ':' Expr where RecordDeclBody
       { RecordDef $2 Nothing $3 $5 $7 }
+
+RecordDeclBody :: { [Declaration] }
+  : vopen close { [] }
+  | Declarations { $1 }
 
 Field :: { [Declaration] }
   : field EmptyOrTypeSigs { fmap (uncurry Field) $2 }

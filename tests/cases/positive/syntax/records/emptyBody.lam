@@ -1,0 +1,2 @@
+-- record with no body
+record EmptyRecord : Type 0 where
