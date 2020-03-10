@@ -1,3 +1,5 @@
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE TypeSynonymInstances #-}
 module Language.Dlam.Util.Pretty
   ( module Text.PrettyPrint
   , Pretty(..)
@@ -6,6 +8,7 @@ module Language.Dlam.Util.Pretty
   ) where
 
 
+import Data.Int
 import Text.PrettyPrint
 
 
@@ -26,3 +29,11 @@ class Pretty a where
   isLexicallyAtomic _ = False
 
   pprint :: a -> Doc
+
+
+instance Pretty Int32 where
+  pprint = text . show
+
+
+instance Pretty String where
+  pprint = text

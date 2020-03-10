@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 960be283483b8ea0f4003f3b9392def4c5b4cca2ed190c3c8344316574055462
+-- hash: fcbf815feb8d40a7ed3aa355c8e69cc08ad1b18607fc71da154ea94ee86c6529
 
 name:           dependent-lamb
 version:        0.0.1
@@ -13,6 +13,7 @@ author:         Ben Moon
 maintainer:     Ben Moon
 copyright:      2020 authors
 license:        BSD3
+license-file:   LICENSE
 build-type:     Simple
 
 library
@@ -32,12 +33,23 @@ library
       Language.Dlam.Syntax.Free
       Language.Dlam.Syntax.Internal
       Language.Dlam.Syntax.Lexer
+      Language.Dlam.Syntax.Literal
+      Language.Dlam.Syntax.Parser.Alex
+      Language.Dlam.Syntax.Parser.Comments
+      Language.Dlam.Syntax.Parser.Layout
+      Language.Dlam.Syntax.Parser.LexActions
+      Language.Dlam.Syntax.Parser.LookAhead
+      Language.Dlam.Syntax.Parser.Monad
+      Language.Dlam.Syntax.Parser.Tokens
+      Language.Dlam.Syntax.Position
       Language.Dlam.Syntax.Translation.ConcreteToAbstract
       Language.Dlam.Scoping.Monad
       Language.Dlam.Scoping.Monad.Base
       Language.Dlam.Scoping.Monad.Exception
       Language.Dlam.Scoping.Scope
       Language.Dlam.TypeChecking.Monad.Base
+      Language.Dlam.Util.Functor
+      Language.Dlam.Util.Lens
       Language.Dlam.Util.Pretty
   hs-source-dirs:
       src

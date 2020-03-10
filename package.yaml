@@ -46,12 +46,23 @@ library:
    - Language.Dlam.Syntax.Free
    - Language.Dlam.Syntax.Internal
    - Language.Dlam.Syntax.Lexer
+   - Language.Dlam.Syntax.Literal
+   - Language.Dlam.Syntax.Parser.Alex
+   - Language.Dlam.Syntax.Parser.Comments
+   - Language.Dlam.Syntax.Parser.Layout
+   - Language.Dlam.Syntax.Parser.LexActions
+   - Language.Dlam.Syntax.Parser.LookAhead
+   - Language.Dlam.Syntax.Parser.Monad
+   - Language.Dlam.Syntax.Parser.Tokens
+   - Language.Dlam.Syntax.Position
    - Language.Dlam.Syntax.Translation.ConcreteToAbstract
    - Language.Dlam.Scoping.Monad
    - Language.Dlam.Scoping.Monad.Base
    - Language.Dlam.Scoping.Monad.Exception
    - Language.Dlam.Scoping.Scope
    - Language.Dlam.TypeChecking.Monad.Base
+   - Language.Dlam.Util.Functor
+   - Language.Dlam.Util.Lens
    - Language.Dlam.Util.Pretty
 
 executables:

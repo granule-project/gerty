@@ -127,7 +127,7 @@ data Expr
   = Var Name
 
   -- | Level literals.
-  | LitLevel Int
+  | LitLevel Integer
 
   -- | Dependent function type.
   | FunTy Abstraction
@@ -346,7 +346,7 @@ instance Pretty Expr where
     isLexicallyAtomic Implicit{} = True
     isLexicallyAtomic _       = False
 
-    pprint (LitLevel n)           = int n
+    pprint (LitLevel n)           = integer n
     pprint (Lam ab) = text "\\ " <> pprintAbs arrow ab
     pprint (FunTy ab) = pprintAbs arrow ab
     pprint (ProductTy ab) =

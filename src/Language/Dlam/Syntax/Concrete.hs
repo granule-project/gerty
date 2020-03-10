@@ -217,7 +217,7 @@ data Expr
   = Ident QName
 
   -- | Level literals.
-  | LitLevel Int
+  | LitLevel Integer
 
   -- | Dependent function space.
   | Pi PiBindings Expr
@@ -338,7 +338,7 @@ instance Pretty Expr where
     isLexicallyAtomic Implicit{} = True
     isLexicallyAtomic _       = False
 
-    pprint (LitLevel n)           = int n
+    pprint (LitLevel n)           = integer n
     pprint (Lam binders finE) =
       text "\\" <+> (hsep $ fmap pprint binders) <+> arrow <+> pprint finE
     pprint (Pi binders finTy) = pprint binders <+> arrow <+> pprint finTy

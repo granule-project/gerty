@@ -59,6 +59,7 @@ import Language.Dlam.Builtins
 import qualified Language.Dlam.Scoping.Monad.Exception as SE
 import Language.Dlam.Syntax.Abstract
 import Language.Dlam.Syntax.Common (NameId)
+import Language.Dlam.Syntax.Parser.Monad (ParseError)
 import Language.Dlam.Util.Pretty (pprintShow)
 
 
@@ -223,7 +224,7 @@ data TCError
   -- Parse Errors --
   ------------------
 
-  | ParseError String
+  | ParseError ParseError
 
 
 
@@ -242,7 +243,7 @@ instance Show TCError where
     <> pprintShow t <> "'"
   show (PatternMismatch p t) =
     "The pattern '" <> pprintShow p <> "' is not valid for type '" <> pprintShow t <> "'"
-  show (ParseError e) = e
+  show (ParseError e) = show e
 
 instance Exception TCError
 
@@ -280,7 +281,7 @@ patternMismatch :: Pattern -> Expr -> CM a
 patternMismatch p t = throwCM (PatternMismatch p t)
 
 
-parseError :: String -> CM a
+parseError :: ParseError -> CM a
 parseError = throwCM . ParseError
 
 

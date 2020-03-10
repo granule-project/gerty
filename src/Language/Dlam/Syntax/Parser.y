@@ -14,70 +14,101 @@ import Data.List.NonEmpty ((<|))
 import Language.Dlam.Syntax.Common
 import Language.Dlam.Syntax.Concrete
 import Language.Dlam.Syntax.Lexer
+import Language.Dlam.Syntax.Literal
+import Language.Dlam.Syntax.Parser.Monad
+import Language.Dlam.Syntax.Parser.Tokens
+import Language.Dlam.Syntax.Position
 import Language.Dlam.Util.Pretty (pprintShow)
 
 }
 
-%name program Program
+%name program File
 %name expr Expr
 %tokentype { Token }
-%error { parseError }
-%monad { ReaderT String (Either String) }
+-- %error { parseError }
+-- %monad { ReaderT String (Either String) }
+%monad { Parser }
+%lexer { lexer } { TokEOF{} }
 
 %nonassoc LOWEST
 %nonassoc '->'
 
 %token
-    nl      { TokenNL _ }
-    QID     { TokenQid _ _ }
-    let     { TokenLet _ }
-    record  { TokenRecord _ }
-    where   { TokenWhere _ }
-    rewrite { TokenRewrite _ }
-    constructor { TokenConstructor _ }
-    field   { TokenField _ }
-    '_'     { TokenImplicit _ }
-    case    { TokenCase _ }
-    inl     { TokenInl _ }
-    inr     { TokenInr _ }
-    zero    { TokenZero _ }
-    succ    { TokenSucc _ }
-    of      { TokenOf _ }
-    in      { TokenIn  _  }
-    VAR     { TokenSym _ _ }
-    NAT     { TokenNat _ _ }
-    absurd  { TokenAbsurd _ }
-    '\\'    { TokenLambda _ }
-    '->'    { TokenArrow _ }
-    '*'     { TokenProd _ }
-    '+'     { TokenPlus _ }
-    '='     { TokenEq _ }
-    '('     { TokenLParen _ }
-    ')'     { TokenRParen _ }
-    '{'     { TokenLBrace _ }
-    '}'     { TokenRBrace _ }
-    ':'     { TokenSig _ }
-    ','     { TokenComma _ }
-    '.'     { TokenDot _ }
-    ';'     { TokenSemiColon _ }
-    '@'     { TokenAt _ }
-    '|'     { TokenPipe _ }
+    QID     { TokQId $$ }
+    let     { TokKeyword KwLet $$ }
+    record  { TokKeyword KwRecord $$ }
+    where   { TokKeyword KwWhere $$ }
+    rewrite { TokKeyword KwRewrite $$ }
+    constructor { TokKeyword KwConstructor $$ }
+    field   { TokKeyword KwField $$ }
+    '_'     { TokSymbol SymUnderscore $$ }
+    case    { TokKeyword KwCase $$ }
+    inl     { TokKeyword KwInl $$ }
+    inr     { TokKeyword KwInr $$ }
+    zero    { TokKeyword KwZero $$ }
+    succ    { TokKeyword KwSucc $$ }
+    of      { TokKeyword KwOf $$ }
+    in      { TokKeyword KwIn  $$  }
+    VAR     { TokId $$ }
+    literal { TokLiteral $$ }
+    absurd  { TokSymbol SymAbsurd $$ }
+    '\\'    { TokSymbol SymLambda $$ }
+    '->'    { TokSymbol SymArrow $$ }
+    '*'     { TokSymbol SymStar $$ }
+    '+'     { TokSymbol SymPlus $$ }
+    '='     { TokSymbol SymEqual $$ }
+    '('     { TokSymbol SymOpenParen $$ }
+    ')'     { TokSymbol SymCloseParen $$ }
+    '{'     { TokSymbol SymOpenBrace $$ }
+    '}'     { TokSymbol SymCloseBrace $$ }
+    ':'     { TokSymbol SymColon $$ }
+    ','     { TokSymbol SymComma $$ }
+    '.'     { TokSymbol SymDot $$ }
+    ';'     { TokSymbol SymSemi $$ }
+    '@'     { TokSymbol SymAt $$ }
+    '|'     { TokSymbol SymBar $$ }
     -- temporary tokens until we can parse mixfix names
-    '::'    { TokenDoubleColon _ }
+    '::'    { TokSymbol SymDoubleColon _ }
+    vopen   { TokSymbol SymOpenVirtualBrace $$ }
+    vclose  { TokSymbol SymCloseVirtualBrace $$ }
+    vsemi   { TokSymbol SymVirtualSemi $$ }
 
 %%
 
-Program :: { ParseAST }
-  : Declarations  { AST $1 }
+File :: { ParseAST }
+  : TopLevel { AST $1 }
+  -- : vopen TopLevel maybe_vclose { AST $2 }
 
-Declarations :: { [ParseDeclaration] }
-  : Declaration NL Declarations { $1 <> $3 }
-  | Declaration          { $1 }
-  | {- empty -}         { [] }
+TopLevel :: { [Declaration] }
+  : TopDeclarations { $1 }
 
-NL :: { () }
-  : nl NL                     { }
-  | nl                        { }
+maybe_vclose :: { () }
+maybe_vclose : {- empty -} { () }
+             | vclose      { () }
+
+
+TopDeclarations :: { [Declaration] }
+TopDeclarations
+  : {- empty -}   { [] }
+  | Declarations0 { $1 }
+
+
+-- Arbitrary declarations
+Declarations :: { [Declaration] }
+Declarations
+    : vopen Declarations1 close { $2 }
+
+-- Arbitrary declarations (possibly empty)
+Declarations0 :: { [Declaration] }
+Declarations0
+    : vopen close  { [] }
+    | Declarations { $1 }
+
+Declarations1 :: { [Declaration] }
+Declarations1
+    : Declaration semi Declarations1 { $1 <> $3 }
+    | Declaration vsemi              { $1 }
+    | Declaration                    { $1 }
 
 
 ---------------------------------
@@ -86,11 +117,11 @@ NL :: { () }
 
 
 Ident :: { Name }
-  : VAR { mkIdentFromSym $1 }
+  : VAR {% mkName $1 }
 
 
 QId :: { QName }
-  : QID { mkQualFromSym $1 }
+  : QID { % mkQName $1 }
   | Ident { Unqualified $1 }
 
 
@@ -144,9 +175,13 @@ Field :: { [Declaration] }
 
 
 EmptyOrTypeSigs :: { [(Name, Expr)] }
-  : TypeSig { [$1] }
-  | TypeSig NL EmptyOrTypeSigs { $1 : $3 }
-  | {- empty -}                { [] }
+  : vopen TypeSigs0 close { reverse $2 }
+
+
+TypeSigs0 :: { [(Name, Expr)] }
+  : TypeSigs0 semi TypeSig { $3 : $1 }
+  | TypeSig                { pure $1 }
+  | {- empty -}            { [] }
 
 
 TypeSig :: { (Name, Expr) }
@@ -255,7 +290,7 @@ Atom :: { ParseExpr }
   : '(' Expr ')'              { Parens $2 }
   | QId                       { Ident $1 }
   | '_'                       { mkImplicit }
-  | NAT                       { LitLevel (natTokenToInt $1) }
+  | literal                   { LitLevel (natTokenToInt $1) }
 
   -- For later
   -- | '?' { Hole }
@@ -302,36 +337,54 @@ LambdaArgsOrEmpty :: { LambdaArgs }
 LambdaArgs :: { LambdaArgs }
   : LambdaArg LambdaArgsOrEmpty { $1 : $2 }
 
+
+{--------------------------------------------------------------------------
+    Meta rules (from Agda)
+ --------------------------------------------------------------------------}
+
+-- The first token in a file decides the indentation of the top-level layout
+-- block. Or not. It will if we allow the top-level module to be omitted.
+-- topen :      {- empty -}     {% pushCurrentContext }
+
+
+{-  A layout block might have to be closed by a parse error. Example:
+        let x = e in e'
+    Here the 'let' starts a layout block which should end before the 'in'.  The
+    problem is that the lexer doesn't know this, so there is no virtual close
+    brace. However when the parser sees the 'in' there will be a parse error.
+    This is our cue to close the layout block.
+-}
+close :: { () }
+close : vclose  { () }
+      | error   {% popContext }
+
+
+-- You can use concrete semi colons in a layout block started with a virtual
+-- brace, so we don't have to distinguish between the two semi colons. You can't
+-- use a virtual semi colon in a block started by a concrete brace, but this is
+-- simply because the lexer will not generate virtual semis in this case.
+semi :: { Interval }
+semi : ';'    { $1 }
+     | vsemi  { $1 }
+
+
+-- Enter the 'imp_dir' lex state, where we can parse the keyword 'to'.
+beginImpDir :: { () }
+beginImpDir : {- empty -}   {% pushLexState imp_dir }
+
 {
 
 type ParseExpr = Expr
 type ParseAST = AST
-type ParseDeclaration = Declaration
 
-parseError :: [Token] -> ReaderT String (Either String) a
-parseError [] = lift . Left $ "Premature end of file"
-parseError t  =  do
-    file <- ask
-    lift . Left $ file <> ":" <> show l <> ":" <> show c
-                        <> ": parse error"
-  where (l, c) = getPos (head t)
 
-parseProgram :: FilePath -> String -> Either String ParseAST
-parseProgram file input = runReaderT (program $ scanTokens input) file
+-- TODO: once we support parsing modules, remove the 'layout' fragment here, as
+-- this should be handled by the fact that 'where' is a layout keyword (2020-03-10)
+parseProgram :: FilePath -> String -> ParseResult ParseAST
+parseProgram file = parseFromSrc defaultParseFlags [layout, normal] program (Just file)
 
-natTokenToInt :: Token -> Int
-natTokenToInt (TokenNat _ x) = x
-
-mkIdentFromSym :: Token -> Name
-mkIdentFromSym = mkIdent . symString
-
-mkQualFromSym :: Token -> QName
-mkQualFromSym t = mkQualFromString (symString t)
-  where mkQualFromString st =
-          case break (=='.') st of
-            (s, []) -> Unqualified (Name s)
-            (s, '.':q)  -> Qualified (Name s) (mkQualFromString q)
-
+natTokenToInt :: Literal -> Integer
+natTokenToInt (LitNat _ x) = x
 
 mkAppFromExprs :: [Expr] -> Expr
 mkAppFromExprs = foldl1 App
@@ -344,5 +397,22 @@ funAssignOrTypeSig n (IsRHS e) = FunEqn n e
 funAssignOrTypeSig (FLHSName n) (IsTypeSig t) = TypeSig n t
 -- TODO: improve error system in parser here to use a monad (2020-03-01)
 funAssignOrTypeSig lhs (IsTypeSig _) = error $ "'" <> pprintShow lhs <> "' is not allowed a type signature"
+
+
+-- | Create a name from a string.
+mkName :: (Interval, String) -> Parser Name
+mkName (_i, s) = pure $ Name s
+
+
+-- | Create a qualified name from a list of strings
+mkQName :: [(Interval, String)] -> Parser QName
+mkQName ss = do
+  xs <- mapM mkName ss
+  pure $ foldr Qualified (Unqualified $ last xs) (init xs)
+
+
+-- | Required by Happy.
+happyError :: Parser a
+happyError = parseError "Parse error"
 
 }

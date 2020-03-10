@@ -14,6 +14,7 @@ import qualified Language.Dlam.Scoping.Monad as SC
 import Language.Dlam.Syntax.Abstract
 import qualified Language.Dlam.Syntax.Concrete as C
 import Language.Dlam.Syntax.Parser      (parseProgram)
+import Language.Dlam.Syntax.Parser.Monad (ParseResult(..))
 import Language.Dlam.Syntax.Translation.ConcreteToAbstract (toAbstract)
 import Language.Dlam.Types
 import Language.Dlam.TypeChecking.Monad
@@ -35,7 +36,10 @@ scopeAnalyseCST cst =
 
 
 runParser :: FilePath -> String -> CM C.AST
-runParser fname input = either parseError pure (parseProgram fname input)
+runParser fname input =
+  case parseProgram fname input of
+    ParseOk _ r -> pure r
+    ParseFailed err -> parseError err
 
 
 runScoper :: FilePath -> String -> CM AST
