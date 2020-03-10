@@ -745,12 +745,10 @@ checkOrInferType' t (Let (LetPatBound p e1) e2) = do
   -- build the general element
   let introConstructed = applyCon con svars
 
-  introForzinC <-
-    maybe (pure tC) (\z -> substitute (z, introConstructed) tC) z
   e1 <- normalise e1
-  _ <- withBinders svars $
-       withExprNormalisingTo e1 introConstructed $
-       checkOrInferType introForzinC e2'
+  body' <- rebuildAgainstPattern e1 introConstructed e2'
+  introForzinC <- rebuildAgainstPattern e1 introConstructed =<< maybe (pure tC) (\z -> substitute (z, introConstructed) tC) z
+  _ <- withBinders svars $ checkOrInferType introForzinC body'
 
   e1forzinC <- maybe (pure tC) (\z -> substitute (z, e1) tC) z
   ensureEqualTypes t e1forzinC
@@ -878,3 +876,22 @@ synthTypePatGuided p e = do
     patGuideTyNames (PAt _ p) t = patGuideTyNames p t
     -- don't know how to guide the types beyond this point, so we just give them back
     patGuideTyNames _ t = pure t
+
+
+-- | 'withPatternedAs e intro body' takes an expression,
+-- | an introduction form produced from a pattern match on the
+-- | expression, and a body in which the pattern is active, and yields
+-- | a new body with appropriate components of the expression substituted
+-- | with the pattern.
+rebuildAgainstPattern :: Expr -> Expr -> Expr -> CM Expr
+rebuildAgainstPattern e intro body = do
+  e' <- normalise e
+  case (e', intro) of
+    -- when the expression was a variable, just replace uses of it inside
+    -- the body
+    -- TODO: make sure we don't overwrite vars that are in the pattern (2020-03-10)
+    (Var v, _) -> substitute (v, intro) body
+    (_, Builtin DUnitTerm) -> pure body
+    _ -> notImplemented $ "I don't yet know how to rebuild with introduction-form '"
+         <> pprintShow intro <> "' and expression '" <> pprintShow e
+         <> "' (when rebuilding expression '" <> pprintShow body <> "')"
