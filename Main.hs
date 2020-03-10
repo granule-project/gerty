@@ -20,7 +20,7 @@ main = do
         then putStrLn $ "File `" <> fname <> "` cannot be found."
         else do
           input <- readFile fname
-          let res = runNewChecker (Interpreter.run fname input)
+          let res = runNewChecker (Interpreter.runTypeChecker fname input)
           putStrLn (tcrLog res)
           case tcrRes res of
             Left err -> putStrLn (formatError err) >> exitFailure

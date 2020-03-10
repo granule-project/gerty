@@ -68,6 +68,7 @@ tests:
     source-dirs: tests
     dependencies:
     - dependent-lamb
+    - directory
     - strict
     - tasty
     - tasty-golden

@@ -1,5 +1,7 @@
 module Language.Dlam.Interpreter
-  ( run
+  ( runParser
+  , runScoper
+  , runTypeChecker
   , InterpreterError
   , InterpreterResult
   , formatError
@@ -32,25 +34,34 @@ scopeAnalyseCST cst =
        Right ast -> pure ast
 
 
-run :: FilePath -> String -> CM AST
-run fname input =
-  case parseProgram fname input of
-    Right cst -> do
-      -- Show CST
-      tell $ "\n " <> ansi_bold <> "CST: " <> ansi_reset <> show cst
+runParser :: FilePath -> String -> CM C.AST
+runParser fname input = either parseError pure (parseProgram fname input)
 
-      -- Pretty print CST
-      tell $ "\n " <> ansi_bold <> "Pretty CST:\n" <> ansi_reset <> pprintShow cst
 
-      ast <- scopeAnalyseCST cst
+runScoper :: FilePath -> String -> CM AST
+runScoper fname input = do
+  cst <- runParser fname input
 
-      -- Pretty print AST
-      tell $ "\n " <> ansi_bold <> "Pretty AST:\n" <> ansi_reset <> pprintShow ast
+  -- Show CST
+  tell $ "\n " <> ansi_bold <> "CST: " <> ansi_reset <> show cst
 
-      -- Typing
-      doASTInference ast
+  -- Pretty print CST
+  tell $ "\n " <> ansi_bold <> "Pretty CST:\n" <> ansi_reset <> pprintShow cst
 
-    Left msg -> parseError msg
+  ast <- scopeAnalyseCST cst
+
+  -- Pretty print AST
+  tell $ "\n " <> ansi_bold <> "Pretty AST:\n" <> ansi_reset <> pprintShow ast
+
+  pure ast
+
+
+runTypeChecker :: FilePath -> String -> CM AST
+runTypeChecker fname input = do
+  ast <- runScoper fname input
+
+  -- Typing
+  doASTInference ast
 
 
 ansi_reset, ansi_bold :: String

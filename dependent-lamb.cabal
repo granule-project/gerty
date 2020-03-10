@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: aebe839ac32fde8f51fc75289a56a2090701e0ea048317b4bda093dcb70fc740
+-- hash: 960be283483b8ea0f4003f3b9392def4c5b4cca2ed190c3c8344316574055462
 
 name:           dependent-lamb
 version:        0.0.1
@@ -77,6 +77,7 @@ test-suite dependent-lamb
   build-depends:
       base >=4.10 && <5
     , dependent-lamb
+    , directory
     , strict
     , tasty
     , tasty-golden
