@@ -19,7 +19,7 @@ module Language.Dlam.Syntax.Common
   , Typed
   , unTyped
   , IsTyped(..)
-  , typeWith
+  , typedWith
 
   -- * Hiding
   , IsHiddenOrNot(..)
@@ -118,8 +118,8 @@ data Typed t a = Typed { unTyped :: a, typedTy :: t }
 
 
 -- | Annotate the value with the given type.
-typeWith :: e -> t -> Typed t e
-typeWith = Typed
+typedWith :: e -> t -> Typed t e
+typedWith = Typed
 
 
 class IsTyped a t where

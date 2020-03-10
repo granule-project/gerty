@@ -89,7 +89,7 @@ type LambdaArg = Arg (MightBe Typed OneOrMoreBoundNames)
 
 lambdaArgFromTypedBinding :: TypedBinding -> LambdaArg
 lambdaArgFromTypedBinding e =
-  mkArg (isHidden e) (itIs (`typeWith` (typeOf e)) (un (un e)))
+  mkArg (isHidden e) (itIs (`typedWith` (typeOf e)) (un (un e)))
 
 
 type LambdaArgs = [LambdaArg]
@@ -143,7 +143,7 @@ type TypedBinding = Arg (Typed OneOrMoreBoundNames)
 
 
 mkTypedBinding :: IsHiddenOrNot -> OneOrMoreBoundNames -> Expr -> TypedBinding
-mkTypedBinding isHid ns t = mkArg isHid (ns `typeWith` t)
+mkTypedBinding isHid ns t = mkArg isHid (ns `typedWith` t)
 
 
 class Binds a where

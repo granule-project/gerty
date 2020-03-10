@@ -112,11 +112,11 @@ absTy = argTy . absArg
 
 
 mkAbs :: Name -> Expr -> Expr -> Abstraction
-mkAbs v e1 e2 = Abst { absArg = mkArg NotHidden (BindName v `typeWith` e1), absExpr = e2 }
+mkAbs v e1 e2 = Abst { absArg = mkArg NotHidden (BindName v `typedWith` e1), absExpr = e2 }
 
 
 mkAbs' :: IsHiddenOrNot -> Name -> Expr -> Expr -> Abstraction
-mkAbs' isHid v e1 e2 = Abst { absArg = mkArg isHid (BindName v `typeWith` e1), absExpr = e2 }
+mkAbs' isHid v e1 e2 = Abst { absArg = mkArg isHid (BindName v `typedWith` e1), absExpr = e2 }
 
 
 data Expr
