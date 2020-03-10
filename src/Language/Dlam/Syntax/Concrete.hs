@@ -265,6 +265,9 @@ data Expr
 
   -- | Argument wrapped in braces.
   | BraceArg (MaybeNamed Expr)
+
+  -- | An expression in parentheses.
+  | Parens Expr
   deriving (Show, Eq, Ord)
 
 
@@ -294,6 +297,8 @@ data Pattern
   -- ^ unit (*).
   | PApp QName [Pattern]
   -- ^ Constructor application.
+  | PParens Pattern
+  -- ^ Pattern in parentheses.
   deriving (Show, Eq, Ord)
 
 
@@ -381,6 +386,7 @@ instance Pretty Expr where
       text "let" <+> pprint x <> at <> text "()" <+> equals <+> pprint a <+> colon <+> pprint tC
     pprint (Let lb e) = text "let" <+> pprint lb <+> text "in" <+> pprint e
     pprint (BraceArg e) = braces $ pprint e
+    pprint (Parens e)   = parens $ pprint e
 
 instance Pretty LetBinding where
   pprint (LetPatBound p e) = pprint p <+> equals <+> pprint e
@@ -397,6 +403,7 @@ instance Pretty Pattern where
   pprint (PAt v p) = pprint v <> at <> pprint p
   pprint (PApp v args) = pprint v <+> (hsep $ fmap pprintParened args)
   pprint PUnit = char '*'
+  pprint (PParens p) = parens $ pprint p
 
 instance Pretty PiBindings where
   pprint (PiBindings binds) = hsep (fmap pprint binds)

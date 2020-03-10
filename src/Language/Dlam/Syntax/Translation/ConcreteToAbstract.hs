@@ -212,6 +212,7 @@ instance ToAbstract C.Expr A.Expr where
     pure $ A.Let (A.LetPatBound p' e1') e2'
   -- TODO: add special handling for brace arguments (2020-03-09)
   toAbstract (C.BraceArg e) = toAbstract (un e)
+  toAbstract (C.Parens   e) = toAbstract e
 
 
 instance ToAbstract C.Pattern (A.Pattern, Locals) where
@@ -248,6 +249,7 @@ instance ToAbstract C.Pattern (A.Pattern, Locals) where
             Just c' -> pure c'
     (args', binds) <- fmap (second concat) $ fmap unzip $ mapM toAbstract args
     pure $ (A.PCon c' args', binds)
+  toAbstract (C.PParens p) = toAbstract p
 
 
 -- | Try and resolve the name as a constructor.

@@ -252,7 +252,7 @@ Expr3 :: { Expr }
 
 
 Atom :: { ParseExpr }
-  : '(' Expr ')'              { $2 }
+  : '(' Expr ')'              { Parens $2 }
   | QId                       { Ident $1 }
   | '_'                       { mkImplicit }
   | NAT                       { LitLevel (natTokenToInt $1) }
@@ -281,7 +281,7 @@ AtomicPatternsOrEmpty :: { [Pattern] }
 
 
 PatternAtomic :: { Pattern }
-  : '(' Pattern ')' { $2 }
+  : '(' Pattern ')' { PParens $2 }
   -- if the name is in scope, then try and treat it as a constructor, otherwise
   -- we will bind it as a new name
   | QId             { PIdent $1 }
