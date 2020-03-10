@@ -1,0 +1,3 @@
+-- record with only a constructor
+record Test : Type 0 where
+  constructor test
