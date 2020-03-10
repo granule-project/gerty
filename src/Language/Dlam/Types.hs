@@ -571,28 +571,15 @@ checkOrInferType' t (CoproductCase (z, tC) (x, c) (y, d) e) = do
   -- G, x : A |- c : [inl x/z]C
   let inlX = inlTermApp l1 l2 tA tB (Var x)
   e' <- normalise e
-  (inlX, cl) <-
-    case e' of
-      -- if we have an 'inl', then we can do a direct substitution here
-      Inl' _ _ _ _ l -> (,) <$> substitute (x, l) inlX <*> substitute (x, l) c
-      -- if we have a variable, we try and force equality by substituting in the
-      -- constructor
-      v@(Var cv)        -> (,) <$> pure v <*> substitute (cv, inlX) c
-      -- otherwise we can't do anything fancy
-      _ -> pure (inlX, c)
   inlxforzinC <- substitute (z, inlX) tC
-  _ <- withTypedVariable x tA $ checkOrInferType inlxforzinC cl
+  _ <- withTypedVariable x tA $ withActivePattern e' inlX
+       $ checkOrInferType inlxforzinC c
 
   -- G, y : B |- d : [inr y/z]C
   let inrY = inrTermApp l1 l2 tA tB (Var y)
-  (inrY, dr) <-
-    -- same reasoning as with the Inl case
-    case e' of
-      Inr' _ _ _ _ r -> (,) <$> substitute (y, r) inrY <*> substitute (y, r) d
-      v@(Var dv)        -> (,) <$> pure v <*> substitute (dv, inrY) d
-      _ -> pure (inrY, d)
   inryforzinC <- substitute (z, inrY) tC
-  _ <- withTypedVariable y tB $ checkOrInferType inryforzinC dr
+  _ <- withTypedVariable y tB $ withActivePattern e' inrY
+       $ checkOrInferType inryforzinC d
 
   -- G |- case z@e of (Inl x -> c; Inr y -> d) : C : [e/z]C
   eforzinC <- substitute (z, e) tC
@@ -744,9 +731,9 @@ checkOrInferType' t (Let (LetPatBound p e1) e2) = do
   let introConstructed = applyCon con svars
 
   e1 <- normalise e1
-  body' <- rebuildAgainstPattern e1 introConstructed e2'
-  introForzinC <- rebuildAgainstPattern e1 introConstructed =<< maybe (pure tC) (\z -> substitute (z, introConstructed) tC) z
-  _ <- withBinders svars $ checkOrInferType introForzinC body'
+  introForzinC <- maybe (pure tC) (\z -> substitute (z, introConstructed) tC) z
+  _ <- withBinders svars $ withActivePattern e1 introConstructed
+       $ checkOrInferType introForzinC e2'
 
   e1forzinC <- maybe (pure tC) (\z -> substitute (z, e1) tC) z
   ensureEqualTypes t e1forzinC
@@ -876,20 +863,18 @@ synthTypePatGuided p e = do
     patGuideTyNames _ t = pure t
 
 
--- | 'rebuildAgainstPattern e intro body' takes an expression,
+-- | 'withActivePattern e pat act' takes an expression,
 -- | an introduction form produced from a pattern match on the
--- | expression, and a body in which the pattern is active, and yields
--- | a new body with appropriate components of the expression substituted
--- | with the pattern.
-rebuildAgainstPattern :: Expr -> Expr -> Expr -> CM Expr
-rebuildAgainstPattern e intro body = do
+-- | expression, and an action, then runs the action with variables
+-- | rebound as appropriate for equality checking.
+withActivePattern :: Expr -> Expr -> CM a -> CM a
+withActivePattern e intro act = do
   e' <- normalise e
   case (e', intro) of
     -- when the expression was a variable, just replace uses of it inside
     -- the body
     -- TODO: make sure we don't overwrite vars that are in the pattern (2020-03-10)
-    (Var v, _) -> substitute (v, intro) body
-    (_, Builtin DUnitTerm) -> pure body
-    _ -> notImplemented $ "I don't yet know how to rebuild with introduction-form '"
-         <> pprintShow intro <> "' and expression '" <> pprintShow e
-         <> "' (when rebuilding expression '" <> pprintShow body <> "')"
+    (Var v, _) -> withValuedVariable v intro act
+    -- we don't know how to refine the value-scope based on the pattern and
+    -- expression, so we just continue as-is
+    _ -> act

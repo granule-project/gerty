@@ -19,6 +19,7 @@ module Language.Dlam.TypeChecking.Monad.Base
   , withTypedVariable
   , lookupValue
   , setValue
+  , withValuedVariable
 
   -- * Environment
   , withLocalCheckingOf
@@ -140,6 +141,17 @@ lookupValue n = M.lookup n . valueScope <$> get
 
 setValue :: Name -> Expr -> CM ()
 setValue n t = modify (\s -> s { valueScope = M.insert n t (valueScope s) })
+
+
+-- | Execute the action with the given identifier bound with the given value.
+withValuedVariable :: Name -> Expr -> CM a -> CM a
+withValuedVariable v t p = do
+  st <- get
+  setValue v t
+  res <- p
+  -- restore the value scope
+  modify (\s -> s { valueScope = valueScope st})
+  pure res
 
 
 ------------------------------
