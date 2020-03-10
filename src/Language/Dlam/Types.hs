@@ -572,14 +572,29 @@ checkOrInferType' t (CoproductCase (z, tC) (x, c) (y, d) e) = do
 
   -- G, x : A |- c : [inl x/z]C
   let inlX = inlTermApp l1 l2 tA tB (Var x)
-  inlxforzinC <- substitute (z, inlX) tC
   e' <- normalise e
-  _ <- withTypedVariable x tA $ withExprNormalisingTo e' inlX $ checkOrInferType inlxforzinC c
+  (inlX, cl) <-
+    case e' of
+      -- if we have an 'inl', then we can do a direct substitution here
+      Inl' _ _ _ _ l -> (,) <$> substitute (x, l) inlX <*> substitute (x, l) c
+      -- if we have a variable, we try and force equality by substituting in the
+      -- constructor
+      v@(Var cv)        -> (,) <$> pure v <*> substitute (cv, inlX) c
+      -- otherwise we can't do anything fancy
+      _ -> pure (inlX, c)
+  inlxforzinC <- substitute (z, inlX) tC
+  _ <- withTypedVariable x tA $ checkOrInferType inlxforzinC cl
 
   -- G, y : B |- d : [inr y/z]C
   let inrY = inrTermApp l1 l2 tA tB (Var y)
+  (inrY, dr) <-
+    -- same reasoning as with the Inl case
+    case e' of
+      Inr' _ _ _ _ r -> (,) <$> substitute (y, r) inrY <*> substitute (y, r) d
+      v@(Var dv)        -> (,) <$> pure v <*> substitute (dv, inrY) d
+      _ -> pure (inrY, d)
   inryforzinC <- substitute (z, inrY) tC
-  _ <- withTypedVariable y tB $ withExprNormalisingTo e' inrY $ checkOrInferType inryforzinC d
+  _ <- withTypedVariable y tB $ checkOrInferType inryforzinC dr
 
   -- G |- case z@e of (Inl x -> c; Inr y -> d) : C : [e/z]C
   eforzinC <- substitute (z, e) tC
