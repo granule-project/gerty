@@ -34,10 +34,8 @@ normaliseAbs ab = do
 
 
 -- | Indicate that the expresion is now in an irreducible normal form.
--- |
--- | This allows for e.g., substituting normal forms.
 finalNormalForm :: Expr -> CM Expr
-finalNormalForm e = maybe e id <$> lookupNormalForm e
+finalNormalForm = pure
 
 
 -- | Normalise the expression via a series of reductions.

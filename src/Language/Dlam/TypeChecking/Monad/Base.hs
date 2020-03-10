@@ -23,10 +23,6 @@ module Language.Dlam.TypeChecking.Monad.Base
   -- * Environment
   , withLocalCheckingOf
 
-  -- ** Normalisation
-  , lookupNormalForm
-  , withExprNormalisingTo
-
   -- * Exceptions and error handling
   , TCErr
 
@@ -151,16 +147,10 @@ setValue n t = modify (\s -> s { valueScope = M.insert n t (valueScope s) })
 ------------------------------
 
 
-type NormalFormMap = M.Map Expr Expr
-
-
 -- | Type-checking environment.
 data TCEnv = TCEnv
   { tceCurrentExpr :: Maybe Expr
   -- ^ Expression currently being checked (if any).
-  , normalFormEquivalences :: M.Map Expr Expr
-  -- ^ If (e1, e2) is in the normalFormEquivalences map, we treat them as equivalent
-  -- ^ under normalisation.
   }
 
 
@@ -168,47 +158,13 @@ tceSetCurrentExpr :: Expr -> TCEnv -> TCEnv
 tceSetCurrentExpr e env = env { tceCurrentExpr = Just e }
 
 
-withNormalFormEquivalances :: (NormalFormMap -> NormalFormMap) -> CM a -> CM a
-withNormalFormEquivalances f =
-  local (\env -> env { normalFormEquivalences = f (normalFormEquivalences env) })
-
-
 startEnv :: TCEnv
-startEnv = TCEnv { tceCurrentExpr = Nothing, normalFormEquivalences = M.empty }
+startEnv = TCEnv { tceCurrentExpr = Nothing }
 
 
 -- | Indicate that we are now checking the given expression when running the action.
 withLocalCheckingOf :: Expr -> CM a -> CM a
 withLocalCheckingOf e = local (tceSetCurrentExpr e)
-
-
-lookupNormalForm :: Expr -> CM (Maybe Expr)
-lookupNormalForm n = M.lookup n . normalFormEquivalences <$> ask
-
-
--- DISCUSSION:
---
--- 'withExprNormalisingTo' is an attempt to remember definitional
--- equality obtained via a pattern/case binding. For example, if we do
--- 'case p of Inl x -> ...', then in the 'Inl' branch, we know that 'p
--- = Inl x'.
---
--- However, I am not sure this is very robust, especially as we
--- generalise patterns more, as this requires us to use a direct
--- equality (trying to do a lookup on (monadic) expression equality
--- would be extremely expensive), and thus won't e.g., map
--- abstractions with differently-named binders to one another.
---
--- I feel like there should be a better way of handling this, but I am
--- presently not sure how to do so!
---
--- TODO: [ ] investigate HOTT's computation rules that normalise both
--- the term and type (2020-03-09, GD)
---
--- | Execute the given action with the given expressions treated as equal under
--- | normalisation.
-withExprNormalisingTo :: Expr -> Expr -> CM a -> CM a
-withExprNormalisingTo e nf = withNormalFormEquivalances (M.insert e nf)
 
 
 -----------------------------------------
