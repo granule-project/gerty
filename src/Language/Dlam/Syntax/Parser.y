@@ -9,6 +9,7 @@ import Numeric
 import System.Exit
 import Control.Monad.Trans.Reader
 import Control.Monad.Trans.Class (lift)
+import Data.List.NonEmpty ((<|))
 
 import Language.Dlam.Syntax.Common
 import Language.Dlam.Syntax.Concrete
@@ -102,9 +103,9 @@ BoundName :: { BoundName }
   : Ident { BoundName $1 }
 
 
-BoundNames :: { [BoundName] }
-  : BoundName { [$1] }
-  | BoundName BoundNames { $1 : $2 }
+BoundNames :: { OneOrMoreBoundNames }
+  : BoundName { pure $1 }
+  | BoundName BoundNames { $1 <| $2 }
 
 
 ----------------------
@@ -168,12 +169,12 @@ TypedBinding :: { TypedBinding }
 
 
 TypedBindings :: { [TypedBinding] }
-  : TypedBinding { [$1] }
+  : TypedBinding { pure $1 }
   | TypedBinding TypedBindings { $1 : $2 }
 
 
 LambdaBinding :: { LambdaBinding }
-  : TypedBinding { ParamNamed $1 }
+  : TypedBinding { lambdaBindingFromTyped $1 }
   -- TODO: add support for simple names/expressions, currently not
   -- working because of parsing precedence (2020-03-05)
   -- | Expr         { UnnamedBinding $1 }
@@ -295,9 +296,9 @@ PatternAtomic :: { Pattern }
 
 -- Arguments for a lambda term.
 LambdaArg :: { LambdaArg }
-  : BoundName   { ParamUnnamed (mkArg NotHidden [$1]) }
-  | '{' BoundNames '}'   { ParamUnnamed (mkArg IsHidden $2) }
-  | TypedBinding { ParamNamed $1 }
+  : BoundName            { mkArg NotHidden $ itIsNot (pure $1) }
+  | '{' BoundNames '}'   { mkArg IsHidden  $ itIsNot $2 }
+  | TypedBinding         { lambdaArgFromTypedBinding $1 }
 
 LambdaArgsOrEmpty :: { LambdaArgs }
   : LambdaArg LambdaArgsOrEmpty { $1 : $2 }

@@ -8,7 +8,9 @@ module Language.Dlam.Syntax.Common
     NameId(..)
 
   -- * MightBe
+  , CouldBe(..)
   , MightBe
+  , isIt
 
   -- * Un
   , Un(..)
@@ -58,22 +60,42 @@ data MightBe a e = ItIs (a e) | ItIsNot e
   deriving (Show, Eq, Ord)
 
 
-isIt :: MightBe a e -> Bool
-isIt ItIs{} = True
-isIt ItIsNot{} = False
+class CouldBe t a e where
+  -- | It most certainly is!
+  itIs :: (e -> a e) -> e -> t a e
+
+  -- | It most certainly is not!
+  itIsNot :: e -> t a e
+
+  -- | Deal with it.
+  idc :: (a e -> b) -> (e -> b) -> t a e -> b
 
 
-itIs :: (e -> a e) -> e -> MightBe a e
-itIs f = ItIs . f
+-- | Was it?
+isIt :: (CouldBe t a e) => t a e -> Bool
+isIt = idc (const True) (const False)
 
 
-itIsNot :: e -> MightBe a e
-itIsNot = ItIsNot
+instance CouldBe MightBe a e where
+  itIs f = ItIs . f
+
+  itIsNot = ItIsNot
+
+  idc f _ (ItIs x) = f x
+  idc _ g (ItIsNot x) = g x
 
 
 instance (Un (t e) e) => Un (MightBe t e) e where
   un (ItIs x) = un x
   un (ItIsNot x) = x
+
+
+instance (Pretty (t e), Pretty e) => Pretty (MightBe t e) where
+  pprint = idc pprint pprint
+
+
+instance (IsTyped (m e) t, IsTyped e t) => IsTyped (MightBe m e) t where
+  typeOf = idc typeOf typeOf
 
 
 -------
@@ -174,9 +196,9 @@ instance CanHide MightHide a where
   makeWithHiding NotHidden = itIsNot
 
 
---------
--- * Arg
---------
+--------------
+-- * Arguments
+--------------
 
 
 -- | Arguments can be hidden.

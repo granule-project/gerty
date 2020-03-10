@@ -6,6 +6,7 @@ module Language.Dlam.Syntax.Concrete
   (
   -- * Names
     module Language.Dlam.Syntax.Concrete.Name
+  , OneOrMoreBoundNames
   -- * Expressions
   , Expr(..)
   , mkAbs
@@ -25,6 +26,8 @@ module Language.Dlam.Syntax.Concrete
   , TypedBinding
   , mkTypedBinding
   , PiBindings(..)
+  , lambdaBindingFromTyped
+  , lambdaArgFromTypedBinding
   -- ** Let bindings and patterns
   , LetBinding(..)
   , Pattern(..)
@@ -40,6 +43,7 @@ module Language.Dlam.Syntax.Concrete
 
 
 import Prelude hiding ((<>))
+import qualified Data.List.NonEmpty as NE
 
 import Language.Dlam.Syntax.Concrete.Name
 import Language.Dlam.Syntax.Common hiding (Typed)
@@ -80,14 +84,37 @@ data Param a = ParamNamed TypedBinding | ParamUnnamed a
 
 
 -- | Lambda abstraction binder.
-type LambdaArg = Param (Arg [BoundName])
+type LambdaArg = Arg (MightBe Typed OneOrMoreBoundNames)
+
+
+lambdaArgFromTypedBinding :: TypedBinding -> LambdaArg
+lambdaArgFromTypedBinding e =
+  mkArg (isHidden e) (itIs (`typeWith` (typeOf e)) (un (un e)))
 
 
 type LambdaArgs = [LambdaArg]
 
 
+data BoundTo b e = BoundTo { boundToWhat :: b, whatWasBound :: e }
+  deriving (Show, Eq, Ord)
+
+
+instance (Pretty b, Pretty e) => Pretty (BoundTo b e) where
+  pprint b = pprint (boundToWhat b) <+> colon <+> pprint (whatWasBound b)
+
+
+type OneOrMoreBoundNames = NE.NonEmpty BoundName
+
+
 -- | The left-hand-side of a function type.
-type LambdaBinding = Param Expr
+type LambdaBinding = Arg (MightBe (BoundTo OneOrMoreBoundNames) Expr)
+
+
+lambdaBindingFromTyped :: TypedBinding -> LambdaBinding
+lambdaBindingFromTyped tb =
+  let boundNames = un $ un tb
+      ty         = typeOf tb
+  in mkArg (isHidden tb) (itIs (BoundTo boundNames) ty)
 
 
 ------------------
@@ -112,10 +139,10 @@ instance Un (MaybeNamed a) a where
 type Typed = C.Typed Expr
 
 
-type TypedBinding = Arg (Typed [BoundName])
+type TypedBinding = Arg (Typed OneOrMoreBoundNames)
 
 
-mkTypedBinding :: IsHiddenOrNot -> [BoundName] -> Expr -> TypedBinding
+mkTypedBinding :: IsHiddenOrNot -> OneOrMoreBoundNames -> Expr -> TypedBinding
 mkTypedBinding isHid ns t = mkArg isHid (ns `typeWith` t)
 
 
@@ -141,6 +168,14 @@ instance Binds BoundName where
 
 instance Binds [BoundName] where
   bindsWhat = id
+
+
+instance Binds (NE.NonEmpty BoundName) where
+  bindsWhat = bindsWhat . NE.toList
+
+
+instance (Binds (t e), Binds e) => Binds (MightBe t e) where
+  bindsWhat = idc bindsWhat bindsWhat
 
 
 -- | A list of typed bindings in a dependent function space.
@@ -279,6 +314,10 @@ instance Pretty BoundName where
 
 instance Pretty [BoundName] where
   pprint = hsep . fmap pprint
+
+
+instance Pretty (NE.NonEmpty BoundName) where
+  pprint = pprint . NE.toList
 
 
 instance (Pretty e) => Pretty (MaybeNamed e) where

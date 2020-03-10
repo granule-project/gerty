@@ -137,17 +137,15 @@ instance ToAbstract C.PiBindings ([(IsHiddenOrNot, A.Name, A.Expr)], Locals) whe
 
 instance ToAbstract C.LambdaArgs ([(IsHiddenOrNot, A.Name, A.Expr)], Locals) where
   toAbstract [] = pure ([], [])
-  toAbstract ((C.ParamNamed arg):bs) = do
+  toAbstract (arg:bs) = do
     let i = isHidden arg
         ns = fmap C.unBoundName $ C.bindsWhat arg
-        s :: C.Expr = typeOf arg
+        s :: C.Expr = idc typeOf (const C.Implicit) $ un arg
     ns' <- mapM toAbstract ns
     s' <- toAbstract s
     let nsLocs = zip ns ns'
     (args, locals) <- withLocals nsLocs $ toAbstract bs
     pure $ (zip3 (repeat i) ns' (repeat s') <> args, nsLocs <> locals)
-  toAbstract ((C.ParamUnnamed arg):bs) =
-    toAbstract (((C.ParamNamed (C.mkTypedBinding (isHidden arg) (C.bindsWhat arg) C.Implicit))):bs)
 
 
 instance ToAbstract C.Expr A.Expr where
