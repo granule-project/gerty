@@ -89,11 +89,6 @@ Ident :: { Name }
   : VAR { mkIdentFromSym $1 }
 
 
-Idents :: { [Name] }
-  : Ident { [$1] }
-  | Ident Idents { $1 : $2 }
-
-
 QId :: { QName }
   : QID { mkQualFromSym $1 }
   | Ident { Unqualified $1 }
