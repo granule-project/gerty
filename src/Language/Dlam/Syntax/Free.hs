@@ -22,7 +22,7 @@ freeVarsAbs ab = Set.delete (A.absVar ab) (freeVars (A.absExpr ab))
 
 instance Free A.Expr where
   freeVars (A.FunTy ab)                    = freeVarsAbs ab
-  freeVars (A.Abs ab)                      = freeVarsAbs ab
+  freeVars (A.Lam ab)                      = freeVarsAbs ab
   freeVars (A.ProductTy ab)                = freeVarsAbs ab
   freeVars (A.App e1 e2)                   = freeVars (e1, e2)
   freeVars (A.Pair e1 e2)                  = freeVars (e1, e2)

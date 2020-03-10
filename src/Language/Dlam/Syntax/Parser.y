@@ -225,7 +225,7 @@ ExprOrSig :: { Expr }
 
 -- lambdas, lets, cases
 Expr2 :: { ParseExpr }
-  : '\\' LambdaArgs '->' Expr { Abs $2 $4 }
+  : '\\' LambdaArgs '->' Expr { Lam $2 $4 }
 
   | let LetBinding in ExprOrSig { Let $2 $4 }
 

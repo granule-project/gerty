@@ -49,7 +49,7 @@ normalise (Var x) = do
     Nothing -> finalNormalForm $ Var x
     Just e -> normalise e
 normalise (FunTy ab) = finalNormalForm =<< FunTy <$> normaliseAbs ab
-normalise (Abs ab) = finalNormalForm =<< Abs <$> normaliseAbs ab
+normalise (Lam ab) = finalNormalForm =<< Lam <$> normaliseAbs ab
 normalise (ProductTy ab) = finalNormalForm =<< ProductTy <$> normaliseAbs ab
 -- VALUE: LitLevel
 normalise (LitLevel n) = finalNormalForm $ LitLevel n
@@ -116,7 +116,7 @@ normalise (App e1 e2) = do
     ------------------------
 
     -- (\x -> e) e' ----> [e'/x] e
-    (Abs ab) -> substitute (absVar ab, e2') (absExpr ab) >>= normalise
+    (Lam ab) -> substitute (absVar ab, e2') (absExpr ab) >>= normalise
 
     ------------------------
     -- Other applications --
@@ -189,7 +189,7 @@ equalExprs e1 e2 = do
     (Var v1, Var v2) -> pure (v1 == v2)
     (App f1 v1, App f2 v2) -> (&&) <$> equalExprs f1 f2 <*> equalExprs v1 v2
     (FunTy ab1, FunTy ab2) -> equalAbs ab1 ab2
-    (Abs ab1, Abs ab2) -> equalAbs ab1 ab2
+    (Lam ab1, Lam ab2) -> equalAbs ab1 ab2
     (ProductTy ab1, ProductTy ab2) -> equalAbs ab1 ab2
     (Coproduct t1 t2, Coproduct t1' t2') -> (&&) <$> equalExprs t1 t1' <*> equalExprs t2 t2'
     (CoproductCase (z, tC) (x, c) (y, d) e, CoproductCase (z', tC') (x', c') (y', d') e') -> do
@@ -428,16 +428,16 @@ checkOrInferType' t (FunTy ab) = do
 --------------------------------------------
 -- Abstraction expression, with wild type --
 --------------------------------------------
-checkOrInferType' Implicit expr@(Abs ab) = do
+checkOrInferType' Implicit expr@(Lam ab) = do
   rTy <- withAbsBinding ab $ checkOrInferType mkImplicit (absExpr ab)
   checkOrInferType (FunTy (mkAbs (absVar ab) (absTy ab) rTy)) expr
 
 {-
    G, x : A |- e : B
-   --------------------------------- :: Abs
+   --------------------------------- :: Lam
    G |- \(x : A) -> e : (x : A) -> B
 -}
-checkOrInferType' t (Abs abE) = do
+checkOrInferType' t (Lam abE) = do
   _l <- inferUniverseLevel t
   abT <- normalise t >>= getAbsFromFunTy
 
@@ -762,8 +762,8 @@ checkOrInferType' t (Let (LetPatBound p e1) e2) = do
         findConstructorForType (ProductTy ab) = do
           xv <- freshen (absVar ab)
           yv <- freshen xv
-          pure $ Abs (mkAbs xv (absTy ab)
-                      (Abs (mkAbs yv (absExpr ab) (Pair (Var xv) (Var yv)))))
+          pure $ Lam (mkAbs xv (absTy ab)
+                      (Lam (mkAbs yv (absExpr ab) (Pair (Var xv) (Var yv)))))
         findConstructorForType (Builtin DUnitTy) = pure (Builtin DUnitTerm)
         findConstructorForType t = notImplemented
           $ "I don't yet know how to form a constructor of type '" <> pprintShow t <> "'"

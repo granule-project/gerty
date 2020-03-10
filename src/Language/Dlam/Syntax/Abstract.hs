@@ -130,7 +130,7 @@ data Expr
   | FunTy Abstraction
 
   -- | Lambda abstraction.
-  | Abs Abstraction
+  | Lam Abstraction
 
   -- | Dependent tensor type.
   | ProductTy Abstraction
@@ -332,7 +332,7 @@ instance Pretty Expr where
     isLexicallyAtomic _       = False
 
     pprint (LitLevel n)           = int n
-    pprint (Abs ab) = text "\\ " <> pprintAbs arrow ab
+    pprint (Lam ab) = text "\\ " <> pprintAbs arrow ab
     pprint (FunTy ab) = pprintAbs arrow ab
     pprint (ProductTy ab) =
       let leftTyDoc =
@@ -340,8 +340,8 @@ instance Pretty Expr where
               Name _ C.NoName{} -> pprint (absTy ab)
               _        -> pprint (absVar ab) <+> colon <> colon <+> pprint (absTy ab)
       in leftTyDoc <+> char '*' <+> pprint (absExpr ab)
-    pprint (App abs@(Abs _) e2) =
-      pprintParened abs <+> pprintParened e2
+    pprint (App lam@Lam{} e2) =
+      pprintParened lam <+> pprintParened e2
     pprint (App (Sig e1 t) e2) =
       pprintParened (Sig e1 t) <+> pprintParened e2
     pprint (App e1 e2) = pprint e1 <+> pprintParened e2

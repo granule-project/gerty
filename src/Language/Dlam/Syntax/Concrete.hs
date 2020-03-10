@@ -226,7 +226,7 @@ data Expr
   | Fun Expr Expr
 
   -- | Lambda abstraction.
-  | Abs LambdaArgs Expr
+  | Lam LambdaArgs Expr
 
   -- | Dependent tensor type.
   | ProductTy Abstraction
@@ -334,7 +334,7 @@ instance Pretty Expr where
     isLexicallyAtomic _       = False
 
     pprint (LitLevel n)           = int n
-    pprint (Abs binders finE) =
+    pprint (Lam binders finE) =
       text "\\" <+> (hsep $ fmap pprint binders) <+> arrow <+> pprint finE
     pprint (Pi binders finTy) = pprint binders <+> arrow <+> pprint finTy
     pprint (Fun i@Fun{} o) = pprintParened i <+> arrow <+> pprint o
@@ -345,8 +345,8 @@ instance Pretty Expr where
               NoName{} -> pprint (absTy ab)
               _        -> pprint (absVar ab) <+> colon <> colon <+> pprint (absTy ab)
       in leftTyDoc <+> char '*' <+> pprint (absExpr ab)
-    pprint (App abs@Abs{} e2) =
-      pprintParened abs <+> pprintParened e2
+    pprint (App lam@Lam{} e2) =
+      pprintParened lam <+> pprintParened e2
     pprint (App (Sig e1 t) e2) =
       pprintParened (Sig e1 t) <+> pprintParened e2
     pprint (App e1 e2) = pprint e1 <+> pprintParened e2

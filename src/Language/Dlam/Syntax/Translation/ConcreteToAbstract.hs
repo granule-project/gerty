@@ -160,10 +160,10 @@ instance ToAbstract C.Expr A.Expr where
     (piBinds' :: [(IsHiddenOrNot, A.Name, A.Expr)], mySpace) <- toAbstract piBinds
     expr' <- withLocals mySpace $ toAbstract expr
     pure $ foldr (\(i, arg, space) f -> A.FunTy (A.mkAbs' i arg space f)) expr' piBinds'
-  toAbstract (C.Abs args expr) = do
+  toAbstract (C.Lam args expr) = do
     (args' :: [(IsHiddenOrNot, A.Name, A.Expr)], mySpace) <- toAbstract args
     expr' <- withLocals mySpace $ toAbstract expr
-    pure $ foldr (\(i, arg, space) f -> A.Abs (A.mkAbs' i arg space f)) expr' args'
+    pure $ foldr (\(i, arg, space) f -> A.Lam (A.mkAbs' i arg space f)) expr' args'
   toAbstract (C.ProductTy ab) = A.ProductTy <$> toAbstract ab
   toAbstract (C.Pair l r) = A.Pair <$> toAbstract l <*> toAbstract r
   toAbstract (C.Coproduct t1 t2) = A.Coproduct <$> toAbstract t1 <*> toAbstract t2
