@@ -96,15 +96,15 @@ normalise (App e1 e2) = do
           finalNormalForm $ LitLevel (max m n)
 
         -- lmax (lsuc l1) (lsuc l2) ---> lsuc (lmax l1 l2)
-        (App (Builtin LSuc) l1, App (Builtin LSuc) l2) ->
+        (LSuc' l1, LSuc' l2) ->
           normalise $ lsucApp (lmaxApp l1 l2)
 
         -- lmax (m + 1) (lsuc l2) ---> lsuc (lmax m l2)
-        (LitLevel m, App (Builtin LSuc) l2') | m > 0 ->
+        (LitLevel m, LSuc' l2') | m > 0 ->
           normalise $ lsucApp (lmaxApp (LitLevel (pred m)) l2')
 
         -- lmax (lsuc l1) (n + 1) ---> lsuc (lmax l1 n)
-        (App (Builtin LSuc) l1', LitLevel n) | n > 0 ->
+        (LSuc' l1', LitLevel n) | n > 0 ->
           normalise $ lsucApp (lmaxApp l1' (LitLevel (pred n)))
 
         -- otherwise we can't reduce further
@@ -126,8 +126,8 @@ normalise (App e1 e2) = do
 normalise (CoproductCase (z, tC) (x, c) (y, d) e) = do
   e' <- normalise e
   case e' of
-    App (App (App (App (App (Builtin Inl) _l1) _l2) _a) _b) l -> normalise =<< substitute (x, l) c
-    App (App (App (App (App (Builtin Inr) _l1) _l2) _a) _b) r -> normalise =<< substitute (y, r) d
+    Inl' _l1 _l2 _a _b l -> normalise =<< substitute (x, l) c
+    Inr' _l1 _l2 _a _b r -> normalise =<< substitute (y, r) d
     _ -> do
       tC' <- normalise tC
       c' <- normalise c

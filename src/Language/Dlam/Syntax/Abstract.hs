@@ -9,6 +9,9 @@ module Language.Dlam.Syntax.Abstract
   (
    -- * Expressions
     Expr(..)
+  , pattern Inl'
+  , pattern Inr'
+  , pattern LSuc'
   , Name(..)
   , mkIdent
   , ignoreVar
@@ -168,6 +171,18 @@ data Expr
 
   | Let LetBinding Expr
   deriving (Show, Eq, Ord)
+
+
+pattern Inl' :: Expr -> Expr -> Expr -> Expr -> Expr -> Expr
+pattern Inl' l1 l2 a b l = App (App (App (App (App (Builtin Inl) l1) l2) a) b) l
+
+
+pattern Inr' :: Expr -> Expr -> Expr -> Expr -> Expr -> Expr
+pattern Inr' l1 l2 a b r = App (App (App (App (App (Builtin Inr) l1) l2) a) b) r
+
+
+pattern LSuc' :: Expr -> Expr
+pattern LSuc' l = App (Builtin LSuc) l
 
 
 -- | Make a new, unnamed, implicit term.
