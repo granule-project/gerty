@@ -876,7 +876,7 @@ synthTypePatGuided p e = do
     patGuideTyNames _ t = pure t
 
 
--- | 'withPatternedAs e intro body' takes an expression,
+-- | 'rebuildAgainstPattern e intro body' takes an expression,
 -- | an introduction form produced from a pattern match on the
 -- | expression, and a body in which the pattern is active, and yields
 -- | a new body with appropriate components of the expression substituted
