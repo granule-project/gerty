@@ -48,7 +48,7 @@ main = do
 
 fileTestsPositiveGen :: String -> String -> (FilePath -> String -> CM a) -> [FilePath] -> TestTree
 fileTestsPositiveGen groupName desc phase = testGroup groupName .
-  fmap (\file -> testCase ("checking " <> file <> desc <> "s") $ do
+  fmap (\file -> testCase ("checking " <> file <> " " <> desc <> "s") $ do
                    src <- Strict.readFile file
                    let res = tcrRes $ runNewChecker (phase file src)
                    case res of
