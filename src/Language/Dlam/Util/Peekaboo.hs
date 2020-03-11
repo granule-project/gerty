@@ -1,6 +1,6 @@
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE StandaloneDeriving #-}
 module Language.Dlam.Util.Peekaboo
@@ -15,8 +15,12 @@ module Language.Dlam.Util.Peekaboo
   , ThenCouldBe(..)
   , ThenMightBe
 
-  -- * Un
+  -- * Wrappers
   , Un(..)
+  , Tag(..)
+  , untag
+  , Annotation(..)
+  , annotatedWith
   ) where
 
 
@@ -62,7 +66,7 @@ instance CouldBe MightBe a e where
   idc _ g (ItIsNot x) = g x
 
 
-instance (Un (t e) e) => Un (MightBe t e) e where
+instance (Un t) => Un (MightBe t) where
   un (ItIs x) = un x
   un (ItIsNot x) = x
 
@@ -98,10 +102,32 @@ deriving instance (Eq (t1 a), Eq (t2 (t1 a))) => Eq (ThenMightBe t1 t2 a)
 deriving instance (Ord (t1 a), Ord (t2 (t1 a))) => Ord (ThenMightBe t1 t2 a)
 deriving instance (Pretty (t2 (t1 e)), Pretty (t1 e)) => Pretty (ThenMightBe t1 t2 e)
 
--------
--- * Un
--------
+
+-------------
+-- * Wrappers
+-------------
 
 
-class Un a e | a -> e where
-  un :: a -> e
+-- | Things that can be unwrapped.
+class Un a where
+  un :: a e -> e
+
+
+-- | Types that tag other types.
+class (Un a) => Tag a where
+  tag :: e -> a e
+
+
+-- | The thing that was tagged.
+untag :: (Tag a) => a e -> e
+untag = un
+
+
+-- | Types that annotate other types with more data.
+class Annotation t ann where
+  annot :: ann -> e -> t e
+
+
+-- | Annotate a value.
+annotatedWith :: (Annotation t a) => e -> a -> t e
+annotatedWith = flip annot

@@ -145,7 +145,7 @@ data MaybeNamed a = Named Name a | Unnamed a
   deriving (Show, Eq, Ord)
 
 
-instance Un (MaybeNamed a) a where
+instance Un MaybeNamed where
   un (Named _ e) = e
   un (Unnamed e) = e
 
@@ -189,11 +189,15 @@ data Graded a = Graded { gradedGrades :: Grading, unGraded :: a }
   deriving (Show, Eq, Ord)
 
 
+instance Annotation Graded Grading where
+  annot g u = Graded { gradedGrades = g, unGraded = u }
+
+
 gradedWith :: a -> Grading -> Graded a
-gradedWith u g = Graded { gradedGrades = g, unGraded = u }
+gradedWith = annotatedWith
 
 
-instance Un (Graded a) a where
+instance Un Graded where
   un = unGraded
 
 

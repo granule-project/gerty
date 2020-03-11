@@ -64,7 +64,11 @@ data Typed t a = Typed { unTyped :: a, typedTy :: t }
 
 -- | Annotate the value with the given type.
 typedWith :: e -> t -> Typed t e
-typedWith = Typed
+typedWith = annotatedWith
+
+
+instance Annotation (Typed t) t where
+  annot = flip Typed
 
 
 class IsTyped a t where
@@ -83,7 +87,7 @@ instance IsTyped (Typed t a) t where
   typeOf = typedTy
 
 
-instance Un (Typed t a) a where
+instance Un (Typed t) where
   un = unTyped
 
 
@@ -108,7 +112,7 @@ unHide :: Hidden a -> a
 unHide (Hidden a) = a
 
 
-instance Un (Hidden a) a where
+instance Un Hidden where
   un = unHide
 
 
@@ -175,7 +179,7 @@ instance (IsTyped a t) => IsTyped (Arg a) t where
   typeOf = typeOf . un
 
 
-instance Un (Arg a) a where
+instance Un Arg where
   un = un . unArg
 
 
