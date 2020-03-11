@@ -234,7 +234,6 @@ data TCError
 
 instance Show TCError where
   show (NotImplemented e) = e
-  show (ScoperError e) = "The following was raised when scope-checking: " <> show e
   show CannotSynthTypeForExpr = "I couldn't synthesise a type for the expression."
   show (CannotSynthExprForType t) =
     "I was asked to try and synthesise a term of type '" <> pprintShow t <> "' but I wasn't able to do so."
@@ -247,6 +246,7 @@ instance Show TCError where
   show (PatternMismatch p t) =
     "The pattern '" <> pprintShow p <> "' is not valid for type '" <> pprintShow t <> "'"
   show (ParseError e) = show e
+  show (ScoperError e) = show e
 
 instance Exception TCError
 
@@ -316,7 +316,11 @@ throwCM e = do
 
 
 instance Show TCErr where
-  show e = "The following error occurred when type-checking" <> (maybe ": " (\expr -> " '" <> pprintShow expr <> "': ") (tcErrExpr e)) <> show (tcErrErr e)
+  show e = "The following error occurred when " <> phaseMsg <> (maybe ": " (\expr -> " '" <> pprintShow expr <> "': ") (tcErrExpr e)) <> show (tcErrErr e)
+    where phaseMsg = case errPhase e of
+                       PhaseParsing -> "parsing"
+                       PhaseScoping -> "scope checking"
+                       PhaseTyping  -> "type-checking"
 
 
 data ProgramPhase = PhaseParsing | PhaseScoping | PhaseTyping
