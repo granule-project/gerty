@@ -43,13 +43,24 @@ module Language.Dlam.Syntax.Abstract
 import Prelude hiding ((<>))
 import qualified Data.Set as Set
 
-import Language.Dlam.Syntax.Common hiding (Arg, Typed)
+import Language.Dlam.Syntax.Common hiding (Arg)
 import qualified Language.Dlam.Syntax.Common as Com
+import qualified Language.Dlam.Syntax.Common.Language as Com
 import qualified Language.Dlam.Syntax.Concrete as C
 import Language.Dlam.Util.Pretty
 
 
+------------------------------
+----- Language Specifics -----
+------------------------------
+
+
+type Type = Expr
 type Typed = Com.Typed Expr
+typedWith :: a -> Type -> Typed a
+typedWith = Com.typedWith
+typeOf :: (Com.IsTyped a Type) => a -> Type
+typeOf = Com.typeOf
 
 
 ------------------

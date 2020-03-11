@@ -9,12 +9,6 @@ module Language.Dlam.Syntax.Common
 
   , module Language.Dlam.Util.Peekaboo
 
-  -- * Typing
-  , Typed
-  , unTyped
-  , IsTyped(..)
-  , typedWith
-
   -- * Hiding
   , IsHiddenOrNot(..)
   , CanHide(..)
@@ -34,9 +28,9 @@ module Language.Dlam.Syntax.Common
 
 import Data.Int (Int64)
 
-
+import Language.Dlam.Syntax.Common.Language (IsTyped(..))
 import Language.Dlam.Util.Peekaboo
-import Language.Dlam.Util.Pretty (Pretty(..), (<+>), braces, colon, parens)
+import Language.Dlam.Util.Pretty (Pretty(..), braces, parens)
 
 
 -----------
@@ -50,49 +44,6 @@ import Language.Dlam.Util.Pretty (Pretty(..), (<+>), braces, colon, parens)
 -- Int64 would be. (2020-03-05, GD)
 newtype NameId = NameId Int64
   deriving (Show, Eq, Ord, Num, Enum)
-
-
-----------
--- * Typed
-----------
-
-
--- | A thing with a type.
-data Typed t a = Typed { unTyped :: a, typedTy :: t }
-  deriving (Show, Eq, Ord)
-
-
--- | Annotate the value with the given type.
-typedWith :: e -> t -> Typed t e
-typedWith = annotatedWith
-
-
-instance Annotation (Typed t) t where
-  annot = flip Typed
-
-
-class IsTyped a t where
-  typeOf :: a -> t
-
-
-instance (IsTyped (t1 a) ty, IsTyped (t2 (t1 a)) ty) => IsTyped (ThenMightBe t1 t2 a) ty where
-  typeOf = idrc typeOf typeOf
-
-
-instance (IsTyped (m e) t, IsTyped e t) => IsTyped (MightBe m e) t where
-  typeOf = idc typeOf typeOf
-
-
-instance IsTyped (Typed t a) t where
-  typeOf = typedTy
-
-
-instance Un (Typed t) where
-  un = unTyped
-
-
-instance (Pretty t, Pretty a) => Pretty (Typed t a) where
-  pprint e = pprint (un e) <+> colon <+> pprint (unTyped e)
 
 
 -----------

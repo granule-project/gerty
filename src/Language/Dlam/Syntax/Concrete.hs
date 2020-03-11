@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
@@ -51,9 +52,34 @@ import Prelude hiding ((<>))
 import qualified Data.List.NonEmpty as NE
 
 import Language.Dlam.Syntax.Concrete.Name
-import Language.Dlam.Syntax.Common hiding (Typed)
-import qualified Language.Dlam.Syntax.Common as C
+import Language.Dlam.Syntax.Common
+import qualified Language.Dlam.Syntax.Common.Language as C
+import Language.Dlam.Syntax.Common.Language (IsTyped)
 import Language.Dlam.Util.Pretty
+
+
+------------------------------
+----- Language Specifics -----
+------------------------------
+
+
+type Type = Expr
+type Typed = C.Typed Expr
+type Grading = C.Grading Grade
+type Graded = C.Graded Grade
+typedWith :: a -> Type -> Typed a
+typedWith = C.typedWith
+gradedWith :: a -> Grading -> Graded a
+gradedWith = C.gradedWith
+typeOf :: (IsTyped a Type) => a -> Type
+typeOf = C.typeOf
+grading :: (C.IsGraded a Grade) => a -> Grading
+grading = C.grading
+subjectGrade, subjectTypeGrade :: (C.IsGraded a Grade) => a -> Grade
+subjectGrade = C.subjectGrade
+subjectTypeGrade = C.subjectTypeGrade
+mkGrading :: Grade -> Grade -> Grading
+mkGrading = C.mkGrading
 
 
 ------------------
@@ -150,72 +176,13 @@ instance Un MaybeNamed where
   un (Unnamed e) = e
 
 
------------------
------ Typed -----
------------------
-
-
-type Typed = C.Typed Expr
-
-
--- | Things that are graded need to explain their behaviour in both
--- | the subject and subject type.
-data Grading =
-  Grading { gradingSubjectGrade :: Grade, gradingTypeGrade :: Grade }
-  deriving (Show, Eq, Ord)
-
-
-mkGrading :: Grade -> Grade -> Grading
-mkGrading sg tg = Grading { gradingSubjectGrade = sg, gradingTypeGrade = tg }
-
-
-class IsGraded a where
-  grading :: a -> Grading
-
-
-subjectGrade :: (IsGraded a) => a -> Grade
-subjectGrade = gradingSubjectGrade . grading
-
-
-subjectTypeGrade :: (IsGraded a) => a -> Grade
-subjectTypeGrade = gradingTypeGrade . grading
-
-
-instance IsGraded Grading where
-  grading = id
-
-
-data Graded a = Graded { gradedGrades :: Grading, unGraded :: a }
-  deriving (Show, Eq, Ord)
-
-
-instance Annotation Graded Grading where
-  annot g u = Graded { gradedGrades = g, unGraded = u }
-
-
-gradedWith :: a -> Grading -> Graded a
-gradedWith = annotatedWith
-
-
-instance Un Graded where
-  un = unGraded
-
-
-instance IsGraded (Graded a) where
-  grading = gradedGrades
-
-
 instance (Binds a) => Binds (Graded a) where
   bindsWhat = bindsWhat . un
 
 
-instance (IsTyped a t) => IsTyped (Graded a) t where
-  typeOf = typeOf . un
-
-
 instance (Pretty e) => Pretty (Graded (Typed e)) where
   pprint x =
-    let ty = typeOf x :: Expr
+    let ty = typeOf x
         grades = grading x
         val = un . un $ x
     in pprint val <+> colon <+> pprint grades <+> pprint ty
@@ -251,7 +218,7 @@ instance (Binds a) => Binds (Arg a) where
 
 
 instance (Binds a) => Binds (Typed a) where
-  bindsWhat = bindsWhat . unTyped
+  bindsWhat = bindsWhat . un
 
 
 instance Binds BoundName where
@@ -515,7 +482,7 @@ instance Pretty TypedBinding where
   pprint tb =
     (if isHidden' tb then braces else parens) $
     (let tySide = un (unTB tb) in
-     (idc (pprint . grading) (const empty) tySide) <+> pprint (typeOf tySide :: Expr))
+     (idc (pprint . grading) (const empty) tySide) <+> pprint (typeOf tySide))
 
 instance Pretty PiBindings where
   pprint (PiBindings binds) = hsep (fmap pprint binds)

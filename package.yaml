@@ -42,6 +42,7 @@ library:
    - Language.Dlam.FirstParameter
    - Language.Dlam.Syntax.Abstract
    - Language.Dlam.Syntax.Common
+   - Language.Dlam.Syntax.Common.Language
    - Language.Dlam.Syntax.Concrete.Name
    - Language.Dlam.Syntax.Free
    - Language.Dlam.Syntax.Internal
