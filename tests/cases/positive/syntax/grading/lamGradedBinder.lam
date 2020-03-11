@@ -1,0 +1,2 @@
+-- you can grade lambda binders
+test = \(x : [0, 0] Level) -> lzero

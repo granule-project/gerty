@@ -1,7 +1,7 @@
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE GeneralisedNewtypeDeriving #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE TypeOperators #-}
 
 module Language.Dlam.Syntax.Concrete
   (
@@ -89,12 +89,26 @@ data Param a = ParamNamed TypedBinding | ParamUnnamed a
 
 
 -- | Lambda abstraction binder.
-type LambdaArg = Arg (MightBe Typed OneOrMoreBoundNames)
+type LambdaArg = Arg (MightBe (Typed `ThenMightBe` Graded) OneOrMoreBoundNames)
+
+
+mkLambdaArg :: IsHiddenOrNot -> OneOrMoreBoundNames -> Maybe (Expr, Maybe Grading) -> LambdaArg
+mkLambdaArg isHid names tyGrad =
+  mkArg isHid
+    (maybe (itIsNot names)                                          -- no type or grades
+     (\(ty, mg) -> itIs (maybe                                      -- at least a type
+       (onlyFirst (`typedWith` ty))                                 -- type but no grades
+       (\g -> wasBoth (`typedWith` ty) (`gradedWith` g)) mg) names) -- type and grades
+     tyGrad)
 
 
 lambdaArgFromTypedBinding :: TypedBinding -> LambdaArg
 lambdaArgFromTypedBinding e =
-  mkArg (isHidden e) (itIs (`typedWith` (typeOf e)) (un (un (un (unTB e)))))
+  let isHid = isHidden  e
+      ty    = typeOf    e
+      names = bindsWhat e
+      grades = tryIt grading (un (unTB e))
+  in mkLambdaArg isHid (NE.fromList names) (Just (ty, grades))
 
 
 type LambdaArgs = [LambdaArg]
@@ -195,6 +209,14 @@ instance (IsTyped a t) => IsTyped (Graded a) t where
   typeOf = typeOf . un
 
 
+instance (Pretty e) => Pretty (Graded (Typed e)) where
+  pprint x =
+    let ty = typeOf x :: Expr
+        grades = grading x
+        val = un . un $ x
+    in pprint val <+> colon <+> pprint grades <+> pprint ty
+
+
 -- | Typed binders are optionally graded, and can contain many bound names.
 newtype TypedBinding = TB { unTB :: Arg (MightBe Graded (Typed OneOrMoreBoundNames)) }
   deriving (Show, Eq, Ord, Hiding, Binds)
@@ -205,8 +227,11 @@ instance IsTyped TypedBinding Expr where
 
 
 mkTypedBinding :: IsHiddenOrNot -> OneOrMoreBoundNames -> Maybe Grading -> Expr -> TypedBinding
-mkTypedBinding isHid ns grading t =
-  TB . mkArg isHid $ (maybe itIsNot (itIs . flip gradedWith) grading) (ns `typedWith` t)
+mkTypedBinding isHid names grading t =
+  let typedNames = names `typedWith` t
+  in TB . mkArg isHid $ maybe
+       (itIsNot typedNames)                             -- we just have a type
+       (\g -> itIs (`gradedWith` g) typedNames) grading -- we have a type and grade
 
 
 class Binds a where
@@ -239,6 +264,10 @@ instance Binds (NE.NonEmpty BoundName) where
 
 instance (Binds (t e), Binds e) => Binds (MightBe t e) where
   bindsWhat = idc bindsWhat bindsWhat
+
+
+instance (Binds (t2 (t1 e)), Binds (t1 e)) => Binds (ThenMightBe t1 t2 e) where
+  bindsWhat = idrc bindsWhat bindsWhat
 
 
 -- | A list of typed bindings in a dependent function space.
