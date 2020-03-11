@@ -26,6 +26,9 @@ module Language.Dlam.TypeChecking.Monad.Base
 
   -- * Exceptions and error handling
   , TCErr
+  , isSyntaxErr
+  , isScopingErr
+  , isTypingErr
 
   -- ** Implementation errors
   , notImplemented
@@ -314,3 +317,21 @@ throwCM e = do
 
 instance Show TCErr where
   show e = "The following error occurred when type-checking" <> (maybe ": " (\expr -> " '" <> pprintShow expr <> "': ") (tcErrExpr e)) <> show (tcErrErr e)
+
+
+data ProgramPhase = PhaseParsing | PhaseScoping | PhaseTyping
+  deriving (Show, Eq, Ord)
+
+
+-- | In which phase was the error raised.
+errPhase :: TCErr -> ProgramPhase
+errPhase = errPhase' . tcErrErr
+  where errPhase' ParseError{}  = PhaseParsing
+        errPhase' ScoperError{} = PhaseScoping
+        errPhase' _             = PhaseTyping
+
+
+isSyntaxErr, isScopingErr, isTypingErr :: TCErr -> Bool
+isSyntaxErr = (== PhaseParsing) . errPhase
+isScopingErr = (== PhaseScoping) . errPhase
+isTypingErr = (== PhaseTyping) . errPhase

@@ -1,6 +1,5 @@
 module Main (main) where
 
-import Data.Either (isLeft)
 import System.Directory (doesDirectoryExist)
 import qualified System.IO.Strict as Strict
 
@@ -9,7 +8,11 @@ import Test.Tasty (defaultMain, TestTree, testGroup)
 import Test.Tasty.Golden (findByExtension)
 
 import Language.Dlam.Interpreter (formatError)
-import Language.Dlam.TypeChecking.Monad (CM, runNewChecker, tcrRes)
+import Language.Dlam.TypeChecking.Monad
+  ( CM
+  , TCErr, isSyntaxErr, isScopingErr, isTypingErr
+  , runNewChecker
+  , tcrRes)
 
 import qualified Language.Dlam.Interpreter as Interpreter
 
@@ -82,28 +85,33 @@ fileTestsPositiveExamples = fileTestsPositiveGen "type-checking examples" "type 
 --------------------------
 
 
-fileTestsNegativeGen :: String -> String -> (FilePath -> String -> CM a) -> [FilePath] -> TestTree
-fileTestsNegativeGen groupName desc phase = testGroup groupName .
+fileTestsNegativeGen :: String -> String -> (FilePath -> String -> CM a) -> (TCErr -> Bool) -> [FilePath] -> TestTree
+fileTestsNegativeGen groupName desc phase isErrGood = testGroup groupName .
   fmap (\file -> testCase ("checking " <> file <> " doesn't " <> desc) $ do
                    src <- Strict.readFile file
                    let res = tcrRes $ runNewChecker (phase file src)
-                   assertBool ("Expected file not to " <> desc <> ", but it did.")
-                                (isLeft res))
+                       (didErrOK, phaseMsg) =
+                         either (\err ->
+                           if isErrGood err
+                           then (True, "")
+                           else (False, "failed in an earlier phase, with message: " <> formatError err))
+                                  (const (False, "did.")) res
+                   assertBool ("Expected file not to " <> desc <> ", but it " <> phaseMsg) didErrOK)
 
 
 -- | The collection of negative syntax tests (i.e., those that should not parse).
 fileTestsNegativeSyntax :: [FilePath] -> TestTree
-fileTestsNegativeSyntax = fileTestsNegativeGen "bad syntax" "parse" Interpreter.runParser
+fileTestsNegativeSyntax = fileTestsNegativeGen "bad syntax" "parse" Interpreter.runParser isSyntaxErr
 
 
 -- | The collection of negative scope tests (i.e., those that should not scope check).
 fileTestsNegativeScope :: [FilePath] -> TestTree
-fileTestsNegativeScope = fileTestsNegativeGen "ill-scoped" "scope check" Interpreter.runScoper
+fileTestsNegativeScope = fileTestsNegativeGen "ill-scoped" "scope check" Interpreter.runScoper isScopingErr
 
 
 -- | The collection of negative typing tests (i.e., those that should not type check).
 fileTestsNegativeTyping :: [FilePath] -> TestTree
-fileTestsNegativeTyping = fileTestsNegativeGen "ill-typed" "type check" Interpreter.runTypeChecker
+fileTestsNegativeTyping = fileTestsNegativeGen "ill-typed" "type check" Interpreter.runTypeChecker isTypingErr
 
 
 -------------------
