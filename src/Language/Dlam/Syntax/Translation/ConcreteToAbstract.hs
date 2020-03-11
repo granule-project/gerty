@@ -123,17 +123,19 @@ instance ToAbstract OldQName A.Expr where
     pure $ A.Var (nameOf rn)
 
 
-instance ToAbstract C.PiBindings ([(IsHiddenOrNot, A.Name, A.Expr)], Locals) where
+instance ToAbstract C.PiBindings ([A.TypedBinding], Locals) where
   toAbstract (C.PiBindings []) = pure ([], [])
   toAbstract (C.PiBindings (arg:bs)) = do
     let i  = isHidden arg
         ns = fmap C.unBoundName $ C.bindsWhat arg
+        g  = tryIt C.grading (un (C.unTB arg))
         s  :: C.Expr = typeOf arg
     ns' <- mapM toAbstract ns
     s' <- toAbstract s
+    g' <- maybe (pure A.implicitGrading) toAbstract g
     let nsLocs = zip ns ns'
     (piBinds, locals) <- withLocals nsLocs $ toAbstract (C.PiBindings bs)
-    pure $ (zip3 (repeat i) ns' (repeat s') <> piBinds, nsLocs <> locals)
+    pure (fmap (A.mkTypedBinding i g' s' . A.bindName) ns' <> piBinds, nsLocs <> locals)
 
 
 instance ToAbstract C.LambdaArgs ([(IsHiddenOrNot, A.Name, A.Expr)], Locals) where
@@ -149,6 +151,10 @@ instance ToAbstract C.LambdaArgs ([(IsHiddenOrNot, A.Name, A.Expr)], Locals) whe
     pure $ (zip3 (repeat i) ns' (repeat s') <> args, nsLocs <> locals)
 
 
+instance ToAbstract C.Grading A.Grading where
+  toAbstract g = A.mkGrading <$> toAbstract (C.subjectGrade g) <*> toAbstract (C.subjectTypeGrade g)
+
+
 instance ToAbstract C.Expr A.Expr where
   toAbstract (C.Ident v) = toAbstract (OldQName v)
   toAbstract (C.LitLevel n) = pure $ A.LitLevel n
@@ -158,9 +164,9 @@ instance ToAbstract C.Expr A.Expr where
     e2' <- toAbstract e2
     pure $ A.FunTy (A.mkAbs name e1' e2')
   toAbstract (C.Pi piBinds expr) = do
-    (piBinds' :: [(IsHiddenOrNot, A.Name, A.Expr)], mySpace) <- toAbstract piBinds
+    (piBinds' :: [A.TypedBinding], mySpace) <- toAbstract piBinds
     expr' <- withLocals mySpace $ toAbstract expr
-    pure $ foldr (\(i, arg, space) f -> A.FunTy (A.mkAbs' i arg space f)) expr' piBinds'
+    pure $ foldr (\b f -> A.FunTy (A.mkAbs' (isHidden b) (A.unBoundName . un. un . un . A.unTB $ b) (typeOf b) f)) expr' piBinds'
   toAbstract (C.Lam args expr) = do
     (args' :: [(IsHiddenOrNot, A.Name, A.Expr)], mySpace) <- toAbstract args
     expr' <- withLocals mySpace $ toAbstract expr

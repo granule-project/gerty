@@ -15,10 +15,15 @@ module Language.Dlam.Syntax.Concrete
   , absVar
   , absTy
   , absExpr
+
   -- ** Grading
   , Grade
   , Grading
   , mkGrading
+  , grading
+  , subjectGrade
+  , subjectTypeGrade
+
   -- ** Naming
   , MaybeNamed(..)
   -- ** Bindings
@@ -32,6 +37,7 @@ module Language.Dlam.Syntax.Concrete
   , LambdaArg
   , LambdaArgs
   , TypedBinding
+  , unTB
   , mkTypedBinding
   , PiBindings(..)
   , lambdaBindingFromTyped
