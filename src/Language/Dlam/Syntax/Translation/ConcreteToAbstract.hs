@@ -7,6 +7,7 @@ module Language.Dlam.Syntax.Translation.ConcreteToAbstract
 
 
 import Control.Arrow (second)
+import Control.Monad (join)
 import Control.Monad.Except (throwError)
 
 
@@ -138,17 +139,19 @@ instance ToAbstract C.PiBindings ([A.TypedBinding], Locals) where
     pure (fmap (A.mkTypedBinding i g' s' . A.bindName) ns' <> piBinds, nsLocs <> locals)
 
 
-instance ToAbstract C.LambdaArgs ([(IsHiddenOrNot, A.Name, A.Expr)], Locals) where
+instance ToAbstract C.LambdaArgs ([A.LambdaArg], Locals) where
   toAbstract [] = pure ([], [])
   toAbstract (arg:bs) = do
     let i = isHidden arg
         ns = fmap C.unBoundName $ C.bindsWhat arg
+        g  = join $ tryIt (tryMight C.grading) (un arg)
         s :: C.Expr = idc typeOf (const C.Implicit) $ un arg
     ns' <- mapM toAbstract ns
     s' <- toAbstract s
+    g' <- maybe (pure A.implicitGrading) toAbstract g
     let nsLocs = zip ns ns'
     (args, locals) <- withLocals nsLocs $ toAbstract bs
-    pure $ (zip3 (repeat i) ns' (repeat s') <> args, nsLocs <> locals)
+    pure (fmap (A.mkLambdaArg i g' s' . A.bindName) ns' <> args, nsLocs <> locals)
 
 
 instance ToAbstract C.Grading A.Grading where
@@ -168,9 +171,9 @@ instance ToAbstract C.Expr A.Expr where
     expr' <- withLocals mySpace $ toAbstract expr
     pure $ foldr (\b f -> A.FunTy (A.mkAbs' (isHidden b) (A.unBoundName . un. un . un . A.unTB $ b) (typeOf b) f)) expr' piBinds'
   toAbstract (C.Lam args expr) = do
-    (args' :: [(IsHiddenOrNot, A.Name, A.Expr)], mySpace) <- toAbstract args
+    (args' :: [A.LambdaArg], mySpace) <- toAbstract args
     expr' <- withLocals mySpace $ toAbstract expr
-    pure $ foldr (\(i, arg, space) f -> A.Lam (A.mkAbs' i arg space f)) expr' args'
+    pure $ foldr (\b f -> A.Lam (A.mkAbs' (isHidden b) (A.unBoundName . un. un . un . A.unTB $ b) (typeOf b) f)) expr' args'
   toAbstract (C.ProductTy ab) = A.ProductTy <$> toAbstract ab
   toAbstract (C.Pair l r) = A.Pair <$> toAbstract l <*> toAbstract r
   toAbstract (C.Coproduct t1 t2) = A.Coproduct <$> toAbstract t1 <*> toAbstract t2

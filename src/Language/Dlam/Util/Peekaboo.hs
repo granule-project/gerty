@@ -14,6 +14,7 @@ module Language.Dlam.Util.Peekaboo
   -- * ThenCouldBe
   , ThenCouldBe(..)
   , ThenMightBe
+  , tryMight
 
   -- * Wrappers
   , Un(..)
@@ -89,6 +90,11 @@ class ThenCouldBe t t1 t2 a where
   wasBoth   :: (forall b. b -> t1 b) -> (forall b. b -> t2 b) -> a -> t t1 t2 a
 
   idrc :: (t1 a -> b) -> (t2 (t1 a) -> b) -> t t1 t2 a -> b
+
+
+-- | Have a go.
+tryMight :: (ThenCouldBe t t1 t2 a) => (t2 (t1 a) -> b) -> t t1 t2 a -> Maybe b
+tryMight f = idrc (const Nothing) (Just . f)
 
 
 instance ThenCouldBe ThenMightBe t1 t2 a where

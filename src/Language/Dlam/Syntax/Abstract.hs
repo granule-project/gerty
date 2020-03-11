@@ -50,6 +50,8 @@ module Language.Dlam.Syntax.Abstract
   , mkTypedBinding
   , bindName
   , unBoundName
+  , LambdaArg
+  , mkLambdaArg
   ) where
 
 
@@ -109,6 +111,17 @@ mkTypedBinding isHid gr ty n = TB (mkArg isHid (n `typedWith` ty `gradedWith` gr
 
 instance Com.IsTyped TypedBinding Expr where
   typeOf = typeOf . un . un . unTB
+
+-- TODO: update this to support binding multiple names at once (see
+-- Agda discussion at
+-- https://hackage.haskell.org/package/Agda-2.6.0.1/docs/Agda-Syntax-Abstract.html#t:TypedBinding)
+-- (2020-03-11)
+-- | Lambda abstraction binder.
+type LambdaArg = TypedBinding
+
+
+mkLambdaArg :: IsHiddenOrNot -> Grading -> Type -> BoundName -> LambdaArg
+mkLambdaArg isHid gr ty n = TB (mkArg isHid (n `typedWith` ty `gradedWith` gr))
 
 
 ------------------
