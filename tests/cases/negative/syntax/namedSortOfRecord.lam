@@ -1,0 +1,2 @@
+-- you can't name the sort of a record
+record Test : (x : Type 0) where

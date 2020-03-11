@@ -1,0 +1,2 @@
+-- you can name the last parameter of a record
+record Foo (A : Level) : Type 0 where

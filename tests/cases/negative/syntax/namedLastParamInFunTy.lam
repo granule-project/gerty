@@ -1,0 +1,2 @@
+-- you can't name the last parameter of a function type
+f : a -> (x : a)
