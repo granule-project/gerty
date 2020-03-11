@@ -24,7 +24,9 @@ module Language.Dlam.Syntax.Concrete
   -- ** Bindings
   , Binds(..)
   , mkArg
-  , BoundName(..)
+  , BoundName
+  , bindName
+  , unBoundName
   , Param(..)
   , LambdaBinding
   , LambdaArg
@@ -54,7 +56,7 @@ import qualified Data.List.NonEmpty as NE
 import Language.Dlam.Syntax.Concrete.Name
 import Language.Dlam.Syntax.Common
 import qualified Language.Dlam.Syntax.Common.Language as C
-import Language.Dlam.Syntax.Common.Language (IsTyped)
+import Language.Dlam.Syntax.Common.Language (Binds, IsTyped)
 import Language.Dlam.Util.Pretty
 
 
@@ -67,6 +69,8 @@ type Type = Expr
 type Typed = C.Typed Expr
 type Grading = C.Grading Grade
 type Graded = C.Graded Grade
+type BoundName = C.BoundName Name
+type OneOrMoreBoundNames = C.OneOrMoreBoundNames Name
 typedWith :: a -> Type -> Typed a
 typedWith = C.typedWith
 gradedWith :: a -> Grading -> Graded a
@@ -80,6 +84,12 @@ subjectGrade = C.subjectGrade
 subjectTypeGrade = C.subjectTypeGrade
 mkGrading :: Grade -> Grade -> Grading
 mkGrading = C.mkGrading
+bindName :: Name -> BoundName
+bindName = C.bindName
+unBoundName :: BoundName -> Name
+unBoundName = C.unBoundName
+bindsWhat :: (Binds a Name) => a -> [BoundName]
+bindsWhat = C.bindsWhat
 
 
 ------------------
@@ -102,11 +112,6 @@ data FRHS =
   -- Currently we only support simple expressions.
   FRHSAssign Expr
   deriving (Show)
-
-
--- | A name in a binder.
-data BoundName = BoundName { unBoundName :: Name }
-  deriving (Show, Eq, Ord)
 
 
 -- | A Param either captures some typed names, or an @a@.
@@ -148,9 +153,6 @@ instance (Pretty b, Pretty e) => Pretty (BoundTo b e) where
   pprint b = pprint (boundToWhat b) <+> colon <+> pprint (whatWasBound b)
 
 
-type OneOrMoreBoundNames = NE.NonEmpty BoundName
-
-
 -- | The left-hand-side of a function type.
 type LambdaBinding = Arg (MightBe (BoundTo OneOrMoreBoundNames) Expr)
 
@@ -176,10 +178,6 @@ instance Un MaybeNamed where
   un (Unnamed e) = e
 
 
-instance (Binds a) => Binds (Graded a) where
-  bindsWhat = bindsWhat . un
-
-
 instance (Pretty e) => Pretty (Graded (Typed e)) where
   pprint x =
     let ty = typeOf x
@@ -190,7 +188,11 @@ instance (Pretty e) => Pretty (Graded (Typed e)) where
 
 -- | Typed binders are optionally graded, and can contain many bound names.
 newtype TypedBinding = TB { unTB :: Arg (MightBe Graded (Typed OneOrMoreBoundNames)) }
-  deriving (Show, Eq, Ord, Hiding, Binds)
+  deriving (Show, Eq, Ord, Hiding)
+
+
+instance Binds TypedBinding Name where
+  bindsWhat = bindsWhat . unTB
 
 
 instance IsTyped TypedBinding Expr where
@@ -203,42 +205,6 @@ mkTypedBinding isHid names grading t =
   in TB . mkArg isHid $ maybe
        (itIsNot typedNames)                             -- we just have a type
        (\g -> itIs (`gradedWith` g) typedNames) grading -- we have a type and grade
-
-
-class Binds a where
-  bindsWhat :: a -> [BoundName]
-
-
-instance (Binds a) => Binds (MightHide a) where
-  bindsWhat = bindsWhat . un
-
-
-instance (Binds a) => Binds (Arg a) where
-  bindsWhat = bindsWhat . un
-
-
-instance (Binds a) => Binds (Typed a) where
-  bindsWhat = bindsWhat . un
-
-
-instance Binds BoundName where
-  bindsWhat = pure
-
-
-instance Binds [BoundName] where
-  bindsWhat = id
-
-
-instance Binds (NE.NonEmpty BoundName) where
-  bindsWhat = bindsWhat . NE.toList
-
-
-instance (Binds (t e), Binds e) => Binds (MightBe t e) where
-  bindsWhat = idc bindsWhat bindsWhat
-
-
-instance (Binds (t2 (t1 e)), Binds (t1 e)) => Binds (ThenMightBe t1 t2 e) where
-  bindsWhat = idrc bindsWhat bindsWhat
 
 
 -- | A list of typed bindings in a dependent function space.
@@ -379,18 +345,6 @@ arrow, at, caset :: Doc
 arrow = text "->"
 at = char '@'
 caset = text "case"
-
-
-instance Pretty BoundName where
-  pprint = pprint . unBoundName
-
-
-instance Pretty [BoundName] where
-  pprint = hsep . fmap pprint
-
-
-instance Pretty (NE.NonEmpty BoundName) where
-  pprint = pprint . NE.toList
 
 
 instance (Pretty e) => Pretty (MaybeNamed e) where

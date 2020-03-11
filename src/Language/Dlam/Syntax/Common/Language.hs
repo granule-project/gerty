@@ -17,11 +17,20 @@ module Language.Dlam.Syntax.Common.Language
   , subjectTypeGrade
   , gradedWith
   , mkGrading
+
+  -- * Binding
+  , Binds(..)
+  , BoundName
+  , bindName
+  , unBoundName
+  , OneOrMoreBoundNames
   ) where
 
 
+import qualified Data.List.NonEmpty as NE
+
 import Language.Dlam.Util.Peekaboo
-import Language.Dlam.Util.Pretty (Pretty(..), (<+>), colon)
+import Language.Dlam.Util.Pretty (Pretty(..), (<+>), colon, hsep)
 
 
 ----------
@@ -121,3 +130,64 @@ instance IsGraded (Graded g a) g where
 
 instance (IsTyped a t) => IsTyped (Graded g a) t where
   typeOf = typeOf . un
+
+
+------------
+-- * Binding
+------------
+
+
+-- | A name in a binder.
+data BoundName n = BoundName { unBoundName :: n }
+  deriving (Show, Eq, Ord)
+
+
+bindName :: n -> BoundName n
+bindName = BoundName
+
+
+type OneOrMoreBoundNames n = NE.NonEmpty (BoundName n)
+
+
+instance (Pretty n) => Pretty (BoundName n) where
+  pprint = pprint . unBoundName
+
+
+instance (Pretty n) => Pretty [BoundName n] where
+  pprint = hsep . fmap pprint
+
+
+instance (Pretty n) => Pretty (OneOrMoreBoundNames n) where
+  pprint = pprint . NE.toList
+
+
+class Binds a n where
+  bindsWhat :: a -> [BoundName n]
+
+
+instance (Binds a n) => Binds (Graded g a) n where
+  bindsWhat = bindsWhat . un
+
+
+instance (Binds a n) => Binds (Typed t a) n where
+  bindsWhat = bindsWhat . un
+
+
+instance Binds (BoundName n) n where
+  bindsWhat = pure
+
+
+instance Binds [BoundName n] n where
+  bindsWhat = id
+
+
+instance Binds (OneOrMoreBoundNames n) n where
+  bindsWhat = bindsWhat . NE.toList
+
+
+instance (Binds (t e) n, Binds e n) => Binds (MightBe t e) n where
+  bindsWhat = idc bindsWhat bindsWhat
+
+
+instance (Binds (t2 (t1 e)) n, Binds (t1 e) n) => Binds (ThenMightBe t1 t2 e) n where
+  bindsWhat = idrc bindsWhat bindsWhat

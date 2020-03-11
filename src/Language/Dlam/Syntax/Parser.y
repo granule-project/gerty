@@ -128,7 +128,7 @@ QId :: { QName }
 
 
 BoundName :: { BoundName }
-  : Ident { BoundName $1 }
+  : Ident { bindName $1 }
 
 
 BoundNames :: { OneOrMoreBoundNames }

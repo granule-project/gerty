@@ -28,7 +28,7 @@ module Language.Dlam.Syntax.Common
 
 import Data.Int (Int64)
 
-import Language.Dlam.Syntax.Common.Language (IsTyped(..))
+import Language.Dlam.Syntax.Common.Language
 import Language.Dlam.Util.Peekaboo
 import Language.Dlam.Util.Pretty (Pretty(..), braces, parens)
 
@@ -72,6 +72,10 @@ type MightHide = MightBe Hidden
 
 instance (IsTyped a t) => IsTyped (MightHide a) t where
   typeOf = typeOf . un
+
+
+instance (Binds a n) => Binds (MightHide a) n where
+  bindsWhat = bindsWhat . un
 
 
 -- | 'CanHide a e' means that 'a' contains possibly hidden values
@@ -144,3 +148,7 @@ instance (Pretty e) => Pretty (Arg e) where
     in case isHidden h of
          IsHidden -> braces (pprint e)
          NotHidden -> (if isLexicallyAtomic e then id else parens) $ pprint e
+
+
+instance (Binds a n) => Binds (Arg a) n where
+  bindsWhat = bindsWhat . un
