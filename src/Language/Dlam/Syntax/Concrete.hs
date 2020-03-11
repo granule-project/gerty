@@ -1,4 +1,5 @@
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE GeneralisedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE StandaloneDeriving #-}
 
@@ -13,6 +14,10 @@ module Language.Dlam.Syntax.Concrete
   , absVar
   , absTy
   , absExpr
+  -- ** Grading
+  , Grade
+  , Grading
+  , mkGrading
   -- ** Naming
   , MaybeNamed(..)
   -- ** Bindings
@@ -89,7 +94,7 @@ type LambdaArg = Arg (MightBe Typed OneOrMoreBoundNames)
 
 lambdaArgFromTypedBinding :: TypedBinding -> LambdaArg
 lambdaArgFromTypedBinding e =
-  mkArg (isHidden e) (itIs (`typedWith` (typeOf e)) (un (un e)))
+  mkArg (isHidden e) (itIs (`typedWith` (typeOf e)) (un (un (un (unTB e)))))
 
 
 type LambdaArgs = [LambdaArg]
@@ -112,7 +117,7 @@ type LambdaBinding = Arg (MightBe (BoundTo OneOrMoreBoundNames) Expr)
 
 lambdaBindingFromTyped :: TypedBinding -> LambdaBinding
 lambdaBindingFromTyped tb =
-  let boundNames = un $ un tb
+  let boundNames = NE.fromList $ bindsWhat tb
       ty         = typeOf tb
   in mkArg (isHidden tb) (itIs (BoundTo boundNames) ty)
 
@@ -139,11 +144,69 @@ instance Un (MaybeNamed a) a where
 type Typed = C.Typed Expr
 
 
-type TypedBinding = Arg (Typed OneOrMoreBoundNames)
+-- | Things that are graded need to explain their behaviour in both
+-- | the subject and subject type.
+data Grading =
+  Grading { gradingSubjectGrade :: Grade, gradingTypeGrade :: Grade }
+  deriving (Show, Eq, Ord)
 
 
-mkTypedBinding :: IsHiddenOrNot -> OneOrMoreBoundNames -> Expr -> TypedBinding
-mkTypedBinding isHid ns t = mkArg isHid (ns `typedWith` t)
+mkGrading :: Grade -> Grade -> Grading
+mkGrading sg tg = Grading { gradingSubjectGrade = sg, gradingTypeGrade = tg }
+
+
+class IsGraded a where
+  grading :: a -> Grading
+
+
+subjectGrade :: (IsGraded a) => a -> Grade
+subjectGrade = gradingSubjectGrade . grading
+
+
+subjectTypeGrade :: (IsGraded a) => a -> Grade
+subjectTypeGrade = gradingTypeGrade . grading
+
+
+instance IsGraded Grading where
+  grading = id
+
+
+data Graded a = Graded { gradedGrades :: Grading, unGraded :: a }
+  deriving (Show, Eq, Ord)
+
+
+gradedWith :: a -> Grading -> Graded a
+gradedWith u g = Graded { gradedGrades = g, unGraded = u }
+
+
+instance Un (Graded a) a where
+  un = unGraded
+
+
+instance IsGraded (Graded a) where
+  grading = gradedGrades
+
+
+instance (Binds a) => Binds (Graded a) where
+  bindsWhat = bindsWhat . un
+
+
+instance (IsTyped a t) => IsTyped (Graded a) t where
+  typeOf = typeOf . un
+
+
+-- | Typed binders are optionally graded, and can contain many bound names.
+newtype TypedBinding = TB { unTB :: Arg (MightBe Graded (Typed OneOrMoreBoundNames)) }
+  deriving (Show, Eq, Ord, Hiding, Binds)
+
+
+instance IsTyped TypedBinding Expr where
+  typeOf = typeOf . un . un . unTB
+
+
+mkTypedBinding :: IsHiddenOrNot -> OneOrMoreBoundNames -> Maybe Grading -> Expr -> TypedBinding
+mkTypedBinding isHid ns grading t =
+  TB . mkArg isHid $ (maybe itIsNot (itIs . flip gradedWith) grading) (ns `typedWith` t)
 
 
 class Binds a where
@@ -276,6 +339,11 @@ mkImplicit :: Expr
 mkImplicit = Implicit
 
 
+-- | As we have dependent types, we should be able to treat grades
+-- | as arbitrary expressions.
+type Grade = Expr
+
+
 ------------------
 -- Let bindings --
 ------------------
@@ -404,6 +472,17 @@ instance Pretty Pattern where
   pprint (PApp v args) = pprint v <+> (hsep $ fmap pprintParened args)
   pprint PUnit = char '*'
   pprint (PParens p) = parens $ pprint p
+
+
+instance Pretty Grading where
+  pprint g = char '[' <>
+             pprint (subjectGrade g) <> comma <+> pprint (subjectTypeGrade g) <> char ']'
+
+instance Pretty TypedBinding where
+  pprint tb =
+    (if isHidden' tb then braces else parens) $
+    (let tySide = un (unTB tb) in
+     (idc (pprint . grading) (const empty) tySide) <+> pprint (typeOf tySide :: Expr))
 
 instance Pretty PiBindings where
   pprint (PiBindings binds) = hsep (fmap pprint binds)

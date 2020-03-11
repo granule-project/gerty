@@ -61,6 +61,8 @@ import Language.Dlam.Util.Pretty (pprintShow)
     ')'     { TokSymbol SymCloseParen $$ }
     '{'     { TokSymbol SymOpenBrace $$ }
     '}'     { TokSymbol SymCloseBrace $$ }
+    '['     { TokSymbol SymOpenBracket $$ }
+    ']'     { TokSymbol SymCloseBracket $$ }
     ':'     { TokSymbol SymColon $$ }
     ','     { TokSymbol SymComma $$ }
     '.'     { TokSymbol SymDot $$ }
@@ -202,9 +204,19 @@ TypeSig :: { (Name, Expr) }
 -------------------
 
 
+-- grades are just expressions
+Grade :: { Grade }
+  : Application { mkAppFromExprs $1 }
+
+
+MaybeBinderGrading :: { Maybe Grading }
+  : '[' Grade ',' Grade ']' { Just (mkGrading $2 $4) }
+  | {- empty -} { Nothing }
+
+
 TypedBinding :: { TypedBinding }
-  : '(' BoundNames ':' Expr ')' { mkTypedBinding NotHidden $2 $4 }
-  | '{' BoundNames ':' Expr '}' { mkTypedBinding IsHidden $2 $4 }
+  : '(' BoundNames ':' MaybeBinderGrading Expr ')' { mkTypedBinding NotHidden $2 $4 $5 }
+  | '{' BoundNames ':' MaybeBinderGrading Expr '}' { mkTypedBinding IsHidden  $2 $4 $5 }
 
 
 TypedBindings :: { [TypedBinding] }

@@ -27,6 +27,7 @@ module Language.Dlam.Syntax.Common
   , MightHide
   , Hiding
   , isHidden
+  , isHidden'
   , hide
   , notHidden
   , unHide
@@ -185,6 +186,10 @@ notHidden = makeWithHiding NotHidden
 class Hiding a where
   -- | Is the value hidden or not?
   isHidden :: a -> IsHiddenOrNot
+
+
+isHidden' :: (Hiding a) => a -> Bool
+isHidden' x = case isHidden x of IsHidden -> True; NotHidden -> False
 
 
 instance Hiding (MightHide a) where

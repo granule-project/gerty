@@ -28,6 +28,7 @@ data Symbol
         | SymOpenBrace        | SymCloseBrace
         | SymOpenVirtualBrace | SymCloseVirtualBrace
         | SymPlus | SymStar | SymAbsurd | SymComma | SymDoubleColon
+        | SymOpenBracket | SymCloseBracket
         | SymEndComment -- ^ A misplaced end-comment "-}".
     deriving (Eq, Show)
 

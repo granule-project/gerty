@@ -1,0 +1,2 @@
+-- you can use variables in grades
+test : (s : Level) (x : [s, s] Level) -> Level
