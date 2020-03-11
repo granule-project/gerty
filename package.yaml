@@ -63,6 +63,7 @@ library:
    - Language.Dlam.TypeChecking.Monad.Base
    - Language.Dlam.Util.Functor
    - Language.Dlam.Util.Lens
+   - Language.Dlam.Util.Peekaboo
    - Language.Dlam.Util.Pretty
 
 executables:
