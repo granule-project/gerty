@@ -26,6 +26,9 @@ module Language.Dlam.Syntax.Position
   , backupPos
   , startPos'
 
+    -- * Files
+  , AbsolutePath
+
     -- * Intervals
   , Interval
   , IntervalWithoutFile

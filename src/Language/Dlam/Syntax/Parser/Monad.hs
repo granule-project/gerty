@@ -44,9 +44,6 @@ import Language.Dlam.Syntax.Position
 import Language.Dlam.Util.Pretty
 
 
-type AbsolutePath = FilePath
-
-
 {--------------------------------------------------------------------------
     The parse monad
  --------------------------------------------------------------------------}
