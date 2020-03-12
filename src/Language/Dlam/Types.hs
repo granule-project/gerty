@@ -8,6 +8,7 @@ import Language.Dlam.Substitution
   , freshen
   )
 import Language.Dlam.Syntax.Abstract
+import Language.Dlam.Syntax.Common
 import qualified Language.Dlam.Syntax.Concrete as C
 import Language.Dlam.Syntax.Internal
 import Language.Dlam.TypeChecking.Monad
@@ -20,17 +21,34 @@ import qualified Language.Dlam.Scoping.Monad as SE
 -------------------------
 
 
--- | Execute the action with the binder from the abstraction active.
+-- | Execute the action with the binder from the abstraction active
+-- | (for checking the body of the abstraction in a subject context).
 withAbsBinding :: Abstraction -> CM a -> CM a
-withAbsBinding ab = withTypedVariable (absVar ab) (absTy ab)
+withAbsBinding ab act =
+  let x = absVar ab
+  in withGradedVariable x (grading ab) $ withTypedVariable x (absTy ab) act
+
+
+-- | Execute the action with the binder from the abstraction active
+-- | (for checking the body of the abstraction in a subject type
+-- | context).
+withAbsBindingForType :: Abstraction -> CM a -> CM a
+withAbsBindingForType ab act =
+  let x = absVar ab
+      g = grading ab
+      stgrade = subjectTypeGrade g
+  -- bind the subject-type grade to the subject grade since we are
+  -- checking the remainder of the type (probably!?)
+  in withGradedVariable x (mkGrading stgrade Implicit) $ withTypedVariable x (absTy ab) act
 
 
 -- | Normalise an abstraction via a series of reductions.
 normaliseAbs :: Abstraction -> CM Abstraction
 normaliseAbs ab = do
   t <- normalise (absTy ab)
+  g <- mkGrading <$> normalise (subjectGrade ab) <*> normalise (subjectTypeGrade ab)
   e <- withAbsBinding ab (normalise (absExpr ab))
-  pure (mkAbs (absVar ab) t e)
+  pure (mkAbs' (isHidden ab) (absVar ab) g t e)
 
 
 -- | Indicate that the expresion is now in an irreducible normal form.
@@ -385,21 +403,36 @@ checkOrInferType' t LitLevel{} = ensureEqualTypes t (builtinBody levelTy)
 -- Variable expression --
 -------------------------
 {-
-   x : A in G
+   x @ (k+1, n) : A in G
    G |- A : Type l
-   --------------- :: Var
+   --------------------- :: Var
+   x @ (k, n) : A in G
    G |- x : A
 -}
 checkOrInferType' t (Var x) = do
-  -- x : A in G
+  -- x @ (k+1, n) : A in G
   -- TODO: remove this possible failure---the scope checker should prevent this (2020-03-05)
   tA <- lookupType x >>= maybe (scoperError $ SE.unknownNameErr (C.Unqualified $ nameConcrete x)) pure
+  kplus1 <- lookupSubjectRemaining x
+  k <- case kplus1 of
+         -- as the scope checker ensures that all local variables are
+         -- in scope, the only way something could not be assigned
+         -- here is if it is a top-level definition, in which case we
+         -- treat its usage as implicit
+         -- TODO: assign implicit grades to top-level definitions (2020-03-12)
+         Nothing -> pure Implicit
+         Just kplus1 -> do
+           -- just normalise for now, and assume it is well-typed (2020-03-11, GD)
+           kplus1 <- normalise kplus1
+           maybe (usedTooManyTimes x) pure =<< decrementGrade kplus1
 
   -- G |- A : Type l
   _l <- inferUniverseLevel tA
   tA <- normalise tA
 
+  -- x @ (k, n) : A in G
   -- G |- x : A
+  setSubjectRemaining x k
   ensureEqualTypes t tA
 
 -------------------------------
@@ -417,7 +450,7 @@ checkOrInferType' t (FunTy ab) = do
   l1 <- inferUniverseLevel (absTy ab)
 
   -- G, x : A |- B : Type l2
-  l2 <- withAbsBinding ab $ inferUniverseLevel (absExpr ab)
+  l2 <- withAbsBindingForType ab $ inferUniverseLevel (absExpr ab)
 
   -- G |- (x : A) -> B : Type (lmax l1 l2)
   lmaxl1l2 <- normalise (lmaxApp l1 l2)
@@ -442,6 +475,7 @@ checkOrInferType' t (Lam abE) = do
   let x = absVar  abE
       e = absExpr abE
       tA = absTy abT
+      gr = grading abT
 
   -- G, x : A |- e : B
 
@@ -449,7 +483,7 @@ checkOrInferType' t (Lam abE) = do
   -- coming from the abstraction, rather than the type
   tB <- substitute (absVar abT, Var $ x) (absExpr abT)
 
-  tB <- withTypedVariable x tA (checkOrInferType tB e)
+  tB <- withGradedVariable x gr $ withTypedVariable x tA (checkOrInferType tB e)
 
   -- G |- \x -> e : (x : A) -> B
   ensureEqualTypes t (FunTy (mkAbs x tA tB))
@@ -496,7 +530,7 @@ checkOrInferType' t (ProductTy ab) = do
   l1 <- inferUniverseLevel (absTy ab)
 
   -- G, x : A |- B : Type l2
-  l2 <- withAbsBinding ab $ inferUniverseLevel (absExpr ab)
+  l2 <- withAbsBindingForType ab $ inferUniverseLevel (absExpr ab)
 
   -- G |- (x : A) * B : Type (lmax l1 l2)
   lmaxl1l2 <- normalise (lmaxApp l1 l2)

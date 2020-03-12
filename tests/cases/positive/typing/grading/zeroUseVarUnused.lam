@@ -1,0 +1,3 @@
+-- we specify the variable should not be used, and indeed we don't use it
+test : (l : [zero, zero] Level) -> Level
+test = \l -> lzero

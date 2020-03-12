@@ -1,0 +1,3 @@
+-- we specify zero uses, but we use the variable in the type
+test : (l : [zero, zero] Level) -> (a : Type l) -> Level
+test = _

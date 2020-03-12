@@ -13,6 +13,8 @@ module Language.Dlam.Syntax.Abstract
   , pattern Inl'
   , pattern Inr'
   , pattern LSuc'
+  , pattern Succ'
+  , pattern Zero'
   , Name(..)
   , mkIdent
   , ignoreVar
@@ -40,9 +42,13 @@ module Language.Dlam.Syntax.Abstract
   , BuiltinTerm(..)
 
   -- * Grading
+  , Grade
   , Grading
   , implicitGrading
   , mkGrading
+  , grading
+  , subjectGrade
+  , subjectTypeGrade
 
   -- * Bindings
   , TypedBinding
@@ -90,6 +96,11 @@ mkGrading :: Grade -> Grade -> Grading
 mkGrading = Com.mkGrading
 unBoundName :: BoundName -> Name
 unBoundName = Com.unBoundName
+grading :: (Com.IsGraded a Grade) => a -> Grading
+grading = Com.grading
+subjectGrade, subjectTypeGrade :: (Com.IsGraded a Grade) => a -> Grade
+subjectGrade = Com.subjectGrade
+subjectTypeGrade = Com.subjectTypeGrade
 
 
 implicitGrading :: Grading
@@ -111,6 +122,11 @@ mkTypedBinding isHid gr ty n = TB (mkArg isHid (n `typedWith` ty `gradedWith` gr
 
 instance Com.IsTyped TypedBinding Expr where
   typeOf = typeOf . un . un . unTB
+
+
+instance Com.IsGraded TypedBinding Grade where
+  grading = grading . un . unTB
+
 
 -- TODO: update this to support binding multiple names at once (see
 -- Agda discussion at
@@ -154,12 +170,12 @@ data Declaration =
   deriving (Show)
 
 
-type Arg = Com.Arg (Typed BindName)
+type Arg = Com.Arg (Typed (Graded BindName))
 
 
 -- | Name of the argument.
 argName :: Arg -> BindName
-argName = un . un
+argName = un . un . un
 
 
 -- | Argument type.
@@ -176,6 +192,14 @@ data Abstraction = Abst
   } deriving (Show, Eq, Ord)
 
 
+instance Com.IsGraded Abstraction Grade where
+  grading = grading . absArg
+
+
+instance Com.Hiding Abstraction where
+  isHidden = isHidden . absArg
+
+
 -- | Variable bound in the abstraction.
 absVar :: Abstraction -> Name
 absVar = unBindName . argName . absArg
@@ -187,11 +211,11 @@ absTy = argTy . absArg
 
 
 mkAbs :: Name -> Expr -> Expr -> Abstraction
-mkAbs v e1 e2 = Abst { absArg = mkArg NotHidden (BindName v `typedWith` e1), absExpr = e2 }
+mkAbs v e1 e2 = Abst { absArg = mkArg NotHidden (BindName v `gradedWith` implicitGrading `typedWith` e1), absExpr = e2 }
 
 
-mkAbs' :: IsHiddenOrNot -> Name -> Expr -> Expr -> Abstraction
-mkAbs' isHid v e1 e2 = Abst { absArg = mkArg isHid (BindName v `typedWith` e1), absExpr = e2 }
+mkAbs' :: IsHiddenOrNot -> Name -> Grading -> Expr -> Expr -> Abstraction
+mkAbs' isHid v g e1 e2 = Abst { absArg = mkArg isHid (BindName v `gradedWith` g `typedWith` e1), absExpr = e2 }
 
 
 data Expr
@@ -255,6 +279,14 @@ pattern Inr' l1 l2 a b r = App (App (App (App (App (Builtin Inr) l1) l2) a) b) r
 
 pattern LSuc' :: Expr -> Expr
 pattern LSuc' l = App (Builtin LSuc) l
+
+
+pattern Succ' :: Expr -> Expr
+pattern Succ' l = App (Builtin DNSucc) l
+
+
+pattern Zero' :: Expr
+pattern Zero' = Builtin DNZero
 
 
 -- | Make a new, unnamed, implicit term.
@@ -399,7 +431,7 @@ pprintAbs sep ab =
   let leftTyDoc =
         case absVar ab of
           Name _ C.NoName{} -> pprint (absTy ab)
-          _        -> parens (pprint (absVar ab) <+> colon <+> pprint (absTy ab))
+          _        -> parens (pprint (absVar ab) <+> colon <+> pprint (grading ab) <+> pprint (absTy ab))
   in leftTyDoc <+> sep <+> pprint (absExpr ab)
 
 
@@ -511,3 +543,7 @@ instance Pretty FRHS where
 instance Pretty Declaration where
   pprint (TypeSig n t) = pprint n <+> colon <+> pprint t
   pprint (FunEqn lhs rhs) = pprint lhs <+> pprint rhs
+
+instance Pretty Grading where
+  pprint g = char '[' <>
+             pprint (subjectGrade g) <> comma <+> pprint (subjectTypeGrade g) <> char ']'

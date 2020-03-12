@@ -21,6 +21,14 @@ module Language.Dlam.TypeChecking.Monad.Base
   , setValue
   , withValuedVariable
 
+  -- ** Grading
+  , withGradedVariable
+  , lookupSubjectRemaining
+  , decrementGrade
+  , setSubjectRemaining
+  , grZero
+  , grOne
+
   -- * Environment
   , withLocalCheckingOf
 
@@ -47,6 +55,9 @@ module Language.Dlam.TypeChecking.Monad.Base
   -- ** Pattern errors
   , patternMismatch
 
+  -- ** Grading errors
+  , usedTooManyTimes
+
   -- ** Parse errors
   , parseError
   ) where
@@ -70,6 +81,8 @@ data CheckerState
   = CheckerState
     { typingScope :: M.Map Name Expr
     , valueScope :: M.Map Name Expr
+    , provisionScope :: M.Map Name Grading
+    -- ^ Scope of provisions (how can an assumption be used---grades remaining).
     , nextNameId :: NameId
     -- ^ Unique NameId for naming.
     }
@@ -80,6 +93,7 @@ startCheckerState :: CheckerState
 startCheckerState =
   CheckerState { typingScope = builtinsTypes
                , valueScope = builtinsValues
+               , provisionScope = M.empty
                , nextNameId = 0
                }
 
@@ -158,6 +172,62 @@ withValuedVariable v t p = do
   pure res
 
 
+-------------
+-- Grading --
+-------------
+
+
+lookupRemaining :: Name -> CM (Maybe Grading)
+lookupRemaining n = M.lookup n . provisionScope <$> get
+
+
+lookupSubjectRemaining :: Name -> CM (Maybe Grade)
+lookupSubjectRemaining n = fmap subjectGrade <$> lookupRemaining n
+
+
+decrementGrade :: Grade -> CM (Maybe Grade)
+decrementGrade e = do
+  case e of
+    Succ' n -> pure (Just n)
+    Zero' -> pure Nothing
+    -- TODO: figure out how to handle implicit grades---for now just
+    -- assuming we can do whatever we want with them (2020-03-11)
+    Implicit -> pure (Just Implicit)
+    _ -> notImplemented $ "I don't yet know how to decrement the grade '" <> pprintShow e <> "'"
+
+
+grZero, grOne :: Grade
+grOne = Succ' grZero
+grZero = Zero'
+
+
+modifyRemaining :: Name -> (Grading -> Grading) -> CM ()
+modifyRemaining n f = do
+  prev <- lookupRemaining n
+  case prev of
+    Nothing -> pure ()
+    Just prev -> setRemaining n (f prev)
+
+
+setRemaining :: Name -> Grading -> CM ()
+setRemaining n g = modify (\s -> s { provisionScope = M.insert n g (provisionScope s) })
+
+
+setSubjectRemaining :: Name -> Grade -> CM ()
+setSubjectRemaining n g = modifyRemaining n (\gs -> mkGrading g (subjectTypeGrade gs))
+
+
+-- | Execute the action with the given identifier bound with the given grading.
+withGradedVariable :: Name -> Grading -> CM a -> CM a
+withGradedVariable v gr p = do
+  st <- get
+  setRemaining v gr
+  res <- p
+  -- restore the provision scope
+  modify (\s -> s { provisionScope = provisionScope st})
+  pure res
+
+
 ------------------------------
 -- * Type checking environment
 ------------------------------
@@ -223,6 +293,12 @@ data TCError
 
   | PatternMismatch Pattern Expr
 
+  --------------------
+  -- Grading Errors --
+  --------------------
+
+  | UsedTooManyTimes Name
+
   ------------------
   -- Parse Errors --
   ------------------
@@ -245,6 +321,8 @@ instance Show TCError where
     <> pprintShow t <> "'"
   show (PatternMismatch p t) =
     "The pattern '" <> pprintShow p <> "' is not valid for type '" <> pprintShow t <> "'"
+  show (UsedTooManyTimes n) =
+    "'" <> pprintShow n <> "' is used too many times."
   show (ParseError e) = show e
   show (ScoperError e) = show e
 
@@ -282,6 +360,10 @@ expectedInferredTypeForm descr t =
 
 patternMismatch :: Pattern -> Expr -> CM a
 patternMismatch p t = throwCM (PatternMismatch p t)
+
+
+usedTooManyTimes :: Name -> CM a
+usedTooManyTimes = throwCM . UsedTooManyTimes
 
 
 parseError :: ParseError -> CM a

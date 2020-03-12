@@ -152,3 +152,7 @@ instance (Pretty e) => Pretty (Arg e) where
 
 instance (Binds a n) => Binds (Arg a) n where
   bindsWhat = bindsWhat . un
+
+
+instance (IsGraded a g) => IsGraded (Arg a) g where
+  grading = grading . un

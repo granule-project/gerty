@@ -76,6 +76,10 @@ instance (Pretty t, Pretty a) => Pretty (Typed t a) where
   pprint e = pprint (un e) <+> colon <+> pprint (unTyped e)
 
 
+instance (IsGraded a g) => IsGraded (Typed t a) g where
+  grading = grading . un
+
+
 ------------------------------
 ----- Language Specifics -----
 ------------------------------
