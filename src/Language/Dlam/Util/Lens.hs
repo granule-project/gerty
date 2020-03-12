@@ -7,7 +7,6 @@
 
 module Language.Dlam.Util.Lens
   ( module Language.Dlam.Util.Lens
-  , (<&>) -- reexported from Language.Dlam.Util.Functor
   ) where
 
 import Control.Applicative ( Const(Const), getConst )
@@ -20,7 +19,11 @@ import qualified Data.Map as Map
 
 import Data.Functor.Identity
 
-import Language.Dlam.Util.Functor ((<&>))
+
+-- | Infix version of 'for'.
+(<&>) :: Functor m => m a -> (a -> b) -> m b
+(<&>) a b = fmap b a
+
 
 -- * Type-preserving lenses.
 

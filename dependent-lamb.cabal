@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: f7bda45647df4252566ac578dd8b2797fb09fcafdd54d1e9f284aeb8c84468c3
+-- hash: 3491b2dc75d8074bfafb4f060bad0bb435df03771af615df375b3cee635b518f
 
 name:           dependent-lamb
 version:        0.0.1
@@ -49,7 +49,6 @@ library
       Language.Dlam.Scoping.Monad.Exception
       Language.Dlam.Scoping.Scope
       Language.Dlam.TypeChecking.Monad.Base
-      Language.Dlam.Util.Functor
       Language.Dlam.Util.Lens
       Language.Dlam.Util.Peekaboo
       Language.Dlam.Util.Pretty
