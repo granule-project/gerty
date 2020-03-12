@@ -2,7 +2,7 @@
 
 The files src/Language/Dlam/Syntax/{Literal,Position}.hs,
 src/Language/Dlam/Syntax/Lexer.x, src/Language/Dlam/Syntax/Parser.y,
-src/Language/Dlam/Util/{Functor,Lens}.hs,
+src/Language/Dlam/Util/Lens.hs,
 src/Language/Dlam/Syntax/Parser/{Alex,Comments,Layout,LexActions,LookAhead,Monad,Tokens}.hs,
 src/Language/Dlam/Syntax/Parser/{Layout,LexActions}.hs-boot are
 substantial reproductions of files from the Agda project, and as such
