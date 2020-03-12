@@ -440,9 +440,11 @@ instance Pretty Grading where
 
 instance Pretty TypedBinding where
   pprint tb =
-    (if isHidden' tb then braces else parens) $
-    (let tySide = un (unTB tb) in
-     (idc (pprint . grading) (const empty) tySide) <+> pprint (typeOf tySide))
+    let names = bindsWhat tb
+        ty    = typeOf tb
+        grads = tryIt grading (un $ unTB tb)
+    in (if isHidden' tb then braces else parens) $
+       pprint names <+> colon <+> maybe empty pprint grads <+> pprint ty
 
 instance Pretty PiBindings where
   pprint (PiBindings binds) = hsep (fmap pprint binds)
