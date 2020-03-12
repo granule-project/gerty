@@ -36,27 +36,16 @@ import Prelude hiding ((<>))
 
 import Control.Exception (displayException)
 import Control.Monad.Except (MonadError(throwError))
+import Control.Monad.State
 import Data.Int
-
 import Data.Data (Data)
 
-import Control.Monad.State
-
--- import Language.Dlam.Interaction.Options.Warnings
-
 import Language.Dlam.Syntax.Position
-
--- import Language.Dlam.Utils.Except ( MonadError(throwError) )
--- import Language.Dlam.Utils.FileName
--- import Language.Dlam.Utils.List ( tailWithDefault )
--- import qualified Language.Dlam.Utils.Maybe.Strict as Strict
-
 import Language.Dlam.Util.Pretty
 
 
 type AbsolutePath = FilePath
 
--- import Language.Dlam.Utils.Impossible
 
 {--------------------------------------------------------------------------
     The parse monad

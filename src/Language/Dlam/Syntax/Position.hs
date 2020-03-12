@@ -76,18 +76,15 @@ import Prelude hiding ((<>))
 
 import Control.Monad.Writer (runWriter, tell)
 
--- import Data.Foldable (Foldable)
 import qualified Data.Foldable as Fold
 import Data.Function
 import Data.Int
 import Data.List hiding (null)
 import Data.List.NonEmpty (NonEmpty(..))
--- import qualified Data.List.NonEmpty as NonEmpty
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Set (Set)
 import qualified Data.Set as Set
--- import Data.Traversable (Traversable)
 import Data.Data (Data)
 import Data.Sequence (Seq)
 import qualified Data.Sequence as Seq
@@ -98,16 +95,10 @@ import GHC.Generics (Generic)
 
 import Language.Dlam.Util.Pretty
 
--- import Language.Dlam.Utils.FileName
--- import Language.Dlam.Utils.List
--- import qualified Language.Dlam.Utils.Maybe.Strict as Strict
--- import Language.Dlam.Utils.Null
--- import Language.Dlam.Utils.Pretty
---
--- import Language.Dlam.Utils.Impossible
 
 __IMPOSSIBLE__ :: a
 __IMPOSSIBLE__ = error "Shouldn't be able to reach this point."
+
 
 {--------------------------------------------------------------------------
     Types and classes

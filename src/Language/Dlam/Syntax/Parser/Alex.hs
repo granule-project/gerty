@@ -25,7 +25,7 @@ import Language.Dlam.Syntax.Position
 import Language.Dlam.Syntax.Parser.Monad
 
 import Language.Dlam.Util.Lens
--- import Language.Dlam.Utils.Tuple
+
 
 -- | This is what the lexer manipulates.
 data AlexInput = AlexInput
@@ -34,6 +34,7 @@ data AlexInput = AlexInput
   , lexInput    :: String                -- ^ Current input.
   , lexPrevChar :: !Char                 -- ^ Previously read character.
   }
+
 
 -- | A lens for 'lexInput'.
 lensLexInput :: Lens' String AlexInput

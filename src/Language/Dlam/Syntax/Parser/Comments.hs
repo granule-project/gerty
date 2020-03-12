@@ -17,15 +17,16 @@ import Language.Dlam.Syntax.Parser.Alex
 import Language.Dlam.Syntax.Parser.LookAhead
 import Language.Dlam.Syntax.Position
 
--- | Should comment tokens be output?
 
+-- | Should comment tokens be output?
 keepComments :: LexPredicate
 keepComments (_, s) _ _ _ = parseKeepComments s
 
--- | Should comment tokens be output?
 
+-- | Should comment tokens be output?
 keepCommentsM :: Parser Bool
 keepCommentsM = fmap parseKeepComments getParseFlags
+
 
 -- | Manually lexing a block comment. Assumes an /open comment/ has been lexed.
 --   In the end the comment is discarded and 'lexToken' is called to lex a real
