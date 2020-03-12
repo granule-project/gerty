@@ -354,17 +354,22 @@ caset = text "case"
 
 
 instance (Pretty e) => Pretty (MaybeNamed e) where
+  isLexicallyAtomic (Unnamed e) = isLexicallyAtomic e
+  isLexicallyAtomic _ = False
+
   pprint (Named n e) = pprint n <+> equals <+> pprint e
   pprint (Unnamed e) = pprint e
 
 
 instance Pretty Expr where
-    isLexicallyAtomic (Ident _) = True
+    isLexicallyAtomic (Ident _)  = True
     isLexicallyAtomic LitLevel{} = True
     isLexicallyAtomic Pair{}     = True
     isLexicallyAtomic Hole{}     = True
     isLexicallyAtomic Implicit{} = True
-    isLexicallyAtomic _       = False
+    isLexicallyAtomic BraceArg{} = True
+    isLexicallyAtomic Parens{}   = True
+    isLexicallyAtomic _          = False
 
     pprint (LitLevel n)           = integer n
     pprint (Lam binders finE) =
@@ -439,6 +444,8 @@ instance Pretty Grading where
              pprint (subjectGrade g) <> comma <+> pprint (subjectTypeGrade g) <> char ']'
 
 instance Pretty TypedBinding where
+  isLexicallyAtomic _ = True
+
   pprint tb =
     let names = bindsWhat tb
         ty    = typeOf tb
@@ -459,6 +466,9 @@ instance Pretty FRHS where
   pprint (FRHSAssign e) = equals <+> pprint e
 
 instance (Pretty a) => Pretty (Param a) where
+  isLexicallyAtomic (ParamNamed nb) = isLexicallyAtomic nb
+  isLexicallyAtomic (ParamUnnamed a) = isLexicallyAtomic a
+
   pprint (ParamNamed nb) = pprint nb
   pprint (ParamUnnamed a) = pprint a
 

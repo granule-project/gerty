@@ -478,6 +478,7 @@ instance Pretty BindName where
   pprint = pprint . unBindName
 
 instance Pretty BuiltinTerm where
+  isLexicallyAtomic _ = True
   pprint LZero     = text "lzero"
   pprint LMax      = text "lmax"
   pprint LSuc      = text "lsuc"
@@ -495,6 +496,7 @@ instance Pretty BuiltinTerm where
   pprint DEmptyTy  = text "Empty"
 
 instance Pretty Name where
+  isLexicallyAtomic _ = True
   pprint = pprint . nameConcrete
 
 instance Pretty AST where

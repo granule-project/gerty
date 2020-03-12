@@ -156,10 +156,12 @@ instance (Pretty n) => Pretty (BoundName n) where
 
 
 instance (Pretty n) => Pretty [BoundName n] where
+  isLexicallyAtomic = (<=1) . length
   pprint = hsep . fmap pprint
 
 
 instance (Pretty n) => Pretty (OneOrMoreBoundNames n) where
+  isLexicallyAtomic = (==1) . NE.length
   pprint = pprint . NE.toList
 
 

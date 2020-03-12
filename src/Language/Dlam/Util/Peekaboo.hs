@@ -25,7 +25,7 @@ module Language.Dlam.Util.Peekaboo
   ) where
 
 
-import Language.Dlam.Util.Pretty (Pretty(pprint))
+import Language.Dlam.Util.Pretty (Pretty(..))
 
 
 ------------
@@ -73,6 +73,7 @@ instance (Un t) => Un (MightBe t) where
 
 
 instance (Pretty (t e), Pretty e) => Pretty (MightBe t e) where
+  isLexicallyAtomic = idc isLexicallyAtomic isLexicallyAtomic
   pprint = idc pprint pprint
 
 
@@ -106,7 +107,11 @@ instance ThenCouldBe ThenMightBe t1 t2 a where
 deriving instance (Show (t1 a), Show (t2 (t1 a))) => Show (ThenMightBe t1 t2 a)
 deriving instance (Eq (t1 a), Eq (t2 (t1 a))) => Eq (ThenMightBe t1 t2 a)
 deriving instance (Ord (t1 a), Ord (t2 (t1 a))) => Ord (ThenMightBe t1 t2 a)
-deriving instance (Pretty (t2 (t1 e)), Pretty (t1 e)) => Pretty (ThenMightBe t1 t2 e)
+
+
+instance (Pretty (t2 (t1 e)), Pretty (t1 e)) => Pretty (ThenMightBe t1 t2 e) where
+  isLexicallyAtomic = idrc isLexicallyAtomic isLexicallyAtomic
+  pprint = idrc pprint pprint
 
 
 -------------

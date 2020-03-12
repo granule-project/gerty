@@ -36,10 +36,14 @@ ignoreVar = NoName (NameId 0)
 
 
 instance Pretty Name where
+  isLexicallyAtomic _ = True
+
   pprint (Name v) = text v
   pprint NoName{} = char '_'
 
 
 instance Pretty QName where
+  isLexicallyAtomic _ = True
+
   pprint (Qualified n qs) = pprint n <> char '.' <> pprint qs
   pprint (Unqualified n)  = pprint n
