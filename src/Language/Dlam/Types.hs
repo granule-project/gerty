@@ -461,7 +461,7 @@ checkOrInferType' t (FunTy ab) = do
 --------------------------------------------
 checkOrInferType' Implicit expr@(Lam ab) = do
   rTy <- withAbsBinding ab $ checkOrInferType mkImplicit (absExpr ab)
-  checkOrInferType (FunTy (mkAbs (absVar ab) (absTy ab) rTy)) expr
+  checkOrInferType (FunTy (mkAbs' (isHidden ab) (absVar ab) (grading ab) (absTy ab) rTy)) expr
 
 {-
    G, x : A |- e : B
