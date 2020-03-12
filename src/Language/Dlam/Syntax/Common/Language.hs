@@ -150,6 +150,8 @@ type OneOrMoreBoundNames n = NE.NonEmpty (BoundName n)
 
 
 instance (Pretty n) => Pretty (BoundName n) where
+  isLexicallyAtomic = isLexicallyAtomic . unBoundName
+
   pprint = pprint . unBoundName
 
 
