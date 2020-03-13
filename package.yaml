@@ -29,7 +29,6 @@ library:
    - pretty
    - transformers
    - array
-   - text
   exposed-modules:
    - Language.Dlam.Interpreter
    - Language.Dlam.Substitution

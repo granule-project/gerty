@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 87287da106a582ba98d4704dceaf43e7f2f532f801e4f7b4018478b4b432d9e1
+-- hash: 8d77695de26e879d68437223edf936c23c98babf60f0a0e030ea2594cfbf8942
 
 name:           dependent-lamb
 version:        0.0.1
@@ -63,7 +63,6 @@ library
     , containers
     , mtl
     , pretty
-    , text
     , transformers
   default-language: Haskell2010
 
