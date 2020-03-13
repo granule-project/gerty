@@ -39,7 +39,6 @@ library:
    - Language.Dlam.TypeChecking.Monad
   other-modules:
    - Language.Dlam.Builtins
-   - Language.Dlam.FirstParameter
    - Language.Dlam.Syntax.Abstract
    - Language.Dlam.Syntax.Common
    - Language.Dlam.Syntax.Common.Language
