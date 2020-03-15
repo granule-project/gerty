@@ -40,6 +40,7 @@ instance Free A.Expr where
   freeVars A.Implicit                      = Set.empty
   freeVars A.LitLevel{}                    = Set.empty
   freeVars A.Builtin{}                     = Set.empty
+  freeVars A.EType                         = Set.empty
   freeVars (A.Let pb e) = Set.difference (freeVars e) (boundVars pb)
     where boundVars (A.LetPatBound p _) =
             Set.map A.unBindName $ A.boundSubjectVars p <> A.boundTypingVars p

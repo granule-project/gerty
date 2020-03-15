@@ -14,6 +14,7 @@ data Keyword
         | KwRewrite
         | KwCase | KwOf | KwInl | KwInr
         | KwZero | KwSucc
+        | KwType
     deriving (Eq, Show)
 
 layoutKeywords :: [Keyword]

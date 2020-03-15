@@ -309,7 +309,7 @@ inferUniverseLevel e = withLocalCheckingOf e $ do
   u <- synthType e
   norm <- normalise u
   case norm of
-    (App (Builtin TypeTy) l) -> pure l
+    (App EType l) -> pure l
     _        -> expectedInferredTypeForm "universe" norm
 
 
@@ -360,9 +360,6 @@ checkOrInferType' t (Builtin e) =
 
       -- lsuc : Level -> Level
       LSuc  -> builtinType lsuc
-
-      -- Type : (l : Level) -> Type (lsuc l)
-      TypeTy -> builtinType typeTy
 
       -- Level : Type 0
       LevelTy -> builtinType levelTy

@@ -468,9 +468,6 @@ getBuiltinType e =
     -- lsuc : Level -> Level
     LSuc  -> builtinType lsuc
 
-    -- Type : (l : Level) -> Type (lsuc l)
-    TypeTy -> builtinType typeTy
-
     -- Level : Type 0
     LevelTy -> builtinType levelTy
 

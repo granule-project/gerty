@@ -23,7 +23,6 @@ module Language.Dlam.Builtins2
   , lmaxApp
 
   -- ** Type Universes
-  , typeTy
   , mkUnivTy
 
   -- ** Coproducts
@@ -91,7 +90,6 @@ builtinTypes =
   , natTy
   , unitTy
   , emptyTy
-  , typeTy
   , idTy
   -- [ typeTy
   -- , lzero, lsuc, lmax
@@ -174,7 +172,6 @@ levelTy' = mkTypeVar (builtinName levelTy) levelZero
 unitTy' = mkTypeVar (builtinName unitTy) levelZero
 
 levelTy, lzero, lsuc, lmax,
- typeTy,
  coproductBin, inlTerm, inrTerm,
  unitTy, unitTerm,
  idTy, reflTerm,
@@ -185,8 +182,6 @@ levelTy = mkBuiltinType LevelTy levelZero
 lzero = mkBuiltin LZero levelTy'
 lsuc = mkBuiltin LSuc (mkFunTy ignoreVar levelTy' levelTy')
 lmax = mkBuiltin LMax (mkFunTy ignoreVar levelTy' (mkFunTy ignoreVar levelTy' levelTy'))
-typeTy = mkBuiltin TypeTy
-         (let l = mkIdent "l" in mkFunTy l levelTy' (mkUnivTy (lsucApp (mkVar l))))
 coproductBin = mkBuiltin DCoproduct coproductTY
   where
     coproductTY =

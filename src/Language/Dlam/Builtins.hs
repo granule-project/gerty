@@ -22,7 +22,6 @@ module Language.Dlam.Builtins
   , lmaxApp
 
   -- ** Type Universes
-  , typeTy
   , mkUnivTy
 
   -- ** Coproducts
@@ -61,8 +60,7 @@ import Language.Dlam.Util.Pretty (pprintShow)
 -- | The list of builtins.
 builtins :: [Builtin]
 builtins =
-   [ typeTy
-   , levelTy, lzero, lsuc, lmax
+   [ levelTy, lzero, lsuc, lmax
    , inlTerm, inrTerm
    , natTy, dnzero, dnsucc
    , unitTerm, unitTy
@@ -116,7 +114,6 @@ mkApp = App
 levelTy' = builtinBody levelTy
 
 levelTy, lzero, lsuc, lmax,
- typeTy,
  inlTerm, inrTerm,
  unitTy, unitTerm,
  idTy, reflTerm,
@@ -127,8 +124,6 @@ levelTy = mkBuiltin LevelTy typeZero
 lzero = mkBuiltin LZero levelTy'
 lsuc = mkBuiltin LSuc (mkFunTy ignoreVar levelTy' levelTy')
 lmax = mkBuiltin LMax (mkFunTy ignoreVar levelTy' (mkFunTy ignoreVar levelTy' levelTy'))
-typeTy = mkBuiltin TypeTy
-         (let l = mkIdent "l" in mkFunTy l levelTy' (mkUnivTy (lsucApp (Var l))))
 inlTerm = mkBuiltin Inl inlTermTY
   where
     inlTermTY =
@@ -194,7 +189,7 @@ lmaxApp :: Expr -> Expr -> Expr
 lmaxApp l1 l2 = mkApp (mkApp (builtinBody lmax) l1) l2
 
 mkUnivTy :: Expr -> Expr
-mkUnivTy = mkApp (builtinBody typeTy)
+mkUnivTy = AType
 
 inlTermApp :: Expr -> Expr -> Expr -> Expr -> Expr -> Expr
 inlTermApp l1 l2 a b v = mkApp (mkApp (mkApp (mkApp (mkApp (builtinBody inlTerm) l1) l2) a) b) v

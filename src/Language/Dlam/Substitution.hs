@@ -106,6 +106,7 @@ instance {-# OVERLAPS #-} Substitutable CM (Name, Expr) Expr where
     e' <- substitute s e
     r' <- if v `Set.member` (Set.map unBindName (boundSubjectVars p)) then pure r else substitute s r
     pure $ Let (LetPatBound p e') r'
+  substitute _ EType = pure EType
 
 
 instance {-# OVERLAPS #-} Substitutable CM (Name, I.Term) I.Type where

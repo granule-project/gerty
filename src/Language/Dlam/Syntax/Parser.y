@@ -52,6 +52,7 @@ import Language.Dlam.Util.Pretty (pprintShow)
     VAR     { TokId $$ }
     literal { TokLiteral $$ }
     absurd  { TokSymbol SymAbsurd $$ }
+    'Type'  { TokKeyword KwType $$ }
     '\\'    { TokSymbol SymLambda $$ }
     '->'    { TokSymbol SymArrow $$ }
     '*'     { TokSymbol SymStar $$ }
@@ -309,6 +310,7 @@ Expr3 :: { Expr }
 
 Atom :: { ParseExpr }
   : '(' Expr ')'              { Parens $2 }
+  | 'Type'                    { EType }
   | QId                       { Ident $1 }
   | '_'                       { mkImplicit }
   | literal                   { LitLevel (natTokenToInt $1) }

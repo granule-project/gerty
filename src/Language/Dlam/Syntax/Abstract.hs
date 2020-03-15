@@ -267,11 +267,14 @@ data Expr
   | Builtin BuiltinTerm
 
   | Let LetBinding Expr
+
+  -- 'Type'.
+  | EType
   deriving (Show, Eq, Ord)
 
 
 pattern AType :: Expr -> Expr
-pattern AType l = App (Builtin TypeTy) l
+pattern AType l = App EType l
 
 
 pattern Inl' :: Expr -> Expr -> Expr -> Expr -> Expr -> Expr
@@ -389,9 +392,6 @@ data BuiltinTerm =
   -- | Level maximum.
   | LMax
 
-  -- | Universe type.
-  | TypeTy
-
   -- | Coproduct type.
   | DCoproduct
 
@@ -456,6 +456,7 @@ instance Pretty Expr where
     isLexicallyAtomic Pair{}     = True
     isLexicallyAtomic Hole{}     = True
     isLexicallyAtomic Implicit{} = True
+    isLexicallyAtomic EType      = True
     isLexicallyAtomic _       = False
 
     pprint (LitLevel n)           = integer n
@@ -503,6 +504,7 @@ instance Pretty Expr where
     pprint (EmptyElim (x, tC) a) =
       text "let" <+> pprint x <> at <> text "()" <+> equals <+> pprint a <+> colon <+> pprint tC
     pprint (Let lb e) = text "let" <+> pprint lb <+> text "in" <+> pprint e
+    pprint EType = text "Type"
 
 instance Pretty LetBinding where
   pprint (LetPatBound p e) = pprint p <+> equals <+> pprint e
@@ -523,7 +525,6 @@ instance Pretty BuiltinTerm where
   pprint LMax      = text "lmax"
   pprint LSuc      = text "lsuc"
   pprint LevelTy   = text "Level"
-  pprint TypeTy    = text "Type"
   pprint DCoproduct = text "(_+_)"
   pprint Inl       = text "inl"
   pprint Inr       = text "inr"
