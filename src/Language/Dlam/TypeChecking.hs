@@ -239,6 +239,12 @@ typesAreEqual t1 t2 = do
     (TyApp (TyVar x) xs, TyApp (TyVar y) ys) ->
       (&&) <$> pure (x == y) <*> (and <$> (mapM (uncurry termsAreEqual) (zip xs ys)))
     (Universe l1, Universe l2) -> levelsAreEqual l1 l2
+    (Pi arg1 t1, Pi arg2 t2) -> do
+      let x = un (un arg1)
+          y = un (un arg2)
+      t2s <- substitute (y, mkVar x) t2
+      (&&) <$> typesAreEqual (typeOf arg1) (typeOf arg2)
+           <*> withArgBound arg1 (typesAreEqual t1 t2s)
     _ -> notImplemented $ "typesAreEqual: TODO: equality of types '" <> pprintShow t1 <> "' and '" <> pprintShow t2 <> "'"
     -- (_, _) -> pure False
 
@@ -527,6 +533,12 @@ universeOrNotAType t =
 theUniverseWeLiveIn :: Type -> Level
 theUniverseWeLiveIn = prevLevel . level
 
+
+-- | Execute the action with the binder active (for subject checking).
+withArgBound :: Arg -> CM a -> CM a
+withArgBound arg act =
+  let x = argVar arg
+  in withGradedVariable' x (I.grading arg) $ withTypedVariable' x (typeOf arg) act
 
 
 class Normalise m t where
