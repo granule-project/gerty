@@ -1,0 +1,8 @@
+test0 : Type 2
+test0 = Type 1
+
+test1 : Type 1
+test1 = Type 0
+
+test2 : test0
+test2 = test1
