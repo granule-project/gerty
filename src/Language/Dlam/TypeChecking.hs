@@ -554,7 +554,7 @@ instance Normalise CM Term where
         l' <- normalise l
         xs <- normalise xs
         pure . TypeTerm $ mkType (TyApp (TyVar n) xs) l'
-      _ -> error "here"
+      _ -> I.App (I.Var n) <$> normalise xs
       -- t@Pi{} -> do
       --   resTy <- substArgs t xs
       --   case un resTy of
@@ -569,6 +569,9 @@ instance Normalise CM Term where
           substArgs t xs =
             case (un t, xs) of
               (Universe{}, []) -> normalise t
+              (TyApp (TyVar v) xs, []) -> do
+                xs' <- normalise xs
+                pure $ mkType (TyApp (TyVar v) xs') (level t)
               (Pi arg resTy, x:xs) -> do
                 resTy' <- substitute (un (un arg), x) resTy
                 substArgs resTy' xs

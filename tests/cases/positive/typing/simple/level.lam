@@ -1,0 +1,5 @@
+test1 : Level
+test1 = lzero
+
+test2 : Type 0
+test2 = Level
