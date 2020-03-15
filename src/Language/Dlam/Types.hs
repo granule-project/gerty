@@ -63,6 +63,7 @@ finalNormalForm = pure
 -- | Normalise the expression via a series of reductions.
 normalise :: Expr -> CM Expr
 normalise Implicit = finalNormalForm Implicit
+normalise EType = finalNormalForm EType
 normalise (Var x) = do
   val <- lookupValue x
   case val of
@@ -227,6 +228,7 @@ equalExprs e1 e2 = do
     -- Implicits always match.
     (Implicit, _) -> pure True
     (_, Implicit) -> pure True
+    (EType, EType) -> pure True
     (Builtin b1, Builtin b2) -> pure (b1 == b2)
     (LitLevel n, LitLevel m) -> pure (n == m)
 
@@ -399,6 +401,8 @@ checkOrInferType' t (Builtin e) =
 
       DCoproduct -> error "TODO: Type for coproduct builtin"
       -- DCoproduct -> builtinType coproductBin
+checkOrInferType' t EType = ensureEqualTypes t
+                            (let l = mkIdent "l"; lv = Var l in FunTy (mkAbs l levelTy' (AType (lsucApp lv))))
 ----------------------
 -- Level expression --
 ----------------------

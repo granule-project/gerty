@@ -15,6 +15,7 @@ module Language.Dlam.Builtins
 
   -- ** Levels
   , levelTy
+  , levelTy'
   , lzero
   , lsuc
   , lsucApp

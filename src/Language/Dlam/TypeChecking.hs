@@ -446,6 +446,10 @@ inferExpr e = do
 
 
 inferExpr_ :: Expr -> CM (Term, Type)
+inferExpr_ EType =
+  let l = mkIdent "l"
+  in pure (I.Lam (l `typedWith` levelTy' `gradedWith` thatMagicalGrading) (TypeTerm (mkType (Universe (mkLevelVar l)) (nextLevel (mkLevelVar l))))
+          , mkFunTy l levelTy' (mkUnivTy (lsucApp (mkVar l))))
 inferExpr_ (Var x) = do
   ty <- lookupType' x
   mval <- maybeLookupValue x

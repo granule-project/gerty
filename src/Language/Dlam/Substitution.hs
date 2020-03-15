@@ -156,6 +156,7 @@ instance {-# OVERLAPS #-} Substitutable CM (Name, I.Term) I.Term where
   -- substitute (v, e) (I.App (I.Var x) xs)
   --   | v == x    = pure e
   --   | otherwise = pure (Var x)
+  substitute s (I.TypeTerm t) = I.TypeTerm <$> substitute s t
   substitute (v, t) t'@(I.App (I.Var x) []) = pure $ if v == x then t else t'
   substitute (v, t) t' =
     CM.notImplemented $ "substituting '" <> pprintShow t <> "' for '" <> pprintShow v <> "' in term '" <> pprintShow t' <> "'"

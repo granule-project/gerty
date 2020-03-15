@@ -50,6 +50,11 @@ module Language.Dlam.Builtins2
   , idTyApp
   , reflTerm
   , reflTermApp
+
+  -- * Helpers
+  , mkFunTy
+  , mkLevelVar
+  , mkVar
   ) where
 
 
