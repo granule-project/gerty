@@ -15,17 +15,27 @@ module Language.Dlam.TypeChecking.Monad.Base
 
   -- ** Scope
   , lookupType
+  , maybeLookupType
+  , lookupType'
   , setType
+  , setType'
   , withTypedVariable
+  , withTypedVariable'
   , lookupValue
+  , maybeLookupValue
+  , lookupValue'
   , setValue
+  , setValue'
   , withValuedVariable
 
   -- ** Grading
   , withGradedVariable
+  , withGradedVariable'
   , lookupSubjectRemaining
+  , lookupSubjectRemaining'
   , decrementGrade
   , setSubjectRemaining
+  , setSubjectRemaining'
   , grZero
   , grOne
 
@@ -50,7 +60,10 @@ module Language.Dlam.TypeChecking.Monad.Base
 
   -- ** Type errors
   , tyMismatch
+  , tyMismatch'
   , expectedInferredTypeForm
+  , expectedInferredTypeForm'
+  , notAType
 
   -- ** Pattern errors
   , patternMismatch
@@ -70,9 +83,12 @@ import Control.Monad.Writer
 import qualified Data.Map as M
 
 import Language.Dlam.Builtins
+import qualified Language.Dlam.Builtins2 as B2
 import qualified Language.Dlam.Scoping.Monad.Exception as SE
 import Language.Dlam.Syntax.Abstract
+import qualified Language.Dlam.Syntax.Internal as I
 import Language.Dlam.Syntax.Common (NameId)
+import qualified Language.Dlam.Syntax.Concrete.Name as C
 import Language.Dlam.Syntax.Parser.Monad (ParseError)
 import Language.Dlam.Util.Pretty (pprintShow)
 
@@ -85,6 +101,9 @@ data CheckerState
     -- ^ Scope of provisions (how can an assumption be used---grades remaining).
     , nextNameId :: NameId
     -- ^ Unique NameId for naming.
+    , typingScope' :: M.Map Name I.Type
+    , valueScope' :: M.Map Name I.Term
+    , provisionScope' :: M.Map Name I.Grading
     }
 
 
@@ -95,6 +114,11 @@ startCheckerState =
                , valueScope = builtinsValues
                , provisionScope = M.empty
                , nextNameId = 0
+               -- , typingScope' = M.empty
+               -- , valueScope' = M.empty
+               , typingScope' = B2.builtinsTypes
+               , valueScope' = B2.builtinsValues
+               , provisionScope' = M.empty
                }
 
 
@@ -138,8 +162,19 @@ lookupType :: Name -> CM (Maybe Expr)
 lookupType n = M.lookup n . typingScope <$> get
 
 
+maybeLookupType :: Name -> CM (Maybe I.Type)
+maybeLookupType n = M.lookup n . typingScope' <$> get
+
+
+lookupType' :: Name -> CM I.Type
+lookupType' n = do
+  maybeLookupType n >>= maybe (scoperError $ SE.unknownNameErr (C.Unqualified $ nameConcrete n)) pure
+
+
 setType :: Name -> Expr -> CM ()
 setType n t = modify (\s -> s { typingScope = M.insert n t (typingScope s) })
+setType' :: Name -> I.Type -> CM ()
+setType' n t = modify (\s -> s { typingScope' = M.insert n t (typingScope' s) })
 
 
 -- | Execute the action with the given identifier bound with the given type.
@@ -151,14 +186,33 @@ withTypedVariable v t p = do
   -- restore the typing scope
   modify (\s -> s { typingScope = typingScope st})
   pure res
+-- | Execute the action with the given identifier bound with the given type.
+withTypedVariable' :: Name -> I.Type -> CM a -> CM a
+withTypedVariable' v t p = do
+  st <- get
+  setType' v t
+  res <- p
+  -- restore the typing scope
+  modify (\s -> s { typingScope' = typingScope' st})
+  pure res
 
 
 lookupValue :: Name -> CM (Maybe Expr)
 lookupValue n = M.lookup n . valueScope <$> get
 
+maybeLookupValue :: Name -> CM (Maybe I.Term)
+maybeLookupValue n = M.lookup n . valueScope' <$> get
+
+
+lookupValue' :: Name -> CM I.Term
+lookupValue' n =
+  maybeLookupValue n >>= maybe (scoperError $ SE.unknownNameErr (C.Unqualified $ nameConcrete n)) pure
+
 
 setValue :: Name -> Expr -> CM ()
 setValue n t = modify (\s -> s { valueScope = M.insert n t (valueScope s) })
+setValue' :: Name -> I.Term -> CM ()
+setValue' n t = modify (\s -> s { valueScope' = M.insert n t (valueScope' s) })
 
 
 -- | Execute the action with the given identifier bound with the given value.
@@ -179,10 +233,14 @@ withValuedVariable v t p = do
 
 lookupRemaining :: Name -> CM (Maybe Grading)
 lookupRemaining n = M.lookup n . provisionScope <$> get
+lookupRemaining' :: Name -> CM (Maybe I.Grading)
+lookupRemaining' n = M.lookup n . provisionScope' <$> get
 
 
 lookupSubjectRemaining :: Name -> CM (Maybe Grade)
 lookupSubjectRemaining n = fmap subjectGrade <$> lookupRemaining n
+lookupSubjectRemaining' :: Name -> CM (Maybe I.Grade)
+lookupSubjectRemaining' n = fmap I.subjectGrade <$> lookupRemaining' n
 
 
 decrementGrade :: Grade -> CM (Maybe Grade)
@@ -207,14 +265,24 @@ modifyRemaining n f = do
   case prev of
     Nothing -> pure ()
     Just prev -> setRemaining n (f prev)
+modifyRemaining' :: Name -> (I.Grading -> I.Grading) -> CM ()
+modifyRemaining' n f = do
+  prev <- lookupRemaining' n
+  case prev of
+    Nothing -> pure ()
+    Just prev -> setRemaining' n (f prev)
 
 
 setRemaining :: Name -> Grading -> CM ()
 setRemaining n g = modify (\s -> s { provisionScope = M.insert n g (provisionScope s) })
+setRemaining' :: Name -> I.Grading -> CM ()
+setRemaining' n g = modify (\s -> s { provisionScope' = M.insert n g (provisionScope' s) })
 
 
 setSubjectRemaining :: Name -> Grade -> CM ()
 setSubjectRemaining n g = modifyRemaining n (\gs -> mkGrading g (subjectTypeGrade gs))
+setSubjectRemaining' :: Name -> I.Grade -> CM ()
+setSubjectRemaining' n g = modifyRemaining' n (\gs -> I.mkGrading g (I.subjectTypeGrade gs))
 
 
 -- | Execute the action with the given identifier bound with the given grading.
@@ -225,6 +293,15 @@ withGradedVariable v gr p = do
   res <- p
   -- restore the provision scope
   modify (\s -> s { provisionScope = provisionScope st})
+  pure res
+-- | Execute the action with the given identifier bound with the given grading.
+withGradedVariable' :: Name -> I.Grading -> CM a -> CM a
+withGradedVariable' v gr p = do
+  st <- get
+  setRemaining' v gr
+  res <- p
+  -- restore the provision scope
+  modify (\s -> s { provisionScope' = provisionScope' st})
   pure res
 
 
@@ -284,8 +361,11 @@ data TCError
   -----------------
 
   | TypeMismatch Expr Expr
+  | TypeMismatch' I.Type I.Type
 
   | ExpectedInferredTypeForm String Expr
+  | ExpectedInferredTypeForm' String I.Type
+  | NotAType
 
   --------------------
   -- Pattern Errors --
@@ -315,10 +395,17 @@ instance Show TCError where
     "I was asked to try and synthesise a term of type '" <> pprintShow t <> "' but I wasn't able to do so."
   show (TypeMismatch tyExpected tyActual) =
     "Expected type '" <> pprintShow tyExpected <> "' but got '" <> pprintShow tyActual <> "'"
+  show (TypeMismatch' tyExpected tyActual) =
+    "Expected type '" <> pprintShow tyExpected <> "' but got '" <> pprintShow tyActual <> "'"
   show (ExpectedInferredTypeForm descr t) =
     "I was expecting the expression to have a "
     <> descr <> " type, but instead I found its type to be '"
     <> pprintShow t <> "'"
+  show (ExpectedInferredTypeForm' descr t) =
+    "I was expecting the expression to have a "
+    <> descr <> " type, but instead I found its type to be '"
+    <> pprintShow t <> "'"
+  show NotAType = "I was expecting the expression to be a type, but it wasn't."
   show (PatternMismatch p t) =
     "The pattern '" <> pprintShow p <> "' is not valid for type '" <> pprintShow t <> "'"
   show (UsedTooManyTimes n) =
@@ -352,10 +439,23 @@ tyMismatch :: Expr -> Expr -> CM a
 tyMismatch tyExpected tyActual =
   throwCM (TypeMismatch tyExpected tyActual)
 
+-- | 'tyMismatch expr tyExpected tyActual' indicates that an expression
+-- | was found to have a type that differs from expected.
+tyMismatch' :: I.Type -> I.Type -> CM a
+tyMismatch' tyExpected tyActual =
+  throwCM (TypeMismatch' tyExpected tyActual)
+
 
 expectedInferredTypeForm :: String -> Expr -> CM a
 expectedInferredTypeForm descr t =
   throwCM (ExpectedInferredTypeForm descr t)
+expectedInferredTypeForm' :: String -> I.Type -> CM a
+expectedInferredTypeForm' descr t =
+  throwCM (ExpectedInferredTypeForm' descr t)
+
+
+notAType :: CM a
+notAType = throwCM NotAType
 
 
 patternMismatch :: Pattern -> Expr -> CM a

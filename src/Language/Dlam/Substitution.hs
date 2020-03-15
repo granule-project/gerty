@@ -17,10 +17,13 @@ import qualified Data.Set as Set
 
 import Language.Dlam.Syntax.Abstract
 import Language.Dlam.Syntax.Common (NameId)
+import qualified Language.Dlam.Syntax.Internal as I
 import qualified Language.Dlam.Scoping.Monad as SM
 import Language.Dlam.Scoping.Monad (SM)
 import qualified Language.Dlam.TypeChecking.Monad as CM
 import Language.Dlam.TypeChecking.Monad (CM)
+import Language.Dlam.Util.Peekaboo
+import Language.Dlam.Util.Pretty (pprintShow)
 
 
 class Fresh m i | m -> i where
@@ -103,6 +106,58 @@ instance {-# OVERLAPS #-} Substitutable CM (Name, Expr) Expr where
     e' <- substitute s e
     r' <- if v `Set.member` (Set.map unBindName (boundSubjectVars p)) then pure r else substitute s r
     pure $ Let (LetPatBound p e') r'
+
+
+instance {-# OVERLAPS #-} Substitutable CM (Name, I.Term) I.Type where
+  substitute s t = do
+    l <- substitute s (I.level t)
+    case un t of
+      (I.Universe ul) -> I.mkType . I.Universe <$> substitute s ul <*> pure l
+      {-
+      (I.TyApp f xs) -> do
+       ty <- I.TyApp f <$> mapM (substitute s) xs
+       l <- substitute s (I.level t)
+       pure $ I.mkType ty l
+       -}
+      t -> CM.notImplemented $ "substituting into type '" <> pprintShow t <> "'"
+  -- substitute (v, e) (I.App (I.Var x) xs)
+  --   | v == x    = pure e
+  --   | otherwise = pure (Var x)
+
+
+instance {-# OVERLAPS #-} Substitutable CM (Name, I.Term) I.Level where
+  -- substitute s l = do
+  --   case l of
+  --     (I.Universe ul) -> I.mkType . I.Universe <$> substitute s ul <*> pure l
+  --     {-
+  --     (I.TyApp f xs) -> do
+  --      ty <- I.TyApp f <$> mapM (substitute s) xs
+  --      l <- substitute s (I.level t)
+  --      pure $ I.mkType ty l
+  --      -}
+  -- [t/x](Concrete n) === Concrete n
+  substitute _ l@I.Concrete{} = pure l
+  -- [t/x](Plus n t') === Plus n [t/x]t'
+  substitute s (I.Plus n t) = I.Plus n <$> substitute s t
+  substitute (v, t) l =
+    CM.notImplemented $ "substituting '" <> pprintShow t <> "' for '" <> pprintShow v <> "' in level '" <> pprintShow l <> "'"
+
+
+instance {-# OVERLAPS #-} Substitutable CM (Name, I.Term) I.LevelAtom where
+  substitute s (I.LTerm t) = I.LTerm <$> substitute s t
+  -- substitute (v, t) la =
+  --   CM.notImplemented $ "substituting '" <> pprintShow t <> "' for '" <> pprintShow v <> "' in level atom '" <> pprintShow la <> "'"
+
+
+instance {-# OVERLAPS #-} Substitutable CM (Name, I.Term) I.Term where
+    -- case t of
+      -- _ -> undefined
+  -- substitute (v, e) (I.App (I.Var x) xs)
+  --   | v == x    = pure e
+  --   | otherwise = pure (Var x)
+  substitute (v, t) t'@(I.App (I.Var x) []) = pure $ if v == x then t else t'
+  substitute (v, t) t' =
+    CM.notImplemented $ "substituting '" <> pprintShow t <> "' for '" <> pprintShow v <> "' in term '" <> pprintShow t' <> "'"
 
 
 instance Fresh CM NameId where

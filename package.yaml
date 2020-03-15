@@ -38,6 +38,7 @@ library:
    - Language.Dlam.TypeChecking.Monad
   other-modules:
    - Language.Dlam.Builtins
+   - Language.Dlam.Builtins2
    - Language.Dlam.Syntax.Abstract
    - Language.Dlam.Syntax.Common
    - Language.Dlam.Syntax.Common.Language
@@ -59,6 +60,7 @@ library:
    - Language.Dlam.Scoping.Monad.Base
    - Language.Dlam.Scoping.Monad.Exception
    - Language.Dlam.Scoping.Scope
+   - Language.Dlam.TypeChecking
    - Language.Dlam.TypeChecking.Monad.Base
    - Language.Dlam.Util.Lens
    - Language.Dlam.Util.Peekaboo

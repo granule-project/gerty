@@ -10,6 +10,7 @@ module Language.Dlam.Syntax.Abstract
   (
    -- * Expressions
     Expr(..)
+  , pattern AType
   , pattern Inl'
   , pattern Inr'
   , pattern LSuc'
@@ -269,6 +270,10 @@ data Expr
   deriving (Show, Eq, Ord)
 
 
+pattern AType :: Expr -> Expr
+pattern AType l = App (Builtin TypeTy) l
+
+
 pattern Inl' :: Expr -> Expr -> Expr -> Expr -> Expr -> Expr
 pattern Inl' l1 l2 a b l = App (App (App (App (App (Builtin Inl) l1) l2) a) b) l
 
@@ -386,6 +391,9 @@ data BuiltinTerm =
 
   -- | Universe type.
   | TypeTy
+
+  -- | Coproduct type.
+  | DCoproduct
 
   -- | inl.
   | Inl
@@ -516,6 +524,7 @@ instance Pretty BuiltinTerm where
   pprint LSuc      = text "lsuc"
   pprint LevelTy   = text "Level"
   pprint TypeTy    = text "Type"
+  pprint DCoproduct = text "(_+_)"
   pprint Inl       = text "inl"
   pprint Inr       = text "inr"
   pprint DNat      = text "Nat"
