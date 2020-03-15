@@ -573,7 +573,12 @@ instance Normalise CM Term where
                 resTy' <- substitute (un (un arg), x) resTy
                 substArgs resTy' xs
               _ -> error $ "substArgs: bad call: '" <> pprintShow t <> "' with arguments '" <> show (fmap pprintParened xs) <> "'"
-  normalise t = notImplemented $ "normalising term: " <> pprintShow t
+  normalise (I.Lam arg body) = do
+    let x = un (un arg)
+    g <- normalise (I.grading arg)
+    argTy <- normalise (typeOf arg)
+    body' <- withTypedVariable' x argTy $ normalise body
+    pure $ I.Lam (x `typedWith` argTy `gradedWith` g) body'
 
 
 instance Normalise CM LevelAtom where
@@ -587,7 +592,12 @@ instance Normalise CM Level where
     case t' of
       (LTerm (Level (Concrete m))) -> pure (Concrete (n + m))
       _ -> pure (Plus n t')
-  normalise l = notImplemented $ "normalising level: " <> pprintShow l
+  normalise (Max l1 l2) = do
+    l1 <- normalise l1
+    l2 <- normalise l2
+    pure $ case (l1, l2) of
+             (Concrete n, Concrete m) -> Concrete (max n m)
+             _ -> Max l1 l2
 
 
 instance Normalise CM TypeTerm where
@@ -634,7 +644,17 @@ instance Normalise CM TypeTerm where
                 -- pure $ mkType (TyApp (TyVar v) xs) (level t)
               -- TyApp (TyVar
               _ -> error $ "substArgs: bad call: '" <> pprintShow t <> "' with arguments '" <> show (fmap pprintParened xs) <> "'"
-  normalise t = notImplemented $ "normalising TypeTerm: " <> pprintShow t
+  normalise (Pi arg t) = do
+    let x = un (un arg)
+    g <- normalise (I.grading arg)
+    argTy <- normalise (typeOf arg)
+    t' <- withTypedVariable' x argTy $ normalise t
+    pure $ Pi (x `typedWith` argTy `gradedWith` g) t'
+
+
+instance Normalise CM I.Grading where
+  -- grades are simple nats at the moment, so no normalisation (2020-03-15, GD)
+  normalise g = pure g
 
 
 instance Normalise CM Type where
