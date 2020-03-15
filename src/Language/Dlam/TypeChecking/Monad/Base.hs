@@ -4,6 +4,10 @@ module Language.Dlam.TypeChecking.Monad.Base
    -- * Type checker monad
    CM
 
+   -- * Logging
+  , debug
+  , info
+
    -- * State
   , CheckerState
   , runNewChecker
@@ -132,7 +136,16 @@ newtype CM a =
            , MonadError TCErr)
 
 
-type TCLog = String
+type TCLog = [String]
+
+
+-- | Write some debugging information.
+debug :: String -> CM ()
+debug = tell . pure
+
+
+info :: String -> CM ()
+info = tell . pure
 
 
 data TCResult a

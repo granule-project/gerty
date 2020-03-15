@@ -7,7 +7,6 @@ module Language.Dlam.TypeChecking
 
 
 import Control.Monad (when)
-import Debug.Trace
 
 -- import Language.Dlam.Builtins
 import Language.Dlam.Builtins2
@@ -32,7 +31,7 @@ checkExprIsLevel e = withLocalCheckingOf e $ checkExprIsLevel_ e
 
 checkExprIsLevel_ :: Expr -> CM Level
 checkExprIsLevel_ l = do
-  -- traceM $ "levelTy': " <> pprintShow levelTy'
+  -- debug $ "levelTy': " <> pprintShow levelTy'
   t <- checkExpr l levelTy'
   case t of
     Level l' -> pure l'
@@ -51,9 +50,9 @@ checkTermIsType _ = notAType
 -- | Require that the expression is a valid type (of unknown sort).
 checkExprIsType :: Expr -> CM Type
 checkExprIsType e = do
-  traceM $ "checkExprIsType: checking that '" <> pprintShow e <> "' is a type expression"
+  debug $ "checkExprIsType: checking that '" <> pprintShow e <> "' is a type expression"
   res <- withLocalCheckingOf e $ checkExprIsType_ e
-  traceM $ "checkExprIsType: found a type representation '" <> pprintShow res <> "' for expression '" <> pprintShow e <> "'"
+  debug $ "checkExprIsType: found a type representation '" <> pprintShow res <> "' for expression '" <> pprintShow e <> "'"
   pure res
 
 
@@ -106,7 +105,7 @@ registerTypeForName n t = do
 -- | Type-check a declaration.
 checkDeclaration :: Declaration -> CM ()
 checkDeclaration ts@(TypeSig n t) = do
-  traceM $ "checkDeclaration: checking signature: " <> pprintShow ts
+  debug $ "checkDeclaration: checking signature: " <> pprintShow ts
   -- make sure that the type is actually a type
   ty <- checkExprIsType t
   -- checkExprValidForSignature t
@@ -123,7 +122,7 @@ checkDeclaration ts@(TypeSig n t) = do
     -- checkExprValidForSignature expr = inferUniverseLevel expr >> pure ()
 
 checkDeclaration eqn@(FunEqn (FLHSName v) (FRHSAssign e)) = do
-  traceM $ "checkDeclaration: checking equation: " <> pprintShow eqn
+  debug $ "checkDeclaration: checking equation: " <> pprintShow eqn
 
   -- try and get a prescribed type for the equation,
   -- treating it as an implicit if no type is given
@@ -259,9 +258,9 @@ ensureEqualTypes tyExpected tyActual = do
 -- | if it is well-typed, yield the underlying term.
 checkExpr :: Expr -> Type -> CM Term
 checkExpr e t = do
-  traceM $ "checkExpr_: checking expression '" <> pprintShow e <> "' against type '" <> pprintShow t <> "'"
+  debug $ "checkExpr_: checking expression '" <> pprintShow e <> "' against type '" <> pprintShow t <> "'"
   res <- withLocalCheckingOf e $ checkExpr_ e t
-  traceM $ "checkExpr: found term '" <> pprintShow res <> "' for expression '" <> pprintShow e <> "'"
+  debug $ "checkExpr: found term '" <> pprintShow res <> "' for expression '" <> pprintShow e <> "'"
   pure res
 
 
@@ -279,7 +278,7 @@ checkExpr_ :: Expr -> Type -> CM Term
 checkExpr_ (Var x) t = do
   -- x @ (k+1, n) : A in G
   tA <- lookupType' x
-  -- traceM $ "checkExpr_: got type '" <> pprintShow tA <> "' for variable '" <> pprintShow x <> "'"
+  -- debug $ "checkExpr_: got type '" <> pprintShow tA <> "' for variable '" <> pprintShow x <> "'"
   kplus1 <- lookupSubjectRemaining' x
   k <- case kplus1 of
          -- as the scope checker ensures that all local variables are
@@ -1253,9 +1252,9 @@ withActivePattern e intro act = do
 -- | Infer a type for the expression, and its underlying term.
 inferExpr :: Expr -> CM (Term, Type)
 inferExpr e = do
-  traceM $ "inferExpr: inferring a type and term for expression: " <> pprintShow e
+  debug $ "inferExpr: inferring a type and term for expression: " <> pprintShow e
   res@(term, typ) <- withLocalCheckingOf e $ inferExpr_ e
-  traceM $ "inferExpr: inferred a term '" <> pprintShow term <> "' and type '" <> pprintShow typ <> "' for expression '" <> pprintShow e <> "'"
+  debug $ "inferExpr: inferred a term '" <> pprintShow term <> "' and type '" <> pprintShow typ <> "' for expression '" <> pprintShow e <> "'"
   pure res
 
 

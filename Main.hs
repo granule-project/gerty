@@ -21,7 +21,7 @@ main = do
         else do
           input <- readFile fname
           let res = runNewChecker (Interpreter.runTypeChecker fname input)
-          putStrLn (tcrLog res)
+          putStrLn (unlines $ tcrLog res)
           case tcrRes res of
             Left err -> putStrLn (formatError err) >> exitFailure
             Right _ -> exitSuccess
