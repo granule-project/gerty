@@ -229,6 +229,8 @@ checkExpr_ (Var x) t = do
       case un tA of
         -- this is a partial application
         Pi _ _ -> I.PartialApp (partiallyApplied (VarPartial x) [])
+        -- if this is a universe then we construct a type
+        Universe l -> TypeTerm (mkTyVar x l)
         -- if it's not a Pi, then it must be fully applied
         _      -> I.App (fullyApplied (I.Var x) [])
     Just r -> pure r
