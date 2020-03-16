@@ -8,13 +8,27 @@ module Language.Dlam.Syntax.Internal
     Term(..)
   , Appable(..)
   , TypeTerm(..)
-  , TyAppable(..)
   , Elim(..)
   , mkLam
+  , PartiallyAppable(..)
+  -- ** Type Constructors
+  , TyCon
+  , conTy
+  , mkTyCon
+  , Partial
+  , partiallyApplied
+  , FullyApplied
+  , fullyApplied
+  -- ** Data Constructors
+  , DCon
+  , mkDCon
+  , dconTy
   -- ** Arguments
   , Arg
   , argVar
   , mkArg
+  , Applied(..)
+  , Applicable(..)
   -- * Levels
   , Level(..)
   , LevelAtom(..)
@@ -40,6 +54,8 @@ module Language.Dlam.Syntax.Internal
   , thatMagicalGrade
   , thatMagicalGrading
   , decrementGrade
+  -- * Naming
+  , HasName(..)
   ) where
 
 
@@ -92,19 +108,19 @@ argVar :: Arg -> Name
 argVar = un . un
 
 
+type ConId = VarId
+
+
 -- | Terms that are only well-typed if they are types.
 data TypeTerm
   -- | Dependent function space.
   = Pi Arg Type
   -- | A type universe.
   | Universe Level
-  -- | An application resulting in a type.
-  | TyApp TyAppable [Term]
-
-
-data TyAppable
-  -- | A type variable.
-  = TyVar VarId
+  -- | A type constructed from a type constructor.
+  | Constructed (FullyApplied TyCon)
+  -- | A full application of a bound variable.
+  | VarApp (FullyApplied VarId)
 
 
 -- | Terms representing raw values.
@@ -114,14 +130,101 @@ data Term
   -- | A type.
   | TypeTerm Type
   -- | An application.
-  | App Appable [Term]
+  | App (FullyApplied Appable)
+  -- | A partial application.
+  | PartialApp (Partial PartiallyAppable)
   -- | A lambda abstraction.
   | Lam Arg Term
 
 
+-- | Things that when fully applied are terms (and not types).
 data Appable
   -- | A free variable.
   = Var VarId
+  -- | A data constructor.
+  | ConData DCon
+
+
+-- | Things that can be partially applied.
+data PartiallyAppable
+  -- | Free variable.
+  = VarPartial VarId
+  -- | Type constructor.
+  | TyConPartial TyCon
+  -- | Data constructor.
+  | DConPartial DCon
+
+
+type ConArg = Arg
+
+-- | Type constructor.
+data TyCon = TyCon { conID :: ConId
+                   , conArgs :: [ConArg]
+                   , conTy :: Type
+                   }
+
+
+mkTyCon :: ConId -> [ConArg] -> Type -> TyCon
+mkTyCon n args ty = TyCon { conID = n, conArgs = args, conTy = ty }
+
+
+type DConId = VarId
+type DConArg = Arg
+
+
+-- | Data constructor.
+data DCon = DCon { dconID :: DConId
+                 , dconArgs :: [DConArg]
+                 , dconTy :: FullyApplied TyCon
+                 }
+
+
+mkDCon :: DConId -> [DConArg] -> FullyApplied TyCon -> DCon
+mkDCon n args tyC = DCon { dconID = n, dconArgs = args, dconTy = tyC }
+
+
+
+data Partial a = Partial { partialArgs :: [Term], unPartial :: a }
+
+
+class Applicable a where
+  args :: a -> [Arg]
+
+
+instance Applicable TyCon where
+  args = conArgs
+
+instance Applicable DCon where
+  args = dconArgs
+
+
+class Applied a where
+  appliedArgs :: a -> [Term]
+
+instance Applied (Partial c) where
+  appliedArgs = partialArgs
+
+instance Un Partial where
+  un = unPartial
+
+instance Applied (FullyApplied c) where
+  appliedArgs = allArgs
+
+instance Un FullyApplied where
+  un = unFullyApplied
+
+
+-- | Indicate that the thing is partially applied. ONLY FOR INTERNAL USE.
+partiallyApplied :: a -> [Term] -> Partial a
+partiallyApplied c arg = Partial { partialArgs = arg, unPartial = c }
+
+
+data FullyApplied c = FullyApplied { allArgs :: [Term], unFullyApplied :: c }
+
+
+-- | Indicate that the thing is fully applied. ONLY FOR INTERNAL USE.
+fullyApplied :: a -> [Term] -> FullyApplied a
+fullyApplied c args = FullyApplied { allArgs = args, unFullyApplied = c }
 
 
 data Elim
@@ -131,19 +234,33 @@ data Elim
 
 instance Pretty Term where
   isLexicallyAtomic (Level l) = isLexicallyAtomic l
-  isLexicallyAtomic (App t []) = isLexicallyAtomic t
+  isLexicallyAtomic (App t) = length (appliedArgs t) == 0 && isLexicallyAtomic (un t)
+  isLexicallyAtomic (PartialApp t) = length (appliedArgs t) == 0 && isLexicallyAtomic (un t)
   isLexicallyAtomic _ = False
 
   pprint (Level l) = pprint l
   pprint (TypeTerm t) = pprint t
-  pprint (App t1 args) = pprintParened t1 <+> hsep (fmap pprintParened args)
   pprint (Lam arg body) = char '\\' <+> pprintParened arg <+> text "->" <+> pprint body
+  pprint (App p) = pprintParened (un p) <+> hsep (fmap pprintParened (appliedArgs p))
+  pprint (PartialApp p) = pprintParened (un p) <+> hsep (fmap pprintParened (appliedArgs p))
 
 
 instance Pretty Appable where
   isLexicallyAtomic (Var _) = True
+  isLexicallyAtomic (ConData d) = isLexicallyAtomic d
 
   pprint (Var v) = pprint v
+  pprint (ConData d) = pprint d
+
+
+instance Pretty PartiallyAppable where
+  isLexicallyAtomic (VarPartial v) = isLexicallyAtomic v
+  isLexicallyAtomic (TyConPartial t) = isLexicallyAtomic t
+  isLexicallyAtomic (DConPartial d) = isLexicallyAtomic d
+
+  pprint (VarPartial v) = pprint v
+  pprint (TyConPartial t) = pprint t
+  pprint (DConPartial d) = pprint d
 
 
 instance Pretty Elim where
@@ -151,12 +268,22 @@ instance Pretty Elim where
 
 
 instance Pretty TypeTerm where
-  isLexicallyAtomic (TyApp t []) = isLexicallyAtomic t
+  isLexicallyAtomic (Constructed t) = length (appliedArgs t) == 0
   isLexicallyAtomic _ = False
 
   pprint (Universe l) = text "Type" <+> pprint l
   pprint (Pi arg resT) = pprintParened arg <+> text "->" <+> pprint resT
-  pprint (TyApp t1 args) = pprintParened t1 <+> hsep (fmap pprintParened args)
+  pprint (Constructed ty) = pprintParened (un ty) <+> hsep (fmap pprintParened (appliedArgs ty))
+  pprint (VarApp vapp) = pprintParened (un vapp) <+> hsep (fmap pprintParened (appliedArgs vapp))
+
+
+instance Pretty TyCon where
+  isLexicallyAtomic _ = True
+  pprint = pprint . name
+
+instance Pretty DCon where
+  isLexicallyAtomic _ = True
+  pprint = pprint . name
 
 
 instance Pretty (Graded (Typed Name)) where
@@ -169,11 +296,6 @@ instance Pretty Grading where
 instance Pretty Grade where
   pprint (GNat n) = integer n
   pprint GInf = text "INF"
-
-instance Pretty TyAppable where
-  isLexicallyAtomic (TyVar _) = True
-
-  pprint (TyVar v) = pprint v
 
 
 ------------------
@@ -325,3 +447,20 @@ decrementGrade e =
 
 mkLam :: Name -> Type -> Term -> Term
 mkLam n ty body = Lam (n `typedWith` ty `gradedWith` thatMagicalGrading) body
+
+
+class HasName a where
+  name :: a -> Name
+
+
+instance HasName Appable where
+  name (Var x) = x
+  name (ConData cd) = name cd
+
+
+instance HasName TyCon where
+  name = conID
+
+
+instance HasName DCon where
+  name = dconID

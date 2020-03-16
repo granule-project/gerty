@@ -109,12 +109,20 @@ instance {-# OVERLAPS #-} Substitutable CM (Name, Expr) Expr where
   substitute _ EType = pure EType
 
 
+instance {-# OVERLAPS #-} Substitutable CM (Name, I.Term) (I.FullyApplied a) where
+  substitute s t = I.fullyApplied (un t) <$> mapM (substitute s) (I.appliedArgs t)
+
+
 instance {-# OVERLAPS #-} Substitutable CM (Name, I.Term) I.Type where
-  substitute s@(v, _) t = do
+  substitute s@(v, t') t = do
     l <- substitute s (I.level t)
     case un t of
       (I.Universe ul) -> I.mkType . I.Universe <$> substitute s ul <*> pure l
-      (I.TyApp f xs) -> I.mkType . I.TyApp f <$> mapM (substitute s) xs <*> pure l
+      (I.Constructed f) -> I.mkType . I.Constructed <$> substitute s f <*> pure l
+      (I.VarApp va)
+        | length (I.appliedArgs va) == 0 ->
+          CM.notImplemented $ "I don't yet know how to substitute terms in for type variables (when substituting term '" <> pprintShow t' <> "' for variable '" <> pprintShow v <> "' in type '" <> pprintShow t <> "'"
+        | otherwise -> I.mkType . I.VarApp . I.fullyApplied (un va) <$> mapM (substitute s) (I.appliedArgs va) <*> pure l
       (I.Pi arg resTy) -> do
         let v' = I.argVar arg
         arg' <- substitute s arg
@@ -154,7 +162,10 @@ instance {-# OVERLAPS #-} Substitutable CM (Name, I.Term) I.Term where
     arg' <- substitute s arg
     body' <- if v == v' then pure body else substitute s body
     pure $ I.Lam arg' body'
-  substitute (v, t) t'@(I.App (I.Var x) []) = pure $ if v == x then t else t'
+  substitute s@(v, t) t'@(I.App f) =
+    case un f of
+      I.Var v' | length (I.appliedArgs f) == 0 -> pure $ if v == v' then t else t'
+      _ -> I.App . I.fullyApplied (un f) <$> mapM (substitute s) (I.appliedArgs f)
   substitute (v, t) t' =
     CM.notImplemented $ "substituting '" <> pprintShow t <> "' for '" <> pprintShow v <> "' in term '" <> pprintShow t' <> "'"
 

@@ -43,9 +43,12 @@ checkExprIsLevel_ l = do
 -- | Require that the term is a valid type (of unknown sort).
 checkTermIsType :: Term -> CM Type
 checkTermIsType (TypeTerm t) = pure t
-checkTermIsType (I.App (I.Var v) []) = do
-  l <- fmap theUniverseWeLiveIn (lookupType' v >>= universeOrNotAType)
-  pure $ mkType (TyApp (TyVar v) []) l
+checkTermIsType (I.App app) = do
+  case un app of
+    I.Var v -> do
+      l <- fmap theUniverseWeLiveIn (lookupType' v >>= universeOrNotAType)
+      pure $ mkType (VarApp (fullyApplied v [])) l
+    ConData _ -> notImplemented "checkTermIsType: can't yet deal with data constructors"
 checkTermIsType _ = notAType
 
 
@@ -62,7 +65,7 @@ checkExprIsType_ :: Expr -> CM Type
 checkExprIsType_ (Builtin e) = universeOrNotAType (getBuiltinType e)
 checkExprIsType_ (Var x) = do
   l <- fmap theUniverseWeLiveIn (lookupType' x >>= universeOrNotAType)
-  maybe (pure $ mkType (I.TyApp (I.TyVar x) []) l) checkTermIsType =<< maybeLookupValue x
+  maybe (pure $ mkType (I.VarApp (fullyApplied x [])) l) checkTermIsType =<< maybeLookupValue x
 checkExprIsType_ (App (Var x) e) = do
   vTy <- lookupType' x
   case un vTy of
@@ -72,7 +75,6 @@ checkExprIsType_ (App (Var x) e) = do
       e' <- checkExpr e argTy
       substituteAndNormalise (argVar arg, e') resTy
     _ -> withLocalCheckingOf (Var x) $ expectedInferredTypeForm' "function" vTy
--- checkExprIsType_ (App f e) = do
 checkExprIsType_ (AType l) = do
   lev <- checkExprIsLevel l
   -- pure $ mkType (Universe lev) lev
@@ -150,8 +152,18 @@ typesAreEqual t1 t2 = do
   -- _levEq <- levelsAreEqual (level t1) (level t2)
   case (un t1, un t2) of
     -- TODO: add proper equality here (2020-03-14)
-    (TyApp (TyVar x) xs, TyApp (TyVar y) ys) ->
-      (&&) <$> pure (x == y) <*> (and <$> (mapM (uncurry termsAreEqual) (zip xs ys)))
+    (VarApp app1, VarApp app2) ->
+      let x = un app1
+          y = un app2
+          xs = appliedArgs app1
+          ys = appliedArgs app2
+      in (&&) <$> pure (length xs == length ys && x == y) <*> (and <$> (mapM (uncurry termsAreEqual) (zip xs ys)))
+    (Constructed app1, Constructed app2) ->
+      let x = name $ un app1
+          y = name $ un app2
+          xs = appliedArgs app1
+          ys = appliedArgs app2
+      in (&&) <$> pure (length xs == length ys && x == y) <*> (and <$> (mapM (uncurry termsAreEqual) (zip xs ys)))
     (Universe l1, Universe l2) -> levelsAreEqual l1 l2
     (Pi arg1 t1, Pi arg2 t2) -> do
       let x = un (un arg1)
@@ -219,8 +231,13 @@ checkExpr_ (Var x) t = do
   ensureEqualTypes t tA
   val <- maybeLookupValue x
   case val of
-    Nothing -> pure (I.App (I.Var x) [])
-    Just r  -> pure r
+    Nothing -> pure $
+      case un tA of
+        -- this is a partial application
+        Pi _ _ -> I.PartialApp (partiallyApplied (VarPartial x) [])
+        -- if it's not a Pi, then it must be fully applied
+        _      -> I.App (fullyApplied (I.Var x) [])
+    Just r -> pure r
 
 -------------------------------
 ----- Dependent Functions -----
@@ -296,7 +313,7 @@ checkExpr_ (App e1 e2) t = do
   (x, tA, tB) <-
     case un e1Ty of
       Pi arg resTy -> pure (un (un arg), typeOf arg, resTy)
-      _ -> expectedInferredTypeForm' "function" e1Ty
+      _ -> withLocalCheckingOf e1 $ expectedInferredTypeForm' "function" e1Ty
 
   -- G |- t2 : A
   e2Term <- checkExpr e2 tA
@@ -306,12 +323,10 @@ checkExpr_ (App e1 e2) t = do
   t2forXinB <- substituteAndNormalise (x, e2Term) tB
   ensureEqualTypes t t2forXinB
   case e1Term of
-    (I.App f xs) -> pure $ I.App f (xs ++ [e2Term])
+    (I.PartialApp _pa) -> error "meh"
     (I.Lam arg body) -> substituteAndNormalise (un (un arg), e2Term) body
-    (TypeTerm t) ->
-      case un t of
-        (TyApp f xs) -> pure . TypeTerm $ mkType (TyApp f (xs ++ [e2Term])) (level t)
-        _ -> notImplemented "checkExpr_: hit a supposedly impossible clause"
+    -- we can't apply types to things
+    (TypeTerm t) -> withLocalCheckingOf e1 $ expectedInferredTypeForm' "function" t
     _ -> notImplemented "checkExpr_: hit a supposedly impossible clause"
 
 ---------
@@ -355,11 +370,11 @@ inferExpr_ :: Expr -> CM (Term, Type)
 inferExpr_ EType =
   let l = mkIdent "l"
   in pure (I.Lam (l `typedWith` levelTy' `gradedWith` thatMagicalGrading) (TypeTerm (mkType (Universe (mkLevelVar l)) (nextLevel (mkLevelVar l))))
-          , mkFunTy l levelTy' (mkUnivTy (lsucApp (mkVar l))))
+          , mkFunTy l levelTy' (mkUnivTy (nextLevel (mkLevelVar l))))
 inferExpr_ (Var x) = do
   ty <- lookupType' x
   mval <- maybeLookupValue x
-  let val = maybe (I.App (I.Var x) []) id mval
+  let val = maybe (mkVar x) id mval
   pure (val, ty)
 {-
    G |- t1 : (x : A) -> B
@@ -367,14 +382,14 @@ inferExpr_ (Var x) = do
    ---------------------- :: App
    G |- t1 t2 : [t2/x]B
 -}
-inferExpr_ (App e1 e2) = do
+inferExpr_ ap@(App e1 e2) = do
   -- G |- t1 : (x : A) -> B
   (e1Term, e1Ty) <- inferExpr e1
 
   (x, tA, tB) <-
     case un e1Ty of
       Pi arg resTy -> pure (un (un arg), typeOf arg, resTy)
-      _ -> expectedInferredTypeForm' "function" e1Ty
+      _ -> withLocalCheckingOf e1 $ expectedInferredTypeForm' "function" e1Ty
 
   -- G |- t2 : A
   e2Term <- checkExpr e2 tA
@@ -383,12 +398,10 @@ inferExpr_ (App e1 e2) = do
   t2forXinB <- substituteAndNormalise (x, e2Term) tB
 
   term <- case e1Term of
-            (I.App f xs) -> pure $ I.App f (xs ++ [e2Term])
+            (I.PartialApp _pa) -> notImplemented $ "I don't yet know how to keep applying the partial application (I need to figure out how to determine if the application is partial or full) '" <> pprintShow ap <> "'"
             (I.Lam arg body) -> substituteAndNormalise (un (un arg), e2Term) body
-            (TypeTerm t) ->
-              case un t of
-                (TyApp f xs) -> pure . TypeTerm $ mkType (TyApp f (xs ++ [e2Term])) (level t)
-                _ -> notImplemented "inferExpr_: hit a supposedly impossible clause"
+            -- we can't apply types to things
+            (TypeTerm t) -> withLocalCheckingOf e1 $ expectedInferredTypeForm' "function" t
             _ -> notImplemented "inferExpr_: hit a supposedly impossible clause"
   pure (term, t2forXinB)
 inferExpr_ e = notImplemented $ "inferExpr_: TODO, inference for expression: " <> pprintShow e
@@ -400,52 +413,7 @@ inferExpr_ e = notImplemented $ "inferExpr_: TODO, inference for expression: " <
 
 
 getBuiltinType :: BuiltinTerm -> Type
-getBuiltinType e =
-  case e of
-    -- lzero : Level
-    LZero -> builtinType lzero
-
-    -- lsuc : Level -> Level
-    LSuc  -> builtinType lsuc
-
-    -- Level : Type 0
-    LevelTy -> builtinType levelTy
-
-    -- lmax : Level -> Level -> Level
-    LMax -> builtinType lmax
-
-    -- (_+_) : (l1 l2 : Level) -> Type l1 -> Type l2 -> Type (lmax l1 l2)
-    DCoproduct -> builtinType coproductBin
-
-    -- inl : (l1 l2 : Level) (a : Type l1) (b : Type l2) -> a -> a + b
-    Inl -> builtinType inlTerm
-
-    -- inr : (l1 l2 : Level) (a : Type l1) (b : Type l2) -> b -> a + b
-    Inr -> builtinType inrTerm
-
-    -- Nat : Type 0
-    DNat -> builtinType natTy
-
-    -- zero : Nat
-    DNZero -> builtinType dnzero
-
-    -- succ : Nat -> Nat
-    DNSucc -> builtinType dnsucc
-
-    -- Unit : Type 0
-    DUnitTy -> builtinType unitTy
-
-    -- unit : Unit
-    DUnitTerm -> builtinType unitTerm
-
-    -- Empty : Type 0
-    DEmptyTy -> builtinType emptyTy
-
-    -- Id : (l : Level) (a : Type l) -> a -> a -> Type l
-    IdTy -> builtinType idTy
-
-    -- refl : (l : Level) (a : Type l) (x : a) -> Id l a x x
-    DRefl -> builtinType reflTerm
+getBuiltinType e = typeForBuiltin e
 
 
 -------------------
@@ -497,16 +465,21 @@ instance (Applicative m, Functor m, Normalise m a) => Normalise m (Maybe a) wher
 instance Normalise CM Term where
   normalise (TypeTerm t) = TypeTerm <$> normalise t
   normalise (Level l) = Level <$> normalise l
-  normalise (I.App (I.Var n) xs) = do
-    mty  <- lookupType' n
+  normalise p@(I.PartialApp _) = notImplemented $ "I don't yet know how to normalise the partial application '" <> pprintShow p <> "'"
+  normalise ap@(I.App app) = do
+    let n = un app
+        xs = appliedArgs app
+    mty  <- lookupType' (name n)
     resTy <- substArgs mty xs
     case un resTy of
       -- typing should guarantee 'xs' is empty here
       Universe l -> do
         l' <- normalise l
         xs <- normalise xs
-        pure . TypeTerm $ mkType (TyApp (TyVar n) xs) l'
-      _ -> I.App (I.Var n) <$> normalise xs
+        case n of
+          I.Var n -> pure . TypeTerm $ mkType (VarApp (fullyApplied n xs)) l'
+          I.ConData{} -> notImplemented $ "I don't yet know how to normalise the data constructor application '" <> pprintShow ap <> "'"
+      _ -> I.App . fullyApplied (un app) <$> normalise xs
       -- t@Pi{} -> do
       --   resTy <- substArgs t xs
       --   case un resTy of
@@ -543,13 +516,11 @@ instance Normalise CM Level where
 
 instance Normalise CM TypeTerm where
   normalise (Universe l) = Universe <$> normalise l
-  normalise (TyApp (TyVar n) xs) = do
-    mval <- maybeLookupValue n
-    case mval of
-      Nothing -> TyApp (TyVar n) <$> normalise xs
-      Just (TypeTerm val) -> un <$> substArgs val xs
-      -- Just (TypeTerm val) -> fmap un . normalise =<< substArgs val xs
-      Just v -> error $ "got value: " <> pprintShow v
+  -- Type variables are free, and thus cannot reduce through application.
+  normalise (VarApp app) = VarApp . fullyApplied (un app) <$> normalise (appliedArgs app)
+  -- Type constructors must be bound in the current scope.
+  -- TODO: perhaps check we have correct number of arguments  (2020-03-16)
+  normalise (Constructed c) = Constructed . fullyApplied (un c) <$> normalise (appliedArgs c)
 
   normalise (Pi arg t) = do
     let x = un (un arg)
@@ -584,11 +555,8 @@ substArgs t xs =
       substArgs resTy' xs'
     -- as this came from a value lookup, we know it is already in normal
     -- form, thus we cannot reduce
-    (TyApp (TyVar v) xs, []) -> do
-      xs' <- normalise xs
-      pure $ mkType (TyApp (TyVar v) xs') (level t)
-    (TyApp (TyVar v) xs, ys) -> do
-      xs <- normalise xs
-      ys <- normalise ys
-      pure $ mkType (TyApp (TyVar v) (xs ++ ys)) (level t)
+    (VarApp app, []) -> do
+      mkType . VarApp . fullyApplied (un app) <$> normalise (appliedArgs app) <*> pure (level t)
+    (Constructed c, []) -> do
+      mkType . Constructed . fullyApplied (un c) <$> normalise (appliedArgs c) <*> pure (level t)
     _ -> error $ "substArgs: bad call: '" <> pprintShow t <> "' with arguments '" <> show (fmap pprintParened xs) <> "'"
