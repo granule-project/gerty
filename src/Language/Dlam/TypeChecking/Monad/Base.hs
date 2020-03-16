@@ -228,6 +228,7 @@ maybeLookupType n = M.lookup n . typingScope' <$> get
 
 lookupType' :: Name -> CM I.Type
 lookupType' n = do
+  debug $ "lookupType': looking up type of: " <> pprintShow n
   maybeLookupType n >>= maybe (scoperError $ SE.unknownNameErr (C.Unqualified $ nameConcrete n)) pure
 
 
@@ -249,11 +250,13 @@ withTypedVariable v t p = do
 -- | Execute the action with the given identifier bound with the given type.
 withTypedVariable' :: Name -> I.Type -> CM a -> CM a
 withTypedVariable' v t p = do
+  debug $ "setting type of variable '" <> pprintShow v <> "' to '" <> pprintShow t <> "'"
   st <- get
   setType' v t
   res <- p
   -- restore the typing scope
   modify (\s -> s { typingScope' = typingScope' st})
+  debug $ "unsetting type of variable '" <> pprintShow v <> "' (previously '" <> pprintShow t <> "')"
   pure res
 
 

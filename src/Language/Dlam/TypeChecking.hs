@@ -169,6 +169,7 @@ ensureEqualTypes :: Type -> Type -> CM ()
 ensureEqualTypes tyExpected tyActual = do
   tyE <- normalise tyExpected
   tyA <- normalise tyActual
+  debug $ "ensureEqualTypes: checking equality of expected type '" <> pprintShow tyExpected <> "' and actual type '" <> pprintShow tyActual <> "' which respectively normalise to '" <> pprintShow tyE <> "' and '" <> pprintShow tyA <> "'"
   typesEqual <- typesAreEqual tyE tyA
   -- typesEqual <- typesAreEqual tyExpected tyActual
   when (not typesEqual) (tyMismatch' tyExpected tyActual)
@@ -198,6 +199,7 @@ checkExpr_ :: Expr -> Type -> CM Term
 checkExpr_ (Var x) t = do
   -- x @ (k+1, n) : A in G
   tA <- lookupType' x
+  debug $ "checkExpr_: got type '" <> pprintShow tA <> "' for variable '" <> pprintShow x <> "'"
   kplus1 <- lookupSubjectRemaining' x
   k <- case kplus1 of
          -- as the scope checker ensures that all local variables are
