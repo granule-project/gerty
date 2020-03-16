@@ -317,7 +317,7 @@ checkExpr_ (App e1 e2) t = do
   t2forXinB <- substituteAndNormalise (x, e2Term) tB
   ensureEqualTypes t t2forXinB
   case e1Term of
-    (I.PartialApp _pa) -> error "meh"
+    (I.PartialApp pa) -> pure $ applyPartialToTerm pa e2Term tB
     (I.Lam arg body) -> substituteAndNormalise (un (un arg), e2Term) body
     -- we can't apply types to things
     (TypeTerm t) -> withLocalCheckingOf e1 $ expectedInferredTypeForm' "function" t
@@ -550,3 +550,50 @@ substArgs t xs =
     (TyApp app, []) -> do
       mkType . TyApp . fullyApplied (un app) <$> normalise (appliedArgs app) <*> pure (level t)
     _ -> error $ "substArgs: bad call: '" <> pprintShow t <> "' with arguments '" <> show (fmap pprintParened xs) <> "'"
+
+
+------------------------
+----- Applications -----
+------------------------
+
+
+data AppRes
+  = StillPartial (Partial PartiallyAppable)
+  | ResolvedToType (FullyApplied TyAppable, Level)
+  | ResolvedToFullyAppliedTerm (FullyApplied Appable)
+
+
+-- | @applyPartial app arg resTy@ resolves a partial application
+-- | (with expected type @resTy@) by applying the argument. The result
+-- | is either yet another partial application, a fully-applied term, or
+-- | a type.
+applyPartial :: Partial PartiallyAppable -> Term -> Type -> AppRes
+applyPartial pa arg resTy =
+  let newArgs = appliedArgs pa <> [arg] in
+  case un resTy of
+    -- if the result is a Pi, then this is still partial---it
+    -- requires more arguments to become fully applied
+    Pi{} -> StillPartial (partiallyApplied (un pa) newArgs)
+    -- if the result is a universe, we've just produced a type
+    Universe l ->
+      let thingApplied =
+            case un pa of
+              VarPartial v -> AppTyVar v
+              TyConPartial c -> AppTyCon c
+              DConPartial{} -> error "I completed a data constructor application, but produced a type."
+
+      in ResolvedToType (fullyApplied thingApplied newArgs, l)
+    -- wasn't a universe, but is fully applied, so it's a term application
+    _ -> ResolvedToFullyAppliedTerm (fullyApplied (case un pa of
+                                                     VarPartial v -> I.Var v
+                                                     DConPartial dc -> ConData dc
+                                                     TyConPartial{} -> error "I completed a type application and produced something that wasn't a type."
+                                                  ) newArgs)
+
+
+applyPartialToTerm :: Partial PartiallyAppable -> Term -> Type -> Term
+applyPartialToTerm app arg resTy =
+  case applyPartial app arg resTy of
+    ResolvedToType (p, l) -> TypeTerm $ mkType (TyApp p) l
+    ResolvedToFullyAppliedTerm p -> I.App p
+    StillPartial p -> PartialApp p
