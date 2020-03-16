@@ -41,6 +41,7 @@ module Language.Dlam.Syntax.Internal
   , mkType
   , typeOf
   , typedWith
+  , TyAppable(..)
   -- * Grades
   , Grade
   , Grading
@@ -54,6 +55,8 @@ module Language.Dlam.Syntax.Internal
   , thatMagicalGrade
   , thatMagicalGrading
   , decrementGrade
+  -- * Helpers
+  , mkTyVar
   -- * Naming
   , HasName(..)
   ) where
@@ -117,10 +120,15 @@ data TypeTerm
   = Pi Arg Type
   -- | A type universe.
   | Universe Level
-  -- | A type constructed from a type constructor.
-  | Constructed (FullyApplied TyCon)
-  -- | A full application of a bound variable.
-  | VarApp (FullyApplied VarId)
+  -- | A type constructed from an application.
+  | TyApp (FullyApplied TyAppable)
+
+
+data TyAppable
+  -- | Free variable whose type ends in a universe.
+  = AppTyVar VarId
+  -- | Type constructor.
+  | AppTyCon TyCon
 
 
 -- | Terms representing raw values.
@@ -213,6 +221,12 @@ instance Applied (FullyApplied c) where
 instance Un FullyApplied where
   un = unFullyApplied
 
+instance Functor FullyApplied where
+  fmap f p = FullyApplied { unFullyApplied = f (un p), allArgs = allArgs p }
+
+instance Functor Partial where
+  fmap f p = Partial { unPartial = f (un p), partialArgs = partialArgs p }
+
 
 -- | Indicate that the thing is partially applied. ONLY FOR INTERNAL USE.
 partiallyApplied :: a -> [Term] -> Partial a
@@ -268,13 +282,20 @@ instance Pretty Elim where
 
 
 instance Pretty TypeTerm where
-  isLexicallyAtomic (Constructed t) = length (appliedArgs t) == 0
+  isLexicallyAtomic (TyApp t) = length (appliedArgs t) == 0
   isLexicallyAtomic _ = False
 
   pprint (Universe l) = text "Type" <+> pprint l
   pprint (Pi arg resT) = pprintParened arg <+> text "->" <+> pprint resT
-  pprint (Constructed ty) = pprintParened (un ty) <+> hsep (fmap pprintParened (appliedArgs ty))
-  pprint (VarApp vapp) = pprintParened (un vapp) <+> hsep (fmap pprintParened (appliedArgs vapp))
+  pprint (TyApp ty) = pprintParened (un ty) <+> hsep (fmap pprintParened (appliedArgs ty))
+
+
+instance Pretty TyAppable where
+  isLexicallyAtomic (AppTyVar v) = isLexicallyAtomic v
+  isLexicallyAtomic (AppTyCon t) = isLexicallyAtomic t
+
+  pprint (AppTyVar v) = pprint v
+  pprint (AppTyCon t) = pprint t
 
 
 instance Pretty TyCon where
@@ -449,6 +470,10 @@ mkLam :: Name -> Type -> Term -> Term
 mkLam n ty body = Lam (n `typedWith` ty `gradedWith` thatMagicalGrading) body
 
 
+mkTyVar :: Name -> Level -> Type
+mkTyVar n l = mkType (TyApp (fullyApplied (AppTyVar n) [])) l
+
+
 class HasName a where
   name :: a -> Name
 
@@ -456,6 +481,11 @@ class HasName a where
 instance HasName Appable where
   name (Var x) = x
   name (ConData cd) = name cd
+
+
+instance HasName TyAppable where
+  name (AppTyVar x) = x
+  name (AppTyCon cd) = name cd
 
 
 instance HasName TyCon where

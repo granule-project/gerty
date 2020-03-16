@@ -47,7 +47,7 @@ checkTermIsType (I.App app) = do
   case un app of
     I.Var v -> do
       l <- fmap theUniverseWeLiveIn (lookupType' v >>= universeOrNotAType)
-      pure $ mkType (VarApp (fullyApplied v [])) l
+      pure $ mkTyVar v l
     ConData _ -> notImplemented "checkTermIsType: can't yet deal with data constructors"
 checkTermIsType _ = notAType
 
@@ -65,7 +65,7 @@ checkExprIsType_ :: Expr -> CM Type
 checkExprIsType_ (Builtin e) = universeOrNotAType (getBuiltinType e)
 checkExprIsType_ (Var x) = do
   l <- fmap theUniverseWeLiveIn (lookupType' x >>= universeOrNotAType)
-  maybe (pure $ mkType (I.VarApp (fullyApplied x [])) l) checkTermIsType =<< maybeLookupValue x
+  maybe (pure $ mkTyVar x l) checkTermIsType =<< maybeLookupValue x
 checkExprIsType_ (App (Var x) e) = do
   vTy <- lookupType' x
   case un vTy of
@@ -152,13 +152,7 @@ typesAreEqual t1 t2 = do
   -- _levEq <- levelsAreEqual (level t1) (level t2)
   case (un t1, un t2) of
     -- TODO: add proper equality here (2020-03-14)
-    (VarApp app1, VarApp app2) ->
-      let x = un app1
-          y = un app2
-          xs = appliedArgs app1
-          ys = appliedArgs app2
-      in (&&) <$> pure (length xs == length ys && x == y) <*> (and <$> (mapM (uncurry termsAreEqual) (zip xs ys)))
-    (Constructed app1, Constructed app2) ->
+    (TyApp app1, TyApp app2) ->
       let x = name $ un app1
           y = name $ un app2
           xs = appliedArgs app1
@@ -477,7 +471,7 @@ instance Normalise CM Term where
         l' <- normalise l
         xs <- normalise xs
         case n of
-          I.Var n -> pure . TypeTerm $ mkType (VarApp (fullyApplied n xs)) l'
+          I.Var n -> pure . TypeTerm $ mkType (TyApp (fullyApplied (AppTyVar n) xs)) l'
           I.ConData{} -> notImplemented $ "I don't yet know how to normalise the data constructor application '" <> pprintShow ap <> "'"
       _ -> I.App . fullyApplied (un app) <$> normalise xs
       -- t@Pi{} -> do
@@ -517,10 +511,9 @@ instance Normalise CM Level where
 instance Normalise CM TypeTerm where
   normalise (Universe l) = Universe <$> normalise l
   -- Type variables are free, and thus cannot reduce through application.
-  normalise (VarApp app) = VarApp . fullyApplied (un app) <$> normalise (appliedArgs app)
-  -- Type constructors must be bound in the current scope.
+  -- Type constructors are constants, and thus also cannot reduce.
   -- TODO: perhaps check we have correct number of arguments  (2020-03-16)
-  normalise (Constructed c) = Constructed . fullyApplied (un c) <$> normalise (appliedArgs c)
+  normalise (TyApp app) = TyApp . fullyApplied (un app) <$> normalise (appliedArgs app)
 
   normalise (Pi arg t) = do
     let x = un (un arg)
@@ -553,10 +546,7 @@ substArgs t xs =
       resTy' <- substituteAndNormalise (v, x) resTy
       xs' <- mapM (substitute (v, x)) xs
       substArgs resTy' xs'
-    -- as this came from a value lookup, we know it is already in normal
-    -- form, thus we cannot reduce
-    (VarApp app, []) -> do
-      mkType . VarApp . fullyApplied (un app) <$> normalise (appliedArgs app) <*> pure (level t)
-    (Constructed c, []) -> do
-      mkType . Constructed . fullyApplied (un c) <$> normalise (appliedArgs c) <*> pure (level t)
+    -- types are fully applied, so the (additional) arguments must be empty
+    (TyApp app, []) -> do
+      mkType . TyApp . fullyApplied (un app) <$> normalise (appliedArgs app) <*> pure (level t)
     _ -> error $ "substArgs: bad call: '" <> pprintShow t <> "' with arguments '" <> show (fmap pprintParened xs) <> "'"

@@ -170,7 +170,7 @@ builtinBody (BinTyCon tcon) =
   if length (args tcon) > 0
   then PartialApp (partiallyApplied (TyConPartial tcon) [])
   -- TODO: not sure if this is the correct level! (2020-03-16)
-  else TypeTerm $ mkType (Constructed $ fullyApplied tcon []) (level $ conTy tcon)
+  else TypeTerm $ mkType (TyApp $ fullyApplied (AppTyCon tcon) []) (level $ conTy tcon)
   -- else TypeTerm $ mkType (Constructed $ fullyApplied tcon []) (prevLevel $ level $ conTy tcon)
 
 -- no internal representation provided, this behaves like an axiom
@@ -202,7 +202,7 @@ mkTyConTy con = foldr (\arg t -> mkFunTy (argVar arg) (typeOf arg) t) (conTy con
 -- the arguments passed (will need to build the builtins in the monad,
 -- I think) (2020-03-16)
 mkDConTy :: DCon -> Type
-mkDConTy con = foldr (\arg t -> mkFunTy (argVar arg) (typeOf arg) t) (mkType (Constructed $ dconTy con) (level $ conTy (un $ dconTy con))) (args con)
+mkDConTy con = foldr (\arg t -> mkFunTy (argVar arg) (typeOf arg) t) (mkType (TyApp $ fmap AppTyCon (dconTy con)) (level $ conTy (un $ dconTy con))) (args con)
 
 
 mkFunTy :: Name -> Type -> Type -> Type
@@ -223,7 +223,7 @@ mkLevelVar n = mkTLevel $ mkVar n
 
 -- | Make a new (fully-applied) type variable.
 mkTypeVar :: Name -> Level -> Type
-mkTypeVar n = mkType (VarApp (fullyApplied n []))
+mkTypeVar n = mkType (TyApp (fullyApplied (AppTyVar n) []))
 
 
 -- | Make a new (fully-applied) free variable.
