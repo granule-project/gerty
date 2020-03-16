@@ -10,6 +10,9 @@ module Language.Dlam.Syntax.Internal
   , TypeTerm(..)
   , TyAppable(..)
   , Elim(..)
+  -- ** Arguments
+  , Arg
+  , argVar
   -- * Levels
   , Level(..)
   , LevelAtom(..)
@@ -76,10 +79,17 @@ type VarId = Name
 -----------------
 
 
+type Arg = Graded (Typed Name)
+
+
+argVar :: Arg -> Name
+argVar = un . un
+
+
 -- | Terms that are only well-typed if they are types.
 data TypeTerm
   -- | Dependent function space.
-  = Pi (Graded (Typed Name)) Type
+  = Pi Arg Type
   -- | A type universe.
   | Universe Level
   -- | An application resulting in a type.
@@ -100,7 +110,7 @@ data Term
   -- | An application.
   | App Appable [Term]
   -- | A lambda abstraction.
-  | Lam (Graded (Typed Name)) Term
+  | Lam Arg Term
 
 
 data Appable
