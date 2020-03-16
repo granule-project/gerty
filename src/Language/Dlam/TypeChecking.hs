@@ -631,6 +631,7 @@ instance Normalise CM Term where
               (TyApp (TyVar v) xs, []) -> do
                 xs' <- normalise xs
                 pure $ mkType (TyApp (TyVar v) xs') (level t)
+              (Pi arg resTy, []) -> pure $ mkType (Pi arg resTy) (level t)
               (Pi arg resTy, x:xs) -> do
                 resTy' <- substitute (un (un arg), x) resTy
                 substArgs resTy' xs
@@ -691,6 +692,7 @@ instance Normalise CM TypeTerm where
           substArgs t xs =
             case (un t, xs) of
               (Universe{}, []) -> normalise t
+              (Pi arg resTy, []) -> pure $ mkType (Pi arg resTy) (level t)
               (Pi arg resTy, x:xs) -> do
                 resTy' <- substituteAndNormalise (un (un arg), x) resTy
                 substArgs resTy' xs
