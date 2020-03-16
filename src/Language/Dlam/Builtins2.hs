@@ -62,7 +62,6 @@ import qualified Data.Map as M
 
 import Language.Dlam.Syntax.Abstract (Name, mkIdent, ignoreVar, BuiltinTerm(..))
 import Language.Dlam.Syntax.Internal
--- import Language.Dlam.Util.Peekaboo
 import Language.Dlam.Util.Pretty (pprintShow)
 
 
@@ -79,12 +78,6 @@ builtinTerms =
   , dnzero, dnsucc
   , unitTerm
   , reflTerm
-  -- [ typeTy
-  -- , lzero, lsuc, lmax
-  -- , inlTerm, inrTerm
-  -- , dnzero, dnsucc
-  -- , unitTerm
-  -- , idTy, reflTerm
   ]
 
 
@@ -96,12 +89,6 @@ builtinTypes =
   , unitTy
   , emptyTy
   , idTy
-  -- [ typeTy
-  -- , lzero, lsuc, lmax
-  -- , inlTerm, inrTerm
-  -- , dnzero, dnsucc
-  -- , unitTerm
-  -- , idTy, reflTerm
   ]
 
 
@@ -169,9 +156,6 @@ mkLevelVar n = mkTLevel $ mkVar n
 
 mkTypeVar :: Name -> Level -> Type
 mkTypeVar n = mkType (TyApp (TyVar n) [])
-
--- mkTyVar :: Name -> Level -> Term
--- mkTyVar n l = TypeTerm $ mkTypeVar n l
 
 mkVar :: Name -> Term
 mkVar n = App (Var n) []

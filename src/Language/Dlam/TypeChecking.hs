@@ -88,14 +88,6 @@ checkExprIsType_ (FunTy ab) = do
   -- pure $ mkType (Pi (x `typedWith` argTy `gradedWith` thatMagicalGrading) ty) (Max (level argTy) (level ty))
   pure $ mkType (Pi (x `typedWith` argTy `gradedWith` thatMagicalGrading) ty) (nextLevel (Max (level argTy) (level ty)))
 checkExprIsType_ _e = notAType
--- -- | Infer a level for the given type.
--- inferUniverseLevel :: Type -> CM Level
--- inferUniverseLevel e = withLocalCheckingOf e $ do
---   u <- synthType e
---   norm <- normalise u
---   case norm of
---     (App (Builtin TypeTy) l) -> pure l
---     _        -> expectedInferredTypeForm "universe" norm
 
 
 -- | Try and register the name with the given type
@@ -111,18 +103,10 @@ checkDeclaration ts@(TypeSig n t) = do
   debug $ "checkDeclaration: checking signature: " <> pprintShow ts
   -- make sure that the type is actually a type
   ty <- checkExprIsType t
-  -- checkExprValidForSignature t
 
   registerTypeForName n ty
-  -- pure (TypeSig n t)
   where
-    -- | Check that the given expression is valid as a type signature.
-    -- |
-    -- | This usually means that the expression is a type, but allows
-    -- | for the possibility of holes that haven't yet been resolved.
-    -- checkExprValidForSignature :: Expr -> CM ()
-    -- checkExprValidForSignature Implicit = pure ()
-    -- checkExprValidForSignature expr = inferUniverseLevel expr >> pure ()
+
 
 checkDeclaration eqn@(FunEqn (FLHSName v) (FRHSAssign e)) = do
   debug $ "checkDeclaration: checking equation: " <> pprintShow eqn
@@ -145,75 +129,6 @@ checkDeclaration eqn@(FunEqn (FLHSName v) (FRHSAssign e)) = do
 -- | mismatch is found.
 checkAST :: AST -> CM ()
 checkAST (AST ds) = mapM_ checkDeclaration ds
-
-
-  {-
--- | Check if two expressions are equal under normalisation.
-equalExprs :: Expr -> Expr -> CM Bool
-equalExprs e1 e2 = do
-  ne1 <- normalise e1
-  ne2 <- normalise e2
-  case (ne1, ne2) of
-    (Var v1, Var v2) -> pure (v1 == v2)
-    (App f1 v1, App f2 v2) -> (&&) <$> equalExprs f1 f2 <*> equalExprs v1 v2
-    (FunTy ab1, FunTy ab2) -> equalAbs ab1 ab2
-    (Lam ab1, Lam ab2) -> equalAbs ab1 ab2
-    (ProductTy ab1, ProductTy ab2) -> equalAbs ab1 ab2
-    (Coproduct t1 t2, Coproduct t1' t2') -> (&&) <$> equalExprs t1 t1' <*> equalExprs t2 t2'
-    (CoproductCase (z, tC) (x, c) (y, d) e, CoproductCase (z', tC') (x', c') (y', d') e') -> do
-      typesOK <- equalExprs tC' =<< substitute (z, Var z') tC
-      csOK <- equalExprs c' =<< substitute (x, Var x') c
-      dsOK <- equalExprs d' =<< substitute (y, Var y') d
-      esOK <- equalExprs e e'
-      pure $ typesOK && csOK && dsOK && esOK
-    (NatCase (x, tC) cz (w, y, cs) n, NatCase (x', tC') cz' (w', y', cs') n') -> do
-      typesOK <- equalExprs tC' =<< substitute (x, Var x') tC
-      csOK <- equalExprs cs' =<< (substitute (w, Var w') cs >>= substitute (y, Var y'))
-      czsOK <- equalExprs cz cz'
-      nsOK <- equalExprs n n'
-      pure $ typesOK && csOK && czsOK && nsOK
-    -- Implicits always match.
-    (Implicit, _) -> pure True
-    (_, Implicit) -> pure True
-    (Builtin b1, Builtin b2) -> pure (b1 == b2)
-    (LitLevel n, LitLevel m) -> pure (n == m)
-
-    (Let (LetPatBound p e1) e2, Let (LetPatBound p' e1') e2') -> do
-      case maybeGetPatternUnificationSubst p p' of
-        Nothing -> pure False
-        Just subst -> do
-          e1sOK <- equalExprs e1 e1'
-          -- check that e2 and e2' are equal under the pattern substitution
-          e2sOK <- (`equalExprs` e2') =<< substitute subst e2
-          pure $ e1sOK && e2sOK
-
-    -- when there are two Sigs, we make sure their expressions and types are the same
-    (Sig e1 t1, Sig e2 t2) -> (&&) <$> equalExprs e1 e2 <*> equalExprs t1 t2
-    -- otherwise we just ignore the type in the Sig
-    (Sig e1 _, e2) -> equalExprs e1 e2
-    (e1, Sig e2 _) -> equalExprs e1 e2
-
-    (_, _) -> pure False
-  where equalAbs :: Abstraction -> Abstraction -> CM Bool
-        equalAbs ab1 ab2 = do
-          -- checking \(x : a) -> b = \(y : c) -> d
-          -- we say:
-          -- d' = [y/x]d
-          -- then check:
-          -- a = c and b = d' (with (x : a) in scope)
-          e2s <- substitute (absVar ab2, Var (absVar ab1)) (absExpr ab2)
-          (&&) <$> equalExprs (absTy ab1) (absTy ab2)
-               <*> withAbsBinding ab1 (equalExprs (absExpr ab1) e2s)
-
-
--- | 'ensureEqualTypes tyExpected tyActual' checks that 'tyExpected' and 'tyActual'
--- | represent the same type (under normalisation), and fails if they differ.
-ensureEqualTypes :: Type -> Type -> CM Type
-ensureEqualTypes tyExpected tyActual = do
-  typesEqual <- equalExprs tyActual tyExpected
-  if typesEqual then pure tyActual
-  else tyMismatch tyExpected tyActual
-       -}
 
 
 -- | Are the terms equal in the current context?
@@ -287,7 +202,6 @@ checkExpr_ :: Expr -> Type -> CM Term
 checkExpr_ (Var x) t = do
   -- x @ (k+1, n) : A in G
   tA <- lookupType' x
-  -- debug $ "checkExpr_: got type '" <> pprintShow tA <> "' for variable '" <> pprintShow x <> "'"
   kplus1 <- lookupSubjectRemaining' x
   k <- case kplus1 of
          -- as the scope checker ensures that all local variables are
@@ -300,9 +214,6 @@ checkExpr_ (Var x) t = do
 
   -- G |- A : Type l
   -- ensured by the fact that tA is a type from context
-
-  -- _l <- inferUniverseLevel tA
-  -- tA <- normalise tA
 
   -- x @ (k, n) : A in G
   -- G |- x : A
@@ -368,13 +279,10 @@ checkExpr_ (Lam abE) t = do
 
   e' <- withGradedVariable' x gr $ withTypedVariable' x tA (checkExpr e tB)
 
+  -- G |- \x -> e : (x : A) -> B
   -- TODO: check grading (2020-03-14)
   pure (I.Lam (x `typedWith` tA `gradedWith` gr) e')
 
-  -- G |- \x -> e : (x : A) -> B
-  -- ensureEqualTypes
-  -- pure $ mkType (Pi (x `typedWith` tA `gradedWith` thatMagicalGrading) tB) (nextLevel (Max (level tA) (level tB)))
-  -- ensureEqualTypes t (FunTy (mkAbs x tA tB))
 
 {-
    G |- t1 : (x : A) -> B
@@ -383,21 +291,14 @@ checkExpr_ (Lam abE) t = do
    G |- t1 t2 : [t2/x]B
 -}
 checkExpr_ (App e1 e2) t = do
-  -- (_tv, gr, tA, resTy) <- case un t of
-  --   (Pi arg resTy) -> pure (un arg, I.grading arg, typeOf arg, resTy)
-  --   _ -> expectedInferredTypeForm' "function" t
 
   -- G |- t1 : (x : A) -> B
   (e1Term, e1Ty) <- inferExpr e1
-  -- e1Ty <- inferFunTy e1
+
   (x, tA, tB) <-
     case un e1Ty of
       Pi arg resTy -> pure (un (un arg), typeOf arg, resTy)
       _ -> expectedInferredTypeForm' "function" e1Ty
-
-  -- let x  = absVar e1Ty
-  --     tA = absTy  e1Ty
-  --     tB = absExpr e1Ty
 
   -- G |- t2 : A
   e2Term <- checkExpr e2 tA
@@ -405,7 +306,6 @@ checkExpr_ (App e1 e2) t = do
 
   -- G |- t1 t2 : [t2/x]B
   t2forXinB <- substituteAndNormalise (x, e2Term) tB
-  -- t2forXinB <- substitute (x, e2) tB
   ensureEqualTypes t t2forXinB
   case e1Term of
     (I.App f xs) -> pure $ I.App f (xs ++ [e2Term])
@@ -416,10 +316,6 @@ checkExpr_ (App e1 e2) t = do
         _ -> notImplemented "checkExpr_: hit a supposedly impossible clause"
     _ -> notImplemented "checkExpr_: hit a supposedly impossible clause"
 
-  -- where inferFunTy :: Expr -> CM Abstraction
-  --       inferFunTy e = withLocalCheckingOf e $ do
-  --         t <- synthType e >>= normalise
-  --         getAbsFromFunTy t
 ---------
 -- Sig --
 ---------
@@ -604,7 +500,6 @@ instance Normalise CM Term where
   normalise (TypeTerm t) = TypeTerm <$> normalise t
   normalise (Level l) = Level <$> normalise l
   normalise (I.App (I.Var n) xs) = do
-    -- mval <- maybeLookupValue n
     mty  <- lookupType' n
     resTy <- substArgs mty xs
     case un resTy of
@@ -621,9 +516,6 @@ instance Normalise CM Term where
       --       l' <- normalise l
       --       pure . TypeTerm $ mkType (TyApp (TyVar n) []) l'
       --     _ -> error "here"
-    -- case mval of
-    --   Nothing -> I.App (I.Var n) <$> mapM normalise xs
-    --   Just val ->
   normalise (I.Lam arg body) = do
     let x = un (un arg)
     g <- normalise (I.grading arg)
@@ -660,22 +552,7 @@ instance Normalise CM TypeTerm where
       Just (TypeTerm val) -> un <$> substArgs val xs
       -- Just (TypeTerm val) -> fmap un . normalise =<< substArgs val xs
       Just v -> error $ "got value: " <> pprintShow v
-                       {-
-    mty  <- lookupType' n
-    resTy <- substArgs mty xs
-    case un resTy of
-      -- typing should guarantee 'xs' is empty here
-      Universe _l -> do
-        xs <- normalise xs
-        pure $ (TyApp (TyVar n) xs)
-      _ -> notImplemented $ "normalising type: " <> pprintShow t
-      -}
 
-  -- TODO: ROUGH PLAN (2020-03-15)
-  -- we want to be able to tell if something is an application of the builtin
-  -- 'Type', then we convert this to a universe
-  -- might be easier if we make 'Type' a token, so you can't shadow this--then we
-  -- don't need to parse it as a variable.
   normalise (Pi arg t) = do
     let x = un (un arg)
     g <- normalise (I.grading arg)

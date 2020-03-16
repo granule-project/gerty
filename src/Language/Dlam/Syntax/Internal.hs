@@ -216,7 +216,6 @@ instance Dec Level where
   dec (Plus n l)
     | n > 0 = Plus (pred n) l
     | otherwise = error "dec on already-zero level"
-    -- | otherwise = Plus n (dec l)
   dec (Max x y) = Max (dec x) (dec y)
 
 
