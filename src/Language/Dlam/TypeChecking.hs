@@ -624,18 +624,6 @@ instance Normalise CM Term where
     -- case mval of
     --   Nothing -> I.App (I.Var n) <$> mapM normalise xs
     --   Just val ->
-    where substArgs :: Type -> [Term] -> CM Type
-          substArgs t xs =
-            case (un t, xs) of
-              (Universe{}, []) -> normalise t
-              (TyApp (TyVar v) xs, []) -> do
-                xs' <- normalise xs
-                pure $ mkType (TyApp (TyVar v) xs') (level t)
-              (Pi arg resTy, []) -> pure $ mkType (Pi arg resTy) (level t)
-              (Pi arg resTy, x:xs) -> do
-                resTy' <- substitute (un (un arg), x) resTy
-                substArgs resTy' xs
-              _ -> error $ "substArgs: bad call: '" <> pprintShow t <> "' with arguments '" <> show (fmap pprintParened xs) <> "'"
   normalise (I.Lam arg body) = do
     let x = un (un arg)
     g <- normalise (I.grading arg)
@@ -688,26 +676,6 @@ instance Normalise CM TypeTerm where
   -- 'Type', then we convert this to a universe
   -- might be easier if we make 'Type' a token, so you can't shadow this--then we
   -- don't need to parse it as a variable.
-    where substArgs :: Type -> [Term] -> CM Type
-          substArgs t xs =
-            case (un t, xs) of
-              (Universe{}, []) -> normalise t
-              (Pi arg resTy, []) -> pure $ mkType (Pi arg resTy) (level t)
-              (Pi arg resTy, x:xs) -> do
-                resTy' <- substituteAndNormalise (un (un arg), x) resTy
-                substArgs resTy' xs
-              -- as this came from a value lookup, we know it is already in normal
-              -- form, thus we cannot reduce
-              (TyApp (TyVar v) xs, []) -> do
-                xs' <- normalise xs
-                pure $ mkType (TyApp (TyVar v) xs') (level t)
-              (TyApp (TyVar v) xs, ys) -> do
-                xs <- normalise xs
-                ys <- normalise ys
-                pure $ mkType (TyApp (TyVar v) (xs ++ ys)) (level t)
-                -- pure $ mkType (TyApp (TyVar v) xs) (level t)
-              -- TyApp (TyVar
-              _ -> error $ "substArgs: bad call: '" <> pprintShow t <> "' with arguments '" <> show (fmap pprintParened xs) <> "'"
   normalise (Pi arg t) = do
     let x = un (un arg)
     g <- normalise (I.grading arg)
@@ -727,3 +695,23 @@ instance Normalise CM Type where
 
 substituteAndNormalise :: (Monad m, Normalise m t, Substitutable m s t) => s -> t -> m t
 substituteAndNormalise s t = substitute s t >>= normalise
+
+
+substArgs :: Type -> [Term] -> CM Type
+substArgs t xs =
+  case (un t, xs) of
+    (Universe{}, []) -> normalise t
+    (Pi arg resTy, []) -> pure $ mkType (Pi arg resTy) (level t)
+    (Pi arg resTy, x:xs) -> do
+      resTy' <- substituteAndNormalise (un (un arg), x) resTy
+      substArgs resTy' xs
+    -- as this came from a value lookup, we know it is already in normal
+    -- form, thus we cannot reduce
+    (TyApp (TyVar v) xs, []) -> do
+      xs' <- normalise xs
+      pure $ mkType (TyApp (TyVar v) xs') (level t)
+    (TyApp (TyVar v) xs, ys) -> do
+      xs <- normalise xs
+      ys <- normalise ys
+      pure $ mkType (TyApp (TyVar v) (xs ++ ys)) (level t)
+    _ -> error $ "substArgs: bad call: '" <> pprintShow t <> "' with arguments '" <> show (fmap pprintParened xs) <> "'"
