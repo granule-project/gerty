@@ -35,7 +35,9 @@ checkExprIsLevel_ l = do
   t <- checkExpr l levelTy'
   case t of
     Level l' -> pure l'
-    _ -> error "checkExprIsLevel_: hit impossible clause."
+    -- we determined that the expression is a level, but does not represent
+    -- a level literal, so it must be a level-like term
+    term -> pure (Plus 0 (LTerm term))
 
 
 -- | Require that the term is a valid type (of unknown sort).
@@ -58,8 +60,9 @@ checkExprIsType e = do
 
 checkExprIsType_ :: Expr -> CM Type
 checkExprIsType_ (Builtin e) = universeOrNotAType (getBuiltinType e)
-checkExprIsType_ (Var x) = lookupValue' x >>= checkTermIsType
--- checkExprIsType_ (Var x) = lookupValue' x >>= checkTermIsType
+checkExprIsType_ (Var x) = do
+  l <- fmap theUniverseWeLiveIn (lookupType' x >>= universeOrNotAType)
+  maybe (pure $ mkType (I.TyApp (I.TyVar x) []) l) checkTermIsType =<< maybeLookupValue x
 checkExprIsType_ (App (Var x) e) = do
   vTy <- lookupType' x
   case un vTy of
@@ -309,7 +312,7 @@ checkExpr_ (Var x) t = do
   case val of
     Nothing -> pure (I.App (I.Var x) [])
     Just r  -> pure r
-               {-
+
 -------------------------------
 ----- Dependent Functions -----
 -------------------------------
@@ -320,17 +323,22 @@ checkExpr_ (Var x) t = do
    ------------------------------------- :: FunTy
    G |- (x : A) -> B : Type (lmax l1 l2)
 -}
-checkOrInferType' t (FunTy ab) = do
+checkExpr_ (FunTy ab) t = do
   -- G |- A : Type l1
-  l1 <- inferUniverseLevel (absTy ab)
+  tA <- checkExprIsType (absTy ab)
 
   -- G, x : A |- B : Type l2
-  l2 <- withAbsBindingForType ab $ inferUniverseLevel (absExpr ab)
+  let x = absVar ab
+      -- TODO: add proper support for grades (2020-03-16)
+      arg = mkArg x thatMagicalGrading tA
+  tB <- withArgBoundForType arg $ checkExprIsType (absExpr ab)
 
   -- G |- (x : A) -> B : Type (lmax l1 l2)
-  lmaxl1l2 <- normalise (lmaxApp l1 l2)
+  lmaxl1l2 <- normalise $ Max (level tA) (level tB)
   ensureEqualTypes t (mkUnivTy lmaxl1l2)
+  pure . TypeTerm $ mkType (Pi arg tB) lmaxl1l2
 
+{-
 --------------------------------------------
 -- Abstraction expression, with wild type --
 --------------------------------------------
@@ -338,8 +346,6 @@ checkOrInferType' Implicit expr@(Lam ab) = do
   rTy <- withAbsBinding ab $ checkOrInferType mkImplicit (absExpr ab)
   checkOrInferType (FunTy (mkAbs' (isHidden ab) (absVar ab) (grading ab) (absTy ab) rTy)) expr
 -}
-
-
 {-
    G, x : A |- e : B
    --------------------------------- :: Lam
@@ -569,6 +575,17 @@ withArgBound :: Arg -> CM a -> CM a
 withArgBound arg act =
   let x = argVar arg
   in withGradedVariable' x (I.grading arg) $ withTypedVariable' x (typeOf arg) act
+
+
+-- | Execute the action with the binder active (for subject-type checking).
+withArgBoundForType :: Arg -> CM a -> CM a
+withArgBoundForType arg act =
+  let x = argVar arg
+      g = I.grading arg
+      stgrade = I.subjectTypeGrade g
+  -- bind the subject-type grade to the subject grade since we are
+  -- checking the remainder of the type (probably!?)
+  in withGradedVariable' x (I.mkGrading stgrade thatMagicalGrade) $ withTypedVariable' x (typeOf arg) act
 
 
 class Normalise m t where

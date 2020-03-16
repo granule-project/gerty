@@ -1,0 +1,7 @@
+-- Pi in type
+test1 : (a : Type 0) -> a -> a
+test1 = \a x -> x
+
+-- Pi in term
+test2 : Type 1
+test2 = (a : Type 0) -> a -> a
