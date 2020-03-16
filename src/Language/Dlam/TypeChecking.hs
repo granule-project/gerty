@@ -459,7 +459,7 @@ instance (Applicative m, Functor m, Normalise m a) => Normalise m (Maybe a) wher
 instance Normalise CM Term where
   normalise (TypeTerm t) = TypeTerm <$> normalise t
   normalise (Level l) = Level <$> normalise l
-  normalise p@(I.PartialApp _) = notImplemented $ "I don't yet know how to normalise the partial application '" <> pprintShow p <> "'"
+  normalise (I.PartialApp p) = I.PartialApp . partiallyApplied (un p) <$> normalise (appliedArgs p)
   normalise ap@(I.App app) = do
     let n = un app
         xs = appliedArgs app
