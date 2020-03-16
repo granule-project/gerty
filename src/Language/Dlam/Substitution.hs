@@ -114,21 +114,12 @@ instance {-# OVERLAPS #-} Substitutable CM (Name, I.Term) I.Type where
     l <- substitute s (I.level t)
     case un t of
       (I.Universe ul) -> I.mkType . I.Universe <$> substitute s ul <*> pure l
-      {-
-      (I.TyApp f xs) -> do
-       ty <- I.TyApp f <$> mapM (substitute s) xs
-       l <- substitute s (I.level t)
-       pure $ I.mkType ty l
-       -}
       (I.TyApp f xs) -> I.mkType . I.TyApp f <$> mapM (substitute s) xs <*> pure l
       (I.Pi arg resTy) -> do
         let v' = I.argVar arg
         arg' <- substitute s arg
         resTy' <- if v == v' then pure resTy else substitute s resTy
         pure $ I.mkType (I.Pi arg' resTy') l
-  -- substitute (v, e) (I.App (I.Var x) xs)
-  --   | v == x    = pure e
-  --   | otherwise = pure (Var x)
 
 
 instance {-# OVERLAPS #-} Substitutable CM (Name, I.Term) I.Grading where
@@ -144,15 +135,6 @@ instance {-# OVERLAPS #-} Substitutable CM (Name, I.Term) I.Arg where
 
 
 instance {-# OVERLAPS #-} Substitutable CM (Name, I.Term) I.Level where
-  -- substitute s l = do
-  --   case l of
-  --     (I.Universe ul) -> I.mkType . I.Universe <$> substitute s ul <*> pure l
-  --     {-
-  --     (I.TyApp f xs) -> do
-  --      ty <- I.TyApp f <$> mapM (substitute s) xs
-  --      l <- substitute s (I.level t)
-  --      pure $ I.mkType ty l
-  --      -}
   -- [t/x](Concrete n) === Concrete n
   substitute _ l@I.Concrete{} = pure l
   -- [t/x](Plus n t') === Plus n [t/x]t'
@@ -162,16 +144,9 @@ instance {-# OVERLAPS #-} Substitutable CM (Name, I.Term) I.Level where
 
 instance {-# OVERLAPS #-} Substitutable CM (Name, I.Term) I.LevelAtom where
   substitute s (I.LTerm t) = I.LTerm <$> substitute s t
-  -- substitute (v, t) la =
-  --   CM.notImplemented $ "substituting '" <> pprintShow t <> "' for '" <> pprintShow v <> "' in level atom '" <> pprintShow la <> "'"
 
 
 instance {-# OVERLAPS #-} Substitutable CM (Name, I.Term) I.Term where
-    -- case t of
-      -- _ -> undefined
-  -- substitute (v, e) (I.App (I.Var x) xs)
-  --   | v == x    = pure e
-  --   | otherwise = pure (Var x)
   substitute s (I.TypeTerm t) = I.TypeTerm <$> substitute s t
   substitute s (I.Level l) = I.Level <$> substitute s l
   substitute s@(v, _) (I.Lam arg body) = do
