@@ -122,31 +122,37 @@ builtinsValues = M.fromList $
 -------------------------------
 
 
-newtype Builtin = MkBuiltin (Name, Type)
+newtype Builtin = MkBuiltin (Name, Term, Type)
 
 mkBuiltin :: BuiltinTerm -> Type -> Builtin
-mkBuiltin exprRef ty = MkBuiltin (mkIdent (pprintShow exprRef), ty)
+mkBuiltin exprRef ty = let n = mkIdent (pprintShow exprRef) in MkBuiltin (n, App (Var n) [], ty)
+
+
+mkBuiltin' :: BuiltinTerm -> Term -> Type -> Builtin
+mkBuiltin' bin term ty = MkBuiltin (mkIdent (pprintShow bin), term, ty)
 
 
 mkBuiltinType :: BuiltinTerm -> Level -> Builtin
-mkBuiltinType exprRef l = MkBuiltin (mkIdent (pprintShow exprRef), mkUnivTy l)
+mkBuiltinType exprRef l =
+  let n = mkIdent (pprintShow exprRef)
+  in MkBuiltin (n, TypeTerm $ mkType (TyApp (TyVar n) []) (Concrete 0), mkUnivTy l)
 
 
 -- | Syntactic name of a builtin term.
 builtinName :: Builtin -> Name
-builtinName (MkBuiltin (n, _)) = n
+builtinName (MkBuiltin (n, _, _)) = n
 
 -- | Body for a builtin term (essentially an Agda postulate).
 builtinBody :: Builtin -> Term
-builtinBody (MkBuiltin (n, _)) = App (Var n) []
+builtinBody (MkBuiltin (_, t, _)) = t
 
 -- | Body for a builtin type (essentially an Agda postulate).
 builtinTypeBody :: Builtin -> Term
-builtinTypeBody (MkBuiltin (n, _)) = TypeTerm $ mkType (TyApp (TyVar n) []) (Concrete 0)
+builtinTypeBody (MkBuiltin (_, t, _)) = t
 
 -- | The type of a builtin term.
 builtinType :: Builtin -> Type
-builtinType (MkBuiltin (_, t)) = t
+builtinType (MkBuiltin (_, _, ty)) = ty
 
 
 mkFunTy :: Name -> Type -> Type -> Type
@@ -170,6 +176,7 @@ mkTypeVar n = mkType (TyApp (TyVar n) [])
 mkVar :: Name -> Term
 mkVar n = App (Var n) []
 
+
 typeZero, levelTy', natTy', unitTy' :: Type
 typeZero = mkUnivTy (Concrete 0)
 
@@ -184,9 +191,12 @@ levelTy, lzero, lsuc, lmax,
  emptyTy :: Builtin
 
 levelTy = mkBuiltinType LevelTy levelZero
-lzero = mkBuiltin LZero levelTy'
-lsuc = mkBuiltin LSuc (mkFunTy ignoreVar levelTy' levelTy')
-lmax = mkBuiltin LMax (mkFunTy ignoreVar levelTy' (mkFunTy ignoreVar levelTy' levelTy'))
+lzero = mkBuiltin' LZero (Level (Concrete 0)) levelTy'
+lsuc = mkBuiltin' LSuc (let l = mkIdent "l" in mkLam l levelTy' (Level (nextLevel (mkLevelVar l)))) (mkFunTy ignoreVar levelTy' levelTy')
+lmax = mkBuiltin' LMax
+       (let l1 = mkIdent "l1"; l2 = mkIdent "l2"
+        in mkLam l1 levelTy' (mkLam l2 levelTy' (Level (Max (mkLevelVar l1) (mkLevelVar l2)))))
+       (mkFunTy ignoreVar levelTy' (mkFunTy ignoreVar levelTy' levelTy'))
 coproductBin = mkBuiltin DCoproduct coproductTY
   where
     coproductTY =

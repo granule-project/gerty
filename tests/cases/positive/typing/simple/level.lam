@@ -3,3 +3,11 @@ test1 = lzero
 
 test2 : Type 0
 test2 = Level
+
+
+test3 : Type (lsuc lzero)
+test3 = Type lzero
+
+
+test4 : Type (lmax lzero (lsuc lzero))
+test4 = Type (lmax lzero lzero)

@@ -461,6 +461,36 @@ inferExpr_ (Var x) = do
   mval <- maybeLookupValue x
   let val = maybe (I.App (I.Var x) []) id mval
   pure (val, ty)
+{-
+   G |- t1 : (x : A) -> B
+   G |- t2 : A
+   ---------------------- :: App
+   G |- t1 t2 : [t2/x]B
+-}
+inferExpr_ (App e1 e2) = do
+  -- G |- t1 : (x : A) -> B
+  (e1Term, e1Ty) <- inferExpr e1
+
+  (x, tA, tB) <-
+    case un e1Ty of
+      Pi arg resTy -> pure (un (un arg), typeOf arg, resTy)
+      _ -> expectedInferredTypeForm' "function" e1Ty
+
+  -- G |- t2 : A
+  e2Term <- checkExpr e2 tA
+
+  -- G |- t1 t2 : [t2/x]B
+  t2forXinB <- substituteAndNormalise (x, e2Term) tB
+
+  term <- case e1Term of
+            (I.App f xs) -> pure $ I.App f (xs ++ [e2Term])
+            (I.Lam arg body) -> substituteAndNormalise (un (un arg), e2Term) body
+            (TypeTerm t) ->
+              case un t of
+                (TyApp f xs) -> pure . TypeTerm $ mkType (TyApp f (xs ++ [e2Term])) (level t)
+                _ -> notImplemented "inferExpr_: hit a supposedly impossible clause"
+            _ -> notImplemented "inferExpr_: hit a supposedly impossible clause"
+  pure (term, t2forXinB)
 inferExpr_ e = notImplemented $ "inferExpr_: TODO, inference for expression: " <> pprintShow e
 
 

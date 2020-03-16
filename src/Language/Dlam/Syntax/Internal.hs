@@ -10,9 +10,11 @@ module Language.Dlam.Syntax.Internal
   , TypeTerm(..)
   , TyAppable(..)
   , Elim(..)
+  , mkLam
   -- ** Arguments
   , Arg
   , argVar
+  , mkArg
   -- * Levels
   , Level(..)
   , LevelAtom(..)
@@ -80,6 +82,10 @@ type VarId = Name
 
 
 type Arg = Graded (Typed Name)
+
+
+mkArg :: Name -> Grading -> Type -> Arg
+mkArg n g t = n `typedWith` t `gradedWith` g
 
 
 argVar :: Arg -> Name
@@ -311,3 +317,12 @@ decrementGrade e =
     GInf -> Just GInf
     GNat n | n > 0 -> Just . GNat $ pred n
            | otherwise -> Nothing
+
+
+-------------------
+----- Helpers -----
+-------------------
+
+
+mkLam :: Name -> Type -> Term -> Term
+mkLam n ty body = Lam (n `typedWith` ty `gradedWith` thatMagicalGrading) body
