@@ -70,11 +70,7 @@ checkExprIsType_ (App (Var x) e) = do
       let argTy = typeOf arg
       -- make sure the argument matches the required argument type
       e' <- checkExpr e argTy
-      resTy <- substituteAndNormalise (un (un arg), e') resTy
-      case un resTy of
-        Universe l -> pure $ mkType (Universe (prevLevel l)) (prevLevel l)
-        _ -> notAType
-      -- pure resTy
+      substituteAndNormalise (argVar arg, e') resTy
     _ -> withLocalCheckingOf (Var x) $ expectedInferredTypeForm' "function" vTy
 -- checkExprIsType_ (App f e) = do
 checkExprIsType_ (AType l) = do
