@@ -47,15 +47,15 @@ runScoper fname input = do
   cst <- runParser fname input
 
   -- Show CST
-  info $ "\n " <> ansi_bold <> "CST: " <> ansi_reset <> show cst
+  info $ ansi_bold <> "CST: " <> ansi_reset <> show cst
 
   -- Pretty print CST
-  info $ "\n " <> ansi_bold <> "Pretty CST:\n" <> ansi_reset <> pprintShow cst
+  info $ ansi_bold <> "Pretty CST:\n" <> ansi_reset <> pprintShow cst
 
   ast <- scopeAnalyseCST cst
 
   -- Pretty print AST
-  info $ "\n " <> ansi_bold <> "Pretty AST:\n" <> ansi_reset <> pprintShow ast
+  info $ ansi_bold <> "Pretty AST:\n" <> ansi_reset <> pprintShow ast
 
   pure ast
 

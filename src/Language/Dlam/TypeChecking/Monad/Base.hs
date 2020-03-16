@@ -5,8 +5,14 @@ module Language.Dlam.TypeChecking.Monad.Base
    CM
 
    -- * Logging
+  , Verbosity
+  , verbositySilent
+  , verbosityInfo
+  , verbosityDebug
+  , TCLog
   , debug
   , info
+  , formatLog
 
    -- * State
   , CheckerState
@@ -136,16 +142,57 @@ newtype CM a =
            , MonadError TCErr)
 
 
-type TCLog = [String]
+-------------------
+----- Logging -----
+-------------------
+
+
+type TCLog = [LogMessage]
+
+
+data LogMessage = InfoMessage String | DebugMessage String
+
+
+instance Show LogMessage where
+  show (InfoMessage s) = "INFO: " <> s
+  show (DebugMessage s) = "DEBUG: " <> s
+
+
+messageLevel :: LogMessage -> Verbosity
+messageLevel InfoMessage{} = Info
+messageLevel DebugMessage{} = Debug
+
+
+data Verbosity = Silent | Info | Debug
+  deriving (Eq, Ord)
+
+
+verbositySilent, verbosityInfo, verbosityDebug :: Verbosity
+verbositySilent = Silent
+verbosityInfo = Info
+verbosityDebug = Debug
 
 
 -- | Write some debugging information.
 debug :: String -> CM ()
-debug = tell . pure
+debug = tell . pure . DebugMessage
 
 
 info :: String -> CM ()
-info = tell . pure
+info = tell . pure . InfoMessage
+
+
+filterLog :: Verbosity -> TCLog -> TCLog
+filterLog l = filter ((<= l) . messageLevel)
+
+
+formatLog :: Verbosity -> TCLog -> String
+formatLog v = unlines . fmap show . filterLog v
+
+
+--------------------
+----- Checking -----
+--------------------
 
 
 data TCResult a

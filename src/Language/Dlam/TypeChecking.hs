@@ -576,8 +576,10 @@ substArgs t xs =
     (Universe{}, []) -> normalise t
     (Pi arg resTy, []) -> pure $ mkType (Pi arg resTy) (level t)
     (Pi arg resTy, x:xs) -> do
-      resTy' <- substituteAndNormalise (un (un arg), x) resTy
-      substArgs resTy' xs
+      let v = argVar arg
+      resTy' <- substituteAndNormalise (v, x) resTy
+      xs' <- mapM (substitute (v, x)) xs
+      substArgs resTy' xs'
     -- as this came from a value lookup, we know it is already in normal
     -- form, thus we cannot reduce
     (TyApp (TyVar v) xs, []) -> do
