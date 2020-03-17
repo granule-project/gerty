@@ -247,7 +247,7 @@ checkExpr_ (FunTy ab) t = do
   tB <- withArgBoundForType arg $ checkExprIsType (absExpr ab)
 
   -- G |- (x : A) -> B : Type (lmax l1 l2)
-  lmaxl1l2 <- normalise $ Max (level tA) (level tB)
+  let lmaxl1l2 = Max (level tA) (level tB)
   ensureEqualTypes t (mkUnivTy lmaxl1l2)
   pure . TypeTerm $ mkType (Pi arg tB) lmaxl1l2
 
