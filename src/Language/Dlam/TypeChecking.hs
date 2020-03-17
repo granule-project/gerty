@@ -69,9 +69,15 @@ checkExprIsType_ (App (Var x) e) = do
   case un vTy of
     Pi arg resTy -> do
       let argTy = typeOf arg
+
       -- make sure the argument matches the required argument type
       e' <- checkExpr e argTy
-      substituteAndNormalise (argVar arg, e') resTy
+
+      -- now do the application, and see if we get a type back
+      resTy <- substituteAndNormalise (argVar arg, e') resTy
+      case applyPartial (partiallyApplied (VarPartial x) []) e' resTy of
+        ResolvedToType (ty, l) -> pure (mkType (TyApp ty) l)
+        _ -> notAType
     _ -> withLocalCheckingOf (Var x) $ expectedInferredTypeForm' "function" vTy
 checkExprIsType_ (AType l) = do
   lev <- checkExprIsLevel l
