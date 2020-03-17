@@ -403,6 +403,7 @@ instance Pretty Level where
   isLexicallyAtomic _ = False
 
   pprint (Concrete n) = integer n
+  pprint (Plus 0 x) = pprint x
   pprint (Plus n x) = integer n <+> char '+' <+> pprintParened x
   pprint (Max n m) = text "lmax" <+> pprintParened n <+> pprintParened m
 
