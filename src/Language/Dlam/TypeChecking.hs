@@ -548,19 +548,19 @@ instance Normalise CM TermThatCannotBeApplied where
     let n = un app
         xs = appliedArgs app
     mty <- lookupType' (name n)
+    xs <- normalise xs
     resTy <- substArgs mty xs
     case un resTy of
       -- typing should guarantee 'xs' is empty here
       Universe l -> do
         l' <- normalise l
-        xs <- normalise xs
         case n of
           I.Var n -> pure . IsTypeTerm $ mkType (TyApp (fullyApplied (AppTyVar n) xs)) l'
           I.ConData{} -> notImplemented $ "I don't yet know how to normalise the data constructor application '" <> pprintShow ap <> "'"
           I.AppDef{} -> notImplemented $ "I don't yet know how to normalise the axiomatic application '" <> pprintShow ap <> "'"
       -- we are already fully-applied (with a constant constructor or a free variable),
       -- so all we can do is reduce the arguments
-      _ -> IsApp . fullyApplied (un app) <$> normalise xs
+      _ -> pure . IsApp $ fullyApplied (un app) xs
 
 
 instance Normalise CM Term where
@@ -622,16 +622,15 @@ substituteAndNormalise s t = substitute s t >>= normalise
 substArgs :: Type -> [Term] -> CM Type
 substArgs t xs =
   case (un t, xs) of
-    (Universe{}, []) -> normalise t
+    (Universe{}, []) -> pure t
     (Pi arg resTy, []) -> pure $ mkType (Pi arg resTy) (level t)
     (Pi arg resTy, x:xs) -> do
       let v = argVar arg
       resTy' <- substituteAndNormalise (v, x) resTy
-      xs' <- mapM (substitute (v, x)) xs
-      substArgs resTy' xs'
+      substArgs resTy' xs
     -- types are fully applied, so the (additional) arguments must be empty
-    (TyApp app, []) -> do
-      mkType . TyApp . fullyApplied (un app) <$> normalise (appliedArgs app) <*> pure (level t)
+    (TyApp app, []) ->
+      pure $ mkType (TyApp (fullyApplied (un app) (appliedArgs app))) (level t)
     _ -> error $ "substArgs: bad call: '" <> pprintShow t <> "' with arguments '" <> show (fmap pprintParened xs) <> "'"
 
 
