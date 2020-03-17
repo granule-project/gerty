@@ -5,6 +5,7 @@ module Language.Dlam.Builtins2
     builtins
   , builtinsTypes
   , builtinsValues
+  , bodyForBuiltin
   , typeForBuiltin
 
   -- * Builtin definitions
@@ -14,8 +15,9 @@ module Language.Dlam.Builtins2
   , builtinBody
   , builtinType
 
-  -- ** Levels
+  -- ** Common types
   , levelTy
+  , natTy
 
   -- ** Type Universes
   , mkUnivTy
@@ -24,6 +26,9 @@ module Language.Dlam.Builtins2
   , mkFunTy
   , mkLevelVar
   , mkVar
+  , mkArg'
+  , succForApp
+  , elimNatForApp
   ) where
 
 
@@ -64,6 +69,7 @@ builtins =
       , tcUnit
       ]
     builtinEliminators = fmap BinDef
+      [ elimNat
       ]
 
 
@@ -77,8 +83,8 @@ builtinsValues = M.fromList $
   (fmap (\bin -> (builtinName bin, builtinBody bin)) builtins)
 
 
-typeForBuiltin :: BuiltinTerm -> Type
-typeForBuiltin t = builtinType $
+getBuiltin :: BuiltinTerm -> Builtin
+getBuiltin t =
   case t of
     -- lzero : Level
     LZero -> BinDCon dcLzero
@@ -124,6 +130,14 @@ typeForBuiltin t = builtinType $
 
     -- refl : (l : Level) (a : Type l) (x : a) -> Id l a x x
     DRefl -> BinDCon dcRefl
+
+
+typeForBuiltin :: BuiltinTerm -> Type
+typeForBuiltin = builtinType . getBuiltin
+
+
+bodyForBuiltin :: BuiltinTerm -> Term
+bodyForBuiltin = builtinBody . getBuiltin
 
 
 -------------------------------
@@ -251,8 +265,8 @@ mkTypeVar :: Name -> Level -> Type
 mkTypeVar n = mkType (TyApp (fullyApplied (AppTyVar n) []))
 
 
-mkTyAxiom :: Name -> Level -> Type
-mkTyAxiom n = mkType (TyApp (fullyApplied (AppTyDef n) []))
+mkTyAxiom :: TyCon -> Level -> Type
+mkTyAxiom tc = mkType (TyApp (fullyApplied (AppTyCon tc) []))
 
 
 -- | Make a new (fully-applied) free variable.
@@ -261,8 +275,8 @@ mkVar n = App (fullyApplied (Var n) [])
 
 
 levelTy, natTy :: Type
-levelTy = mkTyAxiom (name tcLevel) levelZero
-natTy = mkTyAxiom (name tcNat) levelZero
+levelTy = mkTyAxiom tcLevel levelZero
+natTy = mkTyAxiom tcNat levelZero
 
 
 mkArg' :: Name -> Type -> Arg
@@ -389,3 +403,43 @@ dcSucc = mkBuiltinDConNoDef DNSucc [mkArg' ignoreVar natTy] tcNat'
 
 
 dcUnit = mkBuiltinDConNoDef DUnitTerm [] tcUnit'
+
+
+succForApp :: PartiallyApplied PartiallyAppable
+succForApp = partiallyApplied (DConPartial (snd dcSucc)) []
+
+
+-----------------------
+----- Eliminators -----
+-----------------------
+
+{-
+  elimNat :
+    (l : Level)
+    (C : Nat -> Type l)
+    (cz : C zero)
+    (cs : (x : Nat) -> (y : C x) -> C (succ x))
+    (n : Nat)
+    -> C n
+-}
+elimNat :: BuiltinDef
+elimNat =
+  let (l, n, x, y, tC, cz, cs) = seven mkIdent ("l", "n", "x", "y", "C", "cz", "cs")
+      seven fun (a,b,c,d,e,f,g) = (fun a, fun b, fun c, fun d, fun e, fun f, fun g)
+      lv = mkLevelVar l
+      xv = mkVar x
+      appC a = mkType (TyApp (fullyApplied (AppTyVar tC) [a])) lv
+      succApp a = App (fullyApplied (ConData $ snd dcSucc) [a])
+      args =
+        [ mkArg' l levelTy
+        , mkArg' tC (mkFunTy ignoreVar natTy (mkUnivTy lv))
+        , mkArg' cz (appC (mkVar cz))
+        , mkArg' cs (mkFunTy x natTy (mkFunTy y (appC xv) (appC (succApp xv))))
+        , mkArg' n natTy
+        ]
+      ty = appC (mkVar n)
+  in mkBuiltinDef (mkIdent "elimNat") args ty
+
+
+elimNatForApp :: Appable
+elimNatForApp = AppDef (builtinName $ (BinDef elimNat))

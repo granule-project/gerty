@@ -140,8 +140,8 @@ termsAreEqual :: Term -> Term -> CM Bool
 -- TODO: support remaining cases (2020-03-14)
 termsAreEqual (Level l1) (Level l2) = levelsAreEqual l1 l2
 termsAreEqual (I.App app1) (I.App app2) =
-  let x = name $ un app1
-      y = name $ un app2
+  let x = un app1
+      y = un app2
       xs = appliedArgs app1
       ys = appliedArgs app2
   in (&&) <$> pure (length xs == length ys && x == y)
@@ -166,8 +166,8 @@ typesAreEqual t1 t2 = do
   case (un t1, un t2) of
     -- TODO: add proper equality here (2020-03-14)
     (TyApp app1, TyApp app2) ->
-      let x = name $ un app1
-          y = name $ un app2
+      let x = un app1
+          y = un app2
           xs = appliedArgs app1
           ys = appliedArgs app2
       in (&&) <$> pure (length xs == length ys && x == y) <*> (and <$> (mapM (uncurry termsAreEqual) (zip xs ys)))
@@ -338,6 +338,51 @@ checkExpr_ (App e1 e2) t = do
     (TypeTerm t) -> withLocalCheckingOf e1 $ expectedInferredTypeForm' "function" t
     _ -> notImplemented "checkExpr_: hit a supposedly impossible clause"
 
+---------------------------
+----- Natural numbers -----
+---------------------------
+
+{-
+   G, x : Nat |- C : Type l
+   G |- cz : [zero/x]C
+   G, w : Nat, y : [w/x]C |- cs : [succ w/x]C
+   G |- n : Nat
+   ---------------------------------------------------------- :: NatCase
+   G |- case x@n of (Zero -> cz; Succ w@y -> cs) : C : [n/x]C
+-}
+checkExpr_ (NatCase (x, tC) cz (w, y, cs) n) t = do
+  -- G, x : Nat |- C : Type l
+  tC <- withTypedVariable' x natTy $ checkExprIsType tC
+
+  -- G |- cz : [zero/x]C
+  zeroforxinC <- substitute (x, bodyForBuiltin DNZero) tC
+  cz <- checkExpr cz zeroforxinC
+
+  -- G, w : Nat, y : [w/x]C |- cs : [succ w/x]C
+  let succw = applyPartialToTerm succForApp (mkVar w) natTy
+  succwforxinC <- substitute (x, succw) tC
+  wforxinC <- substitute (x, mkVar w) tC
+  cs <- withTypedVariable' y wforxinC
+       $ withTypedVariable' w natTy
+       $ checkExpr cs succwforxinC
+
+  -- G |- n : Nat
+  n <- checkExpr n natTy
+
+  -- G |- case x@n of (Zero -> cz; Succ w@y -> cs) : C : [n/x]C
+  nforxinC <- substitute (x, n) tC
+  ensureEqualTypes t nforxinC
+
+  -- now we essentially build an instance of the eliminator
+  -- (axiomatic) by converting free variables to lambda-bound
+  -- arguments
+  pure $ I.App (fullyApplied elimNatForApp
+     [ Level (level tC)
+     , I.Lam (mkArg' x natTy) (TypeTerm tC)
+     , cz
+     , I.Lam (mkArg' w natTy) (I.Lam (mkArg' y wforxinC) cs)
+     , n])
+
 ---------
 -- Sig --
 ---------
@@ -384,7 +429,7 @@ inferExpr_ EType =
 inferExpr_ (Var x) = do
   ty <- lookupType' x
   mval <- maybeLookupValue x
-  let val = maybe (mkVar x) id mval
+  let val = maybe (mkVar' x ty) id mval
   pure (val, ty)
 {-
    G |- t1 : (x : A) -> B
@@ -392,7 +437,7 @@ inferExpr_ (Var x) = do
    ---------------------- :: App
    G |- t1 t2 : [t2/x]B
 -}
-inferExpr_ ap@(App e1 e2) = do
+inferExpr_ (App e1 e2) = do
   -- G |- t1 : (x : A) -> B
   (e1Term, e1Ty) <- inferExpr e1
 
@@ -408,7 +453,7 @@ inferExpr_ ap@(App e1 e2) = do
   t2forXinB <- substituteAndNormalise (x, e2Term) tB
 
   term <- case e1Term of
-            (I.PartialApp _pa) -> notImplemented $ "I don't yet know how to keep applying the partial application (I need to figure out how to determine if the application is partial or full) '" <> pprintShow ap <> "'"
+            (I.PartialApp pa) -> pure $ applyPartialToTerm pa e2Term tB
             (I.Lam arg body) -> substituteAndNormalise (un (un arg), e2Term) body
             -- we can't apply types to things
             (TypeTerm t) -> withLocalCheckingOf e1 $ expectedInferredTypeForm' "function" t
@@ -618,3 +663,10 @@ applyPartialToTerm app arg resTy =
     ResolvedToType (p, l) -> TypeTerm $ mkType (TyApp p) l
     ResolvedToFullyAppliedTerm p -> I.App p
     StillPartiallyApplied p -> PartialApp p
+
+
+mkVar' :: Name -> Type -> Term
+mkVar' n ty =
+  case un ty of
+    Pi{} -> PartialApp (partiallyApplied (VarPartial n) [])
+    _    -> mkVar n

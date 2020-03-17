@@ -64,7 +64,7 @@ module Language.Dlam.Syntax.Internal
 
 import Prelude hiding ((<>))
 
-import Language.Dlam.Syntax.Abstract (Name)
+import Language.Dlam.Syntax.Abstract (Name(..))
 -- import qualified Language.Dlam.Syntax.Common as Com
 import qualified Language.Dlam.Syntax.Common.Language as Com
 import Language.Dlam.Util.Peekaboo
@@ -133,6 +133,15 @@ data TyAppable
   | AppTyDef VarId
 
 
+instance Eq TyAppable where
+  -- free variables are equality compared on concrete names
+  (AppTyVar v1) == (AppTyVar v2) = nameConcrete v1 == nameConcrete v2
+  -- otherwise we require them to be the exact same name
+  (AppTyCon t1) == (AppTyCon t2) = name t1 == name t2
+  (AppTyDef d1) == (AppTyDef d2) = d1 == d2
+  _ == _ = False
+
+
 -- | Terms representing raw values.
 data Term
   -- | A level.
@@ -155,6 +164,15 @@ data Appable
   | ConData DCon
   -- | Constant (axiom).
   | AppDef VarId
+
+
+instance Eq Appable where
+  -- free variables are equality compared on concrete names
+  (Var v1) == (Var v2) = nameConcrete v1 == nameConcrete v2
+  -- otherwise we require them to be the exact same name
+  (ConData c1) == (ConData c2) = name c1 == name c2
+  (AppDef d1) == (AppDef d2) = d1 == d2
+  _ == _ = False
 
 
 -- | Things that can be partially applied.
