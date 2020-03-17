@@ -365,12 +365,12 @@ class Dec a where
 
 
 instance Dec Level where
-  dec (Concrete n)
+  dec l@(Concrete n)
     | n > 0 = Concrete (pred n)
-    | otherwise = error "dec on already-zero level"
-  dec (Plus n l)
+    | otherwise = error $ "dec on already-zero level (" ++ pprintShow l ++ ")"
+  dec lev@(Plus n l)
     | n > 0 = Plus (pred n) l
-    | otherwise = error "dec on already-zero level"
+    | otherwise = error $ "dec on already-zero level (" ++ pprintShow lev ++ ")"
   dec (Max x y) = Max (dec x) (dec y)
 
 
