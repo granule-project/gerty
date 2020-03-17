@@ -20,11 +20,11 @@ import Language.Dlam.Util.Peekaboo
 
 -- | Require that the expression is a valid level.
 checkExprIsLevel :: Expr -> CM Level
-checkExprIsLevel e = do
-  debug $ "checkExprIsLevel: checking that expression '" <> pprintShow e <> "' is a level."
-  res <- withLocalCheckingOf e $ checkExprIsLevel_ e
-  debug $ "checkExprIsLevel: found level representation '" <> pprintShow res <> "' for expression '" <> pprintShow e <> "'"
-  pure res
+checkExprIsLevel e =
+  debugBlock "checkExprIsLevel"
+    ("checking that expression '" <> pprintShow e <> "' is a level.")
+    (\res -> "found level representation '" <> pprintShow res <> "' for expression '" <> pprintShow e <> "'")
+    (withLocalCheckingOf e $ checkExprIsLevel_ e)
 
 
 checkExprIsLevel_ :: Expr -> CM Level
@@ -51,11 +51,11 @@ checkTermIsType _ = notAType
 
 -- | Require that the expression is a valid type (of unknown sort).
 checkExprIsType :: Expr -> CM Type
-checkExprIsType e = do
-  debug $ "checkExprIsType: checking that '" <> pprintShow e <> "' is a type expression"
-  res <- withLocalCheckingOf e $ checkExprIsType_ e
-  debug $ "checkExprIsType: found a type representation '" <> pprintShow res <> "' for expression '" <> pprintShow e <> "'"
-  pure res
+checkExprIsType e =
+  debugBlock "checkExprIsType"
+    ("checking that '" <> pprintShow e <> "' is a type expression")
+    (\res -> "found a type representation '" <> pprintShow res <> "' for expression '" <> pprintShow e <> "'")
+    (withLocalCheckingOf e $ checkExprIsType_ e)
 
 
 checkExprIsType_ :: Expr -> CM Type
@@ -96,24 +96,28 @@ registerTypeForName n t = do
 -- | Type-check a declaration.
 checkDeclaration :: Declaration -> CM ()
 checkDeclaration ts@(TypeSig n t) = do
-  debug $ "checkDeclaration: checking signature: " <> pprintShow ts
-  -- make sure that the type is actually a type
-  ty <- checkExprIsType t
+  ty <- debugBlock "checkDeclaration"
+    ("checking signature: " <> pprintShow ts)
+    (\ty -> "found type representation '" <> pprintShow ty <> "' for signature '" <> pprintShow ts <> "'")
+    -- make sure that the type is actually a type
+    (checkExprIsType t)
 
   registerTypeForName n ty
   where
 
 
 checkDeclaration eqn@(FunEqn (FLHSName v) (FRHSAssign e)) = do
-  debug $ "checkDeclaration: checking equation: " <> pprintShow eqn
-
-  -- try and get a prescribed type for the equation,
-  -- treating it as an implicit if no type is given
-  t <- maybeLookupType v
-  (val, ty) <- case t of
-                 -- if we don't have a type (from a signature), try and infer one as well
-                 Nothing -> inferExpr e
-                 Just ty -> (,) <$> checkExpr e ty <*> pure ty
+  (val, ty) <- debugBlock "checkDeclaration"
+    ("checking equation: " <> pprintShow eqn)
+    (\(val, ty) -> "found term '" <> pprintShow val <> "' and type '" <> pprintShow ty <> "' for equation '" <> pprintShow eqn <> "'")
+    (do
+      -- try and get a prescribed type for the equation,
+      -- treating it as an implicit if no type is given
+      t <- maybeLookupType v
+      case t of
+        -- if we don't have a type (from a signature), try and infer one as well
+        Nothing -> inferExpr e
+        Just ty -> (,) <$> checkExpr e ty <*> pure ty)
 
   -- assign the appopriate equation and normalised/inferred type for the name
   val <- normalise val
@@ -182,11 +186,11 @@ ensureEqualTypes tyExpected tyActual = do
 -- | Check the expression against the given type, and
 -- | if it is well-typed, yield the underlying term.
 checkExpr :: Expr -> Type -> CM Term
-checkExpr e t = do
-  debug $ "checkExpr_: checking expression '" <> pprintShow e <> "' against type '" <> pprintShow t <> "'"
-  res <- withLocalCheckingOf e $ checkExpr_ e t
-  debug $ "checkExpr: found term '" <> pprintShow res <> "' for expression '" <> pprintShow e <> "'"
-  pure res
+checkExpr e t =
+  debugBlock "checkExpr"
+    ("checking expression '" <> pprintShow e <> "' against type '" <> pprintShow t <> "'")
+    (\res -> "found term '" <> pprintShow res <> "' for expression '" <> pprintShow e <> "'")
+    (withLocalCheckingOf e $ checkExpr_ e t)
 
 
 checkExpr_ :: Expr -> Type -> CM Term
@@ -354,11 +358,11 @@ checkExpr_ _ _ = error "checkExpr_: TODO"
 
 -- | Infer a type for the expression, and its underlying term.
 inferExpr :: Expr -> CM (Term, Type)
-inferExpr e = do
-  debug $ "inferExpr: inferring a type and term for expression: " <> pprintShow e
-  res@(term, typ) <- withLocalCheckingOf e $ inferExpr_ e
-  debug $ "inferExpr: inferred a term '" <> pprintShow term <> "' and type '" <> pprintShow typ <> "' for expression '" <> pprintShow e <> "'"
-  pure res
+inferExpr e =
+  debugBlock "inferExpr"
+    ("inferring a type and term for expression: " <> pprintShow e)
+    (\(term, typ) -> "inferred a term '" <> pprintShow term <> "' and type '" <> pprintShow typ <> "' for expression '" <> pprintShow e <> "'")
+    (withLocalCheckingOf e $ inferExpr_ e)
 
 
 inferExpr_ :: Expr -> CM (Term, Type)
