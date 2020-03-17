@@ -29,7 +29,7 @@ checkExprIsLevel e =
 
 checkExprIsLevel_ :: Expr -> CM Level
 checkExprIsLevel_ l = do
-  t <- checkExpr l levelTy'
+  t <- checkExpr l levelTy
   case t of
     Level l' -> pure l'
     -- we determined that the expression is a level, but does not represent
@@ -349,7 +349,7 @@ checkExpr_ (Sig e t') t = do
 -- Level expression --
 ----------------------
 checkExpr_ (LitLevel l) t = do
-  ensureEqualTypes t levelTy'
+  ensureEqualTypes t levelTy
   pure (Level $ Concrete l)
 checkExpr_ _ _ = error "checkExpr_: TODO"
 
@@ -371,9 +371,9 @@ inferExpr e =
 inferExpr_ :: Expr -> CM (Term, Type)
 inferExpr_ EType =
   let l = mkIdent "l"
-      larg = mkArg l thatMagicalGrading levelTy'
+      larg = mkArg l thatMagicalGrading levelTy
   in pure (I.Lam larg (TypeTerm (mkType (Universe (mkLevelVar l)) (nextLevel (mkLevelVar l))))
-          , mkFunTy l levelTy' (mkUnivTy (nextLevel (mkLevelVar l))))
+          , mkFunTy l levelTy (mkUnivTy (nextLevel (mkLevelVar l))))
 inferExpr_ (Var x) = do
   ty <- lookupType' x
   mval <- maybeLookupValue x

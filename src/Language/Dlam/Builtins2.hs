@@ -15,7 +15,7 @@ module Language.Dlam.Builtins2
   , builtinType
 
   -- ** Levels
-  , levelTy'
+  , levelTy
 
   -- ** Type Universes
   , mkUnivTy
@@ -231,9 +231,9 @@ mkVar :: Name -> Term
 mkVar n = App (fullyApplied (Var n) [])
 
 
-levelTy', natTy' :: Type
-levelTy' = mkTypeVar (name tcLevel) levelZero
-natTy' = mkTypeVar (name tcNat) levelZero
+levelTy, natTy :: Type
+levelTy = mkTypeVar (name tcLevel) levelZero
+natTy = mkTypeVar (name tcNat) levelZero
 
 
 mkArg' :: Name -> Type -> Arg
@@ -264,7 +264,7 @@ tcCoproduct =
       a = mkIdent "a"
       b = mkIdent "b"
   in mkBuiltinTyCon DCoproduct
-     [ mkArg' l1 levelTy', mkArg' l2 levelTy'
+     [ mkArg' l1 levelTy, mkArg' l2 levelTy
      , mkArg' a (mkUnivTy l1v), mkArg' b (mkUnivTy l2v)]
      (Max l1v l2v)
 
@@ -275,7 +275,7 @@ tcId =
       a = mkIdent "a"
       av = mkTypeVar a lv
   in mkBuiltinTyCon IdTy
-       [ mkArg' l levelTy', mkArg' a (mkUnivTy lv)
+       [ mkArg' l levelTy, mkArg' a (mkUnivTy lv)
        , mkArg' ignoreVar av, mkArg' ignoreVar av]
        lv
 
@@ -297,13 +297,13 @@ dcLmax, dcLsuc, dcLzero :: BuiltinDCon
 dcLzero = mkBuiltinDCon LZero [] tcLevel' (Level levelZero)
 
 
-dcLsuc = let l = mkIdent "l" in mkBuiltinDCon LSuc [mkArg' l levelTy'] tcLevel'
+dcLsuc = let l = mkIdent "l" in mkBuiltinDCon LSuc [mkArg' l levelTy] tcLevel'
                (Level (nextLevel (mkLevelVar l)))
 
 
 dcLmax =
   let l1 = mkIdent "l1"; l2 = mkIdent "l2" in
-  mkBuiltinDCon LMax [mkArg' l1 levelTy', mkArg' l2 levelTy'] tcLevel'
+  mkBuiltinDCon LMax [mkArg' l1 levelTy, mkArg' l2 levelTy] tcLevel'
                   (Level (Max (mkLevelVar l1) (mkLevelVar l2)))
 
 
@@ -321,7 +321,7 @@ dcInl =
       a = mkIdent "a"; av = mkTypeVar a l1v
       b = mkIdent "b"; bv = mkTypeVar b l2v
   in mkBuiltinDConNoDef Inl
-       [ mkArg' l1 levelTy', mkArg' l2 levelTy'
+       [ mkArg' l1 levelTy, mkArg' l2 levelTy
        , mkArg' a (mkUnivTy l1v), mkArg' b (mkUnivTy l2v)
        , mkArg' ignoreVar av
        ]
@@ -334,7 +334,7 @@ dcInr =
       a = mkIdent "a"; av = mkTypeVar a l1v
       b = mkIdent "b"; bv = mkTypeVar b l2v
   in mkBuiltinDConNoDef Inr
-       [ mkArg' l1 levelTy', mkArg' l2 levelTy'
+       [ mkArg' l1 levelTy, mkArg' l2 levelTy
        , mkArg' a (mkUnivTy l1v), mkArg' b (mkUnivTy l2v)
        , mkArg' ignoreVar bv
        ]
@@ -349,14 +349,14 @@ dcRefl =
       x = mkIdent "x"
       xv = mkVar x
   in mkBuiltinDConNoDef DRefl
-       [mkArg' l levelTy', mkArg' a (mkUnivTy lv), mkArg' x av]
+       [mkArg' l levelTy, mkArg' a (mkUnivTy lv), mkArg' x av]
        (fullyApplied tcId [Level lv, TypeTerm av, xv, xv])
 
 
 dcZero = mkBuiltinDConNoDef DNZero [] tcNat'
 
 
-dcSucc = mkBuiltinDConNoDef DNSucc [mkArg' ignoreVar natTy'] tcNat'
+dcSucc = mkBuiltinDConNoDef DNSucc [mkArg' ignoreVar natTy] tcNat'
 
 
 dcUnit = mkBuiltinDConNoDef DUnitTerm [] tcUnit'
