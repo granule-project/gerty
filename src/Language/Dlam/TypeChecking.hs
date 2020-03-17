@@ -88,9 +88,7 @@ checkExprIsType_ _e = notAType
 
 -- | Try and register the name with the given type
 registerTypeForName :: Name -> Type -> CM ()
-registerTypeForName n t = do
-  t' <- normalise t
-  setType' n t'
+registerTypeForName n t = setType' n t
 
 
 -- | Type-check a declaration.
@@ -120,7 +118,6 @@ checkDeclaration eqn@(FunEqn (FLHSName v) (FRHSAssign e)) = do
         Just ty -> (,) <$> checkExpr e ty <*> pure ty)
 
   -- assign the appopriate equation and normalised/inferred type for the name
-  val <- normalise val
   setValue' v val
   setType' v ty
 
