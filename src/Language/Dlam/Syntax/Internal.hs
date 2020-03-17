@@ -15,7 +15,7 @@ module Language.Dlam.Syntax.Internal
   , TyCon
   , conTy
   , mkTyCon
-  , Partial
+  , PartiallyApplied
   , partiallyApplied
   , FullyApplied
   , fullyApplied
@@ -140,7 +140,7 @@ data Term
   -- | An application.
   | App (FullyApplied Appable)
   -- | A partial application.
-  | PartialApp (Partial PartiallyAppable)
+  | PartialApp (PartiallyApplied PartiallyAppable)
   -- | A lambda abstraction.
   | Lam Arg Term
 
@@ -192,7 +192,7 @@ mkDCon n args tyC = DCon { dconID = n, dconArgs = args, dconTy = tyC }
 
 
 
-data Partial a = Partial { partialArgs :: [Term], unPartial :: a }
+data PartiallyApplied a = PartiallyApplied { partialArgs :: [Term], unPartiallyApplied :: a }
 
 
 class Applicable a where
@@ -209,11 +209,11 @@ instance Applicable DCon where
 class Applied a where
   appliedArgs :: a -> [Term]
 
-instance Applied (Partial c) where
+instance Applied (PartiallyApplied c) where
   appliedArgs = partialArgs
 
-instance Un Partial where
-  un = unPartial
+instance Un PartiallyApplied where
+  un = unPartiallyApplied
 
 instance Applied (FullyApplied c) where
   appliedArgs = allArgs
@@ -224,13 +224,13 @@ instance Un FullyApplied where
 instance Functor FullyApplied where
   fmap f p = FullyApplied { unFullyApplied = f (un p), allArgs = allArgs p }
 
-instance Functor Partial where
-  fmap f p = Partial { unPartial = f (un p), partialArgs = partialArgs p }
+instance Functor PartiallyApplied where
+  fmap f p = PartiallyApplied { unPartiallyApplied = f (un p), partialArgs = partialArgs p }
 
 
 -- | Indicate that the thing is partially applied. ONLY FOR INTERNAL USE.
-partiallyApplied :: a -> [Term] -> Partial a
-partiallyApplied c arg = Partial { partialArgs = arg, unPartial = c }
+partiallyApplied :: a -> [Term] -> PartiallyApplied a
+partiallyApplied c arg = PartiallyApplied { partialArgs = arg, unPartiallyApplied = c }
 
 
 data FullyApplied c = FullyApplied { allArgs :: [Term], unFullyApplied :: c }

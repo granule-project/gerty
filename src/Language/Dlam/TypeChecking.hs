@@ -564,7 +564,7 @@ substArgs t xs =
 
 
 data AppRes
-  = StillPartial (Partial PartiallyAppable)
+  = StillPartiallyApplied (PartiallyApplied PartiallyAppable)
   | ResolvedToType (FullyApplied TyAppable, Level)
   | ResolvedToFullyAppliedTerm (FullyApplied Appable)
 
@@ -573,13 +573,13 @@ data AppRes
 -- | (with expected type @resTy@) by applying the argument. The result
 -- | is either yet another partial application, a fully-applied term, or
 -- | a type.
-applyPartial :: Partial PartiallyAppable -> Term -> Type -> AppRes
+applyPartial :: PartiallyApplied PartiallyAppable -> Term -> Type -> AppRes
 applyPartial pa arg resTy =
   let newArgs = appliedArgs pa <> [arg] in
   case un resTy of
     -- if the result is a Pi, then this is still partial---it
     -- requires more arguments to become fully applied
-    Pi{} -> StillPartial (partiallyApplied (un pa) newArgs)
+    Pi{} -> StillPartiallyApplied (partiallyApplied (un pa) newArgs)
     -- if the result is a universe, we've just produced a type
     Universe l ->
       let thingApplied =
@@ -597,9 +597,9 @@ applyPartial pa arg resTy =
                                                   ) newArgs)
 
 
-applyPartialToTerm :: Partial PartiallyAppable -> Term -> Type -> Term
+applyPartialToTerm :: PartiallyApplied PartiallyAppable -> Term -> Type -> Term
 applyPartialToTerm app arg resTy =
   case applyPartial app arg resTy of
     ResolvedToType (p, l) -> TypeTerm $ mkType (TyApp p) l
     ResolvedToFullyAppliedTerm p -> I.App p
-    StillPartial p -> PartialApp p
+    StillPartiallyApplied p -> PartialApp p
