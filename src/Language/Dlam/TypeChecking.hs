@@ -8,19 +8,13 @@ module Language.Dlam.TypeChecking
 
 import Control.Monad (when)
 
--- import Language.Dlam.Builtins
 import Language.Dlam.Builtins2
 import Language.Dlam.Substitution (Substitutable(substitute))
---   , freshen
---   )
 import Language.Dlam.Syntax.Abstract
--- import Language.Dlam.Syntax.Common
--- import qualified Language.Dlam.Syntax.Concrete as C
 import Language.Dlam.Syntax.Internal hiding (Var, App, Lam)
 import qualified Language.Dlam.Syntax.Internal as I
 import Language.Dlam.TypeChecking.Monad
 import Language.Dlam.Util.Pretty (pprintShow, pprintParened)
--- import qualified Language.Dlam.Scoping.Monad as SE
 import Language.Dlam.Util.Peekaboo
 
 
@@ -35,7 +29,6 @@ checkExprIsLevel e = do
 
 checkExprIsLevel_ :: Expr -> CM Level
 checkExprIsLevel_ l = do
-  -- debug $ "levelTy': " <> pprintShow levelTy'
   t <- checkExpr l levelTy'
   case t of
     Level l' -> pure l'
