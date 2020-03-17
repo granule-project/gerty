@@ -79,9 +79,10 @@ checkExprIsType_ (AType l) = do
 checkExprIsType_ (FunTy ab) = do
   let x = absVar ab
   argTy <- checkExprIsType (absTy ab)
-  ty <- withTypedVariable' x argTy $ checkExprIsType (absExpr ab)
-  -- pure $ mkType (Pi (x `typedWith` argTy `gradedWith` thatMagicalGrading) ty) (Max (level argTy) (level ty))
-  pure $ mkType (Pi (x `typedWith` argTy `gradedWith` thatMagicalGrading) ty) (nextLevel (Max (level argTy) (level ty)))
+  -- TODO: improve support for gradings here (2020-03-17)
+  let arg' = mkArg x thatMagicalGrading argTy
+  ty <- withArgBoundForType arg' $ checkExprIsType (absExpr ab)
+  pure $ mkType (Pi arg' ty) (nextLevel (Max (level argTy) (level ty)))
 checkExprIsType_ _e = notAType
 
 
@@ -283,13 +284,14 @@ checkExpr_ (Lam abE) t = do
   -- make sure that we are considering the name
   -- coming from the abstraction, rather than the type
   let tB = resTy
+      arg' = mkArg x gr tA
   -- tB <- substitute (tv, Var $ x) resTy
 
-  e' <- withGradedVariable' x gr $ withTypedVariable' x tA (checkExpr e tB)
+  e' <- withArgBound arg' (checkExpr e tB)
 
   -- G |- \x -> e : (x : A) -> B
   -- TODO: check grading (2020-03-14)
-  pure (I.Lam (x `typedWith` tA `gradedWith` gr) e')
+  pure (I.Lam arg' e')
 
 
 {-
@@ -362,7 +364,8 @@ inferExpr e = do
 inferExpr_ :: Expr -> CM (Term, Type)
 inferExpr_ EType =
   let l = mkIdent "l"
-  in pure (I.Lam (l `typedWith` levelTy' `gradedWith` thatMagicalGrading) (TypeTerm (mkType (Universe (mkLevelVar l)) (nextLevel (mkLevelVar l))))
+      larg = mkArg l thatMagicalGrading levelTy'
+  in pure (I.Lam larg (TypeTerm (mkType (Universe (mkLevelVar l)) (nextLevel (mkLevelVar l))))
           , mkFunTy l levelTy' (mkUnivTy (nextLevel (mkLevelVar l))))
 inferExpr_ (Var x) = do
   ty <- lookupType' x
@@ -484,8 +487,9 @@ instance Normalise CM Term where
     let x = un (un arg)
     g <- normalise (I.grading arg)
     argTy <- normalise (typeOf arg)
-    body' <- withTypedVariable' x argTy $ normalise body
-    pure $ I.Lam (x `typedWith` argTy `gradedWith` g) body'
+    let arg' = mkArg x g argTy
+    body' <- withArgBound arg' $ normalise body
+    pure $ I.Lam arg' body'
 
 
 instance Normalise CM LevelAtom where
@@ -518,8 +522,9 @@ instance Normalise CM TypeTerm where
     let x = un (un arg)
     g <- normalise (I.grading arg)
     argTy <- normalise (typeOf arg)
-    t' <- withTypedVariable' x argTy $ normalise t
-    pure $ Pi (x `typedWith` argTy `gradedWith` g) t'
+    let arg' = mkArg x g argTy
+    t' <- withArgBoundForType arg' $ normalise t
+    pure $ Pi arg' t'
 
 
 instance Normalise CM I.Grading where
