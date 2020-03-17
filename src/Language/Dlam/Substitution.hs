@@ -114,7 +114,7 @@ instance {-# OVERLAPS #-} Substitutable CM (Name, I.Term) (I.FullyApplied a) whe
 
 
 instance {-# OVERLAPS #-} Substitutable CM (Name, I.Term) I.Type where
-  substitute s@(v, t') t = do
+  substitute s@(v, _t') t = do
     l <- substitute s (I.level t)
     case un t of
       (I.Universe ul) -> I.mkType . I.Universe <$> substitute s ul <*> pure l
@@ -122,8 +122,7 @@ instance {-# OVERLAPS #-} Substitutable CM (Name, I.Term) I.Type where
         case un ap of
           I.AppTyCon{} -> I.mkType . I.TyApp <$> substitute s ap <*> pure l
           va@I.AppTyVar{}
-            | length (I.appliedArgs ap) == 0 ->
-              CM.notImplemented $ "I don't yet know how to substitute terms in for type variables (when substituting term '" <> pprintShow t' <> "' for variable '" <> pprintShow v <> "' in type '" <> pprintShow t <> "'"
+            | length (I.appliedArgs ap) == 0 -> pure $ I.mkType (I.TyApp ap) l
             | otherwise -> I.mkType . I.TyApp . I.fullyApplied va <$> mapM (substitute s) (I.appliedArgs ap) <*> pure l
       (I.Pi arg resTy) -> do
         let v' = I.argVar arg

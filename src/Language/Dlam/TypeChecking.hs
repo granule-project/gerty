@@ -132,6 +132,13 @@ checkAST (AST ds) = mapM_ checkDeclaration ds
 termsAreEqual :: Term -> Term -> CM Bool
 -- TODO: support remaining cases (2020-03-14)
 termsAreEqual (Level l1) (Level l2) = levelsAreEqual l1 l2
+termsAreEqual (I.App app1) (I.App app2) =
+  let x = name $ un app1
+      y = name $ un app2
+      xs = appliedArgs app1
+      ys = appliedArgs app2
+  in (&&) <$> pure (length xs == length ys && x == y)
+          <*> (and <$> (mapM (uncurry termsAreEqual) (zip xs ys)))
 termsAreEqual t1 t2 = notImplemented $ "termsAreEqual: TODO: equality of terms '" <> pprintShow t1 <> "' and '" <> pprintShow t2 <> "'"
 
 
@@ -273,8 +280,8 @@ checkOrInferType' Implicit expr@(Lam ab) = do
    G |- \(x : A) -> e : (x : A) -> B
 -}
 checkExpr_ (Lam abE) t = do
-  (_tv, gr, tA, resTy) <- case un t of
-    (Pi arg resTy) -> pure (un arg, I.grading arg, typeOf arg, resTy)
+  (tyArg, gr, tA, resTy) <- case un t of
+    (Pi arg resTy) -> pure (arg, I.grading arg, typeOf arg, resTy)
     _ -> expectedInferredTypeForm' "function" t
 
   let x = absVar  abE
@@ -286,9 +293,8 @@ checkExpr_ (Lam abE) t = do
   -- coming from the abstraction, rather than the type
   let tB = resTy
       arg' = mkArg x gr tA
-  -- tB <- substitute (tv, Var $ x) resTy
 
-  e' <- withArgBound arg' (checkExpr e tB)
+  e' <- withArgBoundForType tyArg $ withArgBound arg' (checkExpr e tB)
 
   -- G |- \x -> e : (x : A) -> B
   -- TODO: check grading (2020-03-14)
