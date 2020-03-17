@@ -345,14 +345,14 @@ instance Pretty TermThatCannotBeApplied where
 
 instance Pretty TermThatCanBeApplied where
   isLexicallyAtomic (IsPartialApp t) = length (appliedArgs t) == 0 && isLexicallyAtomic (un t)
-  isLexicallyAtomic _ = False
+  isLexicallyAtomic IsLam{} = False
 
   pprint (IsLam arg body) = char '\\' <+> pprintParened arg <+> text "->" <+> pprint body
   pprint (IsPartialApp p) = pprintParened (un p) <+> hsep (fmap pprintParened (appliedArgs p))
 
 
 instance Pretty Appable where
-  isLexicallyAtomic (Var _) = True
+  isLexicallyAtomic (Var d) = isLexicallyAtomic d
   isLexicallyAtomic (ConData d) = isLexicallyAtomic d
   isLexicallyAtomic (AppDef d) = isLexicallyAtomic d
 
@@ -380,7 +380,7 @@ instance Pretty Elim where
 instance Pretty TypeTerm where
   isLexicallyAtomic (TyApp t) = length (appliedArgs t) == 0
   isLexicallyAtomic (TTForApp t) = isLexicallyAtomic t
-  isLexicallyAtomic _ = False
+  isLexicallyAtomic Universe{} = False
 
   pprint (Universe l) = text "Type" <+> pprint l
   pprint (TTForApp t) = pprint t
@@ -388,7 +388,7 @@ instance Pretty TypeTerm where
 
 
 instance Pretty TypeTermOfTermsThatCanBeApplied where
-  isLexicallyAtomic _ = False
+  isLexicallyAtomic IsPi{} = False
 
   pprint (IsPi arg resT) = pprintParened arg <+> text "->" <+> pprint resT
 
@@ -404,11 +404,11 @@ instance Pretty TyAppable where
 
 
 instance Pretty TyCon where
-  isLexicallyAtomic _ = True
+  isLexicallyAtomic = isLexicallyAtomic . name
   pprint = pprint . name
 
 instance Pretty DCon where
-  isLexicallyAtomic _ = True
+  isLexicallyAtomic = isLexicallyAtomic . name
   pprint = pprint . name
 
 

@@ -510,6 +510,12 @@ instance Pretty LetBinding where
   pprint (LetPatBound p e) = pprint p <+> equals <+> pprint e
 
 instance Pretty Pattern where
+  isLexicallyAtomic (PVar v) = isLexicallyAtomic v
+  isLexicallyAtomic PPair{} = True
+  isLexicallyAtomic PAt{} = True
+  isLexicallyAtomic PUnit{} = True
+  isLexicallyAtomic PCon{} = False
+
   pprint (PVar v) = pprint v
   pprint (PPair l r) = parens $ pprint l <> comma <+> pprint r
   pprint (PAt v p) = pprint v <> at <> pprint p
@@ -517,6 +523,7 @@ instance Pretty Pattern where
   pprint (PCon c args) = pprint c <+> (hsep $ fmap pprintParened args)
 
 instance Pretty BindName where
+  isLexicallyAtomic = isLexicallyAtomic . unBindName
   pprint = pprint . unBindName
 
 instance Pretty BuiltinTerm where
