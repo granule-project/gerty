@@ -18,6 +18,7 @@ module Language.Dlam.Builtins2
   -- ** Common types
   , levelTy
   , natTy
+  , emptyTy
 
   -- ** Type Universes
   , mkUnivTy
@@ -29,6 +30,7 @@ module Language.Dlam.Builtins2
   , mkArg'
   , succForApp
   , elimNatForApp
+  , elimEmptyForApp
   ) where
 
 
@@ -69,7 +71,8 @@ builtins =
       , tcUnit
       ]
     builtinEliminators = fmap BinDef
-      [ elimNat
+      [ elimEmpty
+      , elimNat
       ]
 
 
@@ -274,9 +277,10 @@ mkVar :: Name -> Term
 mkVar n = App (fullyApplied (Var n) [])
 
 
-levelTy, natTy :: Type
+levelTy, natTy, emptyTy :: Type
 levelTy = mkTyAxiom tcLevel levelZero
 natTy = mkTyAxiom tcNat levelZero
+emptyTy = mkTyAxiom tcEmpty levelZero
 
 
 mkArg' :: Name -> Type -> Arg
@@ -443,3 +447,29 @@ elimNat =
 
 elimNatForApp :: Appable
 elimNatForApp = AppDef (builtinName $ (BinDef elimNat))
+
+
+{-
+  elimEmpty :
+    (l : Level)
+    (C : Empty -> Type l)
+    (a : Empty)
+    -> C a
+-}
+elimEmpty :: BuiltinDef
+elimEmpty =
+  let (l, a, tC) = three mkIdent ("l", "a", "C")
+      three fun (a,b,c) = (fun a, fun b, fun c)
+      lv = mkLevelVar l
+      appC a = mkType (TyApp (fullyApplied (AppTyVar tC) [a])) lv
+      args =
+        [ mkArg' l levelTy
+        , mkArg' tC (mkFunTy ignoreVar emptyTy (mkUnivTy lv))
+        , mkArg' a  emptyTy
+        ]
+      ty = appC (mkVar a)
+  in mkBuiltinDef (mkIdent "elimEmpty") args ty
+
+
+elimEmptyForApp :: Appable
+elimEmptyForApp = AppDef (builtinName $ (BinDef elimEmpty))

@@ -383,6 +383,35 @@ checkExpr_ (NatCase (x, tC) cz (w, y, cs) n) t = do
      , I.Lam (mkArg' w natTy) (I.Lam (mkArg' y wforxinC) cs)
      , n])
 
+-----------
+-- Empty --
+-----------
+
+{-
+   G, x : Empty |- C : Type l
+   G |- a : Empty
+   ------------------------------ :: EmptyElim
+   G |- let x@() = a : C : [a/x]C
+-}
+checkExpr_ (EmptyElim (x, tC) a) t = do
+  -- G, x : Empty |- C : Type l
+  tC <- withTypedVariable' x emptyTy $ checkExprIsType tC
+
+  -- G |- a : Empty
+  a <- checkExpr a emptyTy
+
+  -- G |- let x@() = a : C : [a/x]C
+  aforxinC <- substitute (x, a) tC
+  ensureEqualTypes t aforxinC
+
+  -- now we essentially build an instance of the eliminator
+  -- (axiomatic) by converting free variables to lambda-bound
+  -- arguments
+  pure $ I.App (fullyApplied elimEmptyForApp
+     [ Level (level tC)
+     , I.Lam (mkArg' x emptyTy) (TypeTerm tC)
+     , a])
+
 ---------
 -- Sig --
 ---------
