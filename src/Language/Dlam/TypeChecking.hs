@@ -18,25 +18,6 @@ import Language.Dlam.Util.Pretty (pprintShow, pprintParened)
 import Language.Dlam.Util.Peekaboo
 
 
--- | Require that the expression is a valid level.
-checkExprIsLevel :: Expr -> CM Level
-checkExprIsLevel e =
-  debugBlock "checkExprIsLevel"
-    ("checking that expression '" <> pprintShow e <> "' is a level.")
-    (\res -> "found level representation '" <> pprintShow res <> "' for expression '" <> pprintShow e <> "'")
-    (withLocalCheckingOf e $ checkExprIsLevel_ e)
-
-
-checkExprIsLevel_ :: Expr -> CM Level
-checkExprIsLevel_ l = do
-  t <- checkExpr l levelTy
-  case t of
-    Level l' -> pure l'
-    -- we determined that the expression is a level, but does not represent
-    -- a level literal, so it must be a level-like term
-    term -> pure (Plus 0 (LTerm term))
-
-
 -- | Require that the term is a valid type (of unknown sort).
 checkTermIsType :: Term -> CM Type
 checkTermIsType (TypeTerm t) = pure t
@@ -80,10 +61,6 @@ checkExprIsType_ (App f e) = do
       case appres of
         TypeTerm t -> pure t
         _ -> notAType
-checkExprIsType_ (AType l) = do
-  lev <- checkExprIsLevel l
-  -- pure $ mkType (Universe lev) lev
-  pure $ mkType (Universe lev) (nextLevel lev)
 checkExprIsType_ (FunTy ab) = do
   let x = absVar ab
   argTy <- checkExprIsType (absTy ab)
