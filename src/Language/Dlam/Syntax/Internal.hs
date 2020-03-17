@@ -493,6 +493,7 @@ instance Un Leveled where
 
 instance Pretty Level where
   isLexicallyAtomic Concrete{} = True
+  isLexicallyAtomic (Plus 0 x) = isLexicallyAtomic x
   isLexicallyAtomic _ = False
 
   pprint (Concrete n) = integer n
