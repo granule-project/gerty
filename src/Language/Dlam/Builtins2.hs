@@ -409,8 +409,8 @@ dcSucc = mkBuiltinDConNoDef DNSucc [mkArg' ignoreVar natTy] tcNat'
 dcUnit = mkBuiltinDConNoDef DUnitTerm [] tcUnit'
 
 
-succForApp :: PartiallyApplied PartiallyAppable
-succForApp = partiallyApplied (DConPartial (snd dcSucc)) []
+succForApp :: TermThatCanBeApplied
+succForApp = IsPartialApp $ partiallyApplied (DConPartial (snd dcSucc)) []
 
 
 -----------------------

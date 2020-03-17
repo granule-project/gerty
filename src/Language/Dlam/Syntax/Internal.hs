@@ -1,13 +1,23 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 module Language.Dlam.Syntax.Internal
   (
   -- * Terms
     Term(..)
+  , pattern App
+  , pattern TypeTerm
+  , pattern Lam
+  , pattern PartialApp
+  , pattern Level
+  , TermThatCanBeApplied(..)
+  , TermThatCannotBeApplied(..)
   , Appable(..)
+  , TypeTermOfTermsThatCanBeApplied(..)
   , TypeTerm(..)
+  , pattern Pi
   , Elim(..)
   , mkLam
   , PartiallyAppable(..)
@@ -42,6 +52,9 @@ module Language.Dlam.Syntax.Internal
   , typeOf
   , typedWith
   , TyAppable(..)
+  , TypeOfTermsThatCanBeApplied
+  , mkType'
+  , toType
   -- * Grades
   , Grade
   , Grading
@@ -114,14 +127,24 @@ argVar = un . un
 type ConId = VarId
 
 
+-- | Types of things that can be applied.
+data TypeTermOfTermsThatCanBeApplied
+  -- | Dependent function space.
+  = IsPi Arg Type
+
+
 -- | Terms that are only well-typed if they are types.
 data TypeTerm
-  -- | Dependent function space.
-  = Pi Arg Type
+  -- | Applicable types.
+  = TTForApp TypeTermOfTermsThatCanBeApplied
   -- | A type universe.
   | Universe Level
   -- | A type constructed from an application.
   | TyApp (FullyApplied TyAppable)
+
+
+pattern Pi :: Arg -> Type -> TypeTerm
+pattern Pi arg ty = TTForApp (IsPi arg ty)
 
 
 data TyAppable
@@ -142,18 +165,50 @@ instance Eq TyAppable where
   _ == _ = False
 
 
+-- | A term that can be applied to another.
+data TermThatCanBeApplied
+  -- | A partial application.
+  = IsPartialApp (PartiallyApplied PartiallyAppable)
+  -- | A lambda abstraction.
+  | IsLam Arg Term
+
+
+-- | A term that cannot be applied to another.
+data TermThatCannotBeApplied
+  -- | A level.
+  = IsLevel Level
+  -- | A type.
+  | IsTypeTerm Type
+  -- | An application.
+  | IsApp (FullyApplied Appable)
+
+
 -- | Terms representing raw values.
 data Term
-  -- | A level.
-  = Level Level
-  -- | A type.
-  | TypeTerm Type
-  -- | An application.
-  | App (FullyApplied Appable)
-  -- | A partial application.
-  | PartialApp (PartiallyApplied PartiallyAppable)
-  -- | A lambda abstraction.
-  | Lam Arg Term
+  -- | Term that cannot be applied.
+  = FullTerm TermThatCannotBeApplied
+  -- | Term that can be applied.
+  | PartialTerm TermThatCanBeApplied
+
+
+pattern PartialApp :: PartiallyApplied PartiallyAppable -> Term
+pattern PartialApp e = PartialTerm (IsPartialApp e)
+
+
+pattern App :: FullyApplied Appable -> Term
+pattern App app = FullTerm (IsApp app)
+
+
+pattern TypeTerm :: Type -> Term
+pattern TypeTerm ty = FullTerm (IsTypeTerm ty)
+
+
+pattern Lam :: Arg -> Term -> Term
+pattern Lam arg term = PartialTerm (IsLam arg term)
+
+
+pattern Level :: Level -> Term
+pattern Level l = FullTerm (IsLevel l)
 
 
 -- | Things that when fully applied are terms (and not types).
@@ -271,16 +326,29 @@ data Elim
 
 
 instance Pretty Term where
-  isLexicallyAtomic (Level l) = isLexicallyAtomic l
-  isLexicallyAtomic (App t) = length (appliedArgs t) == 0 && isLexicallyAtomic (un t)
-  isLexicallyAtomic (PartialApp t) = length (appliedArgs t) == 0 && isLexicallyAtomic (un t)
+  isLexicallyAtomic (PartialTerm t) = isLexicallyAtomic t
+  isLexicallyAtomic (FullTerm t)    = isLexicallyAtomic t
+
+  pprint (FullTerm t)    = pprint t
+  pprint (PartialTerm t) = pprint t
+
+
+instance Pretty TermThatCannotBeApplied where
+  isLexicallyAtomic (IsLevel l) = isLexicallyAtomic l
+  isLexicallyAtomic (IsApp t) = length (appliedArgs t) == 0 && isLexicallyAtomic (un t)
+  isLexicallyAtomic (IsTypeTerm t) = isLexicallyAtomic t
+
+  pprint (IsLevel l) = pprint l
+  pprint (IsTypeTerm t) = pprint t
+  pprint (IsApp p) = pprintParened (un p) <+> hsep (fmap pprintParened (appliedArgs p))
+
+
+instance Pretty TermThatCanBeApplied where
+  isLexicallyAtomic (IsPartialApp t) = length (appliedArgs t) == 0 && isLexicallyAtomic (un t)
   isLexicallyAtomic _ = False
 
-  pprint (Level l) = pprint l
-  pprint (TypeTerm t) = pprint t
-  pprint (Lam arg body) = char '\\' <+> pprintParened arg <+> text "->" <+> pprint body
-  pprint (App p) = pprintParened (un p) <+> hsep (fmap pprintParened (appliedArgs p))
-  pprint (PartialApp p) = pprintParened (un p) <+> hsep (fmap pprintParened (appliedArgs p))
+  pprint (IsLam arg body) = char '\\' <+> pprintParened arg <+> text "->" <+> pprint body
+  pprint (IsPartialApp p) = pprintParened (un p) <+> hsep (fmap pprintParened (appliedArgs p))
 
 
 instance Pretty Appable where
@@ -311,11 +379,18 @@ instance Pretty Elim where
 
 instance Pretty TypeTerm where
   isLexicallyAtomic (TyApp t) = length (appliedArgs t) == 0
+  isLexicallyAtomic (TTForApp t) = isLexicallyAtomic t
   isLexicallyAtomic _ = False
 
   pprint (Universe l) = text "Type" <+> pprint l
-  pprint (Pi arg resT) = pprintParened arg <+> text "->" <+> pprint resT
+  pprint (TTForApp t) = pprint t
   pprint (TyApp ty) = pprintParened (un ty) <+> hsep (fmap pprintParened (appliedArgs ty))
+
+
+instance Pretty TypeTermOfTermsThatCanBeApplied where
+  isLexicallyAtomic _ = False
+
+  pprint (IsPi arg resT) = pprintParened arg <+> text "->" <+> pprint resT
 
 
 instance Pretty TyAppable where
@@ -440,10 +515,19 @@ newtype Type' a = Type' { unType :: Leveled a }
   deriving (HasLevel, Un)
 
 type Type = Type' TypeTerm
+type TypeOfTermsThatCanBeApplied = Type' TypeTermOfTermsThatCanBeApplied
 
 
 mkType :: TypeTerm -> Level -> Type
 mkType t l = Type' (Leveled { leveledLevel = l, unLevel = t })
+
+
+toType :: TypeOfTermsThatCanBeApplied -> Type
+toType tt = mkType (TTForApp (un tt)) (level tt)
+
+
+mkType' :: TypeTermOfTermsThatCanBeApplied -> Level -> TypeOfTermsThatCanBeApplied
+mkType' t l = Type' (Leveled { leveledLevel = l, unLevel = t })
 
 
 instance (Pretty a) => Pretty (Type' a) where

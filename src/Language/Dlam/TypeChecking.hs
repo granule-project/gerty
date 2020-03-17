@@ -64,21 +64,22 @@ checkExprIsType_ (Builtin e) = universeOrNotAType (getBuiltinType e)
 checkExprIsType_ (Var x) = do
   l <- fmap theUniverseWeLiveIn (lookupType' x >>= universeOrNotAType)
   maybe (pure $ mkTyVar x l) checkTermIsType =<< maybeLookupValue x
-checkExprIsType_ (App (Var x) e) = do
-  vTy <- lookupType' x
-  case un vTy of
-    Pi arg resTy -> do
-      let argTy = typeOf arg
+checkExprIsType_ (App f e) = do
+  (fTerm, fTy) <- inferExprForApp f
+  case un fTy of
+    IsPi arg resTy -> do
 
       -- make sure the argument matches the required argument type
-      e' <- checkExpr e argTy
+      let argTy = typeOf arg
+      e <- checkExpr e argTy
 
       -- now do the application, and see if we get a type back
-      resTy <- substituteAndNormalise (argVar arg, e') resTy
-      case applyPartial (partiallyApplied (VarPartial x) []) e' resTy of
-        ResolvedToType (ty, l) -> pure (mkType (TyApp ty) l)
+      resTy <- substituteAndNormalise (argVar arg, e) resTy
+      appres <- applyPartialToTerm fTerm e resTy
+
+      case appres of
+        TypeTerm t -> pure t
         _ -> notAType
-    _ -> withLocalCheckingOf (Var x) $ expectedInferredTypeForm' "function" vTy
 checkExprIsType_ (AType l) = do
   lev <- checkExprIsLevel l
   -- pure $ mkType (Universe lev) lev
@@ -317,12 +318,11 @@ checkExpr_ (Lam abE) t = do
 checkExpr_ (App e1 e2) t = do
 
   -- G |- t1 : (x : A) -> B
-  (e1Term, e1Ty) <- inferExpr e1
+  (e1Term, e1Ty) <- inferExprForApp e1
 
   (x, tA, tB) <-
     case un e1Ty of
-      Pi arg resTy -> pure (un (un arg), typeOf arg, resTy)
-      _ -> withLocalCheckingOf e1 $ expectedInferredTypeForm' "function" e1Ty
+      IsPi arg resTy -> pure (argVar arg, typeOf arg, resTy)
 
   -- G |- t2 : A
   e2Term <- checkExpr e2 tA
@@ -331,12 +331,7 @@ checkExpr_ (App e1 e2) t = do
   -- G |- t1 t2 : [t2/x]B
   t2forXinB <- substituteAndNormalise (x, e2Term) tB
   ensureEqualTypes t t2forXinB
-  case e1Term of
-    (I.PartialApp pa) -> pure $ applyPartialToTerm pa e2Term tB
-    (I.Lam arg body) -> substituteAndNormalise (un (un arg), e2Term) body
-    -- we can't apply types to things
-    (TypeTerm t) -> withLocalCheckingOf e1 $ expectedInferredTypeForm' "function" t
-    _ -> notImplemented "checkExpr_: hit a supposedly impossible clause"
+  applyPartialToTerm e1Term e2Term tB
 
 ---------------------------
 ----- Natural numbers -----
@@ -359,7 +354,7 @@ checkExpr_ (NatCase (x, tC) cz (w, y, cs) n) t = do
   cz <- checkExpr cz zeroforxinC
 
   -- G, w : Nat, y : [w/x]C |- cs : [succ w/x]C
-  let succw = applyPartialToTerm succForApp (mkVar w) natTy
+  succw <- applyPartialToTerm succForApp (mkVar w) natTy
   succwforxinC <- substitute (x, succw) tC
   wforxinC <- substitute (x, mkVar w) tC
   cs <- withTypedVariable' y wforxinC
@@ -468,12 +463,11 @@ inferExpr_ (Var x) = do
 -}
 inferExpr_ (App e1 e2) = do
   -- G |- t1 : (x : A) -> B
-  (e1Term, e1Ty) <- inferExpr e1
+  (e1Term, e1Ty) <- inferExprForApp e1
 
   (x, tA, tB) <-
     case un e1Ty of
-      Pi arg resTy -> pure (un (un arg), typeOf arg, resTy)
-      _ -> withLocalCheckingOf e1 $ expectedInferredTypeForm' "function" e1Ty
+      IsPi arg resTy -> pure (argVar arg, typeOf arg, resTy)
 
   -- G |- t2 : A
   e2Term <- checkExpr e2 tA
@@ -481,14 +475,27 @@ inferExpr_ (App e1 e2) = do
   -- G |- t1 t2 : [t2/x]B
   t2forXinB <- substituteAndNormalise (x, e2Term) tB
 
-  term <- case e1Term of
-            (I.PartialApp pa) -> pure $ applyPartialToTerm pa e2Term tB
-            (I.Lam arg body) -> substituteAndNormalise (un (un arg), e2Term) body
-            -- we can't apply types to things
-            (TypeTerm t) -> withLocalCheckingOf e1 $ expectedInferredTypeForm' "function" t
-            _ -> notImplemented "inferExpr_: hit a supposedly impossible clause"
+  term <- applyPartialToTerm e1Term e2Term tB
   pure (term, t2forXinB)
 inferExpr_ e = notImplemented $ "inferExpr_: TODO, inference for expression: " <> pprintShow e
+
+
+-- | Infer a type for the expression, and its underlying term.
+-- | The resulting term and type are those of something applicable.
+inferExprForApp :: Expr -> CM (TermThatCanBeApplied, TypeOfTermsThatCanBeApplied)
+inferExprForApp e =
+  debugBlock "inferExprForApp"
+    ("inferring a type and term for expression: " <> pprintShow e)
+    (\(term, typ) -> "inferred a term '" <> pprintShow term <> "' and type '" <> pprintShow typ <> "' for expression '" <> pprintShow e <> "'")
+    (withLocalCheckingOf e $ inferExprForApp_ e)
+
+
+inferExprForApp_ :: Expr -> CM (TermThatCanBeApplied, TypeOfTermsThatCanBeApplied)
+inferExprForApp_ e = do
+  (term, ty) <- inferExpr e
+  case (term, un ty) of
+    (PartialTerm p, TTForApp t) -> pure (p, mkType' t (level ty))
+    _ -> expectedInferredTypeForm' "function" ty
 
 
 --------------------
@@ -546,14 +553,24 @@ instance (Applicative m, Functor m, Normalise m a) => Normalise m (Maybe a) wher
   normalise = maybe (pure Nothing) (fmap Just . normalise)
 
 
-instance Normalise CM Term where
-  normalise (TypeTerm t) = TypeTerm <$> normalise t
-  normalise (Level l) = Level <$> normalise l
-  normalise (I.PartialApp p) = I.PartialApp . partiallyApplied (un p) <$> normalise (appliedArgs p)
-  normalise ap@(I.App app) = do
+instance Normalise CM TermThatCanBeApplied where
+  normalise (IsPartialApp p) = IsPartialApp . partiallyApplied (un p) <$> normalise (appliedArgs p)
+  normalise (IsLam arg body) = do
+    let x = un (un arg)
+    g <- normalise (I.grading arg)
+    argTy <- normalise (typeOf arg)
+    let arg' = mkArg x g argTy
+    body' <- withArgBound arg' $ normalise body
+    pure $ IsLam arg' body'
+
+
+instance Normalise CM TermThatCannotBeApplied where
+  normalise (IsTypeTerm t) = IsTypeTerm <$> normalise t
+  normalise (IsLevel l) = IsLevel <$> normalise l
+  normalise ap@(IsApp app) = do
     let n = un app
         xs = appliedArgs app
-    mty  <- lookupType' (name n)
+    mty <- lookupType' (name n)
     resTy <- substArgs mty xs
     case un resTy of
       -- typing should guarantee 'xs' is empty here
@@ -561,24 +578,17 @@ instance Normalise CM Term where
         l' <- normalise l
         xs <- normalise xs
         case n of
-          I.Var n -> pure . TypeTerm $ mkType (TyApp (fullyApplied (AppTyVar n) xs)) l'
+          I.Var n -> pure . IsTypeTerm $ mkType (TyApp (fullyApplied (AppTyVar n) xs)) l'
           I.ConData{} -> notImplemented $ "I don't yet know how to normalise the data constructor application '" <> pprintShow ap <> "'"
           I.AppDef{} -> notImplemented $ "I don't yet know how to normalise the axiomatic application '" <> pprintShow ap <> "'"
-      _ -> I.App . fullyApplied (un app) <$> normalise xs
-      -- t@Pi{} -> do
-      --   resTy <- substArgs t xs
-      --   case un resTy of
-      --     Universe l -> do
-      --       l' <- normalise l
-      --       pure . TypeTerm $ mkType (TyApp (TyVar n) []) l'
-      --     _ -> error "here"
-  normalise (I.Lam arg body) = do
-    let x = un (un arg)
-    g <- normalise (I.grading arg)
-    argTy <- normalise (typeOf arg)
-    let arg' = mkArg x g argTy
-    body' <- withArgBound arg' $ normalise body
-    pure $ I.Lam arg' body'
+      -- we are already fully-applied (with a constant constructor or a free variable),
+      -- so all we can do is reduce the arguments
+      _ -> IsApp . fullyApplied (un app) <$> normalise xs
+
+
+instance Normalise CM Term where
+  normalise (FullTerm t) = FullTerm <$> normalise t
+  normalise (PartialTerm t) = PartialTerm <$> normalise t
 
 
 instance Normalise CM LevelAtom where
@@ -600,20 +610,23 @@ instance Normalise CM Level where
              _ -> Max l1 l2
 
 
+instance Normalise CM TypeTermOfTermsThatCanBeApplied where
+  normalise (IsPi arg t) = do
+    let x = argVar arg
+    g <- normalise (I.grading arg)
+    argTy <- normalise (typeOf arg)
+    let arg' = mkArg x g argTy
+    t' <- withArgBoundForType arg' $ normalise t
+    pure $ IsPi arg' t'
+
+
 instance Normalise CM TypeTerm where
   normalise (Universe l) = Universe <$> normalise l
   -- Type variables are free, and thus cannot reduce through application.
   -- Type constructors are constants, and thus also cannot reduce.
   -- TODO: perhaps check we have correct number of arguments  (2020-03-16)
   normalise (TyApp app) = TyApp . fullyApplied (un app) <$> normalise (appliedArgs app)
-
-  normalise (Pi arg t) = do
-    let x = un (un arg)
-    g <- normalise (I.grading arg)
-    argTy <- normalise (typeOf arg)
-    let arg' = mkArg x g argTy
-    t' <- withArgBoundForType arg' $ normalise t
-    pure $ Pi arg' t'
+  normalise (TTForApp t) = TTForApp <$> normalise t
 
 
 instance Normalise CM I.Grading where
@@ -650,23 +663,18 @@ substArgs t xs =
 ------------------------
 
 
-data AppRes
-  = StillPartiallyApplied (PartiallyApplied PartiallyAppable)
-  | ResolvedToType (FullyApplied TyAppable, Level)
-  | ResolvedToFullyAppliedTerm (FullyApplied Appable)
-
-
 -- | @applyPartial app arg resTy@ resolves a partial application
 -- | (with expected type @resTy@) by applying the argument. The result
 -- | is either yet another partial application, a fully-applied term, or
 -- | a type.
-applyPartial :: PartiallyApplied PartiallyAppable -> Term -> Type -> AppRes
-applyPartial pa arg resTy =
+applyPartial :: TermThatCanBeApplied -> Term -> Type -> CM Term
+applyPartial (IsLam larg body) arg _ = substituteAndNormalise (argVar larg, arg) body
+applyPartial (IsPartialApp pa) arg resTy = pure $
   let newArgs = appliedArgs pa <> [arg] in
   case un resTy of
     -- if the result is a Pi, then this is still partial---it
     -- requires more arguments to become fully applied
-    Pi{} -> StillPartiallyApplied (partiallyApplied (un pa) newArgs)
+    Pi{} -> PartialApp (partiallyApplied (un pa) newArgs)
     -- if the result is a universe, we've just produced a type
     Universe l ->
       let thingApplied =
@@ -676,22 +684,18 @@ applyPartial pa arg resTy =
               DefPartial d -> AppTyDef d
               DConPartial{} -> error "I completed a data constructor application, but produced a type."
 
-      in ResolvedToType (fullyApplied thingApplied newArgs, l)
+      in TypeTerm (mkType (TyApp (fullyApplied thingApplied newArgs)) l)
     -- wasn't a universe, but is fully applied, so it's a term application
-    _ -> ResolvedToFullyAppliedTerm (fullyApplied (case un pa of
-                                                     VarPartial v -> I.Var v
-                                                     DConPartial dc -> ConData dc
-                                                     DefPartial d -> AppDef d
-                                                     TyConPartial{} -> error "I completed a type application and produced something that wasn't a type."
-                                                  ) newArgs)
+    _ -> I.App (fullyApplied (case un pa of
+                                VarPartial v -> I.Var v
+                                DConPartial dc -> ConData dc
+                                DefPartial d -> AppDef d
+                                TyConPartial{} -> error "I completed a type application and produced something that wasn't a type."
+                             ) newArgs)
 
 
-applyPartialToTerm :: PartiallyApplied PartiallyAppable -> Term -> Type -> Term
-applyPartialToTerm app arg resTy =
-  case applyPartial app arg resTy of
-    ResolvedToType (p, l) -> TypeTerm $ mkType (TyApp p) l
-    ResolvedToFullyAppliedTerm p -> I.App p
-    StillPartiallyApplied p -> PartialApp p
+applyPartialToTerm :: TermThatCanBeApplied -> Term -> Type -> CM Term
+applyPartialToTerm = applyPartial
 
 
 mkVar' :: Name -> Type -> Term

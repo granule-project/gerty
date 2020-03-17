@@ -125,7 +125,7 @@ instance {-# OVERLAPS #-} Substitutable CM (Name, I.Term) I.Type where
           va@I.AppTyVar{}
             | length (I.appliedArgs ap) == 0 -> pure $ I.mkType (I.TyApp ap) l
             | otherwise -> I.mkType . I.TyApp . I.fullyApplied va <$> mapM (substitute s) (I.appliedArgs ap) <*> pure l
-      (I.Pi arg resTy) -> do
+      (I.TTForApp (I.IsPi arg resTy)) -> do
         let v' = I.argVar arg
         arg' <- substitute s arg
         resTy' <- if v == v' then pure resTy else substitute s resTy
