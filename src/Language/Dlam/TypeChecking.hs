@@ -46,6 +46,7 @@ checkTermIsType (I.App app) = do
       l <- fmap theUniverseWeLiveIn (lookupType' v >>= universeOrNotAType)
       pure $ mkTyVar v l
     ConData _ -> notImplemented "checkTermIsType: can't yet deal with data constructors"
+    AppDef _ -> notImplemented "checkTermIsType: can't yet deal with axioms"
 checkTermIsType _ = notAType
 
 
@@ -482,6 +483,7 @@ instance Normalise CM Term where
         case n of
           I.Var n -> pure . TypeTerm $ mkType (TyApp (fullyApplied (AppTyVar n) xs)) l'
           I.ConData{} -> notImplemented $ "I don't yet know how to normalise the data constructor application '" <> pprintShow ap <> "'"
+          I.AppDef{} -> notImplemented $ "I don't yet know how to normalise the axiomatic application '" <> pprintShow ap <> "'"
       _ -> I.App . fullyApplied (un app) <$> normalise xs
       -- t@Pi{} -> do
       --   resTy <- substArgs t xs
@@ -591,6 +593,7 @@ applyPartial pa arg resTy =
             case un pa of
               VarPartial v -> AppTyVar v
               TyConPartial c -> AppTyCon c
+              DefPartial d -> AppTyDef d
               DConPartial{} -> error "I completed a data constructor application, but produced a type."
 
       in ResolvedToType (fullyApplied thingApplied newArgs, l)
@@ -598,6 +601,7 @@ applyPartial pa arg resTy =
     _ -> ResolvedToFullyAppliedTerm (fullyApplied (case un pa of
                                                      VarPartial v -> I.Var v
                                                      DConPartial dc -> ConData dc
+                                                     DefPartial d -> AppDef d
                                                      TyConPartial{} -> error "I completed a type application and produced something that wasn't a type."
                                                   ) newArgs)
 

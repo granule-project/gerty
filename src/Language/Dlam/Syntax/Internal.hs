@@ -129,6 +129,8 @@ data TyAppable
   = AppTyVar VarId
   -- | Type constructor.
   | AppTyCon TyCon
+  -- | Constant definition (axiom).
+  | AppTyDef VarId
 
 
 -- | Terms representing raw values.
@@ -151,6 +153,8 @@ data Appable
   = Var VarId
   -- | A data constructor.
   | ConData DCon
+  -- | Constant (axiom).
+  | AppDef VarId
 
 
 -- | Things that can be partially applied.
@@ -161,6 +165,8 @@ data PartiallyAppable
   | TyConPartial TyCon
   -- | Data constructor.
   | DConPartial DCon
+  -- | Constant (axiom).
+  | DefPartial VarId
 
 
 type ConArg = Arg
@@ -262,19 +268,23 @@ instance Pretty Term where
 instance Pretty Appable where
   isLexicallyAtomic (Var _) = True
   isLexicallyAtomic (ConData d) = isLexicallyAtomic d
+  isLexicallyAtomic (AppDef d) = isLexicallyAtomic d
 
   pprint (Var v) = pprint v
   pprint (ConData d) = pprint d
+  pprint (AppDef d) = pprint d
 
 
 instance Pretty PartiallyAppable where
   isLexicallyAtomic (VarPartial v) = isLexicallyAtomic v
   isLexicallyAtomic (TyConPartial t) = isLexicallyAtomic t
   isLexicallyAtomic (DConPartial d) = isLexicallyAtomic d
+  isLexicallyAtomic (DefPartial d) = isLexicallyAtomic d
 
   pprint (VarPartial v) = pprint v
   pprint (TyConPartial t) = pprint t
   pprint (DConPartial d) = pprint d
+  pprint (DefPartial d) = pprint d
 
 
 instance Pretty Elim where
@@ -293,9 +303,11 @@ instance Pretty TypeTerm where
 instance Pretty TyAppable where
   isLexicallyAtomic (AppTyVar v) = isLexicallyAtomic v
   isLexicallyAtomic (AppTyCon t) = isLexicallyAtomic t
+  isLexicallyAtomic (AppTyDef d) = isLexicallyAtomic d
 
   pprint (AppTyVar v) = pprint v
   pprint (AppTyCon t) = pprint t
+  pprint (AppTyDef d) = pprint d
 
 
 instance Pretty TyCon where
@@ -481,10 +493,12 @@ class HasName a where
 instance HasName Appable where
   name (Var x) = x
   name (ConData cd) = name cd
+  name (AppDef cd) = cd
 
 
 instance HasName TyAppable where
   name (AppTyVar x) = x
+  name (AppTyDef d) = d
   name (AppTyCon cd) = name cd
 
 

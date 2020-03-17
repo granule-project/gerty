@@ -41,6 +41,8 @@ builtins =
   builtinDataConstructors
   <>
   builtinTypeConstructors
+  <>
+  builtinEliminators
   where
     builtinDataConstructors = fmap BinDCon
       [ dcInl
@@ -60,6 +62,8 @@ builtins =
       , tcLevel
       , tcNat
       , tcUnit
+      ]
+    builtinEliminators = fmap BinDef
       ]
 
 
@@ -133,9 +137,18 @@ data Builtin
   = BinTyCon TyCon
   -- | Builtin data constructor.
   | BinDCon BuiltinDCon
+  -- | A constant (postulate).
+  | BinDef BuiltinDef
 
 
 type BuiltinDCon = (Maybe Term, DCon)
+
+
+type BuiltinDef = (Name, [Arg], Type)
+
+
+mkBuiltinDef :: Name -> [Arg] -> Type -> BuiltinDef
+mkBuiltinDef n args ty = (n, args, ty)
 
 
 mkBuiltinDCon :: BuiltinTerm -> [Arg] -> FullyApplied TyCon -> Term -> BuiltinDCon
@@ -162,6 +175,7 @@ mkBuiltinType exprRef = mkBuiltinTyCon exprRef [] levelZero
 builtinName :: Builtin -> Name
 builtinName (BinTyCon tcon) = name tcon
 builtinName (BinDCon  dcon) = name $ snd dcon
+builtinName (BinDef (n,_,_)) = n
 
 
 -- | Body for a builtin term (potentially a postulate).
@@ -187,11 +201,18 @@ builtinBody (BinDCon (Just inner, dcon)) =
         mkLamFromArgsAndBody [] body = body
         mkLamFromArgsAndBody (arg:args) body = Lam arg (mkLamFromArgsAndBody args body)
 
+-- Constant postulate, so we don't do any fancy reduction.
+builtinBody (BinDef (n, args, _)) =
+  if length args > 0
+  then PartialApp (partiallyApplied (DefPartial n) [])
+  else App (fullyApplied (AppDef n) [])
+
 
 -- | The type of a builtin term.
 builtinType :: Builtin -> Type
 builtinType (BinTyCon tcon) = mkTyConTy tcon
 builtinType (BinDCon (_, dcon)) = mkDConTy dcon
+builtinType (BinDef (_, args, ty)) = mkDefTy args ty
 
 
 mkTyConTy :: TyCon -> Type
@@ -203,6 +224,10 @@ mkTyConTy con = foldr (\arg t -> mkFunTy (argVar arg) (typeOf arg) t) (conTy con
 -- I think) (2020-03-16)
 mkDConTy :: DCon -> Type
 mkDConTy con = foldr (\arg t -> mkFunTy (argVar arg) (typeOf arg) t) (mkType (TyApp $ fmap AppTyCon (dconTy con)) (level $ conTy (un $ dconTy con))) (args con)
+
+
+mkDefTy :: [Arg] -> Type -> Type
+mkDefTy args ty = foldr (\arg t -> mkFunTy (argVar arg) (typeOf arg) t) ty args
 
 
 mkFunTy :: Name -> Type -> Type -> Type
@@ -226,14 +251,18 @@ mkTypeVar :: Name -> Level -> Type
 mkTypeVar n = mkType (TyApp (fullyApplied (AppTyVar n) []))
 
 
+mkTyAxiom :: Name -> Level -> Type
+mkTyAxiom n = mkType (TyApp (fullyApplied (AppTyDef n) []))
+
+
 -- | Make a new (fully-applied) free variable.
 mkVar :: Name -> Term
 mkVar n = App (fullyApplied (Var n) [])
 
 
 levelTy, natTy :: Type
-levelTy = mkTypeVar (name tcLevel) levelZero
-natTy = mkTypeVar (name tcNat) levelZero
+levelTy = mkTyAxiom (name tcLevel) levelZero
+natTy = mkTyAxiom (name tcNat) levelZero
 
 
 mkArg' :: Name -> Type -> Arg

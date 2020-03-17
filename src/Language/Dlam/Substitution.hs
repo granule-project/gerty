@@ -121,6 +121,7 @@ instance {-# OVERLAPS #-} Substitutable CM (Name, I.Term) I.Type where
       (I.TyApp ap) ->
         case un ap of
           I.AppTyCon{} -> I.mkType . I.TyApp <$> substitute s ap <*> pure l
+          I.AppTyDef{} -> I.mkType . I.TyApp <$> substitute s ap <*> pure l
           va@I.AppTyVar{}
             | length (I.appliedArgs ap) == 0 -> pure $ I.mkType (I.TyApp ap) l
             | otherwise -> I.mkType . I.TyApp . I.fullyApplied va <$> mapM (substitute s) (I.appliedArgs ap) <*> pure l
