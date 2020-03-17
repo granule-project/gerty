@@ -26,7 +26,11 @@ import Language.Dlam.Util.Peekaboo
 
 -- | Require that the expression is a valid level.
 checkExprIsLevel :: Expr -> CM Level
-checkExprIsLevel e = withLocalCheckingOf e $ checkExprIsLevel_ e
+checkExprIsLevel e = do
+  debug $ "checkExprIsLevel: checking that expression '" <> pprintShow e <> "' is a level."
+  res <- withLocalCheckingOf e $ checkExprIsLevel_ e
+  debug $ "checkExprIsLevel: found level representation '" <> pprintShow res <> "' for expression '" <> pprintShow e <> "'"
+  pure res
 
 
 checkExprIsLevel_ :: Expr -> CM Level
