@@ -257,9 +257,11 @@ maybeLookupType n = M.lookup n . typingScope' <$> get
 
 
 lookupType' :: Name -> CM I.Type
-lookupType' n = do
-  debug $ "lookupType': looking up type of: " <> pprintShow n
-  maybeLookupType n >>= maybe (scoperError $ SE.unknownNameErr (C.Unqualified $ nameConcrete n)) pure
+lookupType' n =
+  debugBlock "lookupType'"
+    ("looking up type of: " <> pprintShow n)
+    (\t -> "found type '" <> pprintShow t <> "' for variable '" <> pprintShow n <> "'")
+    (maybeLookupType n >>= maybe (scoperError $ SE.unknownNameErr (C.Unqualified $ nameConcrete n)) pure)
 
 
 setType :: Name -> Expr -> CM ()
