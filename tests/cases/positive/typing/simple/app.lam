@@ -1,4 +1,14 @@
 -- testing applications
 
+-- application of lambda
 test1 : Level
 test1 = (\(x : Level) -> x) lzero
+
+
+test2 : Level -> Level
+test2 = \x -> x
+
+
+-- application of variable
+test3 : Level
+test3 = test2 lzero
