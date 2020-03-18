@@ -1,0 +1,4 @@
+-- testing applications
+
+test1 : Level
+test1 = (\(x : Level) -> x) lzero

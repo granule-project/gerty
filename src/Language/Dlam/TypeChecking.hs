@@ -454,6 +454,23 @@ inferExpr_ (App e1 e2) = do
 
   term <- applyPartialToTerm e1Term e2Term tB
   pure (term, t2forXinB)
+
+{-
+   G, x : A |- e : B
+   --------------------------------- :: Lam
+   G |- \(x : A) -> e : (x : A) -> B
+-}
+inferExpr_ (Lam ab) = do
+  -- TODO: handle the grading on the binder (2020-03-18)
+  let x = absVar ab
+  tA <- checkExprIsType (absTy ab)
+
+  -- G, x : A |- e : B
+  (e, tB) <- withTypedVariable' x tA $ inferExpr (absExpr ab)
+
+  -- G |- \(x : A) -> e : (x : A) -> B
+  pure (I.Lam (mkArg' x tA) e, mkFunTy x tA tB)
+
 inferExpr_ e = notImplemented $ "inferExpr_: TODO, inference for expression: " <> pprintShow e
 
 
