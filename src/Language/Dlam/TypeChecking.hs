@@ -151,8 +151,8 @@ typesAreEqual t1 t2 = do
       in (&&) <$> pure (length xs == length ys && x == y) <*> (and <$> (mapM (uncurry termsAreEqual) (zip xs ys)))
     (Universe l1, Universe l2) -> levelsAreEqual l1 l2
     (Pi arg1 t1, Pi arg2 t2) -> do
-      let x = un (un arg1)
-          y = un (un arg2)
+      let x = argVar arg1
+          y = argVar arg2
       t2s <- substitute (y, mkVar x) t2
       (&&) <$> typesAreEqual (typeOf arg1) (typeOf arg2)
            <*> withArgBound arg1 (typesAreEqual t1 t2s)
@@ -424,9 +424,11 @@ inferExpr e =
 inferExpr_ :: Expr -> CM (Term, Type)
 inferExpr_ EType =
   let l = mkIdent "l"
+      lv = mkLevelVar l
+      succl = nextLevel lv
       larg = mkArg l thatMagicalGrading levelTy
-  in pure (I.Lam larg (TypeTerm (mkType (Universe (mkLevelVar l)) (nextLevel (mkLevelVar l))))
-          , mkFunTy l levelTy (mkUnivTy (nextLevel (mkLevelVar l))))
+  in pure (I.Lam larg (TypeTerm (mkType (Universe lv) succl))
+          , mkFunTy l levelTy (mkUnivTy succl))
 inferExpr_ (Var x) = do
   ty <- lookupType' x
   mval <- maybeLookupValue x
@@ -550,7 +552,7 @@ instance (Applicative m, Functor m, Normalise m a) => Normalise m (Maybe a) wher
 instance Normalise CM TermThatCanBeApplied where
   normalise (IsPartialApp p) = IsPartialApp . partiallyApplied (un p) <$> normalise (appliedArgs p)
   normalise (IsLam arg body) = do
-    let x = un (un arg)
+    let x = argVar arg
     g <- normalise (I.grading arg)
     argTy <- normalise (typeOf arg)
     let arg' = mkArg x g argTy
