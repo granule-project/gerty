@@ -306,7 +306,6 @@ checkExpr_ (App e1 e2) t = do
 
   -- G |- t2 : A
   e2Term <- checkExpr e2 tA
-  -- _e2Ty <- checkOrInferType tA e2
 
   -- G |- t1 t2 : [t2/x]B
   t2forXinB <- substituteAndNormalise (x, e2Term) tB
