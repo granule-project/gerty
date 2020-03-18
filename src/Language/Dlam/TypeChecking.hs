@@ -404,7 +404,7 @@ checkExpr_ (Sig e t') t = do
 checkExpr_ (LitLevel l) t = do
   ensureEqualTypes t levelTy
   pure (Level $ Concrete l)
-checkExpr_ _ _ = error "checkExpr_: TODO"
+checkExpr_ e t = notImplemented $ "checkExpr_: I don't yet know how to check whether the type of the expression '" <> pprintShow e <> "' matches expected type '" <> pprintShow t <> "'"
 
 
 ---------------------
