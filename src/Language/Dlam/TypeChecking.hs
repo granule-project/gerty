@@ -156,8 +156,8 @@ typesAreEqual t1 t2 = do
       t2s <- substitute (y, mkVar x) t2
       (&&) <$> typesAreEqual (typeOf arg1) (typeOf arg2)
            <*> withArgBound arg1 (typesAreEqual t1 t2s)
-    _ -> notImplemented $ "typesAreEqual: TODO: equality of types '" <> pprintShow t1 <> "' and '" <> pprintShow t2 <> "'"
-    -- (_, _) -> pure False
+    -- for any other combination, we assume they are not equal
+    (_, _) -> pure False
 
 
 -- | 'ensureEqualTypes tyExpected tyActual' checks that 'tyExpected'
@@ -264,26 +264,29 @@ checkOrInferType' Implicit expr@(Lam ab) = do
    --------------------------------- :: Lam
    G |- \(x : A) -> e : (x : A) -> B
 -}
-checkExpr_ (Lam abE) t = do
-  (tyArg, gr, tA, resTy) <- case un t of
+checkExpr_ (Lam ab) t = do
+  -- TODO: check grading (2020-03-14)
+  (tyArg, gr, tA, tB) <- case un t of
     (Pi arg resTy) -> pure (arg, I.grading arg, typeOf arg, resTy)
     _ -> expectedInferredTypeForm' "function" t
 
-  let x = absVar  abE
-      e = absExpr abE
+  tA <- case (absTy ab) of
+              Implicit -> pure tA
+              lta -> checkExprIsType lta
+
+  let x = absVar ab
+      lamArg = mkArg x gr tA
+
+  -- replace occurrences of the pi-bound variable with the
+  -- lambda-bound variable in the result type (specific to the lambda)
+  tB <- withArgBound lamArg $ substituteAndNormalise (argVar tyArg, mkVar x) tB
 
   -- G, x : A |- e : B
-
-  -- make sure that we are considering the name
-  -- coming from the abstraction, rather than the type
-  let tB = resTy
-      arg' = mkArg x gr tA
-
-  e' <- withArgBoundForType tyArg $ withArgBound arg' (checkExpr e tB)
+  e <- withArgBound lamArg (checkExpr (absExpr ab) tB)
 
   -- G |- \x -> e : (x : A) -> B
-  -- TODO: check grading (2020-03-14)
-  pure (I.Lam arg' e')
+  ensureEqualTypes t (mkFunTy x tA tB)
+  pure $ I.Lam lamArg e
 
 
 {-
