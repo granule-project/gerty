@@ -613,6 +613,14 @@ errPhase = errPhase' . tcErrErr
 
 
 isSyntaxErr, isScopingErr, isTypingErr :: TCErr -> Bool
-isSyntaxErr = (== PhaseParsing) . errPhase
-isScopingErr = (== PhaseScoping) . errPhase
-isTypingErr = (== PhaseTyping) . errPhase
+isSyntaxErr = isPhaseErr PhaseParsing
+isScopingErr = isPhaseErr PhaseScoping
+isTypingErr = isPhaseErr PhaseTyping
+
+
+isPhaseErr :: ProgramPhase -> TCErr -> Bool
+isPhaseErr phase err = not (isImplementationErr err) && errPhase err == phase
+
+
+isImplementationErr :: TCErr -> Bool
+isImplementationErr e = case tcErrErr e of NotImplemented{} -> True; _ -> False

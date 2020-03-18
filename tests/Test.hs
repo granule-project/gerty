@@ -94,7 +94,7 @@ fileTestsNegativeGen groupName desc phase isErrGood = testGroup groupName .
                          either (\err ->
                            if isErrGood err
                            then (True, "")
-                           else (False, "failed in an earlier phase, with message: " <> formatError err))
+                           else (False, "gave the following undesired error: " <> formatError err))
                                   (const (False, "did.")) res
                    assertBool ("Expected file not to " <> desc <> ", but it " <> phaseMsg) didErrOK)
 
