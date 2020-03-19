@@ -18,7 +18,6 @@ module Language.Dlam.Syntax.Internal
   , TypeTermOfTermsThatCanBeApplied(..)
   , TypeTerm(..)
   , pattern Pi
-  , Elim(..)
   , mkLam
   , PartiallyAppable(..)
   -- ** Type Constructors
@@ -331,11 +330,6 @@ fullyApplied :: a -> [Term] -> FullyApplied a
 fullyApplied c args = FullyApplied { allArgs = args, unFullyApplied = c }
 
 
-data Elim
-  -- | Applied to a term.
-  = Apply Term
-
-
 instance Pretty Term where
   isLexicallyAtomic (PartialTerm t) = isLexicallyAtomic t
   isLexicallyAtomic (FullTerm t)    = isLexicallyAtomic t
@@ -382,10 +376,6 @@ instance Pretty PartiallyAppable where
   pprint (TyConPartial t) = pprint t
   pprint (DConPartial d) = pprint d
   pprint (DefPartial d) = pprint d
-
-
-instance Pretty Elim where
-  pprint (Apply x) = (if isLexicallyAtomic x then id else parens) $ pprint x
 
 
 instance Pretty TypeTerm where
