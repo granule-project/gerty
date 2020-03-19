@@ -15,6 +15,9 @@ module Language.Dlam.Builtins2
   , builtinBody
   , builtinType
 
+  -- ** Type Constructors
+  , tcCoproduct
+
   -- ** Common types
   , levelTy
   , natTy
@@ -31,6 +34,10 @@ module Language.Dlam.Builtins2
   , succForApp
   , elimNatForApp
   , elimEmptyForApp
+  , elimCoproductForApp
+  , mkCoproductTy
+  , mkInlTerm
+  , mkInrTerm
   ) where
 
 
@@ -290,6 +297,12 @@ mkArg' n t = mkArg n thatMagicalGrading t
 mkUnivTy :: Level -> Type
 mkUnivTy l = mkType (Universe l) l
 
+mkCoproductTyForApp :: Type -> Type -> FullyApplied TyCon
+mkCoproductTyForApp t1 t2 = fullyApplied tcCoproduct [Level (level t1), Level (level t2), TypeTerm t1, TypeTerm t2]
+
+mkCoproductTy :: Type -> Type -> Type
+mkCoproductTy t1 t2 = mkType (TyApp (fmap AppTyCon (mkCoproductTyForApp t1 t2))) (Max (level t1) (level t2))
+
 
 -----------------------------
 ----- Type Constructors -----
@@ -372,7 +385,11 @@ dcInl =
        , mkArg' a (mkUnivTy l1v), mkArg' b (mkUnivTy l2v)
        , mkArg' ignoreVar av
        ]
-       (fullyApplied tcCoproduct [TypeTerm av, TypeTerm bv])
+       (mkCoproductTyForApp av bv)
+
+
+mkInlTerm :: Type -> Type -> Term -> Term
+mkInlTerm tA tB a = App (fullyApplied (ConData $ snd dcInr) [Level (level tA), Level (level tB), TypeTerm tA, TypeTerm tB, a])
 
 
 dcInr =
@@ -385,7 +402,11 @@ dcInr =
        , mkArg' a (mkUnivTy l1v), mkArg' b (mkUnivTy l2v)
        , mkArg' ignoreVar bv
        ]
-       (fullyApplied tcCoproduct [TypeTerm av, TypeTerm bv])
+       (mkCoproductTyForApp av bv)
+
+
+mkInrTerm :: Type -> Type -> Term -> Term
+mkInrTerm tA tB b = App (fullyApplied (ConData $ snd dcInr) [Level (level tA), Level (level tB), TypeTerm tA, TypeTerm tB, b])
 
 
 dcRefl =
@@ -473,3 +494,40 @@ elimEmpty =
 
 elimEmptyForApp :: Appable
 elimEmptyForApp = AppDef (builtinName $ (BinDef elimEmpty))
+
+
+{-
+  elimCoproduct :
+    (l1 l2 l3 : Level)
+    (a : Type l1) (b : Type l2) (C : a + b -> Type l3)
+    (p : a + b)
+    -> (a -> C p)
+    -> (b -> C p)
+    -> C p
+-}
+elimCoproduct :: BuiltinDef
+elimCoproduct =
+  let (l1, l2, l3, a, b, tC, p) = seven mkIdent ("l1", "l2", "l3", "a", "b", "tC", "p")
+      seven fun (a,b,c,d,e,f,g) = (fun a, fun b, fun c, fun d, fun e, fun f, fun g)
+      l1v = mkLevelVar l1
+      l2v = mkLevelVar l2
+      l3v = mkLevelVar l3
+      aty = mkTypeVar a l1v
+      bty = mkTypeVar b l2v
+      appC a = mkType (TyApp (fullyApplied (AppTyVar tC) [a])) l3v
+      copAB = mkCoproductTy aty bty
+      pv = mkVar p
+      args =
+        [ mkArg' l1 levelTy, mkArg' l2 levelTy, mkArg' l3 levelTy
+        , mkArg' a (mkUnivTy l1v), mkArg' b (mkUnivTy l2v)
+        , mkArg' tC (mkFunTy ignoreVar copAB (mkUnivTy l3v))
+        , mkArg' p copAB
+        , mkArg' ignoreVar (mkFunTy ignoreVar aty (appC pv))
+        , mkArg' ignoreVar (mkFunTy ignoreVar bty (appC pv))
+        ]
+      ty = appC pv
+  in mkBuiltinDef (mkIdent "elimCoproduct") args ty
+
+
+elimCoproductForApp :: Appable
+elimCoproductForApp = AppDef (builtinName $ (BinDef elimCoproduct))

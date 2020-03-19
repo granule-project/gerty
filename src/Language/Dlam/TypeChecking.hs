@@ -308,6 +308,84 @@ checkExpr_ (App e1 e2) t = do
   ensureEqualTypes t t2forXinB
   applyPartialToTerm e1Term e2Term tB
 
+----------------
+-- Coproducts --
+----------------
+
+{-
+   G |- A : Type l1
+   G |- B : Type l2
+   ------------------------------ :: Coproduct
+   G |- A + B : Type (lmax l1 l2)
+-}
+checkExpr_ (Coproduct tA tB) t = do
+  -- G |- A : Type l1
+  tA <- checkExprIsType tA
+
+  -- G |- B : Type l2
+  tB <- checkExprIsType tB
+
+  -- G |- (x : A) -> B : Type (lmax l1 l2)
+  let lmaxl1l2 = Max (level tA) (level tB)
+  ensureEqualTypes t (mkUnivTy lmaxl1l2)
+
+  pure $ TypeTerm $ mkCoproductTy tA tB
+
+{-
+   G, z : A + B |- C : Type l
+   G, x : A |- c : [inl x/z]C
+   G, y : B |- d : [inr y/z]C
+   G |- e : A + B
+   ------------------------------------------------------ :: CoproductCase
+   G |- case z@e of (Inl x -> c; Inr y -> d) : C : [e/z]C
+-}
+checkExpr_ (CoproductCase (z, tC) (x, c) (y, d) e) t = do
+  -- G |- e : A + B
+  (e, tA, tB) <- inferCoproductTy e
+
+  -- G, z : A + B |- C : Type l
+  let copAB = mkCoproductTy tA tB
+  tC <- withTypedVariable' z copAB $ checkExprIsType tC
+
+  -- G, x : A |- c : [inl x/z]C
+  let inlX = mkInlTerm tA tB (mkVar x)
+  inlxforzinC <- substitute (z, inlX) tC
+  c <- withTypedVariable' x tA $ withActivePattern e inlX $ checkExpr c inlxforzinC
+
+  -- G, y : B |- d : [inr y/z]C
+  let inrY = mkInrTerm tA tB (mkVar y)
+  inryforzinC <- substitute (z, inrY) tC
+  d <- withTypedVariable' y tB $ withActivePattern e inrY $ checkExpr d inryforzinC
+
+  -- G |- case z@e of (Inl x -> c; Inr y -> d) : C : [e/z]C
+  eforzinC <- substitute (z, e) tC
+  ensureEqualTypes t eforzinC
+
+  -- now we essentially build an instance of the eliminator
+  -- (axiomatic) by converting free variables to lambda-bound
+  -- arguments
+  pure $ I.App (fullyApplied elimCoproductForApp
+     [ Level (level tA), Level (level tB), Level (level tC)
+     , TypeTerm tA, TypeTerm tB, I.Lam (mkArg' z copAB) (TypeTerm tC)
+     , e
+     , I.Lam (mkArg' x tA) c
+     , I.Lam (mkArg' y tB) d
+     ])
+
+  where inferCoproductTy :: Expr -> CM (Term, Type, Type)
+        inferCoproductTy e = withLocalCheckingOf e $ do
+          (e, ty) <- inferExpr e
+          (tA, tB) <-
+            case un ty of
+              (TyApp app) ->
+                if un app == AppTyCon tcCoproduct
+                then case appliedArgs app of
+                       [TypeTerm tA, TypeTerm tB] -> pure (tA, tB)
+                       _ -> error "ill-formed coproduct"
+                else expectedInferredTypeForm' "coproduct" ty
+              _ -> expectedInferredTypeForm' "coproduct" ty
+          pure (e, tA, tB)
+
 ---------------------------
 ----- Natural numbers -----
 ---------------------------
