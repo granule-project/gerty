@@ -1,0 +1,8 @@
+plus : Nat -> Nat -> Nat
+plus = \n -> case x@n of (Zero -> \m -> m; Succ w@y -> \m -> succ (y m)) : Nat -> Nat
+
+plus' : Nat -> Nat -> Nat
+plus' = \n m -> case x@n of (Zero -> m; Succ w@y -> succ y) : Nat
+
+foo : Nat
+foo = plus (succ (succ zero)) (succ (succ (succ zero)))
