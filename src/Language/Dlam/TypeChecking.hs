@@ -21,13 +21,6 @@ import Language.Dlam.Util.Peekaboo
 -- | Require that the term is a valid type (of unknown sort).
 checkTermIsType :: Term -> CM Type
 checkTermIsType (TypeTerm t) = pure t
-checkTermIsType (I.App app) = do
-  case un app of
-    I.Var v -> do
-      l <- fmap theUniverseWeLiveIn (lookupType' v >>= universeOrNotAType)
-      pure $ mkTyVar v l
-    ConData _ -> notImplemented "checkTermIsType: can't yet deal with data constructors"
-    AppDef _ -> notImplemented "checkTermIsType: can't yet deal with axioms"
 checkTermIsType _ = notAType
 
 
@@ -43,7 +36,10 @@ checkExprIsType e =
 checkExprIsType_ :: Expr -> CM Type
 checkExprIsType_ (Builtin e) = universeOrNotAType (getBuiltinType e)
 checkExprIsType_ (Var x) = do
-  l <- fmap theUniverseWeLiveIn (lookupType' x >>= universeOrNotAType)
+  ty <- lookupType' x
+  l <- case un ty of
+         Universe l -> pure l
+         _ -> notAType
   maybe (pure $ mkTyVar x l) checkTermIsType =<< maybeLookupValue x
 checkExprIsType_ (App f e) = do
   (fTerm, fTy) <- inferExprForApp f
@@ -515,10 +511,6 @@ universeOrNotAType t =
   case un t of
     Universe{} -> pure t
     _ -> notAType
-
-
-theUniverseWeLiveIn :: Type -> Level
-theUniverseWeLiveIn = prevLevel . level
 
 
 -- | Execute the action with the binder active (for subject checking).
