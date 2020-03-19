@@ -297,6 +297,17 @@ instance Un PartiallyApplied where
 instance Applied (FullyApplied c) where
   appliedArgs = allArgs
 
+
+instance (Pretty a) => Pretty (PartiallyApplied a) where
+  isLexicallyAtomic app = length (appliedArgs app) == 0 && isLexicallyAtomic (un app)
+  pprint app = pprintParened (un app) <+> hsep (fmap pprintParened (appliedArgs app))
+
+
+instance (Pretty a) => Pretty (FullyApplied a) where
+  isLexicallyAtomic app = length (appliedArgs app) == 0 && isLexicallyAtomic (un app)
+  pprint app = pprintParened (un app) <+> hsep (fmap pprintParened (appliedArgs app))
+
+
 instance Un FullyApplied where
   un = unFullyApplied
 
@@ -335,20 +346,20 @@ instance Pretty Term where
 
 instance Pretty TermThatCannotBeApplied where
   isLexicallyAtomic (IsLevel l) = isLexicallyAtomic l
-  isLexicallyAtomic (IsApp t) = length (appliedArgs t) == 0 && isLexicallyAtomic (un t)
+  isLexicallyAtomic (IsApp t) = isLexicallyAtomic t
   isLexicallyAtomic (IsTypeTerm t) = isLexicallyAtomic t
 
   pprint (IsLevel l) = pprint l
   pprint (IsTypeTerm t) = pprint t
-  pprint (IsApp p) = pprintParened (un p) <+> hsep (fmap pprintParened (appliedArgs p))
+  pprint (IsApp p) = pprint p
 
 
 instance Pretty TermThatCanBeApplied where
-  isLexicallyAtomic (IsPartialApp t) = length (appliedArgs t) == 0 && isLexicallyAtomic (un t)
+  isLexicallyAtomic (IsPartialApp t) = isLexicallyAtomic t
   isLexicallyAtomic IsLam{} = False
 
   pprint (IsLam arg body) = char '\\' <+> pprintParened arg <+> text "->" <+> pprint body
-  pprint (IsPartialApp p) = pprintParened (un p) <+> hsep (fmap pprintParened (appliedArgs p))
+  pprint (IsPartialApp p) = pprint p
 
 
 instance Pretty Appable where
@@ -378,13 +389,13 @@ instance Pretty Elim where
 
 
 instance Pretty TypeTerm where
-  isLexicallyAtomic (TyApp t) = length (appliedArgs t) == 0
+  isLexicallyAtomic (TyApp t) = isLexicallyAtomic t
   isLexicallyAtomic (TTForApp t) = isLexicallyAtomic t
   isLexicallyAtomic Universe{} = False
 
   pprint (Universe l) = text "Type" <+> pprint l
   pprint (TTForApp t) = pprint t
-  pprint (TyApp ty) = pprintParened (un ty) <+> hsep (fmap pprintParened (appliedArgs ty))
+  pprint (TyApp ty) = pprint ty
 
 
 instance Pretty TypeTermOfTermsThatCanBeApplied where
@@ -413,7 +424,7 @@ instance Pretty DCon where
 
 
 instance Pretty (Graded (Typed Name)) where
-  pprint x = pprint (un (un x)) <+> colon <+> pprint (grading x) <+> pprint (typeOf x)
+  pprint x = pprint (argVar x) <+> colon <+> pprint (grading x) <+> pprint (typeOf x)
 
 instance Pretty Grading where
   pprint g = char '[' <>
