@@ -76,7 +76,7 @@ module Language.Dlam.Syntax.Internal
 
 import Prelude hiding ((<>))
 
-import Language.Dlam.Syntax.Abstract (Name(..))
+import Language.Dlam.Syntax.Abstract (AName(..))
 -- import qualified Language.Dlam.Syntax.Common as Com
 import qualified Language.Dlam.Syntax.Common.Language as Com
 import Language.Dlam.Util.Peekaboo
@@ -90,21 +90,21 @@ import Language.Dlam.Util.Pretty
 
 -- | As we have dependent types, we should be able to treat grades
 -- | as arbitrary expressions.
--- type BoundName = Com.BoundName Name
+-- type BoundName = Com.BoundName AName
 -- type Type = Expr
 type Typed = Com.Typed Type
 typedWith :: a -> Type -> Typed a
 typedWith = Com.typedWith
 typeOf :: (Com.IsTyped a Type) => a -> Type
 typeOf = Com.typeOf
--- bindName :: Name -> BoundName
+-- bindName :: AName -> BoundName
 -- bindName = Com.bindName
--- unBoundName :: BoundName -> Name
+-- unBoundName :: BoundName -> AName
 -- unBoundName = Com.unBoundName
 
 
 
-type VarId = Name
+type VarId = AName
 
 
 -----------------
@@ -112,14 +112,14 @@ type VarId = Name
 -----------------
 
 
-type Arg = Graded (Typed Name)
+type Arg = Graded (Typed AName)
 
 
-mkArg :: Name -> Grading -> Type -> Arg
+mkArg :: AName -> Grading -> Type -> Arg
 mkArg n g t = n `typedWith` t `gradedWith` g
 
 
-argVar :: Arg -> Name
+argVar :: Arg -> AName
 argVar = un . un
 
 
@@ -413,7 +413,7 @@ instance Pretty DCon where
   pprint = pprint . name
 
 
-instance Pretty (Graded (Typed Name)) where
+instance Pretty (Graded (Typed AName)) where
   pprint x = pprint (argVar x) <+> colon <+> pprint (grading x) <+> pprint (typeOf x)
 
 instance Pretty Grading where
@@ -583,16 +583,16 @@ decrementGrade e =
 -------------------
 
 
-mkLam :: Name -> Type -> Term -> Term
+mkLam :: AName -> Type -> Term -> Term
 mkLam n ty body = Lam (n `typedWith` ty `gradedWith` thatMagicalGrading) body
 
 
-mkTyVar :: Name -> Level -> Type
+mkTyVar :: AName -> Level -> Type
 mkTyVar n l = mkType (TyApp (fullyApplied (AppTyVar n) [])) l
 
 
 class HasName a where
-  name :: a -> Name
+  name :: a -> AName
 
 
 instance HasName Appable where

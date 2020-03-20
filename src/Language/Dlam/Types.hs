@@ -261,7 +261,7 @@ equalExprs e1 e2 = do
 
 
 -- | Try and register the name with the given type
-registerTypeForName :: Name -> Type -> CM ()
+registerTypeForName :: AName -> Type -> CM ()
 registerTypeForName n t = do
   setType n t
 
@@ -781,18 +781,18 @@ checkOrInferType' t (Let (LetPatBound p e1) e2) = do
   ensureEqualTypes t e1forzinC
 
   where
-        withBinders :: [(Name, Expr)] -> CM a -> CM a
+        withBinders :: [(AName, Expr)] -> CM a -> CM a
         withBinders [] m = m
         withBinders (b:bs) m = uncurry withTypedVariable b $ withBinders bs m
 
         -- TODO (maybe?): support arbitrarily nested typing patterns (e.g.,
         -- (x@(y, z), a)) (2020-03-04)
         -- | Get the typing variable of a pattern.
-        patTyVar :: Pattern -> Maybe Name
+        patTyVar :: Pattern -> Maybe AName
         patTyVar (PAt b _) = Just (unBindName b)
         patTyVar _ = Nothing
 
-        applyCon :: Expr -> [(Name, Expr)] -> Expr
+        applyCon :: Expr -> [(AName, Expr)] -> Expr
         applyCon con args = foldl App con (fmap (Var . fst) args)
 
         findConstructorForType :: Expr -> CM Expr
@@ -845,7 +845,7 @@ synthType = checkOrInferType mkImplicit
 -- | Compare a pattern against a type, and attempt to build a mapping
 -- | from subject binders and subject type binders to their
 -- | respective types.
-patternVarsForType :: Pattern -> Type -> CM ([(Name, Type)], [(Name, Type)])
+patternVarsForType :: Pattern -> Type -> CM ([(AName, Type)], [(AName, Type)])
 patternVarsForType (PPair pl pr) (ProductTy ab) =
   (<>) <$> patternVarsForType pl (absTy ab)
        <*> patternVarsForType pr (absExpr ab)
@@ -857,7 +857,7 @@ patternVarsForType p t = patternMismatch p t
 
 
 -- | Try and map components of a term to names in a pattern.
-maybeGetPatternSubst :: Pattern -> Expr -> Maybe ([(Name, Expr)], [(Name, Expr)])
+maybeGetPatternSubst :: Pattern -> Expr -> Maybe ([(AName, Expr)], [(AName, Expr)])
 maybeGetPatternSubst (PPair p1 p2) (Pair l r) =
   maybeGetPatternSubst p1 l <> maybeGetPatternSubst p2 r
 -- maybeGetPatternSubst PUnit (Builtin DUnitTerm) = pure []
@@ -872,7 +872,7 @@ maybeGetPatternSubst _ _ = Nothing
 -- patterns (e.g., (x, y) and z---then the 'z' should normalise to
 -- '(x, y)') (2020-03-04)
 -- | Try and map the variables of one pattern to the variables of another.
-maybeGetPatternUnificationSubst :: Pattern -> Pattern -> Maybe [(Name, Expr)]
+maybeGetPatternUnificationSubst :: Pattern -> Pattern -> Maybe [(AName, Expr)]
 maybeGetPatternUnificationSubst (PVar n) (PVar m) =
   pure . pure $ (unBindName n, Var (unBindName m))
 maybeGetPatternUnificationSubst (PPair l1 r1) (PPair l2 r2) =

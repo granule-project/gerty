@@ -9,14 +9,14 @@ import qualified Language.Dlam.Syntax.Abstract as A
 
 
 class Free t where
-  freeVars  :: t -> Set.Set A.Name
+  freeVars  :: t -> Set.Set A.AName
 
 
 instance (Free a, Free b) => Free (a, b) where
   freeVars (x, y) = freeVars x `Set.union` freeVars y
 
 
-freeVarsAbs :: A.Abstraction -> Set.Set A.Name
+freeVarsAbs :: A.Abstraction -> Set.Set A.AName
 freeVarsAbs ab = Set.delete (A.absVar ab) (freeVars (A.absExpr ab))
 
 

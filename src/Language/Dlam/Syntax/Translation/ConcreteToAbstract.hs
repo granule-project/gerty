@@ -24,11 +24,11 @@ class ToAbstract c a where
   toAbstract :: c -> SM a
 
 
-type Locals = [(C.CName, A.Name)]
+type Locals = [(C.CName, A.AName)]
 
 
 -- | Generate a new, ignored name.
-newIgnoredName :: SM A.Name
+newIgnoredName :: SM A.AName
 newIgnoredName = toAbstract C.ignoreVar
 
 
@@ -57,10 +57,10 @@ instance ToAbstract C.FRHS A.FRHS where
   toAbstract (C.FRHSAssign e) = A.FRHSAssign <$> toAbstract e
 
 
-instance ToAbstract C.CName A.Name where
+instance ToAbstract C.CName A.AName where
   toAbstract n = do
     i <- fresh
-    pure $ A.Name { A.nameId = i, A.nameConcrete = n }
+    pure $ A.AName { A.nameId = i, A.nameConcrete = n }
 
 
 mkMaybeOldName :: C.CName -> InScopeType -> NameClassifier -> MaybeOldName
@@ -81,7 +81,7 @@ data MaybeOldName = MaybeOldName
   , monHowBind :: HowBind
   }
 
-instance ToAbstract MaybeOldName A.Name where
+instance ToAbstract MaybeOldName A.AName where
   -- we try to find an existing instance of the name, but if the name
   -- isn't in scope, then we initialise it here.
   toAbstract mon = do
@@ -264,7 +264,7 @@ instance ToAbstract C.Pattern (A.Pattern, Locals) where
 
 
 -- | Try and resolve the name as a constructor.
-maybeResolveMeAConstructor :: C.QName -> SM (Maybe A.Name)
+maybeResolveMeAConstructor :: C.QName -> SM (Maybe A.AName)
 maybeResolveMeAConstructor n = do
   res <- maybeResolveNameCurrentScope n
   case res of

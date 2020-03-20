@@ -106,15 +106,15 @@ import Language.Dlam.Util.Pretty (pprintShow)
 
 data CheckerState
   = CheckerState
-    { typingScope :: M.Map Name Expr
-    , valueScope :: M.Map Name Expr
-    , provisionScope :: M.Map Name Grading
+    { typingScope :: M.Map AName Expr
+    , valueScope :: M.Map AName Expr
+    , provisionScope :: M.Map AName Grading
     -- ^ Scope of provisions (how can an assumption be used---grades remaining).
     , nextNameId :: NameId
     -- ^ Unique NameId for naming.
-    , typingScope' :: M.Map Name I.Type
-    , valueScope' :: M.Map Name I.Term
-    , provisionScope' :: M.Map Name I.Grading
+    , typingScope' :: M.Map AName I.Type
+    , valueScope' :: M.Map AName I.Term
+    , provisionScope' :: M.Map AName I.Grading
     , debugNesting :: Int
     -- ^ Counter used to make it easier to locate debugging messages.
     }
@@ -248,15 +248,15 @@ getFreshNameId :: CM NameId
 getFreshNameId = get >>= \s -> let c = nextNameId s in put s { nextNameId = succ c } >> pure c
 
 
-lookupType :: Name -> CM (Maybe Expr)
+lookupType :: AName -> CM (Maybe Expr)
 lookupType n = M.lookup n . typingScope <$> get
 
 
-maybeLookupType :: Name -> CM (Maybe I.Type)
+maybeLookupType :: AName -> CM (Maybe I.Type)
 maybeLookupType n = M.lookup n . typingScope' <$> get
 
 
-lookupType' :: Name -> CM I.Type
+lookupType' :: AName -> CM I.Type
 lookupType' n =
   debugBlock "lookupType'"
     ("looking up type of: " <> pprintShow n)
@@ -264,14 +264,14 @@ lookupType' n =
     (maybeLookupType n >>= maybe (scoperError $ SE.unknownNameErr (C.Unqualified $ nameConcrete n)) pure)
 
 
-setType :: Name -> Expr -> CM ()
+setType :: AName -> Expr -> CM ()
 setType n t = modify (\s -> s { typingScope = M.insert n t (typingScope s) })
-setType' :: Name -> I.Type -> CM ()
+setType' :: AName -> I.Type -> CM ()
 setType' n t = modify (\s -> s { typingScope' = M.insert n t (typingScope' s) })
 
 
 -- | Execute the action with the given identifier bound with the given type.
-withTypedVariable :: Name -> Expr -> CM a -> CM a
+withTypedVariable :: AName -> Expr -> CM a -> CM a
 withTypedVariable v t p = do
   st <- get
   setType v t
@@ -280,7 +280,7 @@ withTypedVariable v t p = do
   modify (\s -> s { typingScope = typingScope st})
   pure res
 -- | Execute the action with the given identifier bound with the given type.
-withTypedVariable' :: Name -> I.Type -> CM a -> CM a
+withTypedVariable' :: AName -> I.Type -> CM a -> CM a
 withTypedVariable' v t p = do
   debug $ "setting type of variable '" <> pprintShow v <> "' to '" <> pprintShow t <> "'"
   st <- get
@@ -292,26 +292,26 @@ withTypedVariable' v t p = do
   pure res
 
 
-lookupValue :: Name -> CM (Maybe Expr)
+lookupValue :: AName -> CM (Maybe Expr)
 lookupValue n = M.lookup n . valueScope <$> get
 
-maybeLookupValue :: Name -> CM (Maybe I.Term)
+maybeLookupValue :: AName -> CM (Maybe I.Term)
 maybeLookupValue n = M.lookup n . valueScope' <$> get
 
 
-lookupValue' :: Name -> CM I.Term
+lookupValue' :: AName -> CM I.Term
 lookupValue' n =
   maybeLookupValue n >>= maybe (scoperError $ SE.unknownNameErr (C.Unqualified $ nameConcrete n)) pure
 
 
-setValue :: Name -> Expr -> CM ()
+setValue :: AName -> Expr -> CM ()
 setValue n t = modify (\s -> s { valueScope = M.insert n t (valueScope s) })
-setValue' :: Name -> I.Term -> CM ()
+setValue' :: AName -> I.Term -> CM ()
 setValue' n t = modify (\s -> s { valueScope' = M.insert n t (valueScope' s) })
 
 
 -- | Execute the action with the given identifier bound with the given value.
-withValuedVariable :: Name -> Expr -> CM a -> CM a
+withValuedVariable :: AName -> Expr -> CM a -> CM a
 withValuedVariable v t p = do
   st <- get
   setValue v t
@@ -326,15 +326,15 @@ withValuedVariable v t p = do
 -------------
 
 
-lookupRemaining :: Name -> CM (Maybe Grading)
+lookupRemaining :: AName -> CM (Maybe Grading)
 lookupRemaining n = M.lookup n . provisionScope <$> get
-lookupRemaining' :: Name -> CM (Maybe I.Grading)
+lookupRemaining' :: AName -> CM (Maybe I.Grading)
 lookupRemaining' n = M.lookup n . provisionScope' <$> get
 
 
-lookupSubjectRemaining :: Name -> CM (Maybe Grade)
+lookupSubjectRemaining :: AName -> CM (Maybe Grade)
 lookupSubjectRemaining n = fmap subjectGrade <$> lookupRemaining n
-lookupSubjectRemaining' :: Name -> CM (Maybe I.Grade)
+lookupSubjectRemaining' :: AName -> CM (Maybe I.Grade)
 lookupSubjectRemaining' n = fmap I.subjectGrade <$> lookupRemaining' n
 
 
@@ -354,13 +354,13 @@ grOne = Succ' grZero
 grZero = Zero'
 
 
-modifyRemaining :: Name -> (Grading -> Grading) -> CM ()
+modifyRemaining :: AName -> (Grading -> Grading) -> CM ()
 modifyRemaining n f = do
   prev <- lookupRemaining n
   case prev of
     Nothing -> pure ()
     Just prev -> setRemaining n (f prev)
-modifyRemaining' :: Name -> (I.Grading -> I.Grading) -> CM ()
+modifyRemaining' :: AName -> (I.Grading -> I.Grading) -> CM ()
 modifyRemaining' n f = do
   prev <- lookupRemaining' n
   case prev of
@@ -368,20 +368,20 @@ modifyRemaining' n f = do
     Just prev -> setRemaining' n (f prev)
 
 
-setRemaining :: Name -> Grading -> CM ()
+setRemaining :: AName -> Grading -> CM ()
 setRemaining n g = modify (\s -> s { provisionScope = M.insert n g (provisionScope s) })
-setRemaining' :: Name -> I.Grading -> CM ()
+setRemaining' :: AName -> I.Grading -> CM ()
 setRemaining' n g = modify (\s -> s { provisionScope' = M.insert n g (provisionScope' s) })
 
 
-setSubjectRemaining :: Name -> Grade -> CM ()
+setSubjectRemaining :: AName -> Grade -> CM ()
 setSubjectRemaining n g = modifyRemaining n (\gs -> mkGrading g (subjectTypeGrade gs))
-setSubjectRemaining' :: Name -> I.Grade -> CM ()
+setSubjectRemaining' :: AName -> I.Grade -> CM ()
 setSubjectRemaining' n g = modifyRemaining' n (\gs -> I.mkGrading g (I.subjectTypeGrade gs))
 
 
 -- | Execute the action with the given identifier bound with the given grading.
-withGradedVariable :: Name -> Grading -> CM a -> CM a
+withGradedVariable :: AName -> Grading -> CM a -> CM a
 withGradedVariable v gr p = do
   st <- get
   setRemaining v gr
@@ -390,7 +390,7 @@ withGradedVariable v gr p = do
   modify (\s -> s { provisionScope = provisionScope st})
   pure res
 -- | Execute the action with the given identifier bound with the given grading.
-withGradedVariable' :: Name -> I.Grading -> CM a -> CM a
+withGradedVariable' :: AName -> I.Grading -> CM a -> CM a
 withGradedVariable' v gr p = do
   st <- get
   setRemaining' v gr
@@ -472,7 +472,7 @@ data TCError
   -- Grading Errors --
   --------------------
 
-  | UsedTooManyTimes Name
+  | UsedTooManyTimes AName
 
   ------------------
   -- Parse Errors --
@@ -557,7 +557,7 @@ patternMismatch :: Pattern -> Expr -> CM a
 patternMismatch p t = throwCM (PatternMismatch p t)
 
 
-usedTooManyTimes :: Name -> CM a
+usedTooManyTimes :: AName -> CM a
 usedTooManyTimes = throwCM . UsedTooManyTimes
 
 

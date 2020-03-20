@@ -70,12 +70,12 @@ builtins =
    ]
 
 
-builtinsTypes :: M.Map Name Expr
+builtinsTypes :: M.Map AName Expr
 builtinsTypes = M.fromList
   (fmap (\bin -> (builtinName bin, builtinType bin)) builtins)
 
 
-builtinsValues :: M.Map Name Expr
+builtinsValues :: M.Map AName Expr
 builtinsValues = M.fromList
   (fmap (\bin -> (builtinName bin, builtinBody bin)) builtins)
 
@@ -85,13 +85,13 @@ builtinsValues = M.fromList
 -------------------------------
 
 
-newtype Builtin = MkBuiltin (Name, BuiltinTerm, Expr)
+newtype Builtin = MkBuiltin (AName, BuiltinTerm, Expr)
 
 mkBuiltin :: BuiltinTerm -> Expr -> Builtin
 mkBuiltin exprRef ty = MkBuiltin (mkIdent (pprintShow exprRef), exprRef, ty)
 
 -- | Syntactic name of a builtin term.
-builtinName :: Builtin -> Name
+builtinName :: Builtin -> AName
 builtinName (MkBuiltin (n, _, _)) = n
 
 -- | Body for a builtin term (essentially an Agda postulate).
@@ -103,7 +103,7 @@ builtinType :: Builtin -> Expr
 builtinType (MkBuiltin (_, _, t)) = t
 
 
-mkFunTy :: Name -> Expr -> Expr -> Expr
+mkFunTy :: AName -> Expr -> Expr -> Expr
 mkFunTy n t e = FunTy $ mkAbs n t e
 
 typeZero, levelTy', natTy' :: Expr

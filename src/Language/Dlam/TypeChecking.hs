@@ -68,7 +68,7 @@ checkExprIsType_ _e = notAType
 
 
 -- | Try and register the name with the given type
-registerTypeForName :: Name -> Type -> CM ()
+registerTypeForName :: AName -> Type -> CM ()
 registerTypeForName n t = setType' n t
 
 
@@ -765,7 +765,7 @@ applyPartialToTerm :: TermThatCanBeApplied -> Term -> Type -> CM Term
 applyPartialToTerm = applyPartial
 
 
-mkVar' :: Name -> Type -> Term
+mkVar' :: AName -> Type -> Term
 mkVar' n ty =
   case un ty of
     Pi{} -> PartialApp (partiallyApplied (VarPartial n) [])

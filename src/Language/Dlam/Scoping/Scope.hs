@@ -26,7 +26,7 @@ type NameSpace = M.Map C.CName InScopeName
 
 data InScopeName
   -- | A name in scope, with an explanation as to why it is in scope.
-  = InScopeName { howBound :: [InScopeType], isnName :: A.Name }
+  = InScopeName { howBound :: [InScopeType], isnName :: A.AName }
   deriving (Show)
 
 
@@ -44,17 +44,17 @@ data InScopeType
 -- | A name that has been resolved in scope.
 data ResolvedName
   -- | A local variable.
-  = ResolvedVar A.Name
+  = ResolvedVar A.AName
   -- | A definition name.
-  | ResolvedDef A.Name
+  | ResolvedDef A.AName
   -- | A resolved constructor.
-  | ResolvedCon A.Name
+  | ResolvedCon A.AName
   -- | An associated type signature.
-  | ResolvedSig A.Name
+  | ResolvedSig A.AName
 
 
 -- | The associated name.
-nameOf :: ResolvedName -> A.Name
+nameOf :: ResolvedName -> A.AName
 nameOf (ResolvedVar n) = n
 nameOf (ResolvedDef n) = n
 nameOf (ResolvedCon n) = n
@@ -70,14 +70,14 @@ lookupInScope (C.Unqualified n) = lookupInNameSpace n . scopeNameSpace
 lookupInScope (C.Qualified _n _q) = error "qualified lookups not yet supported"
 
 
-addNameToNameSpace :: InScopeType -> C.CName -> A.Name -> NameSpace -> NameSpace
+addNameToNameSpace :: InScopeType -> C.CName -> A.AName -> NameSpace -> NameSpace
 addNameToNameSpace st cn an =
   M.insertWith mergeInScope cn (InScopeName [st] an)
   where mergeInScope (InScopeName st1 an1) (InScopeName st2 _)
           = InScopeName (L.union st1 st2) an1
 
 
-addNameToScope :: InScopeType -> C.CName -> A.Name -> Scope -> Scope
+addNameToScope :: InScopeType -> C.CName -> A.AName -> Scope -> Scope
 addNameToScope st cn an s
   = let sn = scopeNameSpace s in s { scopeNameSpace = addNameToNameSpace st cn an sn }
 

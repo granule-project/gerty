@@ -43,7 +43,7 @@ module Language.Dlam.Builtins2
 
 import qualified Data.Map as M
 
-import Language.Dlam.Syntax.Abstract (Name, mkIdent, ignoreVar, BuiltinTerm(..))
+import Language.Dlam.Syntax.Abstract (AName, mkIdent, ignoreVar, BuiltinTerm(..))
 import Language.Dlam.Syntax.Internal
 import Language.Dlam.Util.Peekaboo
 import Language.Dlam.Util.Pretty (pprintShow)
@@ -83,12 +83,12 @@ builtins =
       ]
 
 
-builtinsTypes :: M.Map Name Type
+builtinsTypes :: M.Map AName Type
 builtinsTypes = M.fromList
   (fmap (\bin -> (builtinName bin, builtinType bin)) builtins)
 
 
-builtinsValues :: M.Map Name Term
+builtinsValues :: M.Map AName Term
 builtinsValues = M.fromList $
   (fmap (\bin -> (builtinName bin, builtinBody bin)) builtins)
 
@@ -168,10 +168,10 @@ data Builtin
 type BuiltinDCon = (Maybe Term, DCon)
 
 
-type BuiltinDef = (Name, [Arg], Type)
+type BuiltinDef = (AName, [Arg], Type)
 
 
-mkBuiltinDef :: Name -> [Arg] -> Type -> BuiltinDef
+mkBuiltinDef :: AName -> [Arg] -> Type -> BuiltinDef
 mkBuiltinDef n args ty = (n, args, ty)
 
 
@@ -196,7 +196,7 @@ mkBuiltinType exprRef = mkBuiltinTyCon exprRef [] levelZero
 
 
 -- | Syntactic name of a builtin term.
-builtinName :: Builtin -> Name
+builtinName :: Builtin -> AName
 builtinName (BinTyCon tcon) = name tcon
 builtinName (BinDCon  dcon) = name $ snd dcon
 builtinName (BinDef (n,_,_)) = n
@@ -254,7 +254,7 @@ mkDefTy :: [Arg] -> Type -> Type
 mkDefTy args ty = foldr (\arg t -> mkFunTy (argVar arg) (typeOf arg) t) ty args
 
 
-mkFunTy :: Name -> Type -> Type -> Type
+mkFunTy :: AName -> Type -> Type -> Type
 mkFunTy n t e = mkType (Pi (n `typedWith` t `gradedWith` thatMagicalGrading) e) (nextLevel $ Max (level t) (level e))
 
 
@@ -266,12 +266,12 @@ mkTLevel :: Term -> Level
 mkTLevel = Plus 0 . LTerm
 
 
-mkLevelVar :: Name -> Level
+mkLevelVar :: AName -> Level
 mkLevelVar n = mkTLevel $ mkVar n
 
 
 -- | Make a new (fully-applied) type variable.
-mkTypeVar :: Name -> Level -> Type
+mkTypeVar :: AName -> Level -> Type
 mkTypeVar n = mkType (TyApp (fullyApplied (AppTyVar n) []))
 
 
@@ -280,7 +280,7 @@ mkTyAxiom tc = mkType (TyApp (fullyApplied (AppTyCon tc) []))
 
 
 -- | Make a new (fully-applied) free variable.
-mkVar :: Name -> Term
+mkVar :: AName -> Term
 mkVar n = App (fullyApplied (Var n) [])
 
 
@@ -290,7 +290,7 @@ natTy = mkTyAxiom tcNat levelZero
 emptyTy = mkTyAxiom tcEmpty levelZero
 
 
-mkArg' :: Name -> Type -> Arg
+mkArg' :: AName -> Type -> Arg
 mkArg' n t = mkArg n thatMagicalGrading t
 
 

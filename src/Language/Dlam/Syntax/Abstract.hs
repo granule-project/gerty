@@ -16,7 +16,7 @@ module Language.Dlam.Syntax.Abstract
   , pattern LSuc'
   , pattern Succ'
   , pattern Zero'
-  , Name(..)
+  , AName(..)
   , mkIdent
   , ignoreVar
   , mkAbs
@@ -82,7 +82,7 @@ import Language.Dlam.Util.Pretty
 type Grade   = Expr
 type Grading = Com.Grading Grade
 type Graded = Com.Graded Grade
-type BoundName = Com.BoundName Name
+type BoundName = Com.BoundName AName
 type Type = Expr
 type Typed = Com.Typed Expr
 typedWith :: a -> Type -> Typed a
@@ -91,11 +91,11 @@ typeOf :: (Com.IsTyped a Type) => a -> Type
 typeOf = Com.typeOf
 gradedWith :: a -> Grading -> Graded a
 gradedWith = Com.gradedWith
-bindName :: Name -> BoundName
+bindName :: AName -> BoundName
 bindName = Com.bindName
 mkGrading :: Grade -> Grade -> Grading
 mkGrading = Com.mkGrading
-unBoundName :: BoundName -> Name
+unBoundName :: BoundName -> AName
 unBoundName = Com.unBoundName
 grading :: (Com.IsGraded a Grade) => a -> Grading
 grading = Com.grading
@@ -153,7 +153,7 @@ newtype AST = AST [Declaration]
 -- | A function clause's left-hand side.
 data FLHS =
   -- Currently we only support simple identifiers.
-  FLHSName Name
+  FLHSName AName
   deriving (Show)
 
 -- | Right-hand side of a function clause.
@@ -167,7 +167,7 @@ data Declaration =
   -- ^ A single clause for a function.
     FunEqn FLHS FRHS
   -- ^ A type signature.
-  | TypeSig Name Expr
+  | TypeSig AName Expr
   deriving (Show)
 
 
@@ -202,7 +202,7 @@ instance Com.Hiding Abstraction where
 
 
 -- | Variable bound in the abstraction.
-absVar :: Abstraction -> Name
+absVar :: Abstraction -> AName
 absVar = unBindName . argName . absArg
 
 
@@ -211,17 +211,17 @@ absTy :: Abstraction -> Expr
 absTy = argTy . absArg
 
 
-mkAbs :: Name -> Expr -> Expr -> Abstraction
+mkAbs :: AName -> Expr -> Expr -> Abstraction
 mkAbs v e1 e2 = Abst { absArg = mkArg NotHidden (BindName v `gradedWith` implicitGrading `typedWith` e1), absExpr = e2 }
 
 
-mkAbs' :: IsHiddenOrNot -> Name -> Grading -> Expr -> Expr -> Abstraction
+mkAbs' :: IsHiddenOrNot -> AName -> Grading -> Expr -> Expr -> Abstraction
 mkAbs' isHid v g e1 e2 = Abst { absArg = mkArg isHid (BindName v `gradedWith` g `typedWith` e1), absExpr = e2 }
 
 
 data Expr
   -- | Variable.
-  = Var Name
+  = Var AName
 
   -- | Level literals.
   | LitLevel Integer
@@ -242,16 +242,16 @@ data Expr
   | Coproduct Expr Expr
 
   -- | Coproduct eliminator.
-  | CoproductCase (Name, Expr) (Name, Expr) (Name, Expr) Expr
+  | CoproductCase (AName, Expr) (AName, Expr) (AName, Expr) Expr
 
   -- | Natural number eliminator.
-  | NatCase (Name, Expr) Expr (Name, Name, Expr) Expr
+  | NatCase (AName, Expr) Expr (AName, AName, Expr) Expr
 
   -- | Identity eliminator.
-  | RewriteExpr (Name, Name, Name, Expr) (Name, Expr) Expr Expr Expr
+  | RewriteExpr (AName, AName, AName, Expr) (AName, Expr) Expr Expr Expr
 
   -- | Empty eliminator.
-  | EmptyElim (Name, Expr) Expr
+  | EmptyElim (AName, Expr) Expr
 
   | App Expr Expr -- e1 e2
 
@@ -315,11 +315,11 @@ data LetBinding
 -- TODO: update this to compare equality on concrete name as well (see
 -- https://hackage.haskell.org/package/Agda-2.6.0.1/docs/Agda-Syntax-Abstract.html#t:BindName)
 -- (2020-03-04)
-newtype BindName = BindName { unBindName :: Name }
+newtype BindName = BindName { unBindName :: AName }
   deriving (Show, Eq, Ord)
 
 
-type ConName = Name
+type ConName = AName
 
 
 data Pattern
@@ -352,12 +352,12 @@ boundSubjectVars PUnit = mempty
 boundSubjectVars (PCon _ args) = Set.unions $ fmap boundSubjectVars args
 
 
----------
--- * Name
----------
+----------
+-- * AName
+----------
 
 
-data Name = Name
+data AName = AName
   { nameId :: NameId
     -- ^ Unique identifier of the name.
   , nameConcrete :: C.CName
@@ -368,11 +368,11 @@ data Name = Name
 
 -- TODO: move builtins to a different phase so we don't need these
 -- (names might not be unique!) (2020-03-05)
-ignoreVar :: Name
-ignoreVar = Name { nameId = NameId 0, nameConcrete = C.NoName (NameId 0) }
+ignoreVar :: AName
+ignoreVar = AName { nameId = NameId 0, nameConcrete = C.NoName (NameId 0) }
 
-mkIdent :: String -> Name
-mkIdent s = Name { nameId = NameId 0, nameConcrete = C.CName s }
+mkIdent :: String -> AName
+mkIdent s = AName { nameId = NameId 0, nameConcrete = C.CName s }
 
 --------------------
 ----- Builtins -----
@@ -438,7 +438,7 @@ pprintAbs :: Doc -> Abstraction -> Doc
 pprintAbs sep ab =
   let leftTyDoc =
         case absVar ab of
-          Name _ C.NoName{} -> pprint (absTy ab)
+          AName _ C.NoName{} -> pprint (absTy ab)
           _        -> parens (pprint (absVar ab) <+> colon <+> pprint (grading ab) <+> pprint (absTy ab))
   in leftTyDoc <+> sep <+> pprint (absExpr ab)
 
@@ -465,7 +465,7 @@ instance Pretty Expr where
     pprint (ProductTy ab) =
       let leftTyDoc =
             case absVar ab of
-              Name _ C.NoName{} -> pprint (absTy ab)
+              AName _ C.NoName{} -> pprint (absTy ab)
               _        -> pprint (absVar ab) <+> colon <> colon <+> pprint (absTy ab)
       in leftTyDoc <+> char '*' <+> pprint (absExpr ab)
     pprint (App lam@Lam{} e2) =
@@ -475,7 +475,7 @@ instance Pretty Expr where
     pprint (App e1 e2) = pprint e1 <+> pprintParened e2
     pprint (Pair e1 e2) = parens (pprint e1 <> comma <+> pprint e2)
     pprint (Coproduct e1 e2) = pprint e1 <+> char '+' <+> pprint e2
-    pprint (CoproductCase (Name _ C.NoName{}, Implicit) (x, c) (y, d) e) =
+    pprint (CoproductCase (AName _ C.NoName{}, Implicit) (x, c) (y, d) e) =
       caset <+> pprint e <+> text "of"
               <+> text "Inl" <+> pprint x <+> arrow <+> pprint c <> semi
               <+> text "Inr" <+> pprint y <+> arrow <+> pprint d
@@ -544,7 +544,7 @@ instance Pretty BuiltinTerm where
   pprint DRefl     = text "refl"
   pprint DEmptyTy  = text "Empty"
 
-instance Pretty Name where
+instance Pretty AName where
   isLexicallyAtomic _ = True
   pprint = pprint . nameConcrete
 

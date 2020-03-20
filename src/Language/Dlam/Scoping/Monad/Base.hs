@@ -113,7 +113,7 @@ startEnv = SCEnv ()
 -----------------------
 
 
-type LocalVars = M.Map C.CName Name
+type LocalVars = M.Map C.CName AName
 
 
 data ScopeInfo = ScopeInfo
@@ -137,7 +137,7 @@ onScopeInfo :: (ScopeInfo -> ScopeInfo) -> ScoperState -> ScoperState
 onScopeInfo f s = s { scScope = f (scScope s) }
 
 
-addLocals :: [(C.CName, Name)] -> ScoperState -> ScoperState
+addLocals :: [(C.CName, AName)] -> ScoperState -> ScoperState
 addLocals locals =
   onScopeInfo $ \si ->
     let oldVars = scopeLocals si
@@ -156,17 +156,17 @@ getScopeLocals :: SM LocalVars
 getScopeLocals = scopeLocals <$> getScopeInfo
 
 
-lookupLocalVar :: C.CName -> SM (Maybe Name)
+lookupLocalVar :: C.CName -> SM (Maybe AName)
 lookupLocalVar n = M.lookup n <$> getScopeLocals
 
 
-lookupLocalQVar :: C.QName -> SM (Maybe Name)
+lookupLocalQVar :: C.QName -> SM (Maybe AName)
 lookupLocalQVar n = (M.lookup n . M.mapKeys C.Unqualified) <$> getScopeLocals
 
 
 -- | Execute the given action with the specified local variables
 -- | (additionally) bound. This restores the scope after checking.
-withLocals :: [(C.CName, Name)] -> SM a -> SM a
+withLocals :: [(C.CName, AName)] -> SM a -> SM a
 withLocals locals act = do
   oldLocals <- getScopeLocals
   modify $ addLocals locals
@@ -192,7 +192,7 @@ doesNameExistInCurrentScope :: NameClassifier -> C.QName -> SM Bool
 doesNameExistInCurrentScope nc n = maybe False (any (willItClash nc) . howBound) <$> maybeResolveNameCurrentScope' n
 
 
-bindNameCurrentScope :: HowBind -> C.CName -> Name -> SM ()
+bindNameCurrentScope :: HowBind -> C.CName -> AName -> SM ()
 bindNameCurrentScope hb cn an = do
   isBound <- doesNameExistInCurrentScope (hbClashesWith hb) (C.Unqualified cn)
   if isBound

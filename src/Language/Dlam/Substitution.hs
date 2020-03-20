@@ -42,7 +42,7 @@ class Substitutable m n e where
   substitute :: n -> e -> m e
 
 
-substAbs :: (Name, Expr) -> Abstraction -> CM Abstraction
+substAbs :: (AName, Expr) -> Abstraction -> CM Abstraction
 substAbs s ab = do
   let v = absVar ab
   v' <- freshen v
@@ -56,7 +56,7 @@ instance {-# OVERLAPPABLE #-} (Monad m, Substitutable m n e, Foldable t) => Subs
   substitute n e = F.foldrM substitute e n
 
 
-instance {-# OVERLAPS #-} Substitutable CM (Name, Expr) Expr where
+instance {-# OVERLAPS #-} Substitutable CM (AName, Expr) Expr where
   substitute (v, e) (Var x)
     | v == x    = pure e
     | otherwise = pure (Var x)
@@ -109,11 +109,11 @@ instance {-# OVERLAPS #-} Substitutable CM (Name, Expr) Expr where
   substitute _ EType = pure EType
 
 
-instance {-# OVERLAPS #-} Substitutable CM (Name, I.Term) (I.FullyApplied a) where
+instance {-# OVERLAPS #-} Substitutable CM (AName, I.Term) (I.FullyApplied a) where
   substitute s t = I.fullyApplied (un t) <$> mapM (substitute s) (I.appliedArgs t)
 
 
-instance {-# OVERLAPS #-} Substitutable CM (Name, I.Term) I.Type where
+instance {-# OVERLAPS #-} Substitutable CM (AName, I.Term) I.Type where
   substitute s@(v, _t') t = do
     l <- substitute s (I.level t)
     case un t of
@@ -132,19 +132,19 @@ instance {-# OVERLAPS #-} Substitutable CM (Name, I.Term) I.Type where
         pure $ I.mkType (I.Pi arg' resTy') l
 
 
-instance {-# OVERLAPS #-} Substitutable CM (Name, I.Term) I.Grading where
+instance {-# OVERLAPS #-} Substitutable CM (AName, I.Term) I.Grading where
   -- grades are simple nats at the moment, so no substitution (2020-03-16, GD)
   substitute _ g = pure g
 
 
-instance {-# OVERLAPS #-} Substitutable CM (Name, I.Term) I.Arg where
+instance {-# OVERLAPS #-} Substitutable CM (AName, I.Term) I.Arg where
   substitute s arg = do
     g <- substitute s (I.grading arg)
     ty <- substitute s (I.typeOf arg)
     pure $ I.mkArg (I.argVar arg) g ty
 
 
-instance {-# OVERLAPS #-} Substitutable CM (Name, I.Term) I.Level where
+instance {-# OVERLAPS #-} Substitutable CM (AName, I.Term) I.Level where
   -- [t/x](Concrete n) === Concrete n
   substitute _ l@I.Concrete{} = pure l
   -- [t/x](Plus n t') === Plus n [t/x]t'
@@ -152,11 +152,11 @@ instance {-# OVERLAPS #-} Substitutable CM (Name, I.Term) I.Level where
   substitute s (I.Max l1 l2) = I.Max <$> substitute s l1 <*> substitute s l2
 
 
-instance {-# OVERLAPS #-} Substitutable CM (Name, I.Term) I.LevelAtom where
+instance {-# OVERLAPS #-} Substitutable CM (AName, I.Term) I.LevelAtom where
   substitute s (I.LTerm t) = I.LTerm <$> substitute s t
 
 
-instance {-# OVERLAPS #-} Substitutable CM (Name, I.Term) I.Term where
+instance {-# OVERLAPS #-} Substitutable CM (AName, I.Term) I.Term where
   substitute s (I.TypeTerm t) = I.TypeTerm <$> substitute s t
   substitute s (I.Level l) = I.Level <$> substitute s l
   substitute s@(v, _) (I.Lam arg body) = do
@@ -178,5 +178,5 @@ instance Fresh CM NameId where
 instance Fresh SM NameId where
   fresh = SM.getFreshNameId
 
-instance Freshenable CM NameId Name where
+instance Freshenable CM NameId AName where
   freshenWithSeed i v = pure $ v { nameId = i }
