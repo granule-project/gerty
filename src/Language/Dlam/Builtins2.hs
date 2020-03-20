@@ -27,7 +27,6 @@ module Language.Dlam.Builtins2
   , mkUnivTy
 
   -- * Helpers
-  , mkFunTy
   , mkLevelVar
   , mkVar
   , mkArg'
@@ -43,7 +42,7 @@ module Language.Dlam.Builtins2
 
 import qualified Data.Map as M
 
-import Language.Dlam.Syntax.Abstract (AName, mkIdent, ignoreVar, BuiltinTerm(..))
+import Language.Dlam.Syntax.Abstract (AName, mkIdent, BuiltinTerm(..))
 import Language.Dlam.Syntax.Internal
 import Language.Dlam.Util.Peekaboo
 import Language.Dlam.Util.Pretty (pprintShow)
@@ -197,8 +196,8 @@ mkBuiltinType exprRef = mkBuiltinTyCon exprRef [] levelZero
 
 -- | Syntactic name of a builtin term.
 builtinName :: Builtin -> AName
-builtinName (BinTyCon tcon) = name tcon
-builtinName (BinDCon  dcon) = name $ snd dcon
+builtinName (BinTyCon tcon) = getName tcon
+builtinName (BinDCon  dcon) = getName $ snd dcon
 builtinName (BinDef (n,_,_)) = n
 
 
@@ -223,7 +222,7 @@ builtinBody (BinDCon (Just inner, dcon)) =
   mkLamFromArgsAndBody (args dcon) inner
   where mkLamFromArgsAndBody :: [Arg] -> Term -> Term
         mkLamFromArgsAndBody [] body = body
-        mkLamFromArgsAndBody (arg:args) body = Lam arg (mkLamFromArgsAndBody args body)
+        mkLamFromArgsAndBody (arg:args) body = mkLam' arg (mkLamFromArgsAndBody args body)
 
 -- Constant postulate, so we don't do any fancy reduction.
 builtinBody (BinDef (n, args, _)) =
@@ -254,44 +253,10 @@ mkDefTy :: [Arg] -> Type -> Type
 mkDefTy args ty = foldr (\arg t -> mkFunTy (argVar arg) (typeOf arg) t) ty args
 
 
-mkFunTy :: AName -> Type -> Type -> Type
-mkFunTy n t e = mkType (Pi (n `typedWith` t `gradedWith` thatMagicalGrading) e) (nextLevel $ Max (level t) (level e))
-
-
-levelZero :: Level
-levelZero = Concrete 0
-
-
-mkTLevel :: Term -> Level
-mkTLevel = Plus 0 . LTerm
-
-
-mkLevelVar :: AName -> Level
-mkLevelVar n = mkTLevel $ mkVar n
-
-
--- | Make a new (fully-applied) type variable.
-mkTypeVar :: AName -> Level -> Type
-mkTypeVar n = mkType (TyApp (fullyApplied (AppTyVar n) []))
-
-
-mkTyAxiom :: TyCon -> Level -> Type
-mkTyAxiom tc = mkType (TyApp (fullyApplied (AppTyCon tc) []))
-
-
--- | Make a new (fully-applied) free variable.
-mkVar :: AName -> Term
-mkVar n = App (fullyApplied (Var n) [])
-
-
 levelTy, natTy, emptyTy :: Type
 levelTy = mkTyAxiom tcLevel levelZero
 natTy = mkTyAxiom tcNat levelZero
 emptyTy = mkTyAxiom tcEmpty levelZero
-
-
-mkArg' :: AName -> Type -> Arg
-mkArg' n t = mkArg n thatMagicalGrading t
 
 
 mkUnivTy :: Level -> Type
@@ -319,10 +284,10 @@ tcUnit  = mkBuiltinType DUnitTy
 
 
 tcCoproduct =
-  let l1 = mkIdent "l1"; l1v = mkLevelVar l1
-      l2 = mkIdent "l2"; l2v = mkLevelVar l2
-      a = mkIdent "a"
-      b = mkIdent "b"
+  let l1 = nameFromString "l1"; l1v = mkLevelVar l1
+      l2 = nameFromString "l2"; l2v = mkLevelVar l2
+      a = nameFromString "a"
+      b = nameFromString "b"
   in mkBuiltinTyCon DCoproduct
      [ mkArg' l1 levelTy, mkArg' l2 levelTy
      , mkArg' a (mkUnivTy l1v), mkArg' b (mkUnivTy l2v)]
@@ -330,13 +295,13 @@ tcCoproduct =
 
 
 tcId =
-  let l = mkIdent "l"
+  let l = nameFromString "l"
       lv = mkLevelVar l
-      a = mkIdent "a"
+      a = nameFromString "a"
       av = mkTypeVar a lv
   in mkBuiltinTyCon IdTy
-       [ mkArg' l levelTy, mkArg' a (mkUnivTy lv)
-       , mkArg' ignoreVar av, mkArg' ignoreVar av]
+       [ mkArg' l levelTy, mkTyArg a (mkUnivTy lv)
+       , mkArgNoBind av, mkArgNoBind av]
        lv
 
 
@@ -357,12 +322,12 @@ dcLmax, dcLsuc, dcLzero :: BuiltinDCon
 dcLzero = mkBuiltinDCon LZero [] tcLevel' (Level levelZero)
 
 
-dcLsuc = let l = mkIdent "l" in mkBuiltinDCon LSuc [mkArg' l levelTy] tcLevel'
+dcLsuc = let l = nameFromString "l" in mkBuiltinDCon LSuc [mkArg' l levelTy] tcLevel'
                (Level (nextLevel (mkLevelVar l)))
 
 
 dcLmax =
-  let l1 = mkIdent "l1"; l2 = mkIdent "l2" in
+  let l1 = nameFromString "l1"; l2 = nameFromString "l2" in
   mkBuiltinDCon LMax [mkArg' l1 levelTy, mkArg' l2 levelTy] tcLevel'
                   (Level (Max (mkLevelVar l1) (mkLevelVar l2)))
 
@@ -376,14 +341,14 @@ dcInl, dcInr, dcRefl, dcSucc, dcUnit, dcZero :: BuiltinDCon
 
 
 dcInl =
-  let l1 = mkIdent "l1"; l1v = mkLevelVar l1
-      l2 = mkIdent "l2"; l2v = mkLevelVar l2
-      a = mkIdent "a"; av = mkTypeVar a l1v
-      b = mkIdent "b"; bv = mkTypeVar b l2v
+  let l1 = nameFromString "l1"; l1v = mkLevelVar l1
+      l2 = nameFromString "l2"; l2v = mkLevelVar l2
+      a = nameFromString "a"; av = mkTypeVar a l1v
+      b = nameFromString "b"; bv = mkTypeVar b l2v
   in mkBuiltinDConNoDef Inl
        [ mkArg' l1 levelTy, mkArg' l2 levelTy
-       , mkArg' a (mkUnivTy l1v), mkArg' b (mkUnivTy l2v)
-       , mkArg' ignoreVar av
+       , mkTyArg a (mkUnivTy l1v), mkTyArg b (mkUnivTy l2v)
+       , mkArgNoBind av
        ]
        (mkCoproductTyForApp av bv)
 
@@ -393,14 +358,14 @@ mkInlTerm tA tB a = App (fullyApplied (ConData $ snd dcInr) [Level (level tA), L
 
 
 dcInr =
-  let l1 = mkIdent "l1"; l1v = mkLevelVar l1
-      l2 = mkIdent "l2"; l2v = mkLevelVar l2
-      a = mkIdent "a"; av = mkTypeVar a l1v
-      b = mkIdent "b"; bv = mkTypeVar b l2v
+  let l1 = nameFromString "l1"; l1v = mkLevelVar l1
+      l2 = nameFromString "l2"; l2v = mkLevelVar l2
+      a = nameFromString "a"; av = mkTypeVar a l1v
+      b = nameFromString "b"; bv = mkTypeVar b l2v
   in mkBuiltinDConNoDef Inr
        [ mkArg' l1 levelTy, mkArg' l2 levelTy
-       , mkArg' a (mkUnivTy l1v), mkArg' b (mkUnivTy l2v)
-       , mkArg' ignoreVar bv
+       , mkTyArg a (mkUnivTy l1v), mkTyArg b (mkUnivTy l2v)
+       , mkArgNoBind bv
        ]
        (mkCoproductTyForApp av bv)
 
@@ -410,21 +375,21 @@ mkInrTerm tA tB b = App (fullyApplied (ConData $ snd dcInr) [Level (level tA), L
 
 
 dcRefl =
-  let l = mkIdent "l"
+  let l = nameFromString "l"
       lv = mkLevelVar l
-      a = mkIdent "a"
+      a = nameFromString "a"
       av = mkTypeVar a lv
-      x = mkIdent "x"
+      x = nameFromString "x"
       xv = mkVar x
   in mkBuiltinDConNoDef DRefl
-       [mkArg' l levelTy, mkArg' a (mkUnivTy lv), mkArg' x av]
+       [mkArg' l levelTy, mkTyArg a (mkUnivTy lv), mkArg' x av]
        (fullyApplied tcId [Level lv, TypeTerm av, xv, xv])
 
 
 dcZero = mkBuiltinDConNoDef DNZero [] tcNat'
 
 
-dcSucc = mkBuiltinDConNoDef DNSucc [mkArg' ignoreVar natTy] tcNat'
+dcSucc = mkBuiltinDConNoDef DNSucc [mkArgNoBind natTy] tcNat'
 
 
 dcUnit = mkBuiltinDConNoDef DUnitTerm [] tcUnit'
@@ -449,15 +414,16 @@ succForApp = IsPartialApp $ partiallyApplied (DConPartial (snd dcSucc)) []
 -}
 elimNat :: BuiltinDef
 elimNat =
-  let (l, n, x, y, tC, cz, cs) = seven mkIdent ("l", "n", "x", "y", "C", "cz", "cs")
-      seven fun (a,b,c,d,e,f,g) = (fun a, fun b, fun c, fun d, fun e, fun f, fun g)
+  let (l, n, x, y, cz, cs) = six nameFromString ("l", "n", "x", "y", "cz", "cs")
+      tC = nameFromString "C"
+      six fun (a,b,c,d,e,f) = (fun a, fun b, fun c, fun d, fun e, fun f)
       lv = mkLevelVar l
       xv = mkVar x
       appC a = mkType (TyApp (fullyApplied (AppTyVar tC) [a])) lv
       succApp a = App (fullyApplied (ConData $ snd dcSucc) [a])
       args =
         [ mkArg' l levelTy
-        , mkArg' tC (mkFunTy ignoreVar natTy (mkUnivTy lv))
+        , mkTyArg tC (mkFunTyNoBind natTy (mkUnivTy lv))
         , mkArg' cz (appC (mkVar cz))
         , mkArg' cs (mkFunTy x natTy (mkFunTy y (appC xv) (appC (succApp xv))))
         , mkArg' n natTy
@@ -479,13 +445,14 @@ elimNatForApp = AppDef (builtinName $ (BinDef elimNat))
 -}
 elimEmpty :: BuiltinDef
 elimEmpty =
-  let (l, a, tC) = three mkIdent ("l", "a", "C")
-      three fun (a,b,c) = (fun a, fun b, fun c)
+  let l = nameFromString "l"
+      a = nameFromString "a"
+      tC = nameFromString "tC"
       lv = mkLevelVar l
       appC a = mkType (TyApp (fullyApplied (AppTyVar tC) [a])) lv
       args =
         [ mkArg' l levelTy
-        , mkArg' tC (mkFunTy ignoreVar emptyTy (mkUnivTy lv))
+        , mkTyArg tC (mkFunTyNoBind emptyTy (mkUnivTy lv))
         , mkArg' a  emptyTy
         ]
       ty = appC (mkVar a)
@@ -507,8 +474,10 @@ elimEmptyForApp = AppDef (builtinName $ (BinDef elimEmpty))
 -}
 elimCoproduct :: BuiltinDef
 elimCoproduct =
-  let (l1, l2, l3, a, b, tC, p) = seven mkIdent ("l1", "l2", "l3", "a", "b", "tC", "p")
-      seven fun (a,b,c,d,e,f,g) = (fun a, fun b, fun c, fun d, fun e, fun f, fun g)
+  let (l1, l2, l3) = three nameFromString ("l1", "l2", "l3")
+      (a, b, tC) = three nameFromString ("a", "b", "tC")
+      p = nameFromString "p"
+      three fun (a,b,c) = (fun a, fun b, fun c)
       l1v = mkLevelVar l1
       l2v = mkLevelVar l2
       l3v = mkLevelVar l3
@@ -519,11 +488,11 @@ elimCoproduct =
       pv = mkVar p
       args =
         [ mkArg' l1 levelTy, mkArg' l2 levelTy, mkArg' l3 levelTy
-        , mkArg' a (mkUnivTy l1v), mkArg' b (mkUnivTy l2v)
-        , mkArg' tC (mkFunTy ignoreVar copAB (mkUnivTy l3v))
+        , mkTyArg a (mkUnivTy l1v), mkTyArg b (mkUnivTy l2v)
+        , mkTyArg tC (mkFunTyNoBind copAB (mkUnivTy l3v))
         , mkArg' p copAB
-        , mkArg' ignoreVar (mkFunTy ignoreVar aty (appC pv))
-        , mkArg' ignoreVar (mkFunTy ignoreVar bty (appC pv))
+        , mkArgNoBind (mkFunTyNoBind aty (appC pv))
+        , mkArgNoBind (mkFunTyNoBind bty (appC pv))
         ]
       ty = appC pv
   in mkBuiltinDef (mkIdent "elimCoproduct") args ty

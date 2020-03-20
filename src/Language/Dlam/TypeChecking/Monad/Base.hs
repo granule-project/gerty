@@ -53,6 +53,10 @@ module Language.Dlam.TypeChecking.Monad.Base
   -- * Environment
   , withLocalCheckingOf
 
+  -- ** Free Variables
+  , lookupFVType
+  , withVarBound
+
   -- * Exceptions and error handling
   , TCErr
   , isSyntaxErr
@@ -98,7 +102,7 @@ import qualified Language.Dlam.Builtins2 as B2
 import qualified Language.Dlam.Scoping.Monad.Exception as SE
 import Language.Dlam.Syntax.Abstract
 import qualified Language.Dlam.Syntax.Internal as I
-import Language.Dlam.Syntax.Common (NameId)
+import Language.Dlam.Syntax.Common (NameId(..))
 import qualified Language.Dlam.Syntax.Concrete.Name as C
 import Language.Dlam.Syntax.Parser.Monad (ParseError)
 import Language.Dlam.Util.Pretty (pprintShow)
@@ -409,6 +413,8 @@ withGradedVariable' v gr p = do
 data TCEnv = TCEnv
   { tceCurrentExpr :: Maybe Expr
   -- ^ Expression currently being checked (if any).
+  , tceFVContext :: FreeVarContext
+  -- ^ Current context of free variables.
   }
 
 
@@ -417,12 +423,56 @@ tceSetCurrentExpr e env = env { tceCurrentExpr = Just e }
 
 
 startEnv :: TCEnv
-startEnv = TCEnv { tceCurrentExpr = Nothing }
+startEnv = TCEnv { tceCurrentExpr = Nothing, tceFVContext = emptyContext }
 
 
 -- | Indicate that we are now checking the given expression when running the action.
 withLocalCheckingOf :: Expr -> CM a -> CM a
 withLocalCheckingOf e = local (tceSetCurrentExpr e)
+
+
+---------------------------
+-- Free Variable Context --
+---------------------------
+
+
+type FreeVar = (String, Integer)
+
+
+type FreeVarInfo = (I.Grading, I.Type)
+
+
+type FreeVarContext = M.Map FreeVar FreeVarInfo
+
+
+emptyContext :: FreeVarContext
+emptyContext = M.empty
+
+
+getContext :: CM FreeVarContext
+getContext = fmap tceFVContext ask
+
+
+tceAddBinding :: FreeVar -> FreeVarInfo -> TCEnv -> TCEnv
+tceAddBinding v bod env = env { tceFVContext = M.insert v bod (tceFVContext env) }
+
+
+-- | Execute the action with the given free variable bound with the
+-- | given grading and type.
+withVarBound :: I.Name n -> I.Grading -> I.Type -> CM a -> CM a
+withVarBound n g ty =
+  let (snam, idx) = (I.name2String n, I.name2Integer n) in
+  local (tceAddBinding (snam, idx) (g, ty))
+
+
+lookupFVInfo :: I.Name a -> CM FreeVarInfo
+lookupFVInfo n =
+  maybe (error $ "lookupFVType tried to look up the type of variable '" <> pprintShow n <> "' but it wasn't in scope. Scope checking or type-checking is broken.") pure . M.lookup (nameToFreeVar n) =<< getContext
+  where nameToFreeVar n = (I.name2String n, I.name2Integer n)
+
+
+lookupFVType :: I.Name a -> CM I.Type
+lookupFVType = fmap snd . lookupFVInfo
 
 
 -----------------------------------------
@@ -624,3 +674,14 @@ isPhaseErr phase err = not (isImplementationErr err) && errPhase err == phase
 
 isImplementationErr :: TCErr -> Bool
 isImplementationErr e = case tcErrErr e of NotImplemented{} -> True; _ -> False
+
+
+-----------------------
+----- For Unbound -----
+-----------------------
+
+
+instance I.Fresh CM where
+  fresh n = do
+    (NameId newId) <- getFreshNameId
+    pure $ I.makeName (I.name2String n) newId

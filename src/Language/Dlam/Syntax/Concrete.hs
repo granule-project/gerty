@@ -62,7 +62,7 @@ import qualified Data.List.NonEmpty as NE
 import Language.Dlam.Syntax.Concrete.Name
 import Language.Dlam.Syntax.Common
 import qualified Language.Dlam.Syntax.Common.Language as C
-import Language.Dlam.Syntax.Common.Language (Binds, IsTyped)
+import Language.Dlam.Syntax.Common.Language (Binds, HasType)
 import Language.Dlam.Util.Pretty
 
 
@@ -72,7 +72,7 @@ import Language.Dlam.Util.Pretty
 
 
 type Type = Expr
-type Typed = C.Typed Expr
+type Typed = C.IsTyped Expr
 type Grading = C.Grading Grade
 type Graded = C.Graded Grade
 type BoundName = C.BoundName CName
@@ -81,7 +81,7 @@ typedWith :: a -> Type -> Typed a
 typedWith = C.typedWith
 gradedWith :: a -> Grading -> Graded a
 gradedWith = C.gradedWith
-typeOf :: (IsTyped a Type) => a -> Type
+typeOf :: (HasType a Type) => a -> Type
 typeOf = C.typeOf
 grading :: (C.IsGraded a Grade) => a -> Grading
 grading = C.grading
@@ -201,7 +201,7 @@ instance Binds TypedBinding CName where
   bindsWhat = bindsWhat . unTB
 
 
-instance IsTyped TypedBinding Expr where
+instance HasType TypedBinding Expr where
   typeOf = typeOf . un . un . unTB
 
 

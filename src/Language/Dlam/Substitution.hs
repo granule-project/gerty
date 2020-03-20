@@ -17,13 +17,10 @@ import qualified Data.Set as Set
 
 import Language.Dlam.Syntax.Abstract
 import Language.Dlam.Syntax.Common (NameId)
-import qualified Language.Dlam.Syntax.Internal as I
 import qualified Language.Dlam.Scoping.Monad as SM
 import Language.Dlam.Scoping.Monad (SM)
 import qualified Language.Dlam.TypeChecking.Monad as CM
 import Language.Dlam.TypeChecking.Monad (CM)
-import Language.Dlam.Util.Peekaboo
-import Language.Dlam.Util.Pretty (pprintShow)
 
 
 class Fresh m i | m -> i where
@@ -107,70 +104,6 @@ instance {-# OVERLAPS #-} Substitutable CM (AName, Expr) Expr where
     r' <- if v `Set.member` (Set.map unBindName (boundSubjectVars p)) then pure r else substitute s r
     pure $ Let (LetPatBound p e') r'
   substitute _ EType = pure EType
-
-
-instance {-# OVERLAPS #-} Substitutable CM (AName, I.Term) (I.FullyApplied a) where
-  substitute s t = I.fullyApplied (un t) <$> mapM (substitute s) (I.appliedArgs t)
-
-
-instance {-# OVERLAPS #-} Substitutable CM (AName, I.Term) I.Type where
-  substitute s@(v, _t') t = do
-    l <- substitute s (I.level t)
-    case un t of
-      (I.Universe ul) -> I.mkType . I.Universe <$> substitute s ul <*> pure l
-      (I.TyApp ap) ->
-        case un ap of
-          I.AppTyCon{} -> I.mkType . I.TyApp <$> substitute s ap <*> pure l
-          I.AppTyDef{} -> I.mkType . I.TyApp <$> substitute s ap <*> pure l
-          va@I.AppTyVar{}
-            | length (I.appliedArgs ap) == 0 -> pure $ I.mkType (I.TyApp ap) l
-            | otherwise -> I.mkType . I.TyApp . I.fullyApplied va <$> mapM (substitute s) (I.appliedArgs ap) <*> pure l
-      (I.TTForApp (I.IsPi arg resTy)) -> do
-        let v' = I.argVar arg
-        arg' <- substitute s arg
-        resTy' <- if v == v' then pure resTy else substitute s resTy
-        pure $ I.mkType (I.Pi arg' resTy') l
-
-
-instance {-# OVERLAPS #-} Substitutable CM (AName, I.Term) I.Grading where
-  -- grades are simple nats at the moment, so no substitution (2020-03-16, GD)
-  substitute _ g = pure g
-
-
-instance {-# OVERLAPS #-} Substitutable CM (AName, I.Term) I.Arg where
-  substitute s arg = do
-    g <- substitute s (I.grading arg)
-    ty <- substitute s (I.typeOf arg)
-    pure $ I.mkArg (I.argVar arg) g ty
-
-
-instance {-# OVERLAPS #-} Substitutable CM (AName, I.Term) I.Level where
-  -- [t/x](Concrete n) === Concrete n
-  substitute _ l@I.Concrete{} = pure l
-  -- [t/x](Plus n t') === Plus n [t/x]t'
-  substitute s (I.Plus n t) = I.Plus n <$> substitute s t
-  substitute s (I.Max l1 l2) = I.Max <$> substitute s l1 <*> substitute s l2
-
-
-instance {-# OVERLAPS #-} Substitutable CM (AName, I.Term) I.LevelAtom where
-  substitute s (I.LTerm t) = I.LTerm <$> substitute s t
-
-
-instance {-# OVERLAPS #-} Substitutable CM (AName, I.Term) I.Term where
-  substitute s (I.TypeTerm t) = I.TypeTerm <$> substitute s t
-  substitute s (I.Level l) = I.Level <$> substitute s l
-  substitute s@(v, _) (I.Lam arg body) = do
-    let v' = I.argVar arg
-    arg' <- substitute s arg
-    body' <- if v == v' then pure body else substitute s body
-    pure $ I.Lam arg' body'
-  substitute s@(v, t) t'@(I.App f) =
-    case un f of
-      I.Var v' | length (I.appliedArgs f) == 0 -> pure $ if v == v' then t else t'
-      _ -> I.App . I.fullyApplied (un f) <$> mapM (substitute s) (I.appliedArgs f)
-  substitute (v, t) t' =
-    CM.notImplemented $ "substituting '" <> pprintShow t <> "' for '" <> pprintShow v <> "' in term '" <> pprintShow t' <> "'"
-
 
 instance Fresh CM NameId where
   fresh = CM.getFreshNameId

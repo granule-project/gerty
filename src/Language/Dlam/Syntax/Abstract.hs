@@ -84,10 +84,10 @@ type Grading = Com.Grading Grade
 type Graded = Com.Graded Grade
 type BoundName = Com.BoundName AName
 type Type = Expr
-type Typed = Com.Typed Expr
-typedWith :: a -> Type -> Typed a
+type IsTyped = Com.IsTyped Expr
+typedWith :: a -> Type -> IsTyped a
 typedWith = Com.typedWith
-typeOf :: (Com.IsTyped a Type) => a -> Type
+typeOf :: (Com.HasType a Type) => a -> Type
 typeOf = Com.typeOf
 gradedWith :: a -> Grading -> Graded a
 gradedWith = Com.gradedWith
@@ -113,7 +113,7 @@ implicitGrading = mkGrading Implicit Implicit
 -- https://hackage.haskell.org/package/Agda-2.6.0.1/docs/Agda-Syntax-Abstract.html#t:TypedBinding)
 -- (2020-03-11)
 -- | Typed binders are optionally graded, and can contain many bound names.
-newtype TypedBinding = TB { unTB :: Com.Arg (Graded (Typed BoundName)) }
+newtype TypedBinding = TB { unTB :: Com.Arg (Graded (IsTyped BoundName)) }
   deriving (Show, Eq, Ord, Hiding)
 
 
@@ -121,7 +121,7 @@ mkTypedBinding :: IsHiddenOrNot -> Grading -> Type -> BoundName -> TypedBinding
 mkTypedBinding isHid gr ty n = TB (mkArg isHid (n `typedWith` ty `gradedWith` gr))
 
 
-instance Com.IsTyped TypedBinding Expr where
+instance Com.HasType TypedBinding Expr where
   typeOf = typeOf . un . un . unTB
 
 
@@ -171,7 +171,7 @@ data Declaration =
   deriving (Show)
 
 
-type Arg = Com.Arg (Typed (Graded BindName))
+type Arg = Com.Arg (IsTyped (Graded BindName))
 
 
 -- | Name of the argument.

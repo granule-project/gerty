@@ -24,11 +24,13 @@ library:
    - alex
    - happy
   dependencies:
+   - array
    - containers
    - mtl
    - pretty
+   - RepLib
    - transformers
-   - array
+   - unbound
   exposed-modules:
    - Language.Dlam.Interpreter
    - Language.Dlam.Substitution

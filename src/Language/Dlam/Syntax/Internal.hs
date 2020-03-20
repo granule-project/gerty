@@ -1,8 +1,14 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE UndecidableInstances #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 module Language.Dlam.Syntax.Internal
   (
   -- * Terms
@@ -18,7 +24,6 @@ module Language.Dlam.Syntax.Internal
   , TypeTermOfTermsThatCanBeApplied(..)
   , TypeTerm(..)
   , pattern Pi
-  , mkLam
   , PartiallyAppable(..)
   -- ** Type Constructors
   , TyCon
@@ -35,7 +40,6 @@ module Language.Dlam.Syntax.Internal
   -- ** Arguments
   , Arg
   , argVar
-  , mkArg
   , Applied(..)
   , Applicable(..)
   -- * Levels
@@ -68,19 +72,51 @@ module Language.Dlam.Syntax.Internal
   , thatMagicalGrading
   , decrementGrade
   -- * Helpers
-  , mkTyVar
-  -- * Naming
   , HasName(..)
+
+  -- ** Constructing terms, types, etc.
+  , levelZero
+  , mkFunTy
+  , mkFunTyNoBind
+  , mkLam
+  , mkLam'
+  , mkLevelVar
+  , mkPi
+  , mkPi'
+  , mkTLevel
+  , mkTyAxiom
+  , mkTyVar
+  , mkTypeVar
+  , mkVar
+  , termVarToTyVar
+  , tyVarToTermVar
+
+  -- *** Arguments
+  , mkArg
+  , mkArg'
+  , mkArgNoBind
+  , mkTyArg
+
+  -- *** Names
+  , aname2Name
+  , nameFromString
+
+  -- * Unbound
+  , module Unbound.LocallyNameless
   ) where
 
 
 import Prelude hiding ((<>))
 
 import Language.Dlam.Syntax.Abstract (AName(..))
--- import qualified Language.Dlam.Syntax.Common as Com
 import qualified Language.Dlam.Syntax.Common.Language as Com
+import Language.Dlam.Syntax.Common.Language (Graded, IsTyped)
+import Language.Dlam.Syntax.Concrete.Name (CName(..))
+import Language.Dlam.Syntax.Common (NameId(..))
 import Language.Dlam.Util.Peekaboo
 import Language.Dlam.Util.Pretty
+import Unbound.LocallyNameless
+import Unbound.LocallyNameless.Ops (unsafeUnbind) -- for pretty-printing
 
 
 ------------------------------
@@ -88,23 +124,13 @@ import Language.Dlam.Util.Pretty
 ------------------------------
 
 
--- | As we have dependent types, we should be able to treat grades
--- | as arbitrary expressions.
--- type BoundName = Com.BoundName AName
--- type Type = Expr
-type Typed = Com.Typed Type
-typedWith :: a -> Type -> Typed a
-typedWith = Com.typedWith
-typeOf :: (Com.IsTyped a Type) => a -> Type
+typedWith :: a -> Type -> IsTyped Type a
+typedWith a = Com.typedWith a
+typeOf :: (Com.HasType a Type) => a -> Type
 typeOf = Com.typeOf
--- bindName :: AName -> BoundName
--- bindName = Com.bindName
--- unBoundName :: BoundName -> AName
--- unBoundName = Com.unBoundName
 
 
-
-type VarId = AName
+type VarId = Name Term
 
 
 -----------------
@@ -112,24 +138,32 @@ type VarId = AName
 -----------------
 
 
-type Arg = Graded (Typed AName)
+newtype Arg = Arg { unArg :: Graded Grade (IsTyped Type (Name Term)) }
 
 
-mkArg :: AName -> Grading -> Type -> Arg
-mkArg n g t = n `typedWith` t `gradedWith` g
+instance Com.IsGraded Arg Grade where
+  grading = grading . unArg
+instance Com.HasType Arg Type where
+  typeOf = typeOf . unArg
 
 
-argVar :: Arg -> AName
-argVar = un . un
+mkArg :: Name Term -> Grading -> Type -> Arg
+mkArg n g t = Arg $ n `typedWith` t `gradedWith` g
 
 
-type ConId = VarId
+argVar :: Arg -> Name Term
+argVar = un . un . unArg
+
+
+type ConId = AName
+type TyVarId = Name Type
+type DefId = AName
 
 
 -- | Types of things that can be applied.
 data TypeTermOfTermsThatCanBeApplied
   -- | Dependent function space.
-  = IsPi Arg Type
+  = IsPi (Bind Arg Type)
 
 
 -- | Terms that are only well-typed if they are types.
@@ -142,24 +176,24 @@ data TypeTerm
   | TyApp (FullyApplied TyAppable)
 
 
-pattern Pi :: Arg -> Type -> TypeTerm
-pattern Pi arg ty = TTForApp (IsPi arg ty)
+pattern Pi :: Bind Arg Type -> TypeTerm
+pattern Pi pi = TTForApp (IsPi pi)
 
 
 data TyAppable
   -- | Free variable whose type ends in a universe.
-  = AppTyVar VarId
+  = AppTyVar TyVarId
   -- | Type constructor.
   | AppTyCon TyCon
   -- | Constant definition (axiom).
-  | AppTyDef VarId
+  | AppTyDef DefId
 
 
 instance Eq TyAppable where
   -- free variables are equality compared on concrete names
-  (AppTyVar v1) == (AppTyVar v2) = nameConcrete v1 == nameConcrete v2
+  (AppTyVar v1) == (AppTyVar v2) = name2String v1 == name2String v2
   -- otherwise we require them to be the exact same name
-  (AppTyCon t1) == (AppTyCon t2) = name t1 == name t2
+  (AppTyCon t1) == (AppTyCon t2) = getName t1 == getName t2
   (AppTyDef d1) == (AppTyDef d2) = d1 == d2
   _ == _ = False
 
@@ -169,7 +203,7 @@ data TermThatCanBeApplied
   -- | A partial application.
   = IsPartialApp (PartiallyApplied PartiallyAppable)
   -- | A lambda abstraction.
-  | IsLam Arg Term
+  | IsLam (Bind Arg Term)
 
 
 -- | A term that cannot be applied to another.
@@ -202,8 +236,8 @@ pattern TypeTerm :: Type -> Term
 pattern TypeTerm ty = FullTerm (IsTypeTerm ty)
 
 
-pattern Lam :: Arg -> Term -> Term
-pattern Lam arg term = PartialTerm (IsLam arg term)
+pattern Lam :: Bind Arg Term -> Term
+pattern Lam lam = PartialTerm (IsLam lam)
 
 
 pattern Level :: Level -> Term
@@ -213,18 +247,18 @@ pattern Level l = FullTerm (IsLevel l)
 -- | Things that when fully applied are terms (and not types).
 data Appable
   -- | A free variable.
-  = Var VarId
+  = Var (Name Term)
   -- | A data constructor.
   | ConData DCon
   -- | Constant (axiom).
-  | AppDef VarId
+  | AppDef DefId
 
 
 instance Eq Appable where
   -- free variables are equality compared on concrete names
-  (Var v1) == (Var v2) = nameConcrete v1 == nameConcrete v2
+  (Var v1) == (Var v2) = name2String v1 == name2String v2
   -- otherwise we require them to be the exact same name
-  (ConData c1) == (ConData c2) = name c1 == name c2
+  (ConData c1) == (ConData c2) = getName c1 == getName c2
   (AppDef d1) == (AppDef d2) = d1 == d2
   _ == _ = False
 
@@ -238,7 +272,7 @@ data PartiallyAppable
   -- | Data constructor.
   | DConPartial DCon
   -- | Constant (axiom).
-  | DefPartial VarId
+  | DefPartial DefId
 
 
 type ConArg = Arg
@@ -250,11 +284,11 @@ data TyCon = TyCon { conID :: ConId
                    }
 
 
-mkTyCon :: ConId -> [ConArg] -> Type -> TyCon
+mkTyCon :: AName -> [ConArg] -> Type -> TyCon
 mkTyCon n args ty = TyCon { conID = n, conArgs = args, conTy = ty }
 
 
-type DConId = VarId
+type DConId = AName
 type DConArg = Arg
 
 
@@ -352,8 +386,13 @@ instance Pretty TermThatCanBeApplied where
   isLexicallyAtomic (IsPartialApp t) = isLexicallyAtomic t
   isLexicallyAtomic IsLam{} = False
 
-  pprint (IsLam arg body) = char '\\' <+> pprintParened arg <+> text "->" <+> pprint body
+  pprint (IsLam lam) =
+    let (arg, body) = unsafeUnbind lam in char '\\' <+> pprintParened arg <+> text "->" <+> pprint body
   pprint (IsPartialApp p) = pprint p
+
+
+instance Pretty (Name a) where
+  pprint = pprint . name2String
 
 
 instance Pretty Appable where
@@ -391,7 +430,8 @@ instance Pretty TypeTerm where
 instance Pretty TypeTermOfTermsThatCanBeApplied where
   isLexicallyAtomic IsPi{} = False
 
-  pprint (IsPi arg resT) = pprintParened arg <+> text "->" <+> pprint resT
+  pprint (IsPi pi) =
+    let (arg, resT) = unsafeUnbind pi in pprintParened arg <+> text "->" <+> pprint resT
 
 
 instance Pretty TyAppable where
@@ -405,15 +445,15 @@ instance Pretty TyAppable where
 
 
 instance Pretty TyCon where
-  isLexicallyAtomic = isLexicallyAtomic . name
-  pprint = pprint . name
+  isLexicallyAtomic = isLexicallyAtomic . getName
+  pprint = pprint . getName
 
 instance Pretty DCon where
-  isLexicallyAtomic = isLexicallyAtomic . name
-  pprint = pprint . name
+  isLexicallyAtomic = isLexicallyAtomic . getName
+  pprint = pprint . getName
 
 
-instance Pretty (Graded (Typed AName)) where
+instance Pretty Arg where
   pprint x = pprint (argVar x) <+> colon <+> pprint (grading x) <+> pprint (typeOf x)
 
 instance Pretty Grading where
@@ -544,7 +584,6 @@ instance (Pretty a) => Pretty (Type' a) where
 -- | For now we just support an exact-usage semiring.
 data Grade = GNat Nat | GInf
 type Grading = Com.Grading Grade
-type Graded = Com.Graded Grade
 mkGrading :: Grade -> Grade -> Grading
 mkGrading = Com.mkGrading
 grading :: (Com.IsGraded a Grade) => a -> Grading
@@ -552,8 +591,8 @@ grading = Com.grading
 subjectGrade, subjectTypeGrade :: (Com.IsGraded a Grade) => a -> Grade
 subjectGrade = Com.subjectGrade
 subjectTypeGrade = Com.subjectTypeGrade
-gradedWith :: a -> Grading -> Graded a
-gradedWith = Com.gradedWith
+gradedWith :: a -> Grading -> Graded Grade a
+gradedWith a = Com.gradedWith a
 
 
 -- | Make a grade from a natural number.
@@ -583,33 +622,153 @@ decrementGrade e =
 -------------------
 
 
-mkLam :: AName -> Type -> Term -> Term
-mkLam n ty body = Lam (n `typedWith` ty `gradedWith` thatMagicalGrading) body
+mkLam :: Name Term -> Type -> Term -> Term
+mkLam n ty = mkLam' (mkArg n thatMagicalGrading ty)
 
 
-mkTyVar :: AName -> Level -> Type
+mkLam' :: Arg -> Term -> Term
+mkLam' arg body = Lam $ bind arg body
+
+
+mkTyVar :: TyVarId -> Level -> Type
 mkTyVar n l = mkType (TyApp (fullyApplied (AppTyVar n) [])) l
 
 
+mkPi' :: Arg -> Type -> TypeTerm
+mkPi' arg = Pi . bind arg
+
+
+mkPi :: Name Term -> Type -> Type -> TypeTerm
+mkPi n argTy = mkPi' (mkArg n thatMagicalGrading argTy)
+
+
+mkFunTy :: Name Term -> Type -> Type -> Type
+mkFunTy n t e = mkType (mkPi n t e) (nextLevel $ Max (level t) (level e))
+
+
+mkFunTyNoBind :: Type -> Type -> Type
+mkFunTyNoBind t e = mkType (mkPi (nameFromString "_") t e) (nextLevel $ Max (level t) (level e))
+
+
+levelZero :: Level
+levelZero = Concrete 0
+
+
+mkTLevel :: Term -> Level
+mkTLevel = Plus 0 . LTerm
+
+
+-- TODO: switch this to be 'Name Level' (2020-03-20)
+mkLevelVar :: VarId -> Level
+mkLevelVar n = mkTLevel $ mkVar n
+
+
+-- | Make a new (fully-applied) type variable.
+mkTypeVar :: TyVarId -> Level -> Type
+mkTypeVar n = mkType (TyApp (fullyApplied (AppTyVar n) []))
+
+
+mkTyAxiom :: TyCon -> Level -> Type
+mkTyAxiom tc = mkType (TyApp (fullyApplied (AppTyCon tc) []))
+
+
+-- | Make a new (fully-applied) free variable.
+mkVar :: VarId -> Term
+mkVar n = App (fullyApplied (Var n) [])
+
+
+mkArg' :: VarId -> Type -> Arg
+mkArg' n t = mkArg n thatMagicalGrading t
+
+
+-- | Make an argument that captures a type variable.
+mkTyArg :: TyVarId -> Type -> Arg
+mkTyArg n = mkArg' (tyVarToTermVar n)
+
+
+mkArgNoBind :: Type -> Arg
+mkArgNoBind = mkArg' (nameFromString "_")
+
+
+tyVarToTermVar :: TyVarId -> VarId
+tyVarToTermVar = translate
+
+
+termVarToTyVar :: VarId -> TyVarId
+termVarToTyVar = translate
+
+
+nameFromString :: (Rep a) => String -> Name a
+nameFromString = s2n
+
+
+aname2Name :: (Rep a) => AName -> Name a
+aname2Name = nameFromString . pprintShow . nameConcrete
+
+
 class HasName a where
-  name :: a -> AName
-
-
-instance HasName Appable where
-  name (Var x) = x
-  name (ConData cd) = name cd
-  name (AppDef cd) = cd
-
-
-instance HasName TyAppable where
-  name (AppTyVar x) = x
-  name (AppTyDef d) = d
-  name (AppTyCon cd) = name cd
+  getName :: a -> AName
 
 
 instance HasName TyCon where
-  name = conID
+  getName = conID
 
 
 instance HasName DCon where
-  name = dconID
+  getName = dconID
+
+
+-----------------------
+----- For Unbound -----
+-----------------------
+
+
+$(derive [''Arg, ''Term, ''TermThatCannotBeApplied, ''TypeTerm, ''TypeTermOfTermsThatCanBeApplied, ''Level, ''LevelAtom, ''TyAppable, ''TyCon, ''AName, ''NameId, ''CName, ''Appable, ''DCon, ''TermThatCanBeApplied, ''PartiallyAppable, ''PartiallyApplied, ''Type', ''FullyApplied, ''Grade, ''Leveled])
+
+
+instance Alpha Arg
+instance (Alpha a) => Alpha (Type' a)
+instance (Alpha a) => Alpha (PartiallyApplied a)
+instance (Alpha a) => Alpha (FullyApplied a)
+instance (Alpha a) => Alpha (Leveled a)
+instance Alpha Grade
+instance Alpha Term
+instance Alpha TermThatCannotBeApplied
+instance Alpha TermThatCanBeApplied
+instance Alpha TypeTermOfTermsThatCanBeApplied
+instance Alpha TypeTerm
+instance Alpha Level
+instance Alpha Appable
+instance Alpha PartiallyAppable
+instance Alpha TyAppable
+instance Alpha LevelAtom
+instance Alpha DCon
+instance Alpha TyCon
+instance Alpha AName
+instance Alpha NameId
+instance Alpha CName
+
+
+instance (Subst Term a) => Subst Term (Leveled a) where
+instance (Subst Term a) => Subst Term (FullyApplied a) where
+instance (Subst Term a) => Subst Term (PartiallyApplied a) where
+instance (Subst Term a, Subst Term t) => Subst Term (IsTyped t a) where
+instance (Subst Term a, Subst Term g) => Subst Term (Graded g a) where
+instance Subst Term Type where
+instance Subst Term Level where
+instance Subst Term TypeTerm where
+instance Subst Term LevelAtom where
+instance Subst Term Term where
+instance Subst Term TypeTermOfTermsThatCanBeApplied where
+instance Subst Term TyAppable where
+instance Subst Term TermThatCannotBeApplied where
+instance Subst Term TermThatCanBeApplied where
+instance Subst Term Arg where
+instance Subst Term TyCon where
+instance Subst Term AName where
+instance Subst Term Appable where
+instance Subst Term Grade where
+instance Subst Term NameId where
+instance Subst Term CName where
+instance Subst Term DCon where
+instance Subst Term PartiallyAppable where

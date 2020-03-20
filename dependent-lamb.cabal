@@ -1,10 +1,10 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.31.2.
+-- This file has been generated from package.yaml by hpack version 0.33.0.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 3ef74457681a4bfaefa688ee3c5a4af89286f07f8e8caf185fac4ac6ce728520
+-- hash: 8b06f18a4d7188f63d648e6adf52651749a4733de53e9ded5752b650a49b6a48
 
 name:           dependent-lamb
 version:        0.0.1
@@ -60,12 +60,14 @@ library
       alex
     , happy
   build-depends:
-      array
+      RepLib
+    , array
     , base >=4.10 && <5
     , containers
     , mtl
     , pretty
     , transformers
+    , unbound
   default-language: Haskell2010
 
 executable dlam
