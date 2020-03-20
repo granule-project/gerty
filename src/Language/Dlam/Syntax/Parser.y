@@ -119,7 +119,7 @@ Declarations1
 ---------------------------------
 
 
-Ident :: { Name }
+Ident :: { CName }
   : VAR {% mkName $1 }
 
 
@@ -171,32 +171,32 @@ RecordDef :: { Declaration }
   : record Ident LambdaBindingsOrEmpty ':' Expr where RecordDeclBody
       { let (con, bod) = $7 in RecordDef $2 con $3 $5 bod }
 
-RecordDeclBody :: { (Maybe Name, [Declaration]) }
+RecordDeclBody :: { (Maybe CName, [Declaration]) }
   : vopen close { (Nothing, []) }
   | vopen RecordDirective close { (Just $2, []) }
   | Declarations { (Nothing, $1) }
 
-RecordDirective :: { Name }
+RecordDirective :: { CName }
   : constructor RecordConstructorName { $2 }
 
-RecordConstructorName :: { Name }
+RecordConstructorName :: { CName }
   : Ident { $1 }
 
 Field :: { [Declaration] }
   : field EmptyOrTypeSigs { fmap (uncurry Field) $2 }
 
 
-EmptyOrTypeSigs :: { [(Name, Expr)] }
+EmptyOrTypeSigs :: { [(CName, Expr)] }
   : vopen TypeSigs0 close { reverse $2 }
 
 
-TypeSigs0 :: { [(Name, Expr)] }
+TypeSigs0 :: { [(CName, Expr)] }
   : TypeSigs0 semi TypeSig { $3 : $1 }
   | TypeSig                { pure $1 }
   | {- empty -}            { [] }
 
 
-TypeSig :: { (Name, Expr) }
+TypeSig :: { (CName, Expr) }
   : Ident ':' Expr { ($1, $3) }
 
 
@@ -423,8 +423,8 @@ funAssignOrTypeSig lhs (IsTypeSig _) = error $ "'" <> pprintShow lhs <> "' is no
 
 
 -- | Create a name from a string.
-mkName :: (Interval, String) -> Parser Name
-mkName (_i, s) = pure $ Name s
+mkName :: (Interval, String) -> Parser CName
+mkName (_i, s) = pure $ CName s
 
 
 -- | Create a qualified name from a list of strings

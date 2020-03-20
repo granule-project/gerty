@@ -21,7 +21,7 @@ data Scope = Scope
   { scopeNameSpace :: NameSpace }
 
 
-type NameSpace = M.Map C.Name InScopeName
+type NameSpace = M.Map C.CName InScopeName
 
 
 data InScopeName
@@ -61,7 +61,7 @@ nameOf (ResolvedCon n) = n
 nameOf (ResolvedSig n) = n
 
 
-lookupInNameSpace :: C.Name -> NameSpace -> Maybe InScopeName
+lookupInNameSpace :: C.CName -> NameSpace -> Maybe InScopeName
 lookupInNameSpace = M.lookup
 
 
@@ -70,14 +70,14 @@ lookupInScope (C.Unqualified n) = lookupInNameSpace n . scopeNameSpace
 lookupInScope (C.Qualified _n _q) = error "qualified lookups not yet supported"
 
 
-addNameToNameSpace :: InScopeType -> C.Name -> A.Name -> NameSpace -> NameSpace
+addNameToNameSpace :: InScopeType -> C.CName -> A.Name -> NameSpace -> NameSpace
 addNameToNameSpace st cn an =
   M.insertWith mergeInScope cn (InScopeName [st] an)
   where mergeInScope (InScopeName st1 an1) (InScopeName st2 _)
           = InScopeName (L.union st1 st2) an1
 
 
-addNameToScope :: InScopeType -> C.Name -> A.Name -> Scope -> Scope
+addNameToScope :: InScopeType -> C.CName -> A.Name -> Scope -> Scope
 addNameToScope st cn an s
   = let sn = scopeNameSpace s in s { scopeNameSpace = addNameToNameSpace st cn an sn }
 

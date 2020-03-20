@@ -24,7 +24,7 @@ class ToAbstract c a where
   toAbstract :: c -> SM a
 
 
-type Locals = [(C.Name, A.Name)]
+type Locals = [(C.CName, A.Name)]
 
 
 -- | Generate a new, ignored name.
@@ -57,27 +57,27 @@ instance ToAbstract C.FRHS A.FRHS where
   toAbstract (C.FRHSAssign e) = A.FRHSAssign <$> toAbstract e
 
 
-instance ToAbstract C.Name A.Name where
+instance ToAbstract C.CName A.Name where
   toAbstract n = do
     i <- fresh
     pure $ A.Name { A.nameId = i, A.nameConcrete = n }
 
 
-mkMaybeOldName :: C.Name -> InScopeType -> NameClassifier -> MaybeOldName
+mkMaybeOldName :: C.CName -> InScopeType -> NameClassifier -> MaybeOldName
 mkMaybeOldName n c nc =
   MaybeOldName { monName = n, monHowBind = HowBind { hbBindsAs = c, hbClashesWith = nc } }
 
 
-mustBeNew :: C.Name -> InScopeType -> MaybeOldName
+mustBeNew :: C.CName -> InScopeType -> MaybeOldName
 mustBeNew n c = mkMaybeOldName n c NCAll
 
 
-fdefLookingForSignature :: C.Name -> MaybeOldName
+fdefLookingForSignature :: C.CName -> MaybeOldName
 fdefLookingForSignature n = mkMaybeOldName n ISDef (AllExcept [NCT ISSig])
 
 
 data MaybeOldName = MaybeOldName
-  { monName :: C.Name
+  { monName :: C.CName
   , monHowBind :: HowBind
   }
 
@@ -273,7 +273,7 @@ maybeResolveMeAConstructor n = do
 
 
 -- | Only yield the name if it is unqualified.
-toUnqualifiedName :: C.QName -> Maybe C.Name
+toUnqualifiedName :: C.QName -> Maybe C.CName
 toUnqualifiedName C.Qualified{} = Nothing
 toUnqualifiedName (C.Unqualified n) = pure n
 

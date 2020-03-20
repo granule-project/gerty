@@ -360,7 +360,7 @@ boundSubjectVars (PCon _ args) = Set.unions $ fmap boundSubjectVars args
 data Name = Name
   { nameId :: NameId
     -- ^ Unique identifier of the name.
-  , nameConcrete :: C.Name
+  , nameConcrete :: C.CName
     -- ^ Concrete representation of the name.
   } deriving (Show, Eq, Ord)
 
@@ -372,7 +372,7 @@ ignoreVar :: Name
 ignoreVar = Name { nameId = NameId 0, nameConcrete = C.NoName (NameId 0) }
 
 mkIdent :: String -> Name
-mkIdent s = Name { nameId = NameId 0, nameConcrete = C.Name s }
+mkIdent s = Name { nameId = NameId 0, nameConcrete = C.CName s }
 
 --------------------
 ----- Builtins -----

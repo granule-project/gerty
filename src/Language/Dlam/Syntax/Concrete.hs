@@ -75,8 +75,8 @@ type Type = Expr
 type Typed = C.Typed Expr
 type Grading = C.Grading Grade
 type Graded = C.Graded Grade
-type BoundName = C.BoundName Name
-type OneOrMoreBoundNames = C.OneOrMoreBoundNames Name
+type BoundName = C.BoundName CName
+type OneOrMoreBoundNames = C.OneOrMoreBoundNames CName
 typedWith :: a -> Type -> Typed a
 typedWith = C.typedWith
 gradedWith :: a -> Grading -> Graded a
@@ -90,11 +90,11 @@ subjectGrade = C.subjectGrade
 subjectTypeGrade = C.subjectTypeGrade
 mkGrading :: Grade -> Grade -> Grading
 mkGrading = C.mkGrading
-bindName :: Name -> BoundName
+bindName :: CName -> BoundName
 bindName = C.bindName
-unBoundName :: BoundName -> Name
+unBoundName :: BoundName -> CName
 unBoundName = C.unBoundName
-bindsWhat :: (Binds a Name) => a -> [BoundName]
+bindsWhat :: (Binds a CName) => a -> [BoundName]
 bindsWhat = C.bindsWhat
 
 
@@ -110,7 +110,7 @@ newtype AST = AST [Declaration]
 -- | A function clause's left-hand side.
 data FLHS =
   -- Currently we only support simple identifiers.
-  FLHSName Name
+  FLHSName CName
   deriving (Show)
 
 -- | Right-hand side of a function clause.
@@ -175,7 +175,7 @@ lambdaBindingFromTyped tb =
 ------------------
 
 
-data MaybeNamed a = Named Name a | Unnamed a
+data MaybeNamed a = Named CName a | Unnamed a
   deriving (Show, Eq, Ord)
 
 
@@ -197,7 +197,7 @@ newtype TypedBinding = TB { unTB :: Arg (MightBe Graded (Typed OneOrMoreBoundNam
   deriving (Show, Eq, Ord, Hiding)
 
 
-instance Binds TypedBinding Name where
+instance Binds TypedBinding CName where
   bindsWhat = bindsWhat . unTB
 
 
@@ -222,18 +222,18 @@ data Declaration
   -- | A single clause for a function.
   = FunEqn FLHS FRHS
   -- | A type signature.
-  | TypeSig Name Expr
+  | TypeSig CName Expr
   -- | A record definition.
-  | RecordDef Name (Maybe Name) [LambdaBinding] Expr [Declaration]
+  | RecordDef CName (Maybe CName) [LambdaBinding] Expr [Declaration]
   -- | A record field.
-  | Field Name Expr
+  | Field CName Expr
   deriving (Show)
 
-newtype Abstraction = Abst { getAbst :: (Name, Expr, Expr) }
+newtype Abstraction = Abst { getAbst :: (CName, Expr, Expr) }
   deriving (Show, Eq, Ord)
 
 -- | Variable bound in the abstraction.
-absVar :: Abstraction -> Name
+absVar :: Abstraction -> CName
 absVar (Abst (v, _, _)) = v
 
 -- | Type of the bound variable in the abstraction.
@@ -244,7 +244,7 @@ absTy (Abst (_, t, _)) = t
 absExpr :: Abstraction -> Expr
 absExpr (Abst (_, _, t)) = t
 
-mkAbs :: Name -> Expr -> Expr -> Abstraction
+mkAbs :: CName -> Expr -> Expr -> Abstraction
 mkAbs v e1 e2 = Abst (v, e1, e2)
 
 data Expr
@@ -273,16 +273,16 @@ data Expr
   | Coproduct Expr Expr
 
   -- | Coproduct eliminator.
-  | CoproductCase (Name, Expr) (Name, Expr) (Name, Expr) Expr
+  | CoproductCase (CName, Expr) (CName, Expr) (CName, Expr) Expr
 
   -- | Natural number eliminator.
-  | NatCase (Name, Expr) Expr (Name, Name, Expr) Expr
+  | NatCase (CName, Expr) Expr (CName, CName, Expr) Expr
 
   -- | Identity eliminator.
-  | RewriteExpr (Name, Name, Name, Expr) (Name, Expr) Expr Expr Expr
+  | RewriteExpr (CName, CName, CName, Expr) (CName, Expr) Expr Expr Expr
 
   -- | Empty eliminator.
-  | EmptyElim (Name, Expr) Expr
+  | EmptyElim (CName, Expr) Expr
 
   | App Expr Expr -- e1 e2
 
@@ -332,7 +332,7 @@ data LetBinding
 data Pattern
   = PIdent QName
   -- ^ x. (or could be a constructor).
-  | PAt  Name Pattern
+  | PAt  CName Pattern
   -- ^ x@p.
   | PPair Pattern Pattern
   -- ^ (p1, p2).

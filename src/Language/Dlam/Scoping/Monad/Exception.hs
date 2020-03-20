@@ -40,7 +40,7 @@ data SCError
 
   | NotInScope C.QName
 
-  | NameClash C.Name
+  | NameClash C.CName
 
   --------------------
   -- Pattern Errors --
@@ -73,7 +73,7 @@ unknownNameErr :: C.QName -> SCError
 unknownNameErr = NotInScope
 
 
-nameClash :: C.Name -> SCError
+nameClash :: C.CName -> SCError
 nameClash = NameClash
 
 

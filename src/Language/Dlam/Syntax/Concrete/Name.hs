@@ -1,5 +1,5 @@
 module Language.Dlam.Syntax.Concrete.Name
-  ( Name(..)
+  ( CName(..)
   , QName(..)
   , mkIdent
   , ignoreVar
@@ -12,8 +12,8 @@ import Language.Dlam.Syntax.Common (NameId(..))
 import Language.Dlam.Util.Pretty
 
 
-data Name
-  = Name String
+data CName
+  = CName String
   -- ^ Concrete name.
   | NoName NameId
   -- ^ Unused/generated name.
@@ -21,24 +21,24 @@ data Name
 
 
 -- | A name can be qualified or unqualified.
-data QName = Qualified Name QName | Unqualified Name
+data QName = Qualified CName QName | Unqualified CName
   deriving (Show, Eq, Ord)
 
 
 -- | Create a new identifier from a (syntactic) string.
-mkIdent :: String -> Name
-mkIdent = Name
+mkIdent :: String -> CName
+mkIdent = CName
 
 
 -- | Name for use when the value is unused.
-ignoreVar :: Name
+ignoreVar :: CName
 ignoreVar = NoName (NameId 0)
 
 
-instance Pretty Name where
+instance Pretty CName where
   isLexicallyAtomic _ = True
 
-  pprint (Name v) = text v
+  pprint (CName v) = text v
   pprint NoName{} = char '_'
 
 
