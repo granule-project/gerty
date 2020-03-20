@@ -770,3 +770,16 @@ mkVar' n ty =
   case un ty of
     Pi{} -> PartialApp (partiallyApplied (VarPartial n) [])
     _    -> mkVar n
+
+
+--------------------
+----- Patterns -----
+--------------------
+
+
+-- | 'withActivePattern e pat act' takes an expression,
+-- | an introduction form produced from a pattern match on the
+-- | expression, and an action, then runs the action with variables
+-- | rebound as appropriate for equality checking.
+withActivePattern :: Term -> Term -> CM a -> CM a
+withActivePattern e intro _act = notImplemented $ "withActivePattern: TODO (called with term '" <> pprintShow e <> "' and pattern term '" <> pprintShow intro <> "')"
