@@ -15,7 +15,6 @@ import qualified Language.Dlam.Syntax.Concrete as C
 import Language.Dlam.Syntax.Parser      (parseProgram)
 import Language.Dlam.Syntax.Parser.Monad (ParseResult(..))
 import Language.Dlam.Syntax.Translation.ConcreteToAbstract (toAbstract)
-import Language.Dlam.Types
 import Language.Dlam.TypeChecking (checkAST)
 import Language.Dlam.TypeChecking.Monad
 import Language.Dlam.Util.Pretty (pprintShow)
@@ -60,13 +59,12 @@ runScoper fname input = do
   pure ast
 
 
-runTypeChecker :: FilePath -> String -> CM AST
+runTypeChecker :: FilePath -> String -> CM ()
 runTypeChecker fname input = do
   ast <- runScoper fname input
 
   -- Typing
   checkAST ast
-  doASTInference ast
 
 
 ansi_reset, ansi_bold :: String

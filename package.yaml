@@ -33,14 +33,11 @@ library:
    - unbound
   exposed-modules:
    - Language.Dlam.Interpreter
-   - Language.Dlam.Substitution
    - Language.Dlam.Syntax.Concrete
    - Language.Dlam.Syntax.Parser
-   - Language.Dlam.Types
    - Language.Dlam.TypeChecking.Monad
   other-modules:
    - Language.Dlam.Builtins
-   - Language.Dlam.Builtins2
    - Language.Dlam.Syntax.Abstract
    - Language.Dlam.Syntax.Common
    - Language.Dlam.Syntax.Common.Language

@@ -11,7 +11,6 @@ import Control.Monad (join)
 import Control.Monad.Except (throwError)
 
 
-import Language.Dlam.Substitution (fresh)
 import Language.Dlam.Syntax.Common
 import Language.Dlam.Syntax.Common.Language (typeOf)
 import qualified Language.Dlam.Syntax.Abstract as A
@@ -59,7 +58,7 @@ instance ToAbstract C.FRHS A.FRHS where
 
 instance ToAbstract C.CName A.AName where
   toAbstract n = do
-    i <- fresh
+    i <- getFreshNameId
     pure $ A.AName { A.nameId = i, A.nameConcrete = n }
 
 

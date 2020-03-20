@@ -27,26 +27,17 @@ module Language.Dlam.TypeChecking.Monad.Base
   -- ** Scope
   , lookupType
   , maybeLookupType
-  , lookupType'
   , setType
-  , setType'
   , withTypedVariable
-  , withTypedVariable'
   , lookupValue
   , maybeLookupValue
-  , lookupValue'
   , setValue
-  , setValue'
-  , withValuedVariable
 
   -- ** Grading
   , withGradedVariable
-  , withGradedVariable'
   , lookupSubjectRemaining
-  , lookupSubjectRemaining'
   , decrementGrade
   , setSubjectRemaining
-  , setSubjectRemaining'
   , grZero
   , grOne
 
@@ -75,9 +66,7 @@ module Language.Dlam.TypeChecking.Monad.Base
 
   -- ** Type errors
   , tyMismatch
-  , tyMismatch'
   , expectedInferredTypeForm
-  , expectedInferredTypeForm'
   , notAType
 
   -- ** Pattern errors
@@ -98,7 +87,6 @@ import Control.Monad.Writer
 import qualified Data.Map as M
 
 import Language.Dlam.Builtins
-import qualified Language.Dlam.Builtins2 as B2
 import qualified Language.Dlam.Scoping.Monad.Exception as SE
 import Language.Dlam.Syntax.Abstract
 import qualified Language.Dlam.Syntax.Internal as I
@@ -110,15 +98,12 @@ import Language.Dlam.Util.Pretty (pprintShow)
 
 data CheckerState
   = CheckerState
-    { typingScope :: M.Map AName Expr
-    , valueScope :: M.Map AName Expr
-    , provisionScope :: M.Map AName Grading
+    { typingScope :: M.Map AName I.Type
+    , valueScope :: M.Map AName I.Term
+    , provisionScope :: M.Map AName I.Grading
     -- ^ Scope of provisions (how can an assumption be used---grades remaining).
     , nextNameId :: NameId
     -- ^ Unique NameId for naming.
-    , typingScope' :: M.Map AName I.Type
-    , valueScope' :: M.Map AName I.Term
-    , provisionScope' :: M.Map AName I.Grading
     , debugNesting :: Int
     -- ^ Counter used to make it easier to locate debugging messages.
     }
@@ -131,11 +116,6 @@ startCheckerState =
                , valueScope = builtinsValues
                , provisionScope = M.empty
                , nextNameId = 0
-               -- , typingScope' = M.empty
-               -- , valueScope' = M.empty
-               , typingScope' = B2.builtinsTypes
-               , valueScope' = B2.builtinsValues
-               , provisionScope' = M.empty
                , debugNesting = 0
                }
 
@@ -252,77 +232,46 @@ getFreshNameId :: CM NameId
 getFreshNameId = get >>= \s -> let c = nextNameId s in put s { nextNameId = succ c } >> pure c
 
 
-lookupType :: AName -> CM (Maybe Expr)
-lookupType n = M.lookup n . typingScope <$> get
-
-
 maybeLookupType :: AName -> CM (Maybe I.Type)
-maybeLookupType n = M.lookup n . typingScope' <$> get
+maybeLookupType n = M.lookup n . typingScope <$> get
 
 
-lookupType' :: AName -> CM I.Type
-lookupType' n =
+lookupType :: AName -> CM I.Type
+lookupType n =
   debugBlock "lookupType'"
     ("looking up type of: " <> pprintShow n)
     (\t -> "found type '" <> pprintShow t <> "' for variable '" <> pprintShow n <> "'")
     (maybeLookupType n >>= maybe (scoperError $ SE.unknownNameErr (C.Unqualified $ nameConcrete n)) pure)
 
 
-setType :: AName -> Expr -> CM ()
+setType :: AName -> I.Type -> CM ()
 setType n t = modify (\s -> s { typingScope = M.insert n t (typingScope s) })
-setType' :: AName -> I.Type -> CM ()
-setType' n t = modify (\s -> s { typingScope' = M.insert n t (typingScope' s) })
 
 
 -- | Execute the action with the given identifier bound with the given type.
-withTypedVariable :: AName -> Expr -> CM a -> CM a
+withTypedVariable :: AName -> I.Type -> CM a -> CM a
 withTypedVariable v t p = do
+  debug $ "setting type of variable '" <> pprintShow v <> "' to '" <> pprintShow t <> "'"
   st <- get
   setType v t
   res <- p
   -- restore the typing scope
   modify (\s -> s { typingScope = typingScope st})
-  pure res
--- | Execute the action with the given identifier bound with the given type.
-withTypedVariable' :: AName -> I.Type -> CM a -> CM a
-withTypedVariable' v t p = do
-  debug $ "setting type of variable '" <> pprintShow v <> "' to '" <> pprintShow t <> "'"
-  st <- get
-  setType' v t
-  res <- p
-  -- restore the typing scope
-  modify (\s -> s { typingScope' = typingScope' st})
   debug $ "unsetting type of variable '" <> pprintShow v <> "' (previously '" <> pprintShow t <> "')"
   pure res
 
 
-lookupValue :: AName -> CM (Maybe Expr)
-lookupValue n = M.lookup n . valueScope <$> get
-
 maybeLookupValue :: AName -> CM (Maybe I.Term)
-maybeLookupValue n = M.lookup n . valueScope' <$> get
+maybeLookupValue n = M.lookup n . valueScope <$> get
 
 
-lookupValue' :: AName -> CM I.Term
-lookupValue' n =
+lookupValue :: AName -> CM I.Term
+lookupValue n =
   maybeLookupValue n >>= maybe (scoperError $ SE.unknownNameErr (C.Unqualified $ nameConcrete n)) pure
 
 
-setValue :: AName -> Expr -> CM ()
+setValue :: AName -> I.Term -> CM ()
 setValue n t = modify (\s -> s { valueScope = M.insert n t (valueScope s) })
-setValue' :: AName -> I.Term -> CM ()
-setValue' n t = modify (\s -> s { valueScope' = M.insert n t (valueScope' s) })
-
-
--- | Execute the action with the given identifier bound with the given value.
-withValuedVariable :: AName -> Expr -> CM a -> CM a
-withValuedVariable v t p = do
-  st <- get
-  setValue v t
-  res <- p
-  -- restore the value scope
-  modify (\s -> s { valueScope = valueScope st})
-  pure res
 
 
 -------------
@@ -330,16 +279,12 @@ withValuedVariable v t p = do
 -------------
 
 
-lookupRemaining :: AName -> CM (Maybe Grading)
+lookupRemaining :: AName -> CM (Maybe I.Grading)
 lookupRemaining n = M.lookup n . provisionScope <$> get
-lookupRemaining' :: AName -> CM (Maybe I.Grading)
-lookupRemaining' n = M.lookup n . provisionScope' <$> get
 
 
-lookupSubjectRemaining :: AName -> CM (Maybe Grade)
-lookupSubjectRemaining n = fmap subjectGrade <$> lookupRemaining n
-lookupSubjectRemaining' :: AName -> CM (Maybe I.Grade)
-lookupSubjectRemaining' n = fmap I.subjectGrade <$> lookupRemaining' n
+lookupSubjectRemaining :: AName -> CM (Maybe I.Grade)
+lookupSubjectRemaining n = fmap I.subjectGrade <$> lookupRemaining n
 
 
 decrementGrade :: Grade -> CM (Maybe Grade)
@@ -358,49 +303,30 @@ grOne = Succ' grZero
 grZero = Zero'
 
 
-modifyRemaining :: AName -> (Grading -> Grading) -> CM ()
+modifyRemaining :: AName -> (I.Grading -> I.Grading) -> CM ()
 modifyRemaining n f = do
   prev <- lookupRemaining n
   case prev of
     Nothing -> pure ()
     Just prev -> setRemaining n (f prev)
-modifyRemaining' :: AName -> (I.Grading -> I.Grading) -> CM ()
-modifyRemaining' n f = do
-  prev <- lookupRemaining' n
-  case prev of
-    Nothing -> pure ()
-    Just prev -> setRemaining' n (f prev)
 
 
-setRemaining :: AName -> Grading -> CM ()
+setRemaining :: AName -> I.Grading -> CM ()
 setRemaining n g = modify (\s -> s { provisionScope = M.insert n g (provisionScope s) })
-setRemaining' :: AName -> I.Grading -> CM ()
-setRemaining' n g = modify (\s -> s { provisionScope' = M.insert n g (provisionScope' s) })
 
 
-setSubjectRemaining :: AName -> Grade -> CM ()
-setSubjectRemaining n g = modifyRemaining n (\gs -> mkGrading g (subjectTypeGrade gs))
-setSubjectRemaining' :: AName -> I.Grade -> CM ()
-setSubjectRemaining' n g = modifyRemaining' n (\gs -> I.mkGrading g (I.subjectTypeGrade gs))
+setSubjectRemaining :: AName -> I.Grade -> CM ()
+setSubjectRemaining n g = modifyRemaining n (\gs -> I.mkGrading g (I.subjectTypeGrade gs))
 
 
 -- | Execute the action with the given identifier bound with the given grading.
-withGradedVariable :: AName -> Grading -> CM a -> CM a
+withGradedVariable :: AName -> I.Grading -> CM a -> CM a
 withGradedVariable v gr p = do
   st <- get
   setRemaining v gr
   res <- p
   -- restore the provision scope
   modify (\s -> s { provisionScope = provisionScope st})
-  pure res
--- | Execute the action with the given identifier bound with the given grading.
-withGradedVariable' :: AName -> I.Grading -> CM a -> CM a
-withGradedVariable' v gr p = do
-  st <- get
-  setRemaining' v gr
-  res <- p
-  -- restore the provision scope
-  modify (\s -> s { provisionScope' = provisionScope' st})
   pure res
 
 
@@ -505,11 +431,9 @@ data TCError
   -- Type Errors --
   -----------------
 
-  | TypeMismatch Expr Expr
-  | TypeMismatch' I.Type I.Type
+  | TypeMismatch I.Type I.Type
 
-  | ExpectedInferredTypeForm String Expr
-  | ExpectedInferredTypeForm' String I.Type
+  | ExpectedInferredTypeForm String I.Type
   | NotAType
 
   --------------------
@@ -540,13 +464,7 @@ instance Show TCError where
     "I was asked to try and synthesise a term of type '" <> pprintShow t <> "' but I wasn't able to do so."
   show (TypeMismatch tyExpected tyActual) =
     "Expected type '" <> pprintShow tyExpected <> "' but got '" <> pprintShow tyActual <> "'"
-  show (TypeMismatch' tyExpected tyActual) =
-    "Expected type '" <> pprintShow tyExpected <> "' but got '" <> pprintShow tyActual <> "'"
   show (ExpectedInferredTypeForm descr t) =
-    "I was expecting the expression to have a "
-    <> descr <> " type, but instead I found its type to be '"
-    <> pprintShow t <> "'"
-  show (ExpectedInferredTypeForm' descr t) =
     "I was expecting the expression to have a "
     <> descr <> " type, but instead I found its type to be '"
     <> pprintShow t <> "'"
@@ -580,23 +498,14 @@ cannotSynthExprForType t = throwCM (CannotSynthExprForType t)
 
 -- | 'tyMismatch expr tyExpected tyActual' indicates that an expression
 -- | was found to have a type that differs from expected.
-tyMismatch :: Expr -> Expr -> CM a
+tyMismatch :: I.Type -> I.Type -> CM a
 tyMismatch tyExpected tyActual =
   throwCM (TypeMismatch tyExpected tyActual)
 
--- | 'tyMismatch expr tyExpected tyActual' indicates that an expression
--- | was found to have a type that differs from expected.
-tyMismatch' :: I.Type -> I.Type -> CM a
-tyMismatch' tyExpected tyActual =
-  throwCM (TypeMismatch' tyExpected tyActual)
 
-
-expectedInferredTypeForm :: String -> Expr -> CM a
+expectedInferredTypeForm :: String -> I.Type -> CM a
 expectedInferredTypeForm descr t =
   throwCM (ExpectedInferredTypeForm descr t)
-expectedInferredTypeForm' :: String -> I.Type -> CM a
-expectedInferredTypeForm' descr t =
-  throwCM (ExpectedInferredTypeForm' descr t)
 
 
 notAType :: CM a

@@ -8,7 +8,7 @@ module Language.Dlam.TypeChecking
 
 import Control.Monad (when)
 
-import Language.Dlam.Builtins2
+import Language.Dlam.Builtins
 import Language.Dlam.Syntax.Abstract
 import Language.Dlam.Syntax.Internal hiding (Var, App, Lam)
 import qualified Language.Dlam.Syntax.Internal as I
@@ -69,7 +69,7 @@ checkExprIsType_ _e = notAType
 
 -- | Try and register the name with the given type
 registerTypeForName :: AName -> Type -> CM ()
-registerTypeForName n t = setType' n t
+registerTypeForName n t = setType n t
 
 
 -- | Type-check a declaration.
@@ -99,8 +99,8 @@ checkDeclaration eqn@(FunEqn (FLHSName v) (FRHSAssign e)) = do
         Just ty -> (,) <$> checkExpr e ty <*> pure ty)
 
   -- assign the appopriate equation and normalised/inferred type for the name
-  setValue' v val
-  setType' v ty
+  setValue v val
+  setType v ty
 
 
 -- | Attempt to infer the types of each definition in the AST, failing if a type
@@ -170,7 +170,7 @@ ensureEqualTypes tyExpected tyActual = do
   debug $ "ensureEqualTypes: checking equality of expected type '" <> pprintShow tyExpected <> "' and actual type '" <> pprintShow tyActual <> "' which respectively normalise to '" <> pprintShow tyE <> "' and '" <> pprintShow tyA <> "'"
   typesEqual <- typesAreEqual tyE tyA
   -- typesEqual <- typesAreEqual tyExpected tyActual
-  when (not typesEqual) (tyMismatch' tyExpected tyActual)
+  when (not typesEqual) (tyMismatch tyExpected tyActual)
 
 
 -- | Check the expression against the given type, and
@@ -198,7 +198,7 @@ checkExpr_ (Var x) t = do
   -- x @ (k+1, n) : A in G
   tA <- typeOfThing x
   debug $ "checkExpr_: got type '" <> pprintShow tA <> "' for variable '" <> pprintShow x <> "'"
-  kplus1 <- lookupSubjectRemaining' x
+  kplus1 <- lookupSubjectRemaining x
   k <- case kplus1 of
          -- as the scope checker ensures that all local variables are
          -- in scope, the only way something could not be assigned
@@ -213,7 +213,7 @@ checkExpr_ (Var x) t = do
 
   -- x @ (k, n) : A in G
   -- G |- x : A
-  setSubjectRemaining' x k
+  setSubjectRemaining x k
   ensureEqualTypes t tA
   val <- maybeLookupValue x
   let xt = aname2Name x
@@ -273,7 +273,7 @@ checkExpr_ (Lam ab) t = do
     (Pi pi) -> do
       (arg, resTy) <- unbind pi
       pure (arg, I.grading arg, typeOf arg, resTy)
-    _ -> expectedInferredTypeForm' "function" t
+    _ -> expectedInferredTypeForm "function" t
 
   tA <- case (absTy ab) of
               Implicit -> pure tA
@@ -357,17 +357,17 @@ checkExpr_ (CoproductCase (z, tC) (x, c) (y, d) e) t = do
 
   -- G, z : A + B |- C : Type l
   let copAB = mkCoproductTy tA tB
-  tC <- withTypedVariable' z copAB $ checkExprIsType tC
+  tC <- withTypedVariable z copAB $ checkExprIsType tC
 
   -- G, x : A |- c : [inl x/z]C
   let inlX = mkInlTerm tA tB (mkVar xv)
   inlxforzinC <- substitute (zv, inlX) tC
-  c <- withTypedVariable' x tA $ withActivePattern e inlX $ checkExpr c inlxforzinC
+  c <- withTypedVariable x tA $ withActivePattern e inlX $ checkExpr c inlxforzinC
 
   -- G, y : B |- d : [inr y/z]C
   let inrY = mkInrTerm tA tB (mkVar yv)
   inryforzinC <- substitute (zv, inrY) tC
-  d <- withTypedVariable' y tB $ withActivePattern e inrY $ checkExpr d inryforzinC
+  d <- withTypedVariable y tB $ withActivePattern e inrY $ checkExpr d inryforzinC
 
   -- G |- case z@e of (Inl x -> c; Inr y -> d) : C : [e/z]C
   eforzinC <- substitute (zv, e) tC
@@ -394,8 +394,8 @@ checkExpr_ (CoproductCase (z, tC) (x, c) (y, d) e) t = do
                 then case appliedArgs app of
                        [TypeTerm tA, TypeTerm tB] -> pure (tA, tB)
                        _ -> error "ill-formed coproduct"
-                else expectedInferredTypeForm' "coproduct" ty
-              _ -> expectedInferredTypeForm' "coproduct" ty
+                else expectedInferredTypeForm "coproduct" ty
+              _ -> expectedInferredTypeForm "coproduct" ty
           pure (e, tA, tB)
 
 ---------------------------
@@ -415,7 +415,7 @@ checkExpr_ (NatCase (x, tC) cz (w, y, cs) n) t = do
       xv = aname2Name x
       yv = aname2Name y
   -- G, x : Nat |- C : Type l
-  tC <- withTypedVariable' x natTy $ checkExprIsType tC
+  tC <- withTypedVariable x natTy $ checkExprIsType tC
 
   -- G |- cz : [zero/x]C
   zeroforxinC <- substitute (xv, bodyForBuiltin DNZero) tC
@@ -425,8 +425,8 @@ checkExpr_ (NatCase (x, tC) cz (w, y, cs) n) t = do
   succw <- applyPartialToTerm succForApp (mkVar wv) natTy
   succwforxinC <- substitute (xv, succw) tC
   wforxinC <- substitute (xv, mkVar wv) tC
-  cs <- withTypedVariable' y wforxinC
-       $ withTypedVariable' w natTy
+  cs <- withTypedVariable y wforxinC
+       $ withTypedVariable w natTy
        $ checkExpr cs succwforxinC
 
   -- G |- n : Nat
@@ -459,7 +459,7 @@ checkExpr_ (NatCase (x, tC) cz (w, y, cs) n) t = do
 checkExpr_ (EmptyElim (x, tC) a) t = do
   let xv = aname2Name x
   -- G, x : Empty |- C : Type l
-  tC <- withTypedVariable' x emptyTy $ checkExprIsType tC
+  tC <- withTypedVariable x emptyTy $ checkExprIsType tC
 
   -- G |- a : Empty
   a <- checkExpr a emptyTy
@@ -561,7 +561,7 @@ inferExpr_ (Lam ab) = do
   tA <- checkExprIsType (absTy ab)
 
   -- G, x : A |- e : B
-  (e, tB) <- withTypedVariable' x tA $ inferExpr (absExpr ab)
+  (e, tB) <- withTypedVariable x tA $ inferExpr (absExpr ab)
 
   -- G |- \(x : A) -> e : (x : A) -> B
   pure (mkLam xv tA e, mkFunTy xv tA tB)
@@ -584,7 +584,7 @@ inferExprForApp_ e = do
   (term, ty) <- inferExpr e
   case (term, un ty) of
     (PartialTerm p, TTForApp t) -> pure (p, mkType' t (level ty))
-    _ -> expectedInferredTypeForm' "function" ty
+    _ -> expectedInferredTypeForm "function" ty
 
 
 --------------------
@@ -812,7 +812,7 @@ instance InScope DCon where
 
 
 instance InScope AName where
-  typeOfThing = lookupType'
+  typeOfThing = lookupType
 
 
 --------------------
