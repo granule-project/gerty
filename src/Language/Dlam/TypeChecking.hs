@@ -33,7 +33,6 @@ checkExprIsType e =
 
 
 checkExprIsType_ :: Expr -> CM Type
-checkExprIsType_ (Builtin e) = universeOrNotAType (getBuiltinType e)
 checkExprIsType_ (Var x) = do
   ty <- typeOfThing x
   l <- case un ty of
@@ -441,7 +440,7 @@ checkExpr_ (NatCase (x, tC) cz (w, y, cs) n) t = do
   tC <- withVarTypeBound x natTy $ checkExprIsType tC
 
   -- G |- cz : [zero/x]C
-  zeroforxinC <- substitute (xv, bodyForBuiltin DNZero) tC
+  zeroforxinC <- substitute (xv, dcZeroBody) tC
   cz <- checkExpr cz zeroforxinC
 
   -- G, w : Nat, y : [w/x]C |- cs : [succ w/x]C
@@ -612,15 +611,6 @@ inferExprForApp_ e = do
     _ -> expectedInferredTypeForm "function" ty
 
 
---------------------
------ Builtins -----
---------------------
-
-
-getBuiltinType :: BuiltinTerm -> Type
-getBuiltinType e = typeForBuiltin e
-
-
 -------------------
 ----- Helpers -----
 -------------------
@@ -630,13 +620,6 @@ openAbs :: (Rep a) => Abstraction -> CM (Name a, Expr, Expr)
 openAbs ab = do
   (absArg, absExpr) <- unbind ab
   pure (translate $ argName absArg, argTy absArg, absExpr)
-
-
-universeOrNotAType :: Type -> CM Type
-universeOrNotAType t =
-  case un t of
-    Universe{} -> pure t
-    _ -> notAType
 
 
 -- | Execute the action with the binder active (for subject checking).

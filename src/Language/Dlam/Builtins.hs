@@ -5,8 +5,6 @@ module Language.Dlam.Builtins
     builtins
   , builtinsTypes
   , builtinsValues
-  , bodyForBuiltin
-  , typeForBuiltin
 
   -- * Builtin definitions
 
@@ -27,6 +25,7 @@ module Language.Dlam.Builtins
   , mkUnivTy
 
   -- * Helpers
+  , dcZeroBody
   , mkLevelVar
   , mkVar
   , mkArg'
@@ -42,10 +41,9 @@ module Language.Dlam.Builtins
 
 import qualified Data.Map as M
 
-import Language.Dlam.Syntax.Abstract (AName, mkIdent, BuiltinTerm(..))
+import Language.Dlam.Syntax.Abstract (AName, mkIdent)
 import Language.Dlam.Syntax.Internal
 import Language.Dlam.Util.Peekaboo
-import Language.Dlam.Util.Pretty (pprintShow)
 
 
 -- | The list of builtins.
@@ -92,61 +90,8 @@ builtinsValues = M.fromList $
   (fmap (\bin -> (builtinName bin, builtinBody bin)) builtins)
 
 
-getBuiltin :: BuiltinTerm -> Builtin
-getBuiltin t =
-  case t of
-    -- lzero : Level
-    LZero -> BinDCon dcLzero
-
-    -- lsuc : Level -> Level
-    LSuc  -> BinDCon dcLsuc
-
-    -- Level : Type 0
-    LevelTy -> BinTyCon tcLevel
-
-    -- lmax : Level -> Level -> Level
-    LMax -> BinDCon dcLmax
-
-    -- (_+_) : (l1 l2 : Level) -> Type l1 -> Type l2 -> Type (lmax l1 l2)
-    DCoproduct -> BinTyCon tcCoproduct
-
-    -- inl : (l1 l2 : Level) (a : Type l1) (b : Type l2) -> a -> a + b
-    Inl -> BinDCon dcInl
-
-    -- inr : (l1 l2 : Level) (a : Type l1) (b : Type l2) -> b -> a + b
-    Inr -> BinDCon dcInr
-
-    -- Nat : Type 0
-    DNat -> BinTyCon tcNat
-
-    -- zero : Nat
-    DNZero -> BinDCon dcZero
-
-    -- succ : Nat -> Nat
-    DNSucc -> BinDCon dcSucc
-
-    -- Unit : Type 0
-    DUnitTy -> BinTyCon tcUnit
-
-    -- unit : Unit
-    DUnitTerm -> BinDCon dcUnit
-
-    -- Empty : Type 0
-    DEmptyTy -> BinTyCon tcEmpty
-
-    -- Id : (l : Level) (a : Type l) -> a -> a -> Type l
-    IdTy -> BinTyCon tcId
-
-    -- refl : (l : Level) (a : Type l) (x : a) -> Id l a x x
-    DRefl -> BinDCon dcRefl
-
-
-typeForBuiltin :: BuiltinTerm -> Type
-typeForBuiltin = builtinType . getBuiltin
-
-
-bodyForBuiltin :: BuiltinTerm -> Term
-bodyForBuiltin = builtinBody . getBuiltin
+dcZeroBody :: Term
+dcZeroBody = builtinBody (BinDCon dcZero)
 
 
 -------------------------------
@@ -170,28 +115,28 @@ type BuiltinDCon = (Maybe Term, DCon)
 type BuiltinDef = (AName, [Arg], Type)
 
 
-mkBuiltinDef :: AName -> [Arg] -> Type -> BuiltinDef
-mkBuiltinDef n args ty = (n, args, ty)
+type BuiltinName = String
 
 
-mkBuiltinDCon :: BuiltinTerm -> [Arg] -> FullyApplied TyCon -> Term -> BuiltinDCon
-mkBuiltinDCon bin args tyc body =
-  let n = mkIdent (pprintShow bin) in (Just body, mkDCon n args tyc)
+mkBuiltinDef :: BuiltinName -> [Arg] -> Type -> BuiltinDef
+mkBuiltinDef bn args ty = let n = mkIdent bn in (n, args, ty)
 
 
-mkBuiltinDConNoDef :: BuiltinTerm -> [Arg] -> FullyApplied TyCon -> BuiltinDCon
-mkBuiltinDConNoDef bin args tyc  =
-  let n = mkIdent (pprintShow bin) in (Nothing, mkDCon n args tyc)
+mkBuiltinDCon :: BuiltinName -> [Arg] -> FullyApplied TyCon -> Term -> BuiltinDCon
+mkBuiltinDCon bn args tyc body = let n = mkIdent bn in (Just body, mkDCon n args tyc)
 
 
-mkBuiltinTyCon :: BuiltinTerm -> [Arg] -> Level -> TyCon
-mkBuiltinTyCon bin args l =
-  let n = mkIdent (pprintShow bin) in mkTyCon n args (mkUnivTy l)
+mkBuiltinDConNoDef :: BuiltinName -> [Arg] -> FullyApplied TyCon -> BuiltinDCon
+mkBuiltinDConNoDef bn args tyc = let n = mkIdent bn in (Nothing, mkDCon n args tyc)
+
+
+mkBuiltinTyCon :: BuiltinName -> [Arg] -> Level -> TyCon
+mkBuiltinTyCon bn args l = let n = mkIdent bn in mkTyCon n args (mkUnivTy l)
 
 
 -- | Make a new builtin type (0-argument type constructor).
-mkBuiltinType :: BuiltinTerm -> TyCon
-mkBuiltinType exprRef = mkBuiltinTyCon exprRef [] levelZero
+mkBuiltinType :: BuiltinName -> TyCon
+mkBuiltinType n = mkBuiltinTyCon n [] levelZero
 
 
 -- | Syntactic name of a builtin term.
@@ -277,10 +222,10 @@ mkCoproductTy t1 t2 = mkType (TyApp (fmap AppTyCon (mkCoproductTyForApp t1 t2)))
 tcCoproduct, tcEmpty, tcId, tcLevel, tcNat, tcUnit :: TyCon
 
 
-tcEmpty = mkBuiltinType DEmptyTy
-tcLevel = mkBuiltinType LevelTy
-tcNat   = mkBuiltinType DNat
-tcUnit  = mkBuiltinType DUnitTy
+tcEmpty = mkBuiltinType "Empty"
+tcLevel = mkBuiltinType "Level"
+tcNat   = mkBuiltinType "Nat"
+tcUnit  = mkBuiltinType "Unit"
 
 
 tcCoproduct =
@@ -288,7 +233,7 @@ tcCoproduct =
       l2 = nameFromString "l2"; l2v = mkLevelVar l2
       a = nameFromString "a"
       b = nameFromString "b"
-  in mkBuiltinTyCon DCoproduct
+  in mkBuiltinTyCon "Coproduct"
      [ mkArg' l1 levelTy, mkArg' l2 levelTy
      , mkArg' a (mkUnivTy l1v), mkArg' b (mkUnivTy l2v)]
      (Max l1v l2v)
@@ -299,7 +244,7 @@ tcId =
       lv = mkLevelVar l
       a = nameFromString "a"
       av = mkTypeVar a lv
-  in mkBuiltinTyCon IdTy
+  in mkBuiltinTyCon "Id"
        [ mkArg' l levelTy, mkTyArg a (mkUnivTy lv)
        , mkArgNoBind av, mkArgNoBind av]
        lv
@@ -319,16 +264,16 @@ tcUnit' = fullyApplied tcUnit []
 dcLmax, dcLsuc, dcLzero :: BuiltinDCon
 
 
-dcLzero = mkBuiltinDCon LZero [] tcLevel' (Level levelZero)
+dcLzero = mkBuiltinDCon "lzero" [] tcLevel' (Level levelZero)
 
 
-dcLsuc = let l = nameFromString "l" in mkBuiltinDCon LSuc [mkArg' l levelTy] tcLevel'
+dcLsuc = let l = nameFromString "l" in mkBuiltinDCon "lsuc" [mkArg' l levelTy] tcLevel'
                (Level (nextLevel (mkLevelVar l)))
 
 
 dcLmax =
   let l1 = nameFromString "l1"; l2 = nameFromString "l2" in
-  mkBuiltinDCon LMax [mkArg' l1 levelTy, mkArg' l2 levelTy] tcLevel'
+  mkBuiltinDCon "lmax" [mkArg' l1 levelTy, mkArg' l2 levelTy] tcLevel'
                   (Level (Max (mkLevelVar l1) (mkLevelVar l2)))
 
 
@@ -345,7 +290,7 @@ dcInl =
       l2 = nameFromString "l2"; l2v = mkLevelVar l2
       a = nameFromString "a"; av = mkTypeVar a l1v
       b = nameFromString "b"; bv = mkTypeVar b l2v
-  in mkBuiltinDConNoDef Inl
+  in mkBuiltinDConNoDef "inl"
        [ mkArg' l1 levelTy, mkArg' l2 levelTy
        , mkTyArg a (mkUnivTy l1v), mkTyArg b (mkUnivTy l2v)
        , mkArgNoBind av
@@ -362,7 +307,7 @@ dcInr =
       l2 = nameFromString "l2"; l2v = mkLevelVar l2
       a = nameFromString "a"; av = mkTypeVar a l1v
       b = nameFromString "b"; bv = mkTypeVar b l2v
-  in mkBuiltinDConNoDef Inr
+  in mkBuiltinDConNoDef "inr"
        [ mkArg' l1 levelTy, mkArg' l2 levelTy
        , mkTyArg a (mkUnivTy l1v), mkTyArg b (mkUnivTy l2v)
        , mkArgNoBind bv
@@ -381,18 +326,18 @@ dcRefl =
       av = mkTypeVar a lv
       x = nameFromString "x"
       xv = mkVar x
-  in mkBuiltinDConNoDef DRefl
+  in mkBuiltinDConNoDef "refl"
        [mkArg' l levelTy, mkTyArg a (mkUnivTy lv), mkArg' x av]
        (fullyApplied tcId [Level lv, TypeTerm av, xv, xv])
 
 
-dcZero = mkBuiltinDConNoDef DNZero [] tcNat'
+dcZero = mkBuiltinDConNoDef "zero" [] tcNat'
 
 
-dcSucc = mkBuiltinDConNoDef DNSucc [mkArgNoBind natTy] tcNat'
+dcSucc = mkBuiltinDConNoDef "succ" [mkArgNoBind natTy] tcNat'
 
 
-dcUnit = mkBuiltinDConNoDef DUnitTerm [] tcUnit'
+dcUnit = mkBuiltinDConNoDef "unit" [] tcUnit'
 
 
 succForApp :: TermThatCanBeApplied
@@ -429,7 +374,7 @@ elimNat =
         , mkArg' n natTy
         ]
       ty = appC (mkVar n)
-  in mkBuiltinDef (mkIdent "elimNat") args ty
+  in mkBuiltinDef "elimNat" args ty
 
 
 elimNatForApp :: Appable
@@ -456,7 +401,7 @@ elimEmpty =
         , mkArg' a  emptyTy
         ]
       ty = appC (mkVar a)
-  in mkBuiltinDef (mkIdent "elimEmpty") args ty
+  in mkBuiltinDef "elimEmpty" args ty
 
 
 elimEmptyForApp :: Appable
@@ -495,7 +440,7 @@ elimCoproduct =
         , mkArgNoBind (mkFunTyNoBind bty (appC pv))
         ]
       ty = appC pv
-  in mkBuiltinDef (mkIdent "elimCoproduct") args ty
+  in mkBuiltinDef "elimCoproduct" args ty
 
 
 elimCoproductForApp :: Appable

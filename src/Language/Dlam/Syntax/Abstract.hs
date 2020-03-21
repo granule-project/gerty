@@ -12,12 +12,6 @@ module Language.Dlam.Syntax.Abstract
   (
    -- * Expressions
     Expr(..)
-  , pattern AType
-  , pattern Inl'
-  , pattern Inr'
-  , pattern LSuc'
-  , pattern Succ'
-  , pattern Zero'
   , FVName
   , AName(..)
   , mkIdent
@@ -40,9 +34,6 @@ module Language.Dlam.Syntax.Abstract
   , Declaration(..)
   , Abstraction
   , mkImplicit
-
-  -- * Builtins
-  , BuiltinTerm(..)
 
   -- * Grading
   , Grade
@@ -250,38 +241,11 @@ data Expr
   -- | Implicits for synthesis.
   | Implicit
 
-  -- | Builtin terms, with a unique identifying name.
-  | Builtin BuiltinTerm
-
   | Let LetBinding Expr
 
   -- 'Type'.
   | EType
   deriving (Show)
-
-
-pattern AType :: Expr -> Expr
-pattern AType l = App EType l
-
-
-pattern Inl' :: Expr -> Expr -> Expr -> Expr -> Expr -> Expr
-pattern Inl' l1 l2 a b l = App (App (App (App (App (Builtin Inl) l1) l2) a) b) l
-
-
-pattern Inr' :: Expr -> Expr -> Expr -> Expr -> Expr -> Expr
-pattern Inr' l1 l2 a b r = App (App (App (App (App (Builtin Inr) l1) l2) a) b) r
-
-
-pattern LSuc' :: Expr -> Expr
-pattern LSuc' l = App (Builtin LSuc) l
-
-
-pattern Succ' :: Expr -> Expr
-pattern Succ' l = App (Builtin DNSucc) l
-
-
-pattern Zero' :: Expr
-pattern Zero' = Builtin DNZero
 
 
 -- | Make a new, unnamed, implicit term.
@@ -352,7 +316,6 @@ data AName = AName
 
 
 
--- TODO: move builtins to a different phase so we don't need these
 -- (names might not be unique!) (2020-03-05)
 ignoreVar :: FVName
 ignoreVar = nameFromString "_"
@@ -362,58 +325,6 @@ mkIdent s = AName { nameId = NameId 0, nameConcrete = C.CName s }
 
 nameFromString :: String -> FVName
 nameFromString = s2n
-
---------------------
------ Builtins -----
---------------------
-
-
-data BuiltinTerm =
-  -- | Level type.
-    LevelTy
-
-  -- | Level zero.
-  | LZero
-
-  -- | Level successor.
-  | LSuc
-
-  -- | Level maximum.
-  | LMax
-
-  -- | Coproduct type.
-  | DCoproduct
-
-  -- | inl.
-  | Inl
-
-  -- | inr.
-  | Inr
-
-  -- | Unit term.
-  | DUnitTerm
-
-  -- | Unit type.
-  | DUnitTy
-
-  -- | Identity type.
-  | IdTy
-
-  -- | Reflexivity.
-  | DRefl
-
-  -- | Natural number type.
-  | DNat
-
-  -- | Natural number zero.
-  | DNZero
-
-  -- | Natural number successor.
-  | DNSucc
-
-  -- | Empty type.
-  | DEmptyTy
-  deriving (Show)
 
 
 ---------------------------
@@ -445,7 +356,6 @@ caset = text "case"
 instance Pretty Expr where
     isLexicallyAtomic (Var _) = True
     isLexicallyAtomic LitLevel{} = True
-    isLexicallyAtomic Builtin{}  = True
     isLexicallyAtomic Pair{}     = True
     isLexicallyAtomic Hole{}     = True
     isLexicallyAtomic Implicit{} = True
@@ -497,7 +407,6 @@ instance Pretty Expr where
     pprint (Sig e t) = pprintParened e <+> colon <+> pprint t
     pprint Hole = char '?'
     pprint Implicit{} = char '_'
-    pprint (Builtin s) = pprint s
     pprint (EmptyElim (x, tC) a) =
       text "let" <+> pprint x <> at <> text "()" <+> equals <+> pprint a <+> colon <+> pprint tC
     pprint (Let lb e) = text "let" <+> pprint lb <+> text "in" <+> pprint e
@@ -518,25 +427,6 @@ instance Pretty Pattern where
   pprint (PAt v p) = pprint v <> at <> pprint p
   pprint PUnit = char '*'
   pprint (PCon c args) = pprint c <+> (hsep $ fmap pprintParened args)
-
-
-instance Pretty BuiltinTerm where
-  isLexicallyAtomic _ = True
-  pprint LZero     = text "lzero"
-  pprint LMax      = text "lmax"
-  pprint LSuc      = text "lsuc"
-  pprint LevelTy   = text "Level"
-  pprint DCoproduct = text "(_+_)"
-  pprint Inl       = text "inl"
-  pprint Inr       = text "inr"
-  pprint DNat      = text "Nat"
-  pprint DNZero    = text "zero"
-  pprint DNSucc    = text "succ"
-  pprint DUnitTy   = text "Unit"
-  pprint DUnitTerm = text "unit"
-  pprint IdTy      = text "Id"
-  pprint DRefl     = text "refl"
-  pprint DEmptyTy  = text "Empty"
 
 instance Pretty AName where
   isLexicallyAtomic _ = True
@@ -567,7 +457,6 @@ instance Pretty Grading where
 
 $(derive
   [ ''AName
-  , ''BuiltinTerm
   , ''Expr
   , ''LetBinding
   , ''Pattern
@@ -575,7 +464,6 @@ $(derive
 
 
 instance Alpha AName
-instance Alpha BuiltinTerm
 instance Alpha Expr
 instance Alpha LetBinding
 instance Alpha Pattern
