@@ -153,16 +153,12 @@ typesAreEqual t1 t2 = do
       in (&&) <$> pure (length xs == length ys && x == y) <*> (and <$> (mapM (uncurry termsAreEqual) (zip xs ys)))
     (Universe l1, Universe l2) -> levelsAreEqual l1 l2
     (Pi pi1, Pi pi2) -> do
-      (arg1, t1) <- unbind pi1
-      -- TODO: see if Unbound.LocallyNameless offers a good way to
-      -- rebind the variable (2020-03-20)
-      (arg2, t2) <- unbind pi2
-
-      let x = argVar arg1
-          y = argVar arg2
-      t2s <- substitute (y, mkVar x) t2
-      (&&) <$> typesAreEqual (typeOf arg1) (typeOf arg2)
-           <*> withArgBound arg1 (typesAreEqual t1 t2s)
+      unbound <- unbind2 pi1 pi2
+      case unbound of
+        Nothing -> pure False
+        Just (arg1, t1, arg2, t2) ->
+          (&&) <$> typesAreEqual (typeOf arg1) (typeOf arg2)
+               <*> withArgBound arg1 (typesAreEqual t1 t2)
     -- for any other combination, we assume they are not equal
     (_, _) -> pure False
 
