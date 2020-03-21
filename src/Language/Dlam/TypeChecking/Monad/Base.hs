@@ -85,6 +85,7 @@ import Control.Monad.Reader
 import Control.Monad.State
 import Control.Monad.Writer
 import qualified Data.Map as M
+import qualified Data.Set as Set
 
 import Language.Dlam.Builtins
 import qualified Language.Dlam.Scoping.Monad.Exception as SE
@@ -325,6 +326,8 @@ data TCEnv = TCEnv
   -- ^ Expression currently being checked (if any).
   , tceFVContext :: FreeVarContext
   -- ^ Current context of free variables.
+  , inScopeSet :: Set.Set FreeVar
+  -- ^ Currently known free variables.
   }
 
 
@@ -333,7 +336,7 @@ tceSetCurrentExpr e env = env { tceCurrentExpr = Just e }
 
 
 startEnv :: TCEnv
-startEnv = TCEnv { tceCurrentExpr = Nothing, tceFVContext = emptyContext }
+startEnv = TCEnv { tceCurrentExpr = Nothing, tceFVContext = emptyContext, inScopeSet = Set.empty }
 
 
 -- | Indicate that we are now checking the given expression when running the action.
@@ -346,13 +349,27 @@ withLocalCheckingOf e = local (tceSetCurrentExpr e)
 ---------------------------
 
 
-type FreeVar = (String, Integer)
+type FreeVar = AnyName
 
 
 type FreeVarInfo = (I.Grading, I.Type)
 
 
 type FreeVarContext = M.Map FreeVar FreeVarInfo
+
+
+tceAddInScope :: [AnyName] -> TCEnv -> TCEnv
+tceAddInScope names env =
+  env { inScopeSet = Set.union (Set.fromList names) (inScopeSet env) }
+
+
+getInScope :: CM (Set.Set FreeVar)
+getInScope = fmap inScopeSet ask
+
+
+-- | Execute the action with the given free variables in scope.
+withInScope :: [AnyName] -> CM a -> CM a
+withInScope names = local (tceAddInScope names)
 
 
 emptyContext :: FreeVarContext
@@ -369,29 +386,28 @@ tceAddBinding v bod env = env { tceFVContext = M.insert v bod (tceFVContext env)
 
 -- | Execute the action with the given free variable bound with the
 -- | given grading and type.
-withVarBound :: I.Name n -> I.Grading -> I.Type -> CM a -> CM a
+withVarBound :: (Rep n) => I.Name n -> I.Grading -> I.Type -> CM a -> CM a
 withVarBound n g ty =
-  let (snam, idx) = (I.name2String n, I.name2Integer n) in
-  local (tceAddBinding (snam, idx) (g, ty))
+  local (tceAddBinding (I.AnyName n) (g, ty))
 
 
 -- | Execute the action with the given free variable bound with the
 -- | given type (ignoring grading).
-withVarTypeBound :: I.Name n -> I.Type -> CM a -> CM a
+withVarTypeBound :: (Rep n) => I.Name n -> I.Type -> CM a -> CM a
 withVarTypeBound n ty = withVarBound n I.thatMagicalGrading ty
 
 
-lookupFVInfo :: I.Name a -> CM FreeVarInfo
+lookupFVInfo :: (Rep n) => I.Name n -> CM FreeVarInfo
 lookupFVInfo n =
   maybe (hitABug $ "tried to look up the type of free variable '" <> pprintShow n <> "' but it wasn't in scope. Scope checking or type-checking is broken.") pure . M.lookup (nameToFreeVar n) =<< getContext
-  where nameToFreeVar n = (I.name2String n, I.name2Integer n)
+  where nameToFreeVar = I.AnyName
 
 
-lookupFVType :: I.Name a -> CM I.Type
+lookupFVType :: (Rep n) => I.Name n -> CM I.Type
 lookupFVType = fmap snd . lookupFVInfo
 
 
-lookupFVSubjectRemaining :: I.Name a -> CM I.Grade
+lookupFVSubjectRemaining :: (Rep n) => I.Name n -> CM I.Grade
 lookupFVSubjectRemaining = fmap (I.subjectGrade . fst) . lookupFVInfo
 
 
@@ -590,7 +606,10 @@ isImplementationErr e = case tcErrErr e of NotImplemented{} -> True; _ -> False
 -----------------------
 
 
-instance I.Fresh CM where
-  fresh n = do
-    (NameId newId) <- getFreshNameId
-    pure $ I.makeName (I.name2String n) newId
+instance I.LFresh CM where
+  getAvoids = getInScope
+  avoid = withInScope
+  lfresh n = do
+    let s = name2String n
+    used <- getAvoids
+    pure $ head (filter (\x -> not (Set.member (AnyName x) used)) (map (makeName s) [0..]))

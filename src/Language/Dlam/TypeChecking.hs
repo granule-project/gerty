@@ -141,8 +141,7 @@ typesAreEqual t1 t2 = do
           ys = appliedArgs app2
       in (&&) <$> pure (length xs == length ys && x == y) <*> (and <$> (mapM (uncurry termsAreEqual) (zip xs ys)))
     (Universe l1, Universe l2) -> levelsAreEqual l1 l2
-    (Pi pi1, Pi pi2) -> do
-      unbound <- unbind2 pi1 pi2
+    (Pi pi1, Pi pi2) -> lunbind2 pi1 pi2 $ \unbound ->
       case unbound of
         Nothing -> pure False
         Just (arg1, t1, arg2, t2) ->
@@ -278,8 +277,7 @@ checkOrInferType' Implicit expr@(Lam ab) = do
 checkExpr_ (Lam ab) t = do
   -- TODO: check grading (2020-03-14)
   (tyArg, gr, tA, tB) <- case un t of
-    (Pi pi) -> do
-      (arg, resTy) <- unbind pi
+    (Pi pi) -> lunbind pi $ \(arg, resTy) ->
       pure (arg, I.grading arg, typeOf arg, resTy)
     _ -> expectedInferredTypeForm "function" t
 
@@ -580,8 +578,7 @@ inferExprForApp_ e = do
 
 
 openAbs :: (Rep a) => Abstraction -> CM (Name a, Expr, Expr)
-openAbs ab = do
-  (absArg, absExpr) <- unbind ab
+openAbs ab = lunbind ab $ \(absArg, absExpr) ->
   pure (translate $ argName absArg, argTy absArg, absExpr)
 
 
@@ -617,8 +614,7 @@ instance (Applicative m, Functor m, Normalise m a) => Normalise m (Maybe a) wher
 
 instance Normalise CM TermThatCanBeApplied where
   normalise (IsPartialApp p) = IsPartialApp . partiallyApplied (un p) <$> normalise (appliedArgs p)
-  normalise (IsLam lam) = do
-    (arg, body) <- unbind lam
+  normalise (IsLam lam) = lunbind lam $ \(arg, body) -> do
     g <- normalise (I.grading arg)
     argTy <- normalise (typeOf arg)
     let arg' = mkArg (argVar arg) g argTy
@@ -662,8 +658,7 @@ instance Normalise CM Level where
 
 
 instance Normalise CM TypeTermOfTermsThatCanBeApplied where
-  normalise (IsPi pi) = do
-    (arg, t) <- unbind pi
+  normalise (IsPi pi) = lunbind pi $ \(arg, t) -> do
     g <- normalise (I.grading arg)
     argTy <- normalise (typeOf arg)
     let arg' = mkArg (argVar arg) g argTy
@@ -713,12 +708,13 @@ substitute (n, s) t =
 applyPartial :: TermThatCanBeApplied -> Term -> TypeOfTermsThatCanBeApplied -> CM (Term, Type)
 applyPartial l@(IsLam lam) arg lamTy = do
   let (IsPi pi) = un lamTy
-  (larg, body, piArg, resTy) <- maybe (hitABug $ "binding structure of '" <> pprintShow l <> "' and '" <> pprintShow lamTy <> "' differed.") pure =<< unbind2 lam pi
-  body <- substituteAndNormalise (argVar larg, arg) body
-  resTy <- substituteAndNormalise (argVar piArg, arg) resTy
-  pure (body, resTy)
-applyPartial (IsPartialApp pa) arg ty = do
-  (piArg, resTy) <- let (IsPi pi) = un ty in unbind pi
+  lunbind2 lam pi $ \unbound -> do
+    (larg, body, piArg, resTy) <- maybe (hitABug $ "binding structure of '" <> pprintShow l <> "' and '" <> pprintShow lamTy <> "' differed.") pure $ unbound
+    body <- substituteAndNormalise (argVar larg, arg) body
+    resTy <- substituteAndNormalise (argVar piArg, arg) resTy
+    pure (body, resTy)
+applyPartial (IsPartialApp pa) arg ty =
+  let (IsPi pi) = un ty in lunbind pi $ \(piArg, resTy) -> do
   let newArgs = appliedArgs pa <> [arg]
   resTy <- substituteAndNormalise (argVar piArg, arg) resTy
   let resTerm =
@@ -757,9 +753,9 @@ applyPartialToTerm f e ty =
 applyPartialToExpr :: TermThatCanBeApplied -> Expr -> TypeOfTermsThatCanBeApplied -> CM (Term, Type)
 applyPartialToExpr f e ty = do
   -- G |- f : (x : A) -> B
-  (piArg, _) <- let (IsPi pi) = un ty in unbind pi
+  piArgTy <- let (IsPi pi) = un ty in lunbind pi (\(piArg, _) -> pure $ typeOf piArg)
   -- G |- e : A
-  e <- checkExpr e (typeOf piArg)
+  e <- checkExpr e piArgTy
   -- G |- f e : [e/x]B
   applyPartialToTerm f e ty
 
@@ -797,7 +793,7 @@ instance InScope AName where
   typeOfThing = lookupType
 
 
-instance InScope (Name a) where
+instance (Rep a) => InScope (Name a) where
   typeOfThing = lookupFVType
 
 
