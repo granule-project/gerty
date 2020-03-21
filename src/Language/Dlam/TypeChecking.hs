@@ -48,21 +48,10 @@ checkExprIsType_ (Def x) = do
   maybe (pure $ mkTyDef x l []) checkTermIsType =<< maybeLookupValue x
 checkExprIsType_ (App f e) = do
   (fTerm, fTy) <- inferExprForApp f
-  case un fTy of
-    IsPi pi -> do
-      (arg, resTy) <- unbind pi
-
-      -- make sure the argument matches the required argument type
-      let argTy = typeOf arg
-      e <- checkExpr e argTy
-
-      -- now do the application, and see if we get a type back
-      resTy <- substituteAndNormalise (argVar arg, e) resTy
-      appres <- applyPartialToTerm fTerm e resTy
-
-      case appres of
-        TypeTerm t -> pure t
-        _ -> notAType
+  (appres, _) <- applyPartialToExpr fTerm e fTy
+  case appres of
+    TypeTerm t -> pure t
+    _ -> notAType
 checkExprIsType_ (FunTy ab) = do
   (x, absTy, absExpr) <- openAbs ab
   argTy <- checkExprIsType absTy
@@ -324,17 +313,10 @@ checkExpr_ (App e1 e2) t = do
   -- G |- t1 : (x : A) -> B
   (e1Term, e1Ty) <- inferExprForApp e1
 
-  (x, tA, tB) <-
-    case un e1Ty of
-      IsPi pi -> fmap (\(arg, resTy) -> (argVar arg, typeOf arg, resTy)) (unbind pi)
-
-  -- G |- t2 : A
-  e2Term <- checkExpr e2 tA
-
   -- G |- t1 t2 : [t2/x]B
-  t2forXinB <- substituteAndNormalise (x, e2Term) tB
+  (t1t2, t2forXinB) <- applyPartialToExpr e1Term e2 e1Ty
   ensureEqualTypes t t2forXinB
-  applyPartialToTerm e1Term e2Term t2forXinB
+  pure t1t2
 
 ----------------
 -- Coproducts --
@@ -441,7 +423,7 @@ checkExpr_ (NatCase (x, tC) cz (w, y, cs) n) t = do
   cz <- checkExpr cz zeroforxinC
 
   -- G, w : Nat, y : [w/x]C |- cs : [succ w/x]C
-  succw <- applyPartialToTerm succForApp (mkVar wv) natTy
+  (succw, _) <- applyPartialToTerm succForApp (mkVar wv) succTy
   succwforxinC <- substitute (xv, succw) tC
   wforxinC <- substitute (xv, mkVar wv) tC
   cs <- withVarTypeBound y wforxinC
@@ -551,18 +533,9 @@ inferExpr_ (App e1 e2) = do
   -- G |- t1 : (x : A) -> B
   (e1Term, e1Ty) <- inferExprForApp e1
 
-  (x, tA, tB) <-
-    case un e1Ty of
-      IsPi pi -> fmap (\(arg, resTy) -> (argVar arg, typeOf arg, resTy)) (unbind pi)
-
-  -- G |- t2 : A
-  e2Term <- checkExpr e2 tA
-
   -- G |- t1 t2 : [t2/x]B
-  t2forXinB <- substituteAndNormalise (x, e2Term) tB
-
-  term <- applyPartialToTerm e1Term e2Term t2forXinB
-  pure (term, t2forXinB)
+  (t1t2, t2forXinB) <- applyPartialToExpr e1Term e2 e1Ty
+  pure (t1t2, t2forXinB)
 
 {-
    G, x : A |- e : B
@@ -737,40 +710,58 @@ substitute (n, s) t =
 -- | (with expected type @resTy@) by applying the argument. The result
 -- | is either yet another partial application, a fully-applied term, or
 -- | a type.
-applyPartial :: TermThatCanBeApplied -> Term -> Type -> CM Term
-applyPartial (IsLam lam) arg _ =
-  (\(larg, body) -> substituteAndNormalise (argVar larg, arg) body) =<< unbind lam
-applyPartial (IsPartialApp pa) arg resTy = pure $
-  let newArgs = appliedArgs pa <> [arg] in
-  case un resTy of
-    -- if the result is a Pi, then this is still partial---it
-    -- requires more arguments to become fully applied
-    Pi{} -> PartialApp (partiallyApplied (un pa) newArgs)
-    -- if the result is a universe, we've just produced a type
-    Universe l ->
-      let thingApplied =
-            case un pa of
-              VarPartial v -> AppTyVar (termVarToTyVar v)
-              TyConPartial c -> AppTyCon c
-              DefPartial d -> AppTyDef d
-              DConPartial{} -> error "I completed a data constructor application, but produced a type."
+applyPartial :: TermThatCanBeApplied -> Term -> TypeOfTermsThatCanBeApplied -> CM (Term, Type)
+applyPartial l@(IsLam lam) arg lamTy = do
+  let (IsPi pi) = un lamTy
+  (larg, body, piArg, resTy) <- maybe (hitABug $ "binding structure of '" <> pprintShow l <> "' and '" <> pprintShow lamTy <> "' differed.") pure =<< unbind2 lam pi
+  body <- substituteAndNormalise (argVar larg, arg) body
+  resTy <- substituteAndNormalise (argVar piArg, arg) resTy
+  pure (body, resTy)
+applyPartial (IsPartialApp pa) arg ty = do
+  (piArg, resTy) <- let (IsPi pi) = un ty in unbind pi
+  let newArgs = appliedArgs pa <> [arg]
+  resTy <- substituteAndNormalise (argVar piArg, arg) resTy
+  let resTerm =
+        case un resTy of
+          -- if the result is a Pi, then this is still partial---it
+          -- requires more arguments to become fully applied
+          Pi{} -> PartialApp (partiallyApplied (un pa) newArgs)
+          -- if the result is a universe, we've just produced a type
+          Universe l ->
+            let thingApplied =
+                  case un pa of
+                    VarPartial v -> AppTyVar (termVarToTyVar v)
+                    TyConPartial c -> AppTyCon c
+                    DefPartial d -> AppTyDef d
+                    DConPartial{} -> error "I completed a data constructor application, but produced a type."
 
-      in TypeTerm (mkType (TyApp (fullyApplied thingApplied newArgs)) l)
-    -- wasn't a universe, but is fully applied, so it's a term application
-    _ -> I.App (fullyApplied (case un pa of
-                                VarPartial v -> I.Var v
-                                DConPartial dc -> ConData dc
-                                DefPartial d -> AppDef d
-                                TyConPartial{} -> error "I completed a type application and produced something that wasn't a type."
-                             ) newArgs)
+            in TypeTerm (mkType (TyApp (fullyApplied thingApplied newArgs)) l)
+          -- wasn't a universe, but is fully applied, so it's a term application
+          _ -> I.App (fullyApplied (case un pa of
+                                      VarPartial v -> I.Var v
+                                      DConPartial dc -> ConData dc
+                                      DefPartial d -> AppDef d
+                                      TyConPartial{} -> error "I completed a type application and produced something that wasn't a type."
+                                   ) newArgs)
+  pure (resTerm, resTy)
 
 
-applyPartialToTerm :: TermThatCanBeApplied -> Term -> Type -> CM Term
+applyPartialToTerm :: TermThatCanBeApplied -> Term -> TypeOfTermsThatCanBeApplied -> CM (Term, Type)
 applyPartialToTerm f e ty =
   debugBlock "applyPartialToTerm"
-    ("applying fun '" <> pprintShow f <> "' to argument '" <> pprintShow e <> "' with expected result type '" <> pprintShow ty <> "'")
-    (\res -> "result of the application was '" <> pprintShow res <> "'")
+    ("applying fun '" <> pprintShow f <> "' to argument '" <> pprintShow e <> "' with function type '" <> pprintShow ty <> "'")
+    (\(term, ty) -> "result of the application was '" <> pprintShow term <> "' of type '" <> pprintShow ty <> "'")
     (applyPartial f e ty)
+
+
+applyPartialToExpr :: TermThatCanBeApplied -> Expr -> TypeOfTermsThatCanBeApplied -> CM (Term, Type)
+applyPartialToExpr f e ty = do
+  -- G |- f : (x : A) -> B
+  (piArg, _) <- let (IsPi pi) = un ty in unbind pi
+  -- G |- e : A
+  e <- checkExpr e (typeOf piArg)
+  -- G |- f e : [e/x]B
+  applyPartialToTerm f e ty
 
 
 mkVar' :: FVName -> Type -> Term
