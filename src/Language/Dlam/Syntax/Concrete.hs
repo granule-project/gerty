@@ -303,9 +303,6 @@ data Expr
 
   -- | An expression in parentheses.
   | Parens Expr
-
-  -- | 'Type'.
-  | EType
   deriving (Show, Eq, Ord)
 
 
@@ -372,11 +369,9 @@ instance Pretty Expr where
     isLexicallyAtomic Implicit{} = True
     isLexicallyAtomic BraceArg{} = True
     isLexicallyAtomic Parens{}   = True
-    isLexicallyAtomic EType      = True
     isLexicallyAtomic _          = False
 
     pprint (LitLevel n)           = integer n
-    pprint EType                  = text "Type"
     pprint (Lam binders finE) =
       text "\\" <+> (hsep $ fmap pprint binders) <+> arrow <+> pprint finE
     pprint (Pi binders finTy) = pprint binders <+> arrow <+> pprint finTy

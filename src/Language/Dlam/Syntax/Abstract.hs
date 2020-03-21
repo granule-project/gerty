@@ -242,9 +242,6 @@ data Expr
   | Implicit
 
   | Let LetBinding Expr
-
-  -- 'Type'.
-  | EType
   deriving (Show)
 
 
@@ -359,7 +356,6 @@ instance Pretty Expr where
     isLexicallyAtomic Pair{}     = True
     isLexicallyAtomic Hole{}     = True
     isLexicallyAtomic Implicit{} = True
-    isLexicallyAtomic EType      = True
     isLexicallyAtomic _       = False
 
     pprint (LitLevel n)           = integer n
@@ -410,7 +406,6 @@ instance Pretty Expr where
     pprint (EmptyElim (x, tC) a) =
       text "let" <+> pprint x <> at <> text "()" <+> equals <+> pprint a <+> colon <+> pprint tC
     pprint (Let lb e) = text "let" <+> pprint lb <+> text "in" <+> pprint e
-    pprint EType = text "Type"
 
 instance Pretty LetBinding where
   pprint (LetPatBound p e) = pprint p <+> equals <+> pprint e

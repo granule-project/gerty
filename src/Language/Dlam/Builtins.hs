@@ -72,6 +72,7 @@ builtins =
       , tcId
       , tcLevel
       , tcNat
+      , tcType
       , tcUnit
       ]
     builtinEliminators = fmap BinDef
@@ -219,7 +220,7 @@ mkCoproductTy t1 t2 = mkType (TyApp (fmap AppTyCon (mkCoproductTyForApp t1 t2)))
 -----------------------------
 
 
-tcCoproduct, tcEmpty, tcId, tcLevel, tcNat, tcUnit :: TyCon
+tcCoproduct, tcEmpty, tcId, tcLevel, tcNat, tcType, tcUnit :: TyCon
 
 
 tcEmpty = mkBuiltinType "Empty"
@@ -248,6 +249,14 @@ tcId =
        [ mkArg' l levelTy, mkTyArg a (mkUnivTy lv)
        , mkArgNoBind av, mkArgNoBind av]
        lv
+
+
+-- Type (l : Level) : Type (lsuc l)
+tcType =
+  let l = nameFromString "l"; lv = mkLevelVar l
+  in mkBuiltinTyCon "Type"
+     [ mkArg' l levelTy ]
+     (nextLevel lv)
 
 
 tcLevel', tcNat', tcUnit' :: FullyApplied TyCon

@@ -536,13 +536,6 @@ inferExpr e =
 
 
 inferExpr_ :: Expr -> CM (Term, Type)
-inferExpr_ EType =
-  let l = nameFromString "l"
-      lv = mkLevelVar l
-      succl = nextLevel lv
-      larg = mkArg l thatMagicalGrading levelTy
-  in pure (mkLam' larg (TypeTerm (mkType (Universe lv) succl))
-          , mkFunTy l levelTy (mkUnivTy succl))
 inferExpr_ (Var x) = do
   ty <- typeOfThing x
   pure (mkVar' x ty, ty)

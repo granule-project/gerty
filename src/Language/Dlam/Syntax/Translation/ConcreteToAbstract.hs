@@ -228,7 +228,6 @@ instance ToAbstract C.Expr A.Expr where
   -- TODO: add special handling for brace arguments (2020-03-09)
   toAbstract (C.BraceArg e) = toAbstract (un e)
   toAbstract (C.Parens   e) = toAbstract e
-  toAbstract C.EType = pure $ A.EType
 
 
 instance ToAbstract C.Pattern (A.Pattern, Locals) where
