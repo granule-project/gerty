@@ -1,6 +1,10 @@
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE UndecidableInstances #-}
 {-| Common syntax declarations. -}
 module Language.Dlam.Syntax.Common
   (
@@ -25,6 +29,8 @@ module Language.Dlam.Syntax.Common
   , mkArg
   ) where
 
+
+import Unbound.LocallyNameless
 
 import Language.Dlam.Syntax.Common.Language
 import Language.Dlam.Util.Peekaboo
@@ -157,3 +163,16 @@ instance (Binds a n) => Binds (Arg a) n where
 
 instance (IsGraded a g) => IsGraded (Arg a) g where
   grading = grading . un
+
+
+-----------------------
+----- For Unbound -----
+-----------------------
+
+
+$(derive [''Arg, ''Hidden, ''NameId])
+
+
+instance (Alpha a) => Alpha (Arg a)
+instance (Alpha a) => Alpha (Hidden a)
+instance Alpha NameId

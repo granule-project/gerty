@@ -39,7 +39,7 @@ import qualified Data.Map as M
 import Language.Dlam.Builtins
 import Language.Dlam.Syntax.Abstract
 import qualified Language.Dlam.Syntax.Concrete as C
-import Language.Dlam.Syntax.Common (NameId)
+import Language.Dlam.Syntax.Common (NameId(..))
 import Language.Dlam.Scoping.Monad.Exception
 import Language.Dlam.Scoping.Scope
 
@@ -113,7 +113,7 @@ startEnv = SCEnv ()
 -----------------------
 
 
-type LocalVars = M.Map C.CName AName
+type LocalVars = M.Map C.CName FVName
 
 
 data ScopeInfo = ScopeInfo
@@ -128,8 +128,8 @@ data ScopeInfo = ScopeInfo
 
 startScopeInfo :: ScopeInfo
 startScopeInfo = ScopeInfo
-  { scopeLocals = M.fromList (fmap (\b -> (nameConcrete (builtinName b), builtinName b)) builtins)
-  , scopeCurrent = Scope { scopeNameSpace = M.empty }
+  { scopeLocals = M.empty
+  , scopeCurrent = Scope { scopeNameSpace = M.fromList (fmap (\b -> (nameConcrete (builtinName b), InScopeName { howBound = [ISDef], isnName = builtinName b })) builtins) }
   }
 
 
@@ -137,7 +137,7 @@ onScopeInfo :: (ScopeInfo -> ScopeInfo) -> ScoperState -> ScoperState
 onScopeInfo f s = s { scScope = f (scScope s) }
 
 
-addLocals :: [(C.CName, AName)] -> ScoperState -> ScoperState
+addLocals :: [(C.CName, FVName)] -> ScoperState -> ScoperState
 addLocals locals =
   onScopeInfo $ \si ->
     let oldVars = scopeLocals si
@@ -156,17 +156,17 @@ getScopeLocals :: SM LocalVars
 getScopeLocals = scopeLocals <$> getScopeInfo
 
 
-lookupLocalVar :: C.CName -> SM (Maybe AName)
+lookupLocalVar :: C.CName -> SM (Maybe FVName)
 lookupLocalVar n = M.lookup n <$> getScopeLocals
 
 
-lookupLocalQVar :: C.QName -> SM (Maybe AName)
+lookupLocalQVar :: C.QName -> SM (Maybe FVName)
 lookupLocalQVar n = (M.lookup n . M.mapKeys C.Unqualified) <$> getScopeLocals
 
 
 -- | Execute the given action with the specified local variables
 -- | (additionally) bound. This restores the scope after checking.
-withLocals :: [(C.CName, AName)] -> SM a -> SM a
+withLocals :: [(C.CName, FVName)] -> SM a -> SM a
 withLocals locals act = do
   oldLocals <- getScopeLocals
   modify $ addLocals locals
@@ -242,11 +242,22 @@ maybeResolveNameCurrentScope n = do
       case ot of
         Nothing -> pure Nothing
         Just r  ->
-          if (ISDef `elem` howBound r) then pure . Just $ ResolvedDef (isnName r)
-          else if (ISSig `elem` howBound r) then pure . Just $ ResolvedSig (isnName r)
+          if (ISDef `elem` howBound r) then pure . Just $ resolvedDef (isnName r)
+          else if (ISSig `elem` howBound r) then pure . Just $ resolvedSig (isnName r)
           else throwError . notImplemented $ "I don't yet know how to resolve " <> show r
 
 
 resolveNameCurrentScope :: C.QName -> SM ResolvedName
 resolveNameCurrentScope n =
   maybe (throwError $ unknownNameErr n) pure =<< maybeResolveNameCurrentScope n
+
+
+-----------------------
+----- For Unbound -----
+-----------------------
+
+
+instance Fresh SM where
+  fresh n = do
+    (NameId newId) <- getFreshNameId
+    pure $ makeName (name2String n) newId

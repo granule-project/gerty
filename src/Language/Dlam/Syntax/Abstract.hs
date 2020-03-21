@@ -5,6 +5,8 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 module Language.Dlam.Syntax.Abstract
   (
@@ -16,18 +18,18 @@ module Language.Dlam.Syntax.Abstract
   , pattern LSuc'
   , pattern Succ'
   , pattern Zero'
+  , FVName
   , AName(..)
   , mkIdent
   , ignoreVar
+  , nameFromString
   , mkAbs
   , mkAbs'
-  , absVar
-  , absTy
-  , absExpr
+  , argTy
+  , argName
   -- ** Let bindings
   , LetBinding(..)
   , Pattern(..)
-  , BindName(..)
   , boundTypingVars
   , boundSubjectVars
   -- * AST
@@ -56,14 +58,19 @@ module Language.Dlam.Syntax.Abstract
   , unTB
   , mkTypedBinding
   , bindName
-  , unBoundName
   , LambdaArg
   , mkLambdaArg
+
+  -- * Unbound
+  , module Unbound.LocallyNameless
   ) where
 
 
 import Prelude hiding ((<>))
 import qualified Data.Set as Set
+
+import Unbound.LocallyNameless
+import Unbound.LocallyNameless.Ops (unsafeUnbind) -- for pretty-printing
 
 import Language.Dlam.Syntax.Common hiding (Arg)
 import qualified Language.Dlam.Syntax.Common as Com
@@ -95,8 +102,6 @@ bindName :: AName -> BoundName
 bindName = Com.bindName
 mkGrading :: Grade -> Grade -> Grading
 mkGrading = Com.mkGrading
-unBoundName :: BoundName -> AName
-unBoundName = Com.unBoundName
 grading :: (Com.IsGraded a Grade) => a -> Grading
 grading = Com.grading
 subjectGrade, subjectTypeGrade :: (Com.IsGraded a Grade) => a -> Grade
@@ -113,11 +118,11 @@ implicitGrading = mkGrading Implicit Implicit
 -- https://hackage.haskell.org/package/Agda-2.6.0.1/docs/Agda-Syntax-Abstract.html#t:TypedBinding)
 -- (2020-03-11)
 -- | Typed binders are optionally graded, and can contain many bound names.
-newtype TypedBinding = TB { unTB :: Com.Arg (Graded (IsTyped BoundName)) }
-  deriving (Show, Eq, Ord, Hiding)
+newtype TypedBinding = TB { unTB :: Com.Arg (Graded (IsTyped FVName)) }
+  deriving (Show, Hiding)
 
 
-mkTypedBinding :: IsHiddenOrNot -> Grading -> Type -> BoundName -> TypedBinding
+mkTypedBinding :: IsHiddenOrNot -> Grading -> Type -> FVName -> TypedBinding
 mkTypedBinding isHid gr ty n = TB (mkArg isHid (n `typedWith` ty `gradedWith` gr))
 
 
@@ -137,7 +142,7 @@ instance Com.IsGraded TypedBinding Grade where
 type LambdaArg = TypedBinding
 
 
-mkLambdaArg :: IsHiddenOrNot -> Grading -> Type -> BoundName -> LambdaArg
+mkLambdaArg :: IsHiddenOrNot -> Grading -> Type -> FVName -> LambdaArg
 mkLambdaArg isHid gr ty n = TB (mkArg isHid (n `typedWith` ty `gradedWith` gr))
 
 
@@ -171,11 +176,11 @@ data Declaration =
   deriving (Show)
 
 
-type Arg = Com.Arg (IsTyped (Graded BindName))
+type Arg = Com.Arg (IsTyped (Graded FVName))
 
 
 -- | Name of the argument.
-argName :: Arg -> BindName
+argName :: Arg -> FVName
 argName = un . un . un
 
 
@@ -184,44 +189,26 @@ argTy :: Arg -> Expr
 argTy = typeOf
 
 
-data Abstraction = Abst
-  {
-  -- | Argument of the abstraction.
-    absArg :: Arg
-  -- | Target expression of the abstraction.
-  , absExpr :: Expr
-  } deriving (Show, Eq, Ord)
+type Abstraction = Bind Arg Expr
 
 
-instance Com.IsGraded Abstraction Grade where
-  grading = grading . absArg
+mkAbs :: FVName -> Expr -> Expr -> Abstraction
+mkAbs v = mkAbs' NotHidden v implicitGrading
 
 
-instance Com.Hiding Abstraction where
-  isHidden = isHidden . absArg
+mkAbs' :: IsHiddenOrNot -> FVName -> Grading -> Expr -> Expr -> Abstraction
+mkAbs' isHid v g e1 e2 = bind (mkArg isHid (v `gradedWith` g `typedWith` e1)) e2
 
 
--- | Variable bound in the abstraction.
-absVar :: Abstraction -> AName
-absVar = unBindName . argName . absArg
-
-
--- | Type of the bound variable in the abstraction.
-absTy :: Abstraction -> Expr
-absTy = argTy . absArg
-
-
-mkAbs :: AName -> Expr -> Expr -> Abstraction
-mkAbs v e1 e2 = Abst { absArg = mkArg NotHidden (BindName v `gradedWith` implicitGrading `typedWith` e1), absExpr = e2 }
-
-
-mkAbs' :: IsHiddenOrNot -> AName -> Grading -> Expr -> Expr -> Abstraction
-mkAbs' isHid v g e1 e2 = Abst { absArg = mkArg isHid (BindName v `gradedWith` g `typedWith` e1), absExpr = e2 }
+type FVName = Name Expr
 
 
 data Expr
-  -- | Variable.
-  = Var AName
+  -- | Free variable.
+  = Var FVName
+
+  -- | Constant.
+  | Def AName
 
   -- | Level literals.
   | LitLevel Integer
@@ -242,16 +229,16 @@ data Expr
   | Coproduct Expr Expr
 
   -- | Coproduct eliminator.
-  | CoproductCase (AName, Expr) (AName, Expr) (AName, Expr) Expr
+  | CoproductCase (BindName, Expr) (BindName, Expr) (BindName, Expr) Expr
 
   -- | Natural number eliminator.
-  | NatCase (AName, Expr) Expr (AName, AName, Expr) Expr
+  | NatCase (BindName, Expr) Expr (BindName, BindName, Expr) Expr
 
   -- | Identity eliminator.
-  | RewriteExpr (AName, AName, AName, Expr) (AName, Expr) Expr Expr Expr
+  | RewriteExpr (BindName, BindName, BindName, Expr) (BindName, Expr) Expr Expr Expr
 
   -- | Empty eliminator.
-  | EmptyElim (AName, Expr) Expr
+  | EmptyElim (BindName, Expr) Expr
 
   | App Expr Expr -- e1 e2
 
@@ -270,7 +257,7 @@ data Expr
 
   -- 'Type'.
   | EType
-  deriving (Show, Eq, Ord)
+  deriving (Show)
 
 
 pattern AType :: Expr -> Expr
@@ -309,14 +296,13 @@ mkImplicit = Implicit
 
 data LetBinding
   = LetPatBound Pattern Expr
-  deriving (Show, Eq, Ord)
+  deriving (Show)
 
 
 -- TODO: update this to compare equality on concrete name as well (see
 -- https://hackage.haskell.org/package/Agda-2.6.0.1/docs/Agda-Syntax-Abstract.html#t:BindName)
 -- (2020-03-04)
-newtype BindName = BindName { unBindName :: AName }
-  deriving (Show, Eq, Ord)
+type BindName = FVName
 
 
 type ConName = AName
@@ -333,7 +319,7 @@ data Pattern
   -- ^ unit (*).
   | PCon ConName [Pattern]
   -- ^ Constructor application.
-  deriving (Show, Eq, Ord)
+  deriving (Show)
 
 
 boundTypingVars :: Pattern -> Set.Set BindName
@@ -368,11 +354,14 @@ data AName = AName
 
 -- TODO: move builtins to a different phase so we don't need these
 -- (names might not be unique!) (2020-03-05)
-ignoreVar :: AName
-ignoreVar = AName { nameId = NameId 0, nameConcrete = C.NoName (NameId 0) }
+ignoreVar :: FVName
+ignoreVar = nameFromString "_"
 
 mkIdent :: String -> AName
 mkIdent s = AName { nameId = NameId 0, nameConcrete = C.CName s }
+
+nameFromString :: String -> FVName
+nameFromString = s2n
 
 --------------------
 ----- Builtins -----
@@ -424,7 +413,7 @@ data BuiltinTerm =
 
   -- | Empty type.
   | DEmptyTy
-  deriving (Show, Eq, Ord)
+  deriving (Show)
 
 
 ---------------------------
@@ -436,11 +425,15 @@ data BuiltinTerm =
 -- | binder from the expression using the given separator.
 pprintAbs :: Doc -> Abstraction -> Doc
 pprintAbs sep ab =
-  let leftTyDoc =
-        case absVar ab of
-          AName _ C.NoName{} -> pprint (absTy ab)
-          _        -> parens (pprint (absVar ab) <+> colon <+> pprint (grading ab) <+> pprint (absTy ab))
-  in leftTyDoc <+> sep <+> pprint (absExpr ab)
+  let (absArg, absExpr) = unsafeUnbind ab
+      absVar = argName absArg
+      absTy  = argTy absArg
+      leftTyDoc =
+        case name2String absVar of
+          -- TODO: add better (more type-safe?) support for ignored name (2020-03-20)
+          "_" -> pprint absTy
+          _   -> parens (pprint absVar <+> colon <+> pprint (grading absArg) <+> pprint absTy)
+  in leftTyDoc <+> sep <+> pprint absExpr
 
 
 arrow, at, caset :: Doc
@@ -463,11 +456,14 @@ instance Pretty Expr where
     pprint (Lam ab) = text "\\ " <> pprintAbs arrow ab
     pprint (FunTy ab) = pprintAbs arrow ab
     pprint (ProductTy ab) =
-      let leftTyDoc =
-            case absVar ab of
-              AName _ C.NoName{} -> pprint (absTy ab)
-              _        -> pprint (absVar ab) <+> colon <> colon <+> pprint (absTy ab)
-      in leftTyDoc <+> char '*' <+> pprint (absExpr ab)
+      let (absArg, absExpr) = unsafeUnbind ab
+          absVar = argName absArg
+          absTy  = argTy  absArg
+          leftTyDoc =
+            case name2String absVar of
+              "_"      -> pprint absTy
+              _        -> pprint absVar <+> colon <> colon <+> pprint absTy
+      in leftTyDoc <+> char '*' <+> pprint absExpr
     pprint (App lam@Lam{} e2) =
       pprintParened lam <+> pprintParened e2
     pprint (App (Sig e1 t) e2) =
@@ -475,7 +471,7 @@ instance Pretty Expr where
     pprint (App e1 e2) = pprint e1 <+> pprintParened e2
     pprint (Pair e1 e2) = parens (pprint e1 <> comma <+> pprint e2)
     pprint (Coproduct e1 e2) = pprint e1 <+> char '+' <+> pprint e2
-    pprint (CoproductCase (AName _ C.NoName{}, Implicit) (x, c) (y, d) e) =
+    pprint (CoproductCase (_, Implicit) (x, c) (y, d) e) =
       caset <+> pprint e <+> text "of"
               <+> text "Inl" <+> pprint x <+> arrow <+> pprint c <> semi
               <+> text "Inr" <+> pprint y <+> arrow <+> pprint d
@@ -497,6 +493,7 @@ instance Pretty Expr where
          , pprint b
          , pprint p'])
     pprint (Var var) = pprint var
+    pprint (Def var) = pprint var
     pprint (Sig e t) = pprintParened e <+> colon <+> pprint t
     pprint Hole = char '?'
     pprint Implicit{} = char '_'
@@ -522,9 +519,6 @@ instance Pretty Pattern where
   pprint PUnit = char '*'
   pprint (PCon c args) = pprint c <+> (hsep $ fmap pprintParened args)
 
-instance Pretty BindName where
-  isLexicallyAtomic = isLexicallyAtomic . unBindName
-  pprint = pprint . unBindName
 
 instance Pretty BuiltinTerm where
   isLexicallyAtomic _ = True
@@ -564,3 +558,24 @@ instance Pretty Declaration where
 instance Pretty Grading where
   pprint g = char '[' <>
              pprint (subjectGrade g) <> comma <+> pprint (subjectTypeGrade g) <> char ']'
+
+
+-----------------------
+----- For Unbound -----
+-----------------------
+
+
+$(derive
+  [ ''AName
+  , ''BuiltinTerm
+  , ''Expr
+  , ''LetBinding
+  , ''Pattern
+  ])
+
+
+instance Alpha AName
+instance Alpha BuiltinTerm
+instance Alpha Expr
+instance Alpha LetBinding
+instance Alpha Pattern

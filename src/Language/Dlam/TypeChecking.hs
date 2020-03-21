@@ -9,7 +9,7 @@ module Language.Dlam.TypeChecking
 import Control.Monad (when)
 
 import Language.Dlam.Builtins
-import Language.Dlam.Syntax.Abstract
+import Language.Dlam.Syntax.Abstract hiding (nameFromString)
 import Language.Dlam.Syntax.Internal hiding (Var, App, Lam)
 import qualified Language.Dlam.Syntax.Internal as I
 import Language.Dlam.TypeChecking.Monad
@@ -39,7 +39,13 @@ checkExprIsType_ (Var x) = do
   l <- case un ty of
          Universe l -> pure l
          _ -> notAType
-  maybe (pure $ mkTyVar (aname2Name x) l) checkTermIsType =<< maybeLookupValue x
+  pure $ mkTyVar (nameForType x) l
+checkExprIsType_ (Def x) = do
+  ty <- typeOfThing x
+  l <- case un ty of
+         Universe l -> pure l
+         _ -> notAType
+  maybe (pure $ mkTyDef x l []) checkTermIsType =<< maybeLookupValue x
 checkExprIsType_ (App f e) = do
   (fTerm, fTy) <- inferExprForApp f
   case un fTy of
@@ -58,11 +64,11 @@ checkExprIsType_ (App f e) = do
         TypeTerm t -> pure t
         _ -> notAType
 checkExprIsType_ (FunTy ab) = do
-  let x = absVar ab
-  argTy <- checkExprIsType (absTy ab)
+  (x, absTy, absExpr) <- openAbs ab
+  argTy <- checkExprIsType absTy
   -- TODO: improve support for gradings here (2020-03-17)
-  let arg' = mkArg (aname2Name x) thatMagicalGrading argTy
-  ty <- withArgBoundForType arg' $ checkExprIsType (absExpr ab)
+  let arg' = mkArg x thatMagicalGrading argTy
+  ty <- withArgBoundForType arg' $ checkExprIsType absExpr
   pure $ mkType (mkPi' arg' ty) (nextLevel (Max (level argTy) (level ty)))
 checkExprIsType_ _e = notAType
 
@@ -198,35 +204,52 @@ checkExpr_ (Var x) t = do
   -- x @ (k+1, n) : A in G
   tA <- typeOfThing x
   debug $ "checkExpr_: got type '" <> pprintShow tA <> "' for variable '" <> pprintShow x <> "'"
-  kplus1 <- lookupSubjectRemaining x
-  k <- case kplus1 of
-         -- as the scope checker ensures that all local variables are
-         -- in scope, the only way something could not be assigned
-         -- here is if it is a top-level definition, in which case we
-         -- treat its usage as implicit
-         -- TODO: assign implicit grades to top-level definitions (2020-03-12)
-         Nothing -> pure thatMagicalGrade
-         Just kplus1 -> maybe (usedTooManyTimes x) pure $ I.decrementGrade kplus1
+  -- TODO: add back grading (2020-03-21)
+  -- kplus1 <- lookupFVSubjectRemaining x
+  -- k <- maybe (usedTooManyTimes x) pure $ I.decrementGrade kplus1
 
   -- G |- A : Type l
   -- ensured by the fact that tA is a type from context
 
   -- x @ (k, n) : A in G
   -- G |- x : A
-  setSubjectRemaining x k
+  -- setSubjectRemaining x k
+  ensureEqualTypes t tA
+  let xt = nameForType x
+      xv = nameForTerm x
+  pure $
+    case un tA of
+      -- this is a partial application
+      Pi{} -> I.PartialApp (partiallyApplied (VarPartial xv) [])
+      -- if this is a universe then we construct a type
+      Universe l -> TypeTerm (mkTyVar xt l)
+      -- if it's not a Pi, then it must be fully applied
+      _      -> I.App (fullyApplied (I.Var xv) [])
+checkExpr_ (Def x) t = do
+  -- x @ (k+1, n) : A in G
+  tA <- typeOfThing x
+  debug $ "checkExpr_: got type '" <> pprintShow tA <> "' for def '" <> pprintShow x <> "'"
+  -- TODO: add back grading (2020-03-21)
+  -- kplus1 <- lookupFVSubjectRemaining x
+  -- k <- maybe (usedTooManyTimes x) pure $ I.decrementGrade kplus1
+
+  -- G |- A : Type l
+  -- ensured by the fact that tA is a type from context
+
+  -- x @ (k, n) : A in G
+  -- G |- x : A
+  -- setSubjectRemaining x k
   ensureEqualTypes t tA
   val <- maybeLookupValue x
-  let xt = aname2Name x
-      xv = aname2Name x
   case val of
     Nothing -> pure $
       case un tA of
         -- this is a partial application
-        Pi{} -> I.PartialApp (partiallyApplied (VarPartial xv) [])
+        Pi{} -> I.PartialApp (partiallyApplied (DefPartial x) [])
         -- if this is a universe then we construct a type
-        Universe l -> TypeTerm (mkTyVar xt l)
+        Universe l -> TypeTerm (mkTyDef x l [])
         -- if it's not a Pi, then it must be fully applied
-        _      -> I.App (fullyApplied (I.Var xv) [])
+        _      -> I.App (fullyApplied (I.AppDef x) [])
     Just r -> pure r
 
 -------------------------------
@@ -241,13 +264,13 @@ checkExpr_ (Var x) t = do
 -}
 checkExpr_ (FunTy ab) t = do
   -- G |- A : Type l1
-  tA <- checkExprIsType (absTy ab)
+  (x, absTy, absExpr) <- openAbs ab
+  tA <- checkExprIsType absTy
 
   -- G, x : A |- B : Type l2
-  let x = absVar ab
-      -- TODO: add proper support for grades (2020-03-16)
-      arg = mkArg (aname2Name x) thatMagicalGrading tA
-  tB <- withArgBoundForType arg $ checkExprIsType (absExpr ab)
+  let -- TODO: add proper support for grades (2020-03-16)
+      arg = mkArg x thatMagicalGrading tA
+  tB <- withArgBoundForType arg $ checkExprIsType absExpr
 
   -- G |- (x : A) -> B : Type (lmax l1 l2)
   let lmaxl1l2 = Max (level tA) (level tB)
@@ -259,8 +282,8 @@ checkExpr_ (FunTy ab) t = do
 -- Abstraction expression, with wild type --
 --------------------------------------------
 checkOrInferType' Implicit expr@(Lam ab) = do
-  rTy <- withAbsBinding ab $ checkOrInferType mkImplicit (absExpr ab)
-  checkOrInferType (FunTy (mkAbs' (isHidden ab) (absVar ab) (grading ab) (absTy ab) rTy)) expr
+  rTy <- withAbsBinding ab $ checkOrInferType mkImplicit absExpr
+  checkOrInferType (FunTy (mkAbs' (isHidden ab) (absVar ab) (grading ab) absTy rTy)) expr
 -}
 {-
    G, x : A |- e : B
@@ -275,19 +298,19 @@ checkExpr_ (Lam ab) t = do
       pure (arg, I.grading arg, typeOf arg, resTy)
     _ -> expectedInferredTypeForm "function" t
 
-  tA <- case (absTy ab) of
+  (x, absTy, absExpr) <- openAbs ab
+  tA <- case absTy of
               Implicit -> pure tA
               lta -> checkExprIsType lta
 
-  let x = aname2Name $ absVar ab
-      lamArg = mkArg x gr tA
+  let lamArg = mkArg x gr tA
 
   -- replace occurrences of the pi-bound variable with the
   -- lambda-bound variable in the result type (specific to the lambda)
   tB <- withArgBound lamArg $ substituteAndNormalise (argVar tyArg, mkVar x) tB
 
   -- G, x : A |- e : B
-  e <- withArgBound lamArg (checkExpr (absExpr ab) tB)
+  e <- withArgBound lamArg (checkExpr absExpr tB)
 
   -- G |- \x -> e : (x : A) -> B
   ensureEqualTypes t (mkFunTy x tA tB)
@@ -349,25 +372,25 @@ checkExpr_ (Coproduct tA tB) t = do
    G |- case z@e of (Inl x -> c; Inr y -> d) : C : [e/z]C
 -}
 checkExpr_ (CoproductCase (z, tC) (x, c) (y, d) e) t = do
-  let xv = aname2Name x
-      yv = aname2Name y
-      zv = aname2Name z
+  let xv = nameForTerm x
+      yv = nameForTerm y
+      zv = nameForTerm z
   -- G |- e : A + B
   (e, tA, tB) <- inferCoproductTy e
 
   -- G, z : A + B |- C : Type l
   let copAB = mkCoproductTy tA tB
-  tC <- withTypedVariable z copAB $ checkExprIsType tC
+  tC <- withVarTypeBound z copAB $ checkExprIsType tC
 
   -- G, x : A |- c : [inl x/z]C
   let inlX = mkInlTerm tA tB (mkVar xv)
   inlxforzinC <- substitute (zv, inlX) tC
-  c <- withTypedVariable x tA $ withActivePattern e inlX $ checkExpr c inlxforzinC
+  c <- withVarTypeBound x tA $ withActivePattern e inlX $ checkExpr c inlxforzinC
 
   -- G, y : B |- d : [inr y/z]C
   let inrY = mkInrTerm tA tB (mkVar yv)
   inryforzinC <- substitute (zv, inrY) tC
-  d <- withTypedVariable y tB $ withActivePattern e inrY $ checkExpr d inryforzinC
+  d <- withVarTypeBound y tB $ withActivePattern e inrY $ checkExpr d inryforzinC
 
   -- G |- case z@e of (Inl x -> c; Inr y -> d) : C : [e/z]C
   eforzinC <- substitute (zv, e) tC
@@ -411,11 +434,11 @@ checkExpr_ (CoproductCase (z, tC) (x, c) (y, d) e) t = do
    G |- case x@n of (Zero -> cz; Succ w@y -> cs) : C : [n/x]C
 -}
 checkExpr_ (NatCase (x, tC) cz (w, y, cs) n) t = do
-  let wv = aname2Name w
-      xv = aname2Name x
-      yv = aname2Name y
+  let wv = nameForTerm w
+      xv = nameForTerm x
+      yv = nameForTerm y
   -- G, x : Nat |- C : Type l
-  tC <- withTypedVariable x natTy $ checkExprIsType tC
+  tC <- withVarTypeBound x natTy $ checkExprIsType tC
 
   -- G |- cz : [zero/x]C
   zeroforxinC <- substitute (xv, bodyForBuiltin DNZero) tC
@@ -425,8 +448,8 @@ checkExpr_ (NatCase (x, tC) cz (w, y, cs) n) t = do
   succw <- applyPartialToTerm succForApp (mkVar wv) natTy
   succwforxinC <- substitute (xv, succw) tC
   wforxinC <- substitute (xv, mkVar wv) tC
-  cs <- withTypedVariable y wforxinC
-       $ withTypedVariable w natTy
+  cs <- withVarTypeBound y wforxinC
+       $ withVarTypeBound w natTy
        $ checkExpr cs succwforxinC
 
   -- G |- n : Nat
@@ -457,9 +480,9 @@ checkExpr_ (NatCase (x, tC) cz (w, y, cs) n) t = do
    G |- let x@() = a : C : [a/x]C
 -}
 checkExpr_ (EmptyElim (x, tC) a) t = do
-  let xv = aname2Name x
+  let xv = nameForTerm x
   -- G, x : Empty |- C : Type l
-  tC <- withTypedVariable x emptyTy $ checkExprIsType tC
+  tC <- withVarTypeBound x emptyTy $ checkExprIsType tC
 
   -- G |- a : Empty
   a <- checkExpr a emptyTy
@@ -523,8 +546,11 @@ inferExpr_ EType =
           , mkFunTy l levelTy (mkUnivTy succl))
 inferExpr_ (Var x) = do
   ty <- typeOfThing x
+  pure (mkVar' x ty, ty)
+inferExpr_ (Def x) = do
+  ty <- typeOfThing x
   mval <- maybeLookupValue x
-  let val = maybe (mkVar' x ty) id mval
+  let val = maybe (mkUnboundDef x ty) id mval
   pure (val, ty)
 {-
    G |- t1 : (x : A) -> B
@@ -556,15 +582,14 @@ inferExpr_ (App e1 e2) = do
 -}
 inferExpr_ (Lam ab) = do
   -- TODO: handle the grading on the binder (2020-03-18)
-  let x = absVar ab
-      xv = aname2Name x
-  tA <- checkExprIsType (absTy ab)
+  (x, absTy, absExpr) <- openAbs ab
+  tA <- checkExprIsType absTy
 
   -- G, x : A |- e : B
-  (e, tB) <- withTypedVariable x tA $ inferExpr (absExpr ab)
+  (e, tB) <- withVarTypeBound x tA $ inferExpr absExpr
 
   -- G |- \(x : A) -> e : (x : A) -> B
-  pure (mkLam xv tA e, mkFunTy xv tA tB)
+  pure (mkLam x tA e, mkFunTy x tA tB)
 
 inferExpr_ e = notImplemented $ "inferExpr_: TODO, inference for expression: " <> pprintShow e
 
@@ -599,6 +624,12 @@ getBuiltinType e = typeForBuiltin e
 -------------------
 ----- Helpers -----
 -------------------
+
+
+openAbs :: (Rep a) => Abstraction -> CM (Name a, Expr, Expr)
+openAbs ab = do
+  (absArg, absExpr) <- unbind ab
+  pure (translate $ argName absArg, argTy absArg, absExpr)
 
 
 universeOrNotAType :: Type -> CM Type
@@ -790,11 +821,19 @@ applyPartialToTerm :: TermThatCanBeApplied -> Term -> Type -> CM Term
 applyPartialToTerm = applyPartial
 
 
-mkVar' :: AName -> Type -> Term
+mkVar' :: FVName -> Type -> Term
 mkVar' n ty =
   case un ty of
-    Pi{} -> PartialApp (partiallyApplied (VarPartial (aname2Name n)) [])
-    _    -> mkVar $ aname2Name n
+    Pi{} -> PartialApp (partiallyApplied (VarPartial (translate n)) [])
+    _    -> mkVar $ translate n
+
+
+-- TODO: make sure this gives back a type def when appropriate (2020-03-21)
+mkUnboundDef :: AName -> Type -> Term
+mkUnboundDef n ty =
+  case un ty of
+    Pi{} -> PartialApp (partiallyApplied (DefPartial n) [])
+    _    -> mkTermDef n []
 
 
 class InScope a where
@@ -802,7 +841,7 @@ class InScope a where
 
 
 instance InScope Appable where
-  typeOfThing (I.Var v) = lookupFVType v
+  typeOfThing (I.Var v) = typeOfThing v
   typeOfThing (ConData d) = typeOfThing d
   typeOfThing (AppDef d) = typeOfThing d
 
@@ -813,6 +852,10 @@ instance InScope DCon where
 
 instance InScope AName where
   typeOfThing = lookupType
+
+
+instance InScope (Name a) where
+  typeOfThing = lookupFVType
 
 
 --------------------

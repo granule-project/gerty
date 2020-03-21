@@ -11,6 +11,8 @@ module Language.Dlam.Util.Pretty
 import Data.Int
 import Text.PrettyPrint
 
+import Unbound.LocallyNameless (Name, name2String)
+
 
 pprintParened :: Pretty t => t -> Doc
 pprintParened t = (if isLexicallyAtomic t then id else parens) $ pprint t
@@ -37,3 +39,8 @@ instance Pretty Int32 where
 
 instance Pretty String where
   pprint = text
+
+
+instance Pretty (Name a) where
+  isLexicallyAtomic _ = True
+  pprint = text . name2String

@@ -46,7 +46,9 @@ module Language.Dlam.TypeChecking.Monad.Base
 
   -- ** Free Variables
   , lookupFVType
+  , lookupFVSubjectRemaining
   , withVarBound
+  , withVarTypeBound
 
   -- * Exceptions and error handling
   , TCErr
@@ -391,6 +393,12 @@ withVarBound n g ty =
   local (tceAddBinding (snam, idx) (g, ty))
 
 
+-- | Execute the action with the given free variable bound with the
+-- | given type (ignoring grading).
+withVarTypeBound :: I.Name n -> I.Type -> CM a -> CM a
+withVarTypeBound n ty = withVarBound n I.thatMagicalGrading ty
+
+
 lookupFVInfo :: I.Name a -> CM FreeVarInfo
 lookupFVInfo n =
   maybe (error $ "lookupFVType tried to look up the type of variable '" <> pprintShow n <> "' but it wasn't in scope. Scope checking or type-checking is broken.") pure . M.lookup (nameToFreeVar n) =<< getContext
@@ -399,6 +407,10 @@ lookupFVInfo n =
 
 lookupFVType :: I.Name a -> CM I.Type
 lookupFVType = fmap snd . lookupFVInfo
+
+
+lookupFVSubjectRemaining :: I.Name a -> CM I.Grade
+lookupFVSubjectRemaining = fmap (I.subjectGrade . fst) . lookupFVInfo
 
 
 -----------------------------------------
@@ -446,7 +458,7 @@ data TCError
   -- Grading Errors --
   --------------------
 
-  | UsedTooManyTimes AName
+  | UsedTooManyTimes (I.Name ())
 
   ------------------
   -- Parse Errors --
@@ -516,8 +528,8 @@ patternMismatch :: Pattern -> Expr -> CM a
 patternMismatch p t = throwCM (PatternMismatch p t)
 
 
-usedTooManyTimes :: AName -> CM a
-usedTooManyTimes = throwCM . UsedTooManyTimes
+usedTooManyTimes :: I.Name b -> CM a
+usedTooManyTimes = throwCM . UsedTooManyTimes . I.translate
 
 
 parseError :: ParseError -> CM a

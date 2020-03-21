@@ -5,7 +5,10 @@ module Language.Dlam.Scoping.Scope
   , lookupInScope
   , addNameToScope
   , ResolvedName(..)
+  , ResolvedBoundName(..)
   , nameOf
+  , resolvedDef
+  , resolvedSig
   ) where
 
 
@@ -44,18 +47,29 @@ data InScopeType
 -- | A name that has been resolved in scope.
 data ResolvedName
   -- | A local variable.
-  = ResolvedVar A.AName
+  = ResolvedVar A.FVName
+  | ResolvedBound ResolvedBoundName
+
+
+data ResolvedBoundName
   -- | A definition name.
-  | ResolvedDef A.AName
+  = ResolvedDef A.AName
   -- | A resolved constructor.
   | ResolvedCon A.AName
   -- | An associated type signature.
   | ResolvedSig A.AName
 
 
+resolvedDef :: A.AName -> ResolvedName
+resolvedDef = ResolvedBound . ResolvedDef
+
+
+resolvedSig :: A.AName -> ResolvedName
+resolvedSig = ResolvedBound . ResolvedSig
+
+
 -- | The associated name.
-nameOf :: ResolvedName -> A.AName
-nameOf (ResolvedVar n) = n
+nameOf :: ResolvedBoundName -> A.AName
 nameOf (ResolvedDef n) = n
 nameOf (ResolvedCon n) = n
 nameOf (ResolvedSig n) = n

@@ -23,12 +23,12 @@ class ToAbstract c a where
   toAbstract :: c -> SM a
 
 
-type Locals = [(C.CName, A.AName)]
+type Locals = [(C.CName, A.FVName)]
 
 
 -- | Generate a new, ignored name.
-newIgnoredName :: SM A.AName
-newIgnoredName = toAbstract C.ignoreVar
+newIgnoredName :: SM A.FVName
+newIgnoredName = A.fresh (A.s2n "_")
 
 
 instance ToAbstract C.AST A.AST where
@@ -54,6 +54,10 @@ instance ToAbstract C.FLHS A.FLHS where
 
 instance ToAbstract C.FRHS A.FRHS where
   toAbstract (C.FRHSAssign e) = A.FRHSAssign <$> toAbstract e
+
+
+instance ToAbstract C.CName A.FVName where
+  toAbstract = A.fresh . C.cnameToName
 
 
 instance ToAbstract C.CName A.AName where
@@ -104,7 +108,7 @@ instance ToAbstract MaybeOldName A.AName where
 
       -- we found something else we don't clash with, so we override!
       -- (this lets you switch a signature to a definition, for example)
-      Just r -> do
+      Just (ResolvedBound r) -> do
         let n' = nameOf r
         bindNameCurrentScope (monHowBind mon) n n'
         pure n'
@@ -120,7 +124,9 @@ instance ToAbstract OldQName A.Expr where
     rn <- resolveNameCurrentScope n
     -- TODO: support disambiguating definitions here (so we
     -- return a Def) (2020-03-06)
-    pure $ A.Var (nameOf rn)
+    pure $ case rn of
+             ResolvedVar n -> A.Var n
+             ResolvedBound rn -> A.Def (nameOf rn)
 
 
 instance ToAbstract C.PiBindings ([A.TypedBinding], Locals) where
@@ -135,7 +141,7 @@ instance ToAbstract C.PiBindings ([A.TypedBinding], Locals) where
     g' <- maybe (pure A.implicitGrading) toAbstract g
     let nsLocs = zip ns ns'
     (piBinds, locals) <- withLocals nsLocs $ toAbstract (C.PiBindings bs)
-    pure (fmap (A.mkTypedBinding i g' s' . A.bindName) ns' <> piBinds, nsLocs <> locals)
+    pure (fmap (A.mkTypedBinding i g' s') ns' <> piBinds, nsLocs <> locals)
 
 
 instance ToAbstract C.LambdaArgs ([A.LambdaArg], Locals) where
@@ -150,7 +156,7 @@ instance ToAbstract C.LambdaArgs ([A.LambdaArg], Locals) where
     g' <- maybe (pure A.implicitGrading) toAbstract g
     let nsLocs = zip ns ns'
     (args, locals) <- withLocals nsLocs $ toAbstract bs
-    pure (fmap (A.mkLambdaArg i g' s' . A.bindName) ns' <> args, nsLocs <> locals)
+    pure (fmap (A.mkLambdaArg i g' s') ns' <> args, nsLocs <> locals)
 
 
 instance ToAbstract C.Grading A.Grading where
@@ -168,11 +174,11 @@ instance ToAbstract C.Expr A.Expr where
   toAbstract (C.Pi piBinds expr) = do
     (piBinds' :: [A.TypedBinding], mySpace) <- toAbstract piBinds
     expr' <- withLocals mySpace $ toAbstract expr
-    pure $ foldr (\b f -> A.FunTy (A.mkAbs' (isHidden b) (A.unBoundName . un. un . un . A.unTB $ b) (A.grading b) (typeOf b) f)) expr' piBinds'
+    pure $ foldr (\b f -> A.FunTy (A.mkAbs' (isHidden b) (un. un . un . A.unTB $ b) (A.grading b) (typeOf b) f)) expr' piBinds'
   toAbstract (C.Lam args expr) = do
     (args' :: [A.LambdaArg], mySpace) <- toAbstract args
     expr' <- withLocals mySpace $ toAbstract expr
-    pure $ foldr (\b f -> A.Lam (A.mkAbs' (isHidden b) (A.unBoundName . un. un . un . A.unTB $ b) (A.grading b) (typeOf b) f)) expr' args'
+    pure $ foldr (\b f -> A.Lam (A.mkAbs' (isHidden b) (un. un . un . A.unTB $ b) (A.grading b) (typeOf b) f)) expr' args'
   toAbstract (C.ProductTy ab) = A.ProductTy <$> toAbstract ab
   toAbstract (C.Pair l r) = A.Pair <$> toAbstract l <*> toAbstract r
   toAbstract (C.Coproduct t1 t2) = A.Coproduct <$> toAbstract t1 <*> toAbstract t2
@@ -242,7 +248,7 @@ instance ToAbstract C.Pattern (A.Pattern, Locals) where
           Nothing -> throwError $ nonConstructorInPattern n
           Just n' -> do
             n'' <- toAbstract n'
-            pure (A.PVar (A.BindName n''), [(n', n'')])
+            pure (A.PVar n'', [(n', n'')])
   toAbstract (C.PPair p1 p2) = do
     (p1', p1vs) <- toAbstract p1
     (p2', p2vs) <- toAbstract p2
@@ -250,7 +256,7 @@ instance ToAbstract C.Pattern (A.Pattern, Locals) where
   toAbstract (C.PAt n p) = do
     n' <- toAbstract n
     (p', pvs) <- toAbstract p
-    pure $ (A.PAt (A.BindName n') p', (n, n') : pvs)
+    pure $ (A.PAt n' p', (n, n') : pvs)
   toAbstract C.PUnit = pure (A.PUnit, [])
   toAbstract p@(C.PApp c args) = do
     c' <- maybeResolveMeAConstructor c
@@ -267,7 +273,7 @@ maybeResolveMeAConstructor :: C.QName -> SM (Maybe A.AName)
 maybeResolveMeAConstructor n = do
   res <- maybeResolveNameCurrentScope n
   case res of
-    Just (ResolvedCon cname) -> pure (Just cname)
+    Just (ResolvedBound (ResolvedCon cname)) -> pure (Just cname)
     _ -> pure Nothing
 
 

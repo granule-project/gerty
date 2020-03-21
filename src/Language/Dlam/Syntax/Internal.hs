@@ -83,11 +83,15 @@ module Language.Dlam.Syntax.Internal
   , mkLevelVar
   , mkPi
   , mkPi'
+  , mkTermDef
   , mkTLevel
   , mkTyAxiom
+  , mkTyDef
   , mkTyVar
   , mkTypeVar
   , mkVar
+  , nameForTerm
+  , nameForType
   , termVarToTyVar
   , tyVarToTermVar
 
@@ -391,10 +395,6 @@ instance Pretty TermThatCanBeApplied where
   pprint (IsPartialApp p) = pprint p
 
 
-instance Pretty (Name a) where
-  pprint = pprint . name2String
-
-
 instance Pretty Appable where
   isLexicallyAtomic (Var d) = isLexicallyAtomic d
   isLexicallyAtomic (ConData d) = isLexicallyAtomic d
@@ -634,6 +634,14 @@ mkTyVar :: TyVarId -> Level -> Type
 mkTyVar n l = mkType (TyApp (fullyApplied (AppTyVar n) [])) l
 
 
+mkTyDef :: DefId -> Level -> [Term] -> Type
+mkTyDef n l args = mkType (TyApp (fullyApplied (AppTyDef n) args)) l
+
+
+mkTermDef :: DefId -> [Term] -> Term
+mkTermDef n args = App (fullyApplied (AppDef n) args)
+
+
 mkPi' :: Arg -> Type -> TypeTerm
 mkPi' arg = Pi . bind arg
 
@@ -691,11 +699,19 @@ mkArgNoBind = mkArg' (nameFromString "_")
 
 
 tyVarToTermVar :: TyVarId -> VarId
-tyVarToTermVar = translate
+tyVarToTermVar = nameForTerm
 
 
 termVarToTyVar :: VarId -> TyVarId
-termVarToTyVar = translate
+termVarToTyVar = nameForType
+
+
+nameForTerm :: Name a -> VarId
+nameForTerm = translate
+
+
+nameForType :: Name a -> TyVarId
+nameForType = translate
 
 
 nameFromString :: (Rep a) => String -> Name a
@@ -723,7 +739,26 @@ instance HasName DCon where
 -----------------------
 
 
-$(derive [''Arg, ''Term, ''TermThatCannotBeApplied, ''TypeTerm, ''TypeTermOfTermsThatCanBeApplied, ''Level, ''LevelAtom, ''TyAppable, ''TyCon, ''AName, ''NameId, ''CName, ''Appable, ''DCon, ''TermThatCanBeApplied, ''PartiallyAppable, ''PartiallyApplied, ''Type', ''FullyApplied, ''Grade, ''Leveled])
+$(derive
+  [ ''Appable
+  , ''Arg
+  , ''DCon
+  , ''FullyApplied
+  , ''Grade
+  , ''Level
+  , ''LevelAtom
+  , ''Leveled
+  , ''PartiallyAppable
+  , ''PartiallyApplied
+  , ''Term
+  , ''TermThatCanBeApplied
+  , ''TermThatCannotBeApplied
+  , ''TyAppable
+  , ''TyCon
+  , ''Type'
+  , ''TypeTerm
+  , ''TypeTermOfTermsThatCanBeApplied
+  ])
 
 
 instance Alpha Arg
@@ -744,9 +779,6 @@ instance Alpha TyAppable
 instance Alpha LevelAtom
 instance Alpha DCon
 instance Alpha TyCon
-instance Alpha AName
-instance Alpha NameId
-instance Alpha CName
 
 
 instance (Subst Term a) => Subst Term (Leveled a) where

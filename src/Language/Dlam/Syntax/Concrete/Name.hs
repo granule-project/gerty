@@ -1,12 +1,19 @@
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE UndecidableInstances #-}
 module Language.Dlam.Syntax.Concrete.Name
   ( CName(..)
   , QName(..)
   , mkIdent
   , ignoreVar
+  , cnameToName
   ) where
 
 
 import Prelude hiding ((<>))
+
+import Unbound.LocallyNameless
 
 import Language.Dlam.Syntax.Common (NameId(..))
 import Language.Dlam.Util.Pretty
@@ -47,3 +54,18 @@ instance Pretty QName where
 
   pprint (Qualified n qs) = pprint n <> char '.' <> pprint qs
   pprint (Unqualified n)  = pprint n
+
+
+-----------------------
+----- For Unbound -----
+-----------------------
+
+
+cnameToName :: (Rep a) => CName -> Name a
+cnameToName = s2n . pprintShow
+
+
+$(derive [''CName])
+
+
+instance Alpha CName
