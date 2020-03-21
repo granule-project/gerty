@@ -1,8 +1,9 @@
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE TypeOperators #-}
 module Language.Dlam.Util.Peekaboo
   (
   -- * CouldBe
@@ -24,6 +25,8 @@ module Language.Dlam.Util.Peekaboo
   , annotatedWith
   ) where
 
+
+import Unbound.LocallyNameless
 
 import Language.Dlam.Util.Pretty (Pretty(..))
 
@@ -142,3 +145,59 @@ class Annotation t ann where
 -- | Annotate a value.
 annotatedWith :: (Annotation t a) => e -> a -> t e
 annotatedWith = flip annot
+
+
+-----------------------
+----- For Unbound -----
+-----------------------
+
+
+rMightBe :: forall a e. (Rep (a e), Rep e) => R (MightBe a e)
+rMightBe =
+  Data (DT "MightBe" ((rep :: R (a e)) :+: (rep :: R e) :+: MNil))
+    [ Con rItIsEmb    ((rep :: R (a e)) :+: MNil)
+    , Con rItIsNotEmb ((rep :: R e)     :+: MNil)]
+
+
+rMightBe1 :: forall a e ctx. (Rep (a e), Rep e) => ctx (a e) -> ctx e -> R1 ctx (MightBe a e)
+rMightBe1 ctxae ctxe =
+  Data1 (DT "MightBe" ((rep :: R (a e)) :+: (rep :: R e) :+: MNil))
+    [ Con rItIsEmb    (ctxae :+: MNil)
+    , Con rItIsNotEmb (ctxe  :+: MNil) ]
+
+
+rItIsEmb :: Emb (a e :*: Nil) (MightBe a e)
+rItIsEmb =
+   Emb {
+            to   = (\ (v :*: Nil) -> (ItIs v)),
+            from  = \x -> case x of
+                    ItIs v    -> Just (v :*: Nil)
+                    ItIsNot{} -> Nothing,
+            labels = Nothing,
+            name = "ItIs",
+            fixity = Nonfix
+          }
+
+
+rItIsNotEmb :: Emb (e :*: Nil) (MightBe a e)
+rItIsNotEmb =
+   Emb {
+            to   = (\ (v :*: Nil) -> (ItIsNot v)),
+            from  = \x -> case x of
+                    ItIsNot v -> Just (v :*: Nil)
+                    ItIs{}    -> Nothing,
+            labels = Nothing,
+            name = "ItIsNot",
+            fixity = Nonfix
+          }
+
+
+instance (Rep (a e), Rep e) => Rep (MightBe a e) where
+  rep = rMightBe
+
+
+instance (Rep (a e), Rep e, Sat (ctx (a e)), Sat (ctx e)) => Rep1 ctx (MightBe a e) where
+  rep1 = rMightBe1 dict dict
+
+
+instance (Alpha (a e), Alpha e) => Alpha (MightBe a e)
