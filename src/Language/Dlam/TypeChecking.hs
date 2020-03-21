@@ -14,7 +14,7 @@ import Language.Dlam.Syntax.Abstract hiding (nameFromString)
 import Language.Dlam.Syntax.Internal hiding (Var, App, Lam)
 import qualified Language.Dlam.Syntax.Internal as I
 import Language.Dlam.TypeChecking.Monad
-import Language.Dlam.Util.Pretty (Pretty, pprintShow, pprintParened)
+import Language.Dlam.Util.Pretty (Pretty, pprintShow)
 import Language.Dlam.Util.Peekaboo
 
 
@@ -650,34 +650,21 @@ instance Normalise CM TermThatCanBeApplied where
   normalise (IsPartialApp p) = IsPartialApp . partiallyApplied (un p) <$> normalise (appliedArgs p)
   normalise (IsLam lam) = do
     (arg, body) <- unbind lam
-    let x = argVar arg
     g <- normalise (I.grading arg)
     argTy <- normalise (typeOf arg)
-    let arg' = mkArg x g argTy
-    body' <- withArgBound arg' $ normalise body
+    let arg' = mkArg (argVar arg) g argTy
+    body' <- normalise body
     pure $ IsLam (bind arg' body')
 
 
 instance Normalise CM TermThatCannotBeApplied where
   normalise (IsTypeTerm t) = IsTypeTerm <$> normalise t
   normalise (IsLevel l) = IsLevel <$> normalise l
-  normalise ap@(IsApp app) = do
+  normalise (IsApp app) = do
     let n = un app
         xs = appliedArgs app
-    mty <- typeOfThing n
     xs <- normalise xs
-    resTy <- substArgs mty xs
-    case un resTy of
-      -- typing should guarantee 'xs' is empty here
-      Universe l -> do
-        l' <- normalise l
-        case n of
-          I.Var n -> pure . IsTypeTerm $ mkType (TyApp (fullyApplied (AppTyVar (termVarToTyVar n)) xs)) l'
-          I.ConData{} -> notImplemented $ "I don't yet know how to normalise the data constructor application '" <> pprintShow ap <> "'"
-          I.AppDef{} -> notImplemented $ "I don't yet know how to normalise the axiomatic application '" <> pprintShow ap <> "'"
-      -- we are already fully-applied (with a constant constructor or a free variable),
-      -- so all we can do is reduce the arguments
-      _ -> pure . IsApp $ fullyApplied (un app) xs
+    pure $ IsApp (fullyApplied n xs)
 
 
 instance Normalise CM Term where
@@ -707,11 +694,10 @@ instance Normalise CM Level where
 instance Normalise CM TypeTermOfTermsThatCanBeApplied where
   normalise (IsPi pi) = do
     (arg, t) <- unbind pi
-    let x = argVar arg
     g <- normalise (I.grading arg)
     argTy <- normalise (typeOf arg)
-    let arg' = mkArg x g argTy
-    t' <- withArgBoundForType arg' $ normalise t
+    let arg' = mkArg (argVar arg) g argTy
+    t' <- normalise t
     pure $ IsPi (bind arg' t')
 
 
@@ -743,22 +729,6 @@ substitute (n, s) t =
     ("substituting '" <> pprintShow s <> "' for '" <> pprintShow n <> "' in '" <> pprintShow t <> "'")
     (\res -> "substituted to get '" <> pprintShow res <> "'")
     (pure $ subst n s t)
-
-
-substArgs :: Type -> [Term] -> CM Type
-substArgs t xs =
-  case (un t, xs) of
-    (Universe{}, []) -> pure t
-    (Pi pi, []) -> fmap (\(arg, resTy) -> mkType (mkPi' arg resTy) (level t)) (unbind pi)
-    (Pi pi, x:xs) -> do
-      (arg, resTy) <- unbind pi
-      let v = argVar arg
-      resTy' <- substituteAndNormalise (v, x) resTy
-      substArgs resTy' xs
-    -- types are fully applied, so the (additional) arguments must be empty
-    (TyApp app, []) ->
-      pure $ mkType (TyApp (fullyApplied (un app) (appliedArgs app))) (level t)
-    _ -> error $ "substArgs: bad call: '" <> pprintShow t <> "' with arguments '" <> show (fmap pprintParened xs) <> "'"
 
 
 ------------------------
