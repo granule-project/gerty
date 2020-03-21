@@ -1,0 +1,7 @@
+-- testing typing universes
+
+test1 : (l1 : Level) -> Type (lsuc l1)
+test1 = Type
+
+test2 : (l : Level) -> Type (lsuc l)
+test2 = Type
