@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 module Language.Dlam.TypeChecking
@@ -13,7 +14,7 @@ import Language.Dlam.Syntax.Abstract hiding (nameFromString)
 import Language.Dlam.Syntax.Internal hiding (Var, App, Lam)
 import qualified Language.Dlam.Syntax.Internal as I
 import Language.Dlam.TypeChecking.Monad
-import Language.Dlam.Util.Pretty (pprintShow, pprintParened)
+import Language.Dlam.Util.Pretty (Pretty, pprintShow, pprintParened)
 import Language.Dlam.Util.Peekaboo
 
 
@@ -732,12 +733,16 @@ instance Normalise CM Type where
   normalise t = mkType <$> normalise (un t) <*> normalise (level t)
 
 
-substituteAndNormalise :: (Normalise m t, Subst b t) => (Name b, b) -> t -> m t
-substituteAndNormalise (n, s) t = normalise (subst n s t)
+substituteAndNormalise :: (Normalise CM t, Subst b t, Pretty b, Pretty t) => (Name b, b) -> t -> CM t
+substituteAndNormalise (n, s) t = normalise =<< substitute (n, s) t
 
 
-substitute :: (Monad m, Subst b t) => (Name b, b) -> t -> m t
-substitute (n, s) t = pure $ subst n s t
+substitute :: (Subst b t, Pretty b, Pretty t) => (Name b, b) -> t -> CM t
+substitute (n, s) t =
+  debugBlock "substitute"
+    ("substituting '" <> pprintShow s <> "' for '" <> pprintShow n <> "' in '" <> pprintShow t <> "'")
+    (\res -> "substituted to get '" <> pprintShow res <> "'")
+    (pure $ subst n s t)
 
 
 substArgs :: Type -> [Term] -> CM Type
