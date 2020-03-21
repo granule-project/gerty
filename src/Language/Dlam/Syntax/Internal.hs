@@ -114,6 +114,7 @@ import Prelude hiding ((<>))
 
 import Language.Dlam.Syntax.Abstract (AName(..))
 import qualified Language.Dlam.Syntax.Common.Language as Com
+import Language.Dlam.Syntax.Common.Language (typedWith, gradedWith)
 import Language.Dlam.Syntax.Common.Language (Graded, IsTyped)
 import Language.Dlam.Syntax.Concrete.Name (CName(..))
 import Language.Dlam.Syntax.Common (NameId(..))
@@ -128,8 +129,6 @@ import Unbound.LocallyNameless.Ops (unsafeUnbind) -- for pretty-printing
 ------------------------------
 
 
-typedWith :: a -> Type -> IsTyped Type a
-typedWith a = Com.typedWith a
 typeOf :: (Com.HasType a Type) => a -> Type
 typeOf = Com.typeOf
 
@@ -142,17 +141,17 @@ type VarId = Name Term
 -----------------
 
 
-newtype Arg = Arg { unArg :: Graded Grade (IsTyped Type (Name Term)) }
+newtype Arg = Arg { unArg :: Graded (Embed Grade) (IsTyped (Embed Type) (Name Term)) }
 
 
 instance Com.IsGraded Arg Grade where
-  grading = grading . unArg
+  grading = Com.mapGrading (\(Embed e) -> e) . Com.grading . unArg
 instance Com.HasType Arg Type where
-  typeOf = typeOf . unArg
+  typeOf = (\(Embed e) -> e) . Com.typeOf . unArg
 
 
 mkArg :: Name Term -> Grading -> Type -> Arg
-mkArg n g t = Arg $ n `typedWith` t `gradedWith` g
+mkArg n g t = Arg $ n `typedWith` (Embed t) `gradedWith` (Com.mapGrading Embed g)
 
 
 argVar :: Arg -> Name Term
@@ -591,8 +590,6 @@ grading = Com.grading
 subjectGrade, subjectTypeGrade :: (Com.IsGraded a Grade) => a -> Grade
 subjectGrade = Com.subjectGrade
 subjectTypeGrade = Com.subjectTypeGrade
-gradedWith :: a -> Grading -> Graded Grade a
-gradedWith a = Com.gradedWith a
 
 
 -- | Make a grade from a natural number.

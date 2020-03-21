@@ -19,6 +19,7 @@ module Language.Dlam.Syntax.Common.Language
   , subjectTypeGrade
   , gradedWith
   , mkGrading
+  , mapGrading
 
   -- * Binding
   , Binds(..)
@@ -97,6 +98,11 @@ data Grading g =
 
 mkGrading :: g -> g -> Grading g
 mkGrading sg tg = Grading { gradingSubjectGrade = sg, gradingTypeGrade = tg }
+
+
+mapGrading :: (g1 -> g2) -> Grading g1 -> Grading g2
+mapGrading f g =
+  let g1 = subjectGrade g; g2 = subjectTypeGrade g in mkGrading (f g1) (f g2)
 
 
 class IsGraded a g where
