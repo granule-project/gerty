@@ -1,0 +1,11 @@
+-----------------------------------
+----- Natural number examples -----
+-----------------------------------
+
+
+plus : Nat -> Nat -> Nat
+plus = \m n -> case x@m of (Zero -> n; Succ w@y -> succ y) : Nat
+
+
+mult : Nat -> Nat -> Nat
+mult = \m n -> case x@m of (Zero -> zero; Succ w@y -> plus n y) : Nat
