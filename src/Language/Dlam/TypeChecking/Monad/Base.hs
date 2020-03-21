@@ -58,6 +58,7 @@ module Language.Dlam.TypeChecking.Monad.Base
 
   -- ** Implementation errors
   , notImplemented
+  , hitABug
 
   -- ** Scope errors
   , scoperError
@@ -401,7 +402,7 @@ withVarTypeBound n ty = withVarBound n I.thatMagicalGrading ty
 
 lookupFVInfo :: I.Name a -> CM FreeVarInfo
 lookupFVInfo n =
-  maybe (error $ "lookupFVType tried to look up the type of variable '" <> pprintShow n <> "' but it wasn't in scope. Scope checking or type-checking is broken.") pure . M.lookup (nameToFreeVar n) =<< getContext
+  maybe (hitABug $ "tried to look up the type of free variable '" <> pprintShow n <> "' but it wasn't in scope. Scope checking or type-checking is broken.") pure . M.lookup (nameToFreeVar n) =<< getContext
   where nameToFreeVar n = (I.name2String n, I.name2Integer n)
 
 
@@ -424,6 +425,7 @@ data TCError
   ---------------------------
 
   = NotImplemented String
+  | ImplementationBug String
 
   ------------------
   -- Scope Errors --
@@ -471,6 +473,7 @@ data TCError
 
 instance Show TCError where
   show (NotImplemented e) = e
+  show (ImplementationBug e) = "[BUG]: " <> e
   show CannotSynthTypeForExpr = "I couldn't synthesise a type for the expression."
   show (CannotSynthExprForType t) =
     "I was asked to try and synthesise a term of type '" <> pprintShow t <> "' but I wasn't able to do so."
@@ -493,6 +496,10 @@ instance Exception TCError
 
 notImplemented :: String -> CM a
 notImplemented descr = throwCM (NotImplemented descr)
+
+
+hitABug :: String -> CM a
+hitABug descr = throwCM (ImplementationBug descr)
 
 
 -- | Indicate that an issue occurred when performing a scope analysis.
