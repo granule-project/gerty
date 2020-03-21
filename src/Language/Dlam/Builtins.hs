@@ -54,6 +54,8 @@ builtins =
   builtinTypeConstructors
   <>
   builtinEliminators
+  <>
+  builtinSpecialDefinitions
   where
     builtinDataConstructors = fmap BinDCon
       [ dcInl
@@ -72,13 +74,14 @@ builtins =
       , tcId
       , tcLevel
       , tcNat
-      , tcType
       , tcUnit
       ]
     builtinEliminators = fmap BinDef
       [ elimEmpty
       , elimNat
       ]
+    builtinSpecialDefinitions = fmap BinDef
+      [ defType ]
 
 
 builtinsTypes :: M.Map AName Type
@@ -113,14 +116,18 @@ data Builtin
 type BuiltinDCon = (Maybe Term, DCon)
 
 
-type BuiltinDef = (AName, [Arg], Type)
+type BuiltinDef = (AName, [Arg], Maybe Term, Type)
 
 
 type BuiltinName = String
 
 
 mkBuiltinDef :: BuiltinName -> [Arg] -> Type -> BuiltinDef
-mkBuiltinDef bn args ty = let n = mkIdent bn in (n, args, ty)
+mkBuiltinDef bn args ty = let n = mkIdent bn in (n, args, Nothing, ty)
+
+
+mkBuiltinDefWithBody :: BuiltinName -> [Arg] -> Term -> Type -> BuiltinDef
+mkBuiltinDefWithBody bn args body ty = let n = mkIdent bn in (n, args, Just body, ty)
 
 
 mkBuiltinDCon :: BuiltinName -> [Arg] -> FullyApplied TyCon -> Term -> BuiltinDCon
@@ -144,7 +151,7 @@ mkBuiltinType n = mkBuiltinTyCon n [] levelZero
 builtinName :: Builtin -> AName
 builtinName (BinTyCon tcon) = getName tcon
 builtinName (BinDCon  dcon) = getName $ snd dcon
-builtinName (BinDef (n,_,_)) = n
+builtinName (BinDef (n,_,_,_)) = n
 
 
 -- | Body for a builtin term (potentially a postulate).
@@ -170,8 +177,14 @@ builtinBody (BinDCon (Just inner, dcon)) =
         mkLamFromArgsAndBody [] body = body
         mkLamFromArgsAndBody (arg:args) body = mkLam' arg (mkLamFromArgsAndBody args body)
 
+-- If the 'postulate' has an associated builtin reduction, we provide it.
+builtinBody (BinDef (_, args, Just inner, _)) =
+  mkLamFromArgsAndBody args inner
+  where mkLamFromArgsAndBody :: [Arg] -> Term -> Term
+        mkLamFromArgsAndBody [] body = body
+        mkLamFromArgsAndBody (arg:args) body = mkLam' arg (mkLamFromArgsAndBody args body)
 -- Constant postulate, so we don't do any fancy reduction.
-builtinBody (BinDef (n, args, _)) =
+builtinBody (BinDef (n, args, Nothing, _)) =
   if length args > 0
   then PartialApp (partiallyApplied (DefPartial n) [])
   else App (fullyApplied (AppDef n) [])
@@ -181,7 +194,7 @@ builtinBody (BinDef (n, args, _)) =
 builtinType :: Builtin -> Type
 builtinType (BinTyCon tcon) = mkTyConTy tcon
 builtinType (BinDCon (_, dcon)) = mkDConTy dcon
-builtinType (BinDef (_, args, ty)) = mkDefTy args ty
+builtinType (BinDef (_, args, _, ty)) = mkDefTy args ty
 
 
 mkTyConTy :: TyCon -> Type
@@ -220,7 +233,7 @@ mkCoproductTy t1 t2 = mkType (TyApp (fmap AppTyCon (mkCoproductTyForApp t1 t2)))
 -----------------------------
 
 
-tcCoproduct, tcEmpty, tcId, tcLevel, tcNat, tcType, tcUnit :: TyCon
+tcCoproduct, tcEmpty, tcId, tcLevel, tcNat, tcUnit :: TyCon
 
 
 tcEmpty = mkBuiltinType "Empty"
@@ -249,14 +262,6 @@ tcId =
        [ mkArg' l levelTy, mkTyArg a (mkUnivTy lv)
        , mkArgNoBind av, mkArgNoBind av]
        lv
-
-
--- Type (l : Level) : Type (lsuc l)
-tcType =
-  let l = nameFromString "l"; lv = mkLevelVar l
-  in mkBuiltinTyCon "Type"
-     [ mkArg' l levelTy ]
-     (nextLevel lv)
 
 
 tcLevel', tcNat', tcUnit' :: FullyApplied TyCon
@@ -454,3 +459,23 @@ elimCoproduct =
 
 elimCoproductForApp :: Appable
 elimCoproductForApp = AppDef (builtinName $ (BinDef elimCoproduct))
+
+
+-------------------------------
+----- Special Definitions -----
+-------------------------------
+
+
+defType :: BuiltinDef
+
+
+{-
+  Type (l : Level) : Type (lsuc l)
+  Type l = Type l
+-}
+defType =
+  let l = nameFromString "l"; lv = mkLevelVar l
+  in mkBuiltinDefWithBody "Type"
+     [ mkArg' l levelTy ]
+     (TypeTerm $ mkUnivTy lv)
+     (mkUnivTy (nextLevel lv))
