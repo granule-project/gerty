@@ -770,7 +770,11 @@ applyPartial (IsPartialApp pa) arg resTy = pure $
 
 
 applyPartialToTerm :: TermThatCanBeApplied -> Term -> Type -> CM Term
-applyPartialToTerm = applyPartial
+applyPartialToTerm f e ty =
+  debugBlock "applyPartialToTerm"
+    ("applying fun '" <> pprintShow f <> "' to argument '" <> pprintShow e <> "' with expected result type '" <> pprintShow ty <> "'")
+    (\res -> "result of the application was '" <> pprintShow res <> "'")
+    (applyPartial f e ty)
 
 
 mkVar' :: FVName -> Type -> Term
