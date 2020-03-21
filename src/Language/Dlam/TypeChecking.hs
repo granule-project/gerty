@@ -338,7 +338,7 @@ checkExpr_ (App e1 e2) t = do
   -- G |- t1 t2 : [t2/x]B
   t2forXinB <- substituteAndNormalise (x, e2Term) tB
   ensureEqualTypes t t2forXinB
-  applyPartialToTerm e1Term e2Term tB
+  applyPartialToTerm e1Term e2Term t2forXinB
 
 ----------------
 -- Coproducts --
@@ -565,7 +565,7 @@ inferExpr_ (App e1 e2) = do
   -- G |- t1 t2 : [t2/x]B
   t2forXinB <- substituteAndNormalise (x, e2Term) tB
 
-  term <- applyPartialToTerm e1Term e2Term tB
+  term <- applyPartialToTerm e1Term e2Term t2forXinB
   pure (term, t2forXinB)
 
 {-
