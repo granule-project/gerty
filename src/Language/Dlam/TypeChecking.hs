@@ -682,6 +682,7 @@ instance Normalise CM Level where
     t' <- normalise t
     case t' of
       (LTerm (Level (Concrete m))) -> pure (Concrete (n + m))
+      (LTerm (Level (Plus m t''))) -> pure (Plus (n + m) t'')
       _ -> pure (Plus n t')
   normalise (Max l1 l2) = do
     l1 <- normalise l1
