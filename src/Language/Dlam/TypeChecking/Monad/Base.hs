@@ -36,10 +36,7 @@ module Language.Dlam.TypeChecking.Monad.Base
   -- ** Grading
   , withGradedVariable
   , lookupSubjectRemaining
-  , decrementGrade
   , setSubjectRemaining
-  , grZero
-  , grOne
 
   -- * Environment
   , withLocalCheckingOf
@@ -288,22 +285,6 @@ lookupRemaining n = M.lookup n . provisionScope <$> get
 
 lookupSubjectRemaining :: AName -> CM (Maybe I.Grade)
 lookupSubjectRemaining n = fmap I.subjectGrade <$> lookupRemaining n
-
-
-decrementGrade :: Grade -> CM (Maybe Grade)
-decrementGrade e = do
-  case e of
-    Succ' n -> pure (Just n)
-    Zero' -> pure Nothing
-    -- TODO: figure out how to handle implicit grades---for now just
-    -- assuming we can do whatever we want with them (2020-03-11)
-    Implicit -> pure (Just Implicit)
-    _ -> notImplemented $ "I don't yet know how to decrement the grade '" <> pprintShow e <> "'"
-
-
-grZero, grOne :: Grade
-grOne = Succ' grZero
-grZero = Zero'
 
 
 modifyRemaining :: AName -> (I.Grading -> I.Grading) -> CM ()
