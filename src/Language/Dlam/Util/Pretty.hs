@@ -13,7 +13,7 @@ import Data.Int
 import Text.PrettyPrint
 import Prelude hiding ((<>))
 
-import Unbound.LocallyNameless (AnyName(..), Name, name2String)
+import Unbound.LocallyNameless (AnyName(..), Name, name2String, name2Integer)
 
 
 pprintParened :: Pretty t => t -> Doc
@@ -54,4 +54,4 @@ instance Pretty AnyName where
 
 instance Pretty (Name a) where
   isLexicallyAtomic _ = True
-  pprint = text . name2String
+  pprint n = text (name2String n) <> let i = name2Integer n in if i == 0 then empty else char '_' <> integer i
