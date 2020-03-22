@@ -199,16 +199,7 @@ checkExpr_ (Var x) t = do
   -- G |- x : A
   -- setSubjectRemaining x k
   ensureEqualTypes t tA
-  let xt = nameForType x
-      xv = nameForTerm x
-  pure $
-    case un tA of
-      -- this is a partial application
-      Pi{} -> I.PartialApp (partiallyApplied (VarPartial xv) [])
-      -- if this is a universe then we construct a type
-      Universe l -> TypeTerm (mkTyVar xt l)
-      -- if it's not a Pi, then it must be fully applied
-      _      -> I.App (fullyApplied (I.Var xv) [])
+  freeVarToTermVar x tA
 checkExpr_ (Def x) t = do
   -- x @ (k+1, n) : A in G
   tA <- typeOfThing x
@@ -290,7 +281,8 @@ checkExpr_ (Lam ab) t = do
 
   -- replace occurrences of the pi-bound variable with the
   -- lambda-bound variable in the result type (specific to the lambda)
-  tB <- withArgBound lamArg $ substituteAndNormalise (argVar tyArg, mkVar x) tB
+  xvar <- freeVarToTermVar (translate x) tA
+  tB <- withArgBound lamArg $ substituteAndNormalise (argVar tyArg, xvar) tB
 
   -- G, x : A |- e : B
   e <- withArgBound lamArg (checkExpr absExpr tB)
@@ -359,12 +351,14 @@ checkExpr_ (CoproductCase (z, tC) (x, c) (y, d) e) t = do
   tC <- withVarTypeBound z copAB $ checkExprIsType tC
 
   -- G, x : A |- c : [inl x/z]C
-  let inlX = mkInlTerm tA tB (mkVar xv)
+  xvar <- freeVarToTermVar x tA
+  let inlX = mkInlTerm tA tB xvar
   inlxforzinC <- substitute (zv, inlX) tC
   c <- withVarTypeBound x tA $ withActivePattern e inlX $ checkExpr c inlxforzinC
 
   -- G, y : B |- d : [inr y/z]C
-  let inrY = mkInrTerm tA tB (mkVar yv)
+  yvar <- freeVarToTermVar y tB
+  let inrY = mkInrTerm tA tB yvar
   inryforzinC <- substitute (zv, inrY) tC
   d <- withVarTypeBound y tB $ withActivePattern e inrY $ checkExpr d inryforzinC
 
@@ -421,9 +415,10 @@ checkExpr_ (NatCase (x, tC) cz (w, y, cs) n) t = do
   cz <- checkExpr cz zeroforxinC
 
   -- G, w : Nat, y : [w/x]C |- cs : [succ w/x]C
-  (succw, _) <- applyPartialToTerm succForApp (mkVar wv) succTy
+  wvar <- freeVarToTermVar w natTy
+  (succw, _) <- applyPartialToTerm succForApp wvar succTy
   succwforxinC <- substitute (xv, succw) tC
-  wforxinC <- substitute (xv, mkVar wv) tC
+  wforxinC <- substitute (xv, wvar) tC
   cs <- withVarTypeBound y wforxinC
        $ withVarTypeBound w natTy
        $ checkExpr cs succwforxinC
@@ -515,7 +510,8 @@ inferExpr e =
 inferExpr_ :: Expr -> CM (Term, Type)
 inferExpr_ (Var x) = do
   ty <- typeOfThing x
-  pure (mkVar' x ty, ty)
+  v <- freeVarToTermVar x ty
+  pure (v, ty)
 inferExpr_ (Def x) = do
   ty <- typeOfThing x
   mval <- maybeLookupValue x
@@ -760,11 +756,17 @@ applyPartialToExpr f e ty = do
   applyPartialToTerm f e ty
 
 
-mkVar' :: FVName -> Type -> Term
-mkVar' n ty =
+-- | Render an Abstract free variable as a Term, using the given type to guide
+-- | the conversion.
+freeVarToTermVar :: FVName -> Type -> CM Term
+freeVarToTermVar n ty =
   case un ty of
-    Pi{} -> PartialApp (partiallyApplied (VarPartial (translate n)) [])
-    _    -> mkVar $ translate n
+    -- this is a partial application
+    Pi{} -> pure $ I.PartialApp (partiallyApplied (VarPartial (translate n)) [])
+    -- if this is a universe then we construct a type
+    Universe l -> pure $ TypeTerm (mkTyVar (translate n) l)
+    -- if it's not a Pi, then it must be fully applied
+    _      -> pure $ mkVar (translate n)
 
 
 -- TODO: make sure this gives back a type def when appropriate (2020-03-21)
