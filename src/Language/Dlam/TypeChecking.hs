@@ -120,10 +120,21 @@ termsAreEqual t1 t2 = notImplemented $ "termsAreEqual: TODO: equality of terms '
 
 
 -- | Are the levels equal in the current context?
+levelTermsAreEqual :: LevelTerm -> LevelTerm -> CM Bool
+levelTermsAreEqual (LApp app1) (LApp app2) =
+  let x = un app1
+      y = un app2
+      xs = appliedArgs app1
+      ys = appliedArgs app2
+  in (&&) <$> pure (length xs == length ys && x == y)
+          <*> (and <$> (mapM (uncurry termsAreEqual) (zip xs ys)))
+
+
+-- | Are the levels equal in the current context?
 levelsAreEqual :: Level -> Level -> CM Bool
 levelsAreEqual (Concrete n) (Concrete m) = pure $ n == m
-levelsAreEqual (Plus n (LTerm t1)) (Plus m (LTerm t2)) =
-  (&&) <$> pure (n == m) <*> termsAreEqual t1 t2
+levelsAreEqual (Plus n t1) (Plus m t2) =
+  (&&) <$> pure (n == m) <*> levelTermsAreEqual t1 t2
 -- TODO: support remaining cases (2020-03-14)
 levelsAreEqual l1 l2 = notImplemented $ "levelsAreEqual: TODO: equality of levels '" <> pprintShow l1 <> "' and '" <> pprintShow l2 <> "'"
 
@@ -635,18 +646,15 @@ instance Normalise CM Term where
   normalise (PartialTerm t) = PartialTerm <$> normalise t
 
 
-instance Normalise CM LevelAtom where
-  normalise (LTerm t) = LTerm <$> normalise t
+instance Normalise CM LevelTerm where
+  normalise (LApp app) = LApp . fullyApplied (un app) <$> mapM normalise (appliedArgs app)
 
 
 instance Normalise CM Level where
   normalise l@Concrete{} = pure l
   normalise (Plus n t) = do
     t' <- normalise t
-    case t' of
-      (LTerm (Level (Concrete m))) -> pure (Concrete (n + m))
-      (LTerm (Level (Plus m t''))) -> pure (Plus (n + m) t'')
-      _ -> pure (Plus n t')
+    pure (Plus n t')
   normalise (Max l1 l2) = do
     l1 <- normalise l1
     l2 <- normalise l2

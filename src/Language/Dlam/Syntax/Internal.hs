@@ -44,10 +44,10 @@ module Language.Dlam.Syntax.Internal
   , Applicable(..)
   -- * Levels
   , Level(..)
-  , LevelAtom(..)
   , nextLevel
   , prevLevel
   , HasLevel(..)
+  , LevelTerm(..)
   -- * Types
   , Type
   , unType
@@ -79,6 +79,7 @@ module Language.Dlam.Syntax.Internal
   , mkFunTy
   , mkFunTy'
   , mkFunTyNoBind
+  , mkFunTyNoBind'
   , mkLam
   , mkLam'
   , mkLevelVar
@@ -480,13 +481,28 @@ type Nat = Integer
 
 data Level
   = Concrete Nat
-  | Plus Nat LevelAtom
+  | Plus Nat LevelTerm
   | Max Level Level
 
 
 -- | Atomic terms that are levels.
-data LevelAtom
-  = LTerm Term
+data LevelTerm
+  = LApp (FullyApplied LAppable)
+
+
+type LVarId = Name Level
+
+
+data LAppable
+  = LVar LVarId
+  | LDef DefId
+
+
+instance Eq LAppable where
+  -- free variables are equality compared on concrete names
+  (LVar v1) == (LVar v2) = name2String v1 == name2String v2
+  (LDef d1) == (LDef d2) = d1 == d2
+  _ == _ = False
 
 
 class Inc a where
@@ -527,6 +543,10 @@ prevLevel = dec
 data Leveled a = Leveled { unLevel :: a, leveledLevel :: Level }
 
 
+instance Functor Leveled where
+  fmap f (Leveled a l) = Leveled (f a) l
+
+
 class HasLevel a where
   level :: a -> Level
 
@@ -548,9 +568,17 @@ instance Pretty Level where
   pprint (Max n m) = text "lmax" <+> pprintParened n <+> pprintParened m
 
 
-instance Pretty LevelAtom where
-  isLexicallyAtomic (LTerm t) = isLexicallyAtomic t
-  pprint (LTerm t) = pprint t
+instance Pretty LevelTerm where
+  isLexicallyAtomic (LApp t) = isLexicallyAtomic t
+  pprint (LApp t) = pprint t
+
+
+instance Pretty LAppable where
+  isLexicallyAtomic (LVar t) = isLexicallyAtomic t
+  isLexicallyAtomic (LDef t) = isLexicallyAtomic t
+
+  pprint (LVar t) = pprint t
+  pprint (LDef t) = pprint t
 
 
 -----------------
@@ -649,6 +677,10 @@ mkPi' :: Arg -> Type -> TypeTerm
 mkPi' arg = Pi . bind arg
 
 
+mkPi'' :: Name Term -> Type -> Type -> TypeTermOfTermsThatCanBeApplied
+mkPi'' n argTy = IsPi . bind (mkArg n thatMagicalGrading argTy)
+
+
 mkPi :: Name Term -> Type -> Type -> TypeTerm
 mkPi n argTy = mkPi' (mkArg n thatMagicalGrading argTy)
 
@@ -665,17 +697,21 @@ mkFunTyNoBind :: Type -> Type -> Type
 mkFunTyNoBind t e = mkType (mkPi (nameFromString "_") t e) (nextLevel $ Max (level t) (level e))
 
 
+mkFunTyNoBind' :: Type -> Type -> TypeOfTermsThatCanBeApplied
+mkFunTyNoBind' t e = mkType' (mkPi'' (nameFromString "_") t e) (nextLevel $ Max (level t) (level e))
+
+
 levelZero :: Level
 levelZero = Concrete 0
 
 
-mkTLevel :: Term -> Level
-mkTLevel = Plus 0 . LTerm
+mkTLevel :: LevelTerm -> Level
+mkTLevel = Plus 0
 
 
 -- TODO: switch this to be 'Name Level' (2020-03-20)
-mkLevelVar :: VarId -> Level
-mkLevelVar n = mkTLevel $ mkVar n
+mkLevelVar :: LVarId -> Level
+mkLevelVar n = mkTLevel (LApp (fullyApplied (LVar n) []))
 
 
 -- | Make a new (fully-applied) type variable.
@@ -752,9 +788,10 @@ $(derive
   , ''DCon
   , ''FullyApplied
   , ''Grade
+  , ''LAppable
   , ''Level
-  , ''LevelAtom
   , ''Leveled
+  , ''LevelTerm
   , ''PartiallyAppable
   , ''PartiallyApplied
   , ''Term
@@ -779,11 +816,12 @@ instance Alpha TermThatCannotBeApplied
 instance Alpha TermThatCanBeApplied
 instance Alpha TypeTermOfTermsThatCanBeApplied
 instance Alpha TypeTerm
+instance Alpha LAppable
 instance Alpha Level
+instance Alpha LevelTerm
 instance Alpha Appable
 instance Alpha PartiallyAppable
 instance Alpha TyAppable
-instance Alpha LevelAtom
 instance Alpha DCon
 instance Alpha TyCon
 
@@ -794,9 +832,10 @@ instance (Subst Term a) => Subst Term (PartiallyApplied a) where
 instance (Subst Term a, Subst Term t) => Subst Term (IsTyped t a) where
 instance (Subst Term a, Subst Term g) => Subst Term (Graded g a) where
 instance Subst Term Type where
+instance Subst Term LAppable where
+instance Subst Term LevelTerm where
 instance Subst Term Level where
 instance Subst Term TypeTerm where
-instance Subst Term LevelAtom where
 instance Subst Term Term where
 instance Subst Term TypeTermOfTermsThatCanBeApplied where
 instance Subst Term TyAppable where
