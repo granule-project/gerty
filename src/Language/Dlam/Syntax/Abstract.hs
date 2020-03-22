@@ -66,6 +66,7 @@ import Unbound.LocallyNameless.Ops (unsafeUnbind) -- for pretty-printing
 import Language.Dlam.Syntax.Common hiding (Arg)
 import qualified Language.Dlam.Syntax.Common as Com
 import qualified Language.Dlam.Syntax.Common.Language as Com
+import Language.Dlam.Syntax.Common.Language (gradedWith, typedWith)
 import qualified Language.Dlam.Syntax.Concrete as C
 import Language.Dlam.Util.Pretty
 
@@ -79,16 +80,8 @@ import Language.Dlam.Util.Pretty
 -- | as arbitrary expressions.
 type Grade   = Expr
 type Grading = Com.Grading Grade
-type Graded = Com.Graded Grade
 type BoundName = Com.BoundName AName
 type Type = Expr
-type IsTyped = Com.IsTyped Expr
-typedWith :: a -> Type -> IsTyped a
-typedWith = Com.typedWith
-typeOf :: (Com.HasType a Type) => a -> Type
-typeOf = Com.typeOf
-gradedWith :: a -> Grading -> Graded a
-gradedWith = Com.gradedWith
 bindName :: AName -> BoundName
 bindName = Com.bindName
 mkGrading :: Grade -> Grade -> Grading
@@ -109,20 +102,24 @@ implicitGrading = mkGrading Implicit Implicit
 -- https://hackage.haskell.org/package/Agda-2.6.0.1/docs/Agda-Syntax-Abstract.html#t:TypedBinding)
 -- (2020-03-11)
 -- | Typed binders are optionally graded, and can contain many bound names.
-newtype TypedBinding = TB { unTB :: Com.Arg (Graded (IsTyped FVName)) }
+newtype TypedBinding = TB { unTB :: Arg }
   deriving (Show, Hiding)
 
 
+mkArg' :: IsHiddenOrNot -> Grading -> Type -> a -> Com.Arg (Com.Graded (Embed Grade) (Com.IsTyped (Embed Type) a))
+mkArg' isHid gr ty n = mkArg isHid (n `typedWith` Embed ty `gradedWith` Com.mapGrading Embed gr)
+
+
 mkTypedBinding :: IsHiddenOrNot -> Grading -> Type -> FVName -> TypedBinding
-mkTypedBinding isHid gr ty n = TB (mkArg isHid (n `typedWith` ty `gradedWith` gr))
+mkTypedBinding isHid gr ty n = TB (mkArg' isHid gr ty n)
 
 
 instance Com.HasType TypedBinding Expr where
-  typeOf = typeOf . un . un . unTB
+  typeOf = argTy . unTB
 
 
 instance Com.IsGraded TypedBinding Grade where
-  grading = grading . un . unTB
+  grading = argGrading . unTB
 
 
 -- TODO: update this to support binding multiple names at once (see
@@ -134,7 +131,7 @@ type LambdaArg = TypedBinding
 
 
 mkLambdaArg :: IsHiddenOrNot -> Grading -> Type -> FVName -> LambdaArg
-mkLambdaArg isHid gr ty n = TB (mkArg isHid (n `typedWith` ty `gradedWith` gr))
+mkLambdaArg isHid gr ty n = TB (mkArg' isHid gr ty n)
 
 
 ------------------
@@ -167,7 +164,7 @@ data Declaration =
   deriving (Show)
 
 
-type Arg = Com.Arg (IsTyped (Graded FVName))
+type Arg = Com.Arg (Com.Graded (Embed Grade) (Com.IsTyped (Embed Type) FVName))
 
 
 -- | Name of the argument.
@@ -177,7 +174,11 @@ argName = un . un . un
 
 -- | Argument type.
 argTy :: Arg -> Expr
-argTy = typeOf
+argTy = (\(Embed t) -> t) . Com.typeOf
+
+
+argGrading :: Arg -> Grading
+argGrading = Com.mapGrading (\(Embed g) -> g) . Com.grading
 
 
 type Abstraction = Bind Arg Expr
@@ -187,8 +188,8 @@ mkAbs :: FVName -> Expr -> Expr -> Abstraction
 mkAbs v = mkAbs' NotHidden v implicitGrading
 
 
-mkAbs' :: IsHiddenOrNot -> FVName -> Grading -> Expr -> Expr -> Abstraction
-mkAbs' isHid v g e1 e2 = bind (mkArg isHid (v `gradedWith` g `typedWith` e1)) e2
+mkAbs' :: IsHiddenOrNot -> FVName -> Grading -> Type -> Expr -> Abstraction
+mkAbs' isHid v g e1 e2 = bind (mkArg' isHid g e1 v) e2
 
 
 type FVName = Name Expr
@@ -340,7 +341,7 @@ pprintAbs sep ab =
         case name2String absVar of
           -- TODO: add better (more type-safe?) support for ignored name (2020-03-20)
           "_" -> pprint absTy
-          _   -> parens (pprint absVar <+> colon <+> pprint (grading absArg) <+> pprint absTy)
+          _   -> parens (pprint absVar <+> colon <+> pprint (argGrading absArg) <+> pprint absTy)
   in leftTyDoc <+> sep <+> pprint absExpr
 
 
