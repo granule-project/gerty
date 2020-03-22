@@ -28,7 +28,6 @@ module Language.Dlam.TypeChecking.Monad.Base
   , lookupType
   , maybeLookupType
   , setType
-  , withTypedVariable
   , lookupValue
   , maybeLookupValue
   , setValue
@@ -247,19 +246,6 @@ lookupType n =
 
 setType :: AName -> I.Type -> CM ()
 setType n t = modify (\s -> s { typingScope = M.insert n t (typingScope s) })
-
-
--- | Execute the action with the given identifier bound with the given type.
-withTypedVariable :: AName -> I.Type -> CM a -> CM a
-withTypedVariable v t p = do
-  debug $ "setting type of variable '" <> pprintShow v <> "' to '" <> pprintShow t <> "'"
-  st <- get
-  setType v t
-  res <- p
-  -- restore the typing scope
-  modify (\s -> s { typingScope = typingScope st})
-  debug $ "unsetting type of variable '" <> pprintShow v <> "' (previously '" <> pprintShow t <> "')"
-  pure res
 
 
 maybeLookupValue :: AName -> CM (Maybe I.Term)
