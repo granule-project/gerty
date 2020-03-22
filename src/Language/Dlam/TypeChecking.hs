@@ -56,7 +56,7 @@ checkExprIsType_ (FunTy ab) = do
   (x, absTy, absExpr) <- openAbs ab
   argTy <- checkExprIsType absTy
   -- TODO: improve support for gradings here (2020-03-17)
-  let arg' = mkArg x thatMagicalGrading argTy
+  arg' <- buildArg x thatMagicalGrading argTy
   ty <- withArgBoundForType arg' $ checkExprIsType absExpr
   pure $ mkType (mkPi' arg' ty) (nextLevel (Max (level argTy) (level ty)))
 checkExprIsType_ _e = notAType
@@ -245,7 +245,7 @@ checkExpr_ (FunTy ab) t = do
 
   -- G, x : A |- B : Type l2
   let -- TODO: add proper support for grades (2020-03-16)
-      arg = mkArg x thatMagicalGrading tA
+  arg <- buildArg x thatMagicalGrading tA
   tB <- withArgBoundForType arg $ checkExprIsType absExpr
 
   -- G |- (x : A) -> B : Type (lmax l1 l2)
@@ -278,7 +278,7 @@ checkExpr_ (Lam ab) t = do
               Implicit -> pure tA
               lta -> checkExprIsType lta
 
-  let lamArg = mkArg x gr tA
+  lamArg <- buildArg x gr tA
 
   -- replace occurrences of the pi-bound variable with the
   -- lambda-bound variable in the result type (specific to the lambda)
@@ -289,7 +289,7 @@ checkExpr_ (Lam ab) t = do
   e <- withArgBound lamArg (checkExpr absExpr tB)
 
   -- G |- \x -> e : (x : A) -> B
-  ensureEqualTypes t (mkFunTy x tA tB)
+  ensureEqualTypes t (mkFunTy' lamArg tB)
   pure $ mkLam' lamArg e
 
 
@@ -546,7 +546,8 @@ inferExpr_ (Lam ab) = do
   (e, tB) <- withVarTypeBound x tA $ inferExpr absExpr
 
   -- G |- \(x : A) -> e : (x : A) -> B
-  pure (mkLam x tA e, mkFunTy x tA tB)
+  lamArg <- buildArg x thatMagicalGrading tA
+  pure (mkLam' lamArg e, mkFunTy' lamArg tB)
 
 inferExpr_ e = notImplemented $ "inferExpr_: TODO, inference for expression: " <> pprintShow e
 
@@ -574,7 +575,7 @@ inferExprForApp_ e = do
 -------------------
 
 
-openAbs :: (Rep a) => Abstraction -> CM (Name a, Expr, Expr)
+openAbs :: Abstraction -> CM (FVName, Expr, Expr)
 openAbs ab = lunbind ab $ \(absArg, absExpr) ->
   pure (translate $ argName absArg, argTy absArg, absExpr)
 
@@ -776,6 +777,18 @@ mkUnboundDef n ty =
   case un ty of
     Pi{} -> PartialApp (partiallyApplied (DefPartial n) [])
     _    -> mkTermDef n []
+
+
+-- | Build an argument, where the sort of the bound name is guided by the given type.
+buildArg :: FVName -> I.Grading -> Type -> CM Arg
+buildArg n g argTy = do
+  let ntobind =
+        case un argTy of
+          -- TODO: maybe set this up so it can be a TermThatCanBeApplied (2020-03-22)
+          Pi{} -> AnyName (translate n :: Name Term)
+          Universe{} -> AnyName (translate n :: Name Type)
+          _ -> AnyName (translate n :: Name Term)
+  pure $ mkArgAN ntobind g argTy
 
 
 class InScope a where

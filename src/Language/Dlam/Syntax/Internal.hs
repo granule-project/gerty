@@ -77,6 +77,7 @@ module Language.Dlam.Syntax.Internal
   -- ** Constructing terms, types, etc.
   , levelZero
   , mkFunTy
+  , mkFunTy'
   , mkFunTyNoBind
   , mkLam
   , mkLam'
@@ -97,6 +98,7 @@ module Language.Dlam.Syntax.Internal
 
   -- *** Arguments
   , mkArg
+  , mkArgAN
   , mkArg'
   , mkArgNoBind
   , mkTyArg
@@ -141,7 +143,7 @@ type VarId = Name Term
 -----------------
 
 
-newtype Arg = Arg { unArg :: Graded (Embed Grade) (IsTyped (Embed Type) (Name Term)) }
+newtype Arg = Arg { unArg :: Graded (Embed Grade) (IsTyped (Embed Type) AnyName) }
 
 
 instance Com.IsGraded Arg Grade where
@@ -151,11 +153,15 @@ instance Com.HasType Arg Type where
 
 
 mkArg :: Name Term -> Grading -> Type -> Arg
-mkArg n g t = Arg $ n `typedWith` (Embed t) `gradedWith` (Com.mapGrading Embed g)
+mkArg n g t = Arg $ (AnyName n) `typedWith` (Embed t) `gradedWith` (Com.mapGrading Embed g)
+
+
+mkArgAN :: AnyName -> Grading -> Type -> Arg
+mkArgAN n g t = Arg $ n `typedWith` (Embed t) `gradedWith` (Com.mapGrading Embed g)
 
 
 argVar :: Arg -> Name Term
-argVar = un . un . unArg
+argVar = (\(AnyName a) -> translate a) . un . un . unArg
 
 
 type ConId = AName
@@ -649,6 +655,10 @@ mkPi n argTy = mkPi' (mkArg n thatMagicalGrading argTy)
 
 mkFunTy :: Name Term -> Type -> Type -> Type
 mkFunTy n t e = mkType (mkPi n t e) (nextLevel $ Max (level t) (level e))
+
+
+mkFunTy' :: Arg -> Type -> Type
+mkFunTy' arg ty = mkType (mkPi' arg ty) (nextLevel $ Max (level (typeOf arg)) (level ty))
 
 
 mkFunTyNoBind :: Type -> Type -> Type
