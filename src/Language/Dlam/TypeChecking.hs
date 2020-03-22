@@ -775,8 +775,11 @@ freeVarToTermVar n ty =
     Pi{} -> pure $ I.PartialApp (partiallyApplied (VarPartial (translate n)) [])
     -- if this is a universe then we construct a type
     Universe l -> pure $ TypeTerm (mkTyVar (translate n) l)
-    -- if it's not a Pi, then it must be fully applied
-    _      -> pure $ mkVar (translate n)
+    -- otherwise we check to see if it is a level, and if not, we just
+    -- produce a fully-applied variable
+    _    -> do
+      isLevTy <- typeIsLevelType ty
+      pure $ if isLevTy then Level (mkLevelVar (translate n)) else mkVar (translate n)
 
 
 -- TODO: make sure this gives back a type def when appropriate (2020-03-21)
@@ -787,15 +790,22 @@ mkUnboundDef n ty =
     _    -> mkTermDef n []
 
 
+-- | Is the given type the type of levels?
+typeIsLevelType :: Type -> CM Bool
+typeIsLevelType = typesAreEqual levelTy
+
+
 -- | Build an argument, where the sort of the bound name is guided by the given type.
 buildArg :: FVName -> I.Grading -> Type -> CM Arg
 buildArg n g argTy = do
-  let ntobind =
+  ntobind <-
         case un argTy of
           -- TODO: maybe set this up so it can be a TermThatCanBeApplied (2020-03-22)
-          Pi{} -> AnyName (translate n :: Name Term)
-          Universe{} -> AnyName (translate n :: Name Type)
-          _ -> AnyName (translate n :: Name Term)
+          Pi{} -> pure $ AnyName (translate n :: Name Term)
+          Universe{} -> pure $ AnyName (translate n :: Name Type)
+          _    -> do
+            isLevTy <- typeIsLevelType argTy
+            pure $ if isLevTy then AnyName (translate n :: Name Level) else AnyName (translate n :: Name Term)
   pure $ mkArgAN ntobind g argTy
 
 
