@@ -408,8 +408,11 @@ tceAddBinding v bod env = env { tceFVContext = fvcMap (M.insert v bod) (tceFVCon
 -- | Execute the action with the given free variable bound with the
 -- | given grading and type.
 withVarBound :: I.Name n -> I.Grading -> I.Type -> CM a -> CM a
-withVarBound n g ty =
-  local (tceAddBinding (nameToFreeVar n) (g, ty))
+withVarBound n g ty act =
+  debugBlock "withVarBound"
+    ("binding '" <> pprintShow n <> "' with grades '" <> pprintShow g <> "' and type '" <> pprintShow ty <> "'")
+    (\_ -> "unbinding '" <> pprintShow n <> "'")
+    (local (tceAddBinding (nameToFreeVar n) (g, ty)) act)
 
 
 -- | Execute the action with the given free variable bound with the
