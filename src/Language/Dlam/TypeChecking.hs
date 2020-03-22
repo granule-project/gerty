@@ -352,13 +352,11 @@ checkExpr_ (Coproduct tA tB) t = do
    G |- case z@e of (Inl x -> c; Inr y -> d) : C : [e/z]C
 -}
 checkExpr_ (CoproductCase (z, tC) (x, c) (y, d) e) t = do
-  let xv = nameForTerm x
-      yv = nameForTerm y
-      zv = nameForTerm z
   -- G |- e : A + B
-  (e, tA, tB) <- inferCoproductTy e
+  (e, te, tA, tB) <- inferCoproductTy e
 
   -- G, z : A + B |- C : Type l
+  zv <- renderNameForType z te
   let copAB = mkCoproductTy tA tB
   tC <- withVarTypeBound z copAB $ checkExprIsType tC
 
@@ -378,18 +376,22 @@ checkExpr_ (CoproductCase (z, tC) (x, c) (y, d) e) t = do
   eforzinC <- substitute (zv, e) tC
   ensureEqualTypes t eforzinC
 
+  xarg <- buildArg x thatMagicalGrading tA
+  yarg <- buildArg y thatMagicalGrading tB
+  zarg <- buildArg z thatMagicalGrading copAB
+
   -- now we essentially build an instance of the eliminator
   -- (axiomatic) by converting free variables to lambda-bound
   -- arguments
   pure $ I.App (fullyApplied elimCoproductForApp
      [ Level (level tA), Level (level tB), Level (level tC)
-     , TypeTerm tA, TypeTerm tB, mkLam zv copAB (TypeTerm tC)
+     , TypeTerm tA, TypeTerm tB, mkLam' zarg (TypeTerm tC)
      , e
-     , mkLam xv tA c
-     , mkLam yv tB d
+     , mkLam' xarg c
+     , mkLam' yarg d
      ])
 
-  where inferCoproductTy :: Expr -> CM (Term, Type, Type)
+  where inferCoproductTy :: Expr -> CM (Term, Type, Type, Type)
         inferCoproductTy e = withLocalCheckingOf e $ do
           (e, ty) <- inferExpr e
           (tA, tB) <-
@@ -401,7 +403,7 @@ checkExpr_ (CoproductCase (z, tC) (x, c) (y, d) e) t = do
                        _ -> error "ill-formed coproduct"
                 else expectedInferredTypeForm "coproduct" ty
               _ -> expectedInferredTypeForm "coproduct" ty
-          pure (e, tA, tB)
+          pure (e, ty, tA, tB)
 
 ---------------------------
 ----- Natural numbers -----
@@ -416,9 +418,7 @@ checkExpr_ (CoproductCase (z, tC) (x, c) (y, d) e) t = do
    G |- case x@n of (Zero -> cz; Succ w@y -> cs) : C : [n/x]C
 -}
 checkExpr_ (NatCase (x, tC) cz (w, y, cs) n) t = do
-  let wv = nameForTerm w
-      xv = nameForTerm x
-      yv = nameForTerm y
+  xv <- renderNameForType x natTy
   -- G, x : Nat |- C : Type l
   tC <- withVarTypeBound x natTy $ checkExprIsType tC
 
@@ -442,14 +442,18 @@ checkExpr_ (NatCase (x, tC) cz (w, y, cs) n) t = do
   nforxinC <- substitute (xv, n) tC
   ensureEqualTypes t nforxinC
 
+  xarg <- buildArg x thatMagicalGrading natTy
+  warg <- buildArg x thatMagicalGrading natTy
+  yarg <- buildArg y thatMagicalGrading wforxinC
+
   -- now we essentially build an instance of the eliminator
   -- (axiomatic) by converting free variables to lambda-bound
   -- arguments
   pure $ I.App (fullyApplied elimNatForApp
      [ Level (level tC)
-     , mkLam xv natTy (TypeTerm tC)
+     , mkLam' xarg (TypeTerm tC)
      , cz
-     , mkLam wv natTy (mkLam yv wforxinC cs)
+     , mkLam' warg (mkLam' yarg cs)
      , n])
 
 -----------
@@ -463,7 +467,8 @@ checkExpr_ (NatCase (x, tC) cz (w, y, cs) n) t = do
    G |- let x@() = a : C : [a/x]C
 -}
 checkExpr_ (EmptyElim (x, tC) a) t = do
-  let xv = nameForTerm x
+  xv <- renderNameForType x emptyTy
+
   -- G, x : Empty |- C : Type l
   tC <- withVarTypeBound x emptyTy $ checkExprIsType tC
 
@@ -474,12 +479,14 @@ checkExpr_ (EmptyElim (x, tC) a) t = do
   aforxinC <- substitute (xv, a) tC
   ensureEqualTypes t aforxinC
 
+  xarg <- buildArg x thatMagicalGrading emptyTy
+
   -- now we essentially build an instance of the eliminator
   -- (axiomatic) by converting free variables to lambda-bound
   -- arguments
   pure $ I.App (fullyApplied elimEmptyForApp
      [ Level (level tC)
-     , mkLam xv emptyTy (TypeTerm tC)
+     , mkLam' xarg (TypeTerm tC)
      , a])
 
 ---------
@@ -594,14 +601,14 @@ openAbs ab = lunbind ab $ \(absArg, absExpr) ->
 -- | Execute the action with the binder active (for subject checking).
 withArgBound :: Arg -> CM a -> CM a
 withArgBound arg act =
-  let x = argVar arg
+  let x = freeVarToName $ argVar arg
   in withVarBound x (I.grading arg) (typeOf arg) act
 
 
 -- | Execute the action with the binder active (for subject-type checking).
 withArgBoundForType :: Arg -> CM a -> CM a
 withArgBoundForType arg act =
-  let x = argVar arg
+  let x = freeVarToName $ argVar arg
       g = I.grading arg
       stgrade = I.subjectTypeGrade g
   -- bind the subject-type grade to the subject grade since we are
@@ -626,7 +633,7 @@ instance Normalise CM TermThatCanBeApplied where
   normalise (IsLam lam) = lunbind lam $ \(arg, body) -> do
     g <- normalise (I.grading arg)
     argTy <- normalise (typeOf arg)
-    let arg' = mkArg (argVar arg) g argTy
+    arg' <- buildArg (translate (freeVarToName (argVar arg))) g argTy
     body' <- normalise body
     pure $ IsLam (bind arg' body')
 
@@ -667,7 +674,7 @@ instance Normalise CM TypeTermOfTermsThatCanBeApplied where
   normalise (IsPi pi) = lunbind pi $ \(arg, t) -> do
     g <- normalise (I.grading arg)
     argTy <- normalise (typeOf arg)
-    let arg' = mkArg (argVar arg) g argTy
+    arg' <- buildArg (translate (freeVarToName (argVar arg))) g argTy
     t' <- normalise t
     pure $ IsPi (bind arg' t')
 
@@ -690,16 +697,24 @@ instance Normalise CM Type where
   normalise t = mkType <$> normalise (un t) <*> normalise (level t)
 
 
-substituteAndNormalise :: (Normalise CM t, Subst b t, Pretty b, Pretty t) => (Name b, b) -> t -> CM t
+substituteAndNormalise :: (Normalise CM t, Subst Level t, Subst Type t, Subst Term t, Pretty t) => (FreeVar, Term) -> t -> CM t
 substituteAndNormalise (n, s) t = normalise =<< substitute (n, s) t
 
 
-substitute :: (Subst b t, Pretty b, Pretty t) => (Name b, b) -> t -> CM t
+doTermSubst :: (Subst Level t, Subst Type t, Subst Term t) => (FreeVar, Term) -> t -> CM t
+doTermSubst (n, b) t =
+  case b of
+    Level l -> maybe (hitABug "wrong sort for name") (\n -> pure $ subst n l t) (freeVarToLevelName n)
+    TypeTerm ty -> maybe (hitABug "wrong sort for name") (\n -> pure $ subst n ty t) (freeVarToTypeName n)
+    _ -> maybe (hitABug "wrong sort for name") (\n -> pure $ subst n b t) (freeVarToTermName n)
+
+
+substitute :: (Subst Level t, Subst Type t, Pretty t, Subst Term t) => (FreeVar, Term) -> t -> CM t
 substitute (n, s) t =
   debugBlock "substitute"
     ("substituting '" <> pprintShow s <> "' for '" <> pprintShow n <> "' in '" <> pprintShow t <> "'")
     (\res -> "substituted to get '" <> pprintShow res <> "'")
-    (pure $ subst n s t)
+    (doTermSubst (n, s) t)
 
 
 ------------------------
@@ -796,16 +811,21 @@ typeIsLevelType = typesAreEqual levelTy
 
 
 -- | Build an argument, where the sort of the bound name is guided by the given type.
+renderNameForType :: FVName -> Type -> CM FreeVar
+renderNameForType n argTy = fmap mkFreeVar $
+  case un argTy of
+    -- TODO: maybe set this up so it can be a TermThatCanBeApplied (2020-03-22)
+    Pi{} -> pure $ AnyName (translate n :: Name Term)
+    Universe{} -> pure $ AnyName (translate n :: Name Type)
+    _    -> do
+      isLevTy <- typeIsLevelType argTy
+      pure $ if isLevTy then AnyName (translate n :: Name Level) else AnyName (translate n :: Name Term)
+
+
+-- | Build an argument, where the sort of the bound name is guided by the given type.
 buildArg :: FVName -> I.Grading -> Type -> CM Arg
 buildArg n g argTy = do
-  ntobind <-
-        case un argTy of
-          -- TODO: maybe set this up so it can be a TermThatCanBeApplied (2020-03-22)
-          Pi{} -> pure $ AnyName (translate n :: Name Term)
-          Universe{} -> pure $ AnyName (translate n :: Name Type)
-          _    -> do
-            isLevTy <- typeIsLevelType argTy
-            pure $ if isLevTy then AnyName (translate n :: Name Level) else AnyName (translate n :: Name Term)
+  ntobind <- renderNameForType n argTy
   pure $ mkArgAN ntobind g argTy
 
 

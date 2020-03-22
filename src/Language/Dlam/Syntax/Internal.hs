@@ -42,12 +42,22 @@ module Language.Dlam.Syntax.Internal
   , argVar
   , Applied(..)
   , Applicable(..)
+
+  -- *** FreeVar
+  , FreeVar
+  , mkFreeVar
+  , freeVarToName
+  , freeVarToLevelName
+  , freeVarToTermName
+  , freeVarToTypeName
+
   -- * Levels
   , Level(..)
   , nextLevel
   , prevLevel
   , HasLevel(..)
   , LevelTerm(..)
+  , LVarId
   -- * Types
   , Type
   , unType
@@ -58,6 +68,7 @@ module Language.Dlam.Syntax.Internal
   , TypeOfTermsThatCanBeApplied
   , mkType'
   , toType
+  , TyVarId
   -- * Grades
   , Grade
   , Grading
@@ -102,7 +113,6 @@ module Language.Dlam.Syntax.Internal
   , mkArgAN
   , mkArg'
   , mkArgNoBind
-  , mkTyArg
 
   -- *** Names
   , aname2Name
@@ -144,7 +154,31 @@ type VarId = Name Term
 -----------------
 
 
-newtype Arg = Arg { unArg :: Graded (Embed Grade) (IsTyped (Embed Type) AnyName) }
+newtype FreeVar = FreeVar { unFreeVar :: AnyName }
+  deriving (Ord, Eq)
+
+
+mkFreeVar :: AnyName -> FreeVar
+mkFreeVar = FreeVar
+
+
+freeVarToName :: FreeVar -> Name ()
+freeVarToName (FreeVar (AnyName n)) = translate n
+
+
+freeVarToLevelName :: FreeVar -> Maybe (Name Level)
+freeVarToLevelName = toSortedName . unFreeVar
+
+
+freeVarToTypeName :: FreeVar -> Maybe (Name Type)
+freeVarToTypeName = toSortedName . unFreeVar
+
+
+freeVarToTermName :: FreeVar -> Maybe (Name Term)
+freeVarToTermName = toSortedName . unFreeVar
+
+
+newtype Arg = Arg { unArg :: Graded (Embed Grade) (IsTyped (Embed Type) FreeVar) }
 
 
 instance Com.IsGraded Arg Grade where
@@ -153,16 +187,16 @@ instance Com.HasType Arg Type where
   typeOf = (\(Embed e) -> e) . Com.typeOf . unArg
 
 
-mkArg :: Name Term -> Grading -> Type -> Arg
-mkArg n g t = Arg $ (AnyName n) `typedWith` (Embed t) `gradedWith` (Com.mapGrading Embed g)
+mkArg :: (Rep a) => Name a -> Grading -> Type -> Arg
+mkArg n g t = Arg $ (FreeVar . AnyName $ n) `typedWith` (Embed t) `gradedWith` (Com.mapGrading Embed g)
 
 
-mkArgAN :: AnyName -> Grading -> Type -> Arg
+mkArgAN :: FreeVar -> Grading -> Type -> Arg
 mkArgAN n g t = Arg $ n `typedWith` (Embed t) `gradedWith` (Com.mapGrading Embed g)
 
 
-argVar :: Arg -> Name Term
-argVar = (\(AnyName a) -> translate a) . un . un . unArg
+argVar :: Arg -> FreeVar
+argVar = un . un . unArg
 
 
 type ConId = AName
@@ -462,6 +496,12 @@ instance Pretty DCon where
 instance Pretty Arg where
   pprint x = pprint (argVar x) <+> colon <+> pprint (grading x) <+> pprint (typeOf x)
 
+
+instance Pretty FreeVar where
+  isLexicallyAtomic = isLexicallyAtomic . unFreeVar
+  pprint = pprint . unFreeVar
+
+
 instance Pretty Grading where
   pprint g = char '[' <>
              pprint (subjectGrade g) <> comma <+> pprint (subjectTypeGrade g) <> char ']'
@@ -732,11 +772,6 @@ mkArg' :: VarId -> Type -> Arg
 mkArg' n t = mkArg n thatMagicalGrading t
 
 
--- | Make an argument that captures a type variable.
-mkTyArg :: TyVarId -> Type -> Arg
-mkTyArg n = mkArg' (tyVarToTermVar n)
-
-
 mkArgNoBind :: Type -> Arg
 mkArgNoBind = mkArg' (nameFromString "_")
 
@@ -786,6 +821,7 @@ $(derive
   [ ''Appable
   , ''Arg
   , ''DCon
+  , ''FreeVar
   , ''FullyApplied
   , ''Grade
   , ''LAppable
@@ -810,6 +846,7 @@ instance (Alpha a) => Alpha (Type' a)
 instance (Alpha a) => Alpha (PartiallyApplied a)
 instance (Alpha a) => Alpha (FullyApplied a)
 instance (Alpha a) => Alpha (Leveled a)
+instance Alpha FreeVar
 instance Alpha Grade
 instance Alpha Term
 instance Alpha TermThatCannotBeApplied
@@ -850,3 +887,57 @@ instance Subst Term NameId where
 instance Subst Term CName where
 instance Subst Term DCon where
 instance Subst Term PartiallyAppable where
+
+
+instance (Subst Level a) => Subst Level (Leveled a) where
+instance (Subst Level a) => Subst Level (FullyApplied a) where
+instance (Subst Level a) => Subst Level (PartiallyApplied a) where
+instance (Subst Level a, Subst Level t) => Subst Level (IsTyped t a) where
+instance (Subst Level a, Subst Level g) => Subst Level (Graded g a) where
+instance Subst Level Type where
+instance Subst Level LAppable where
+instance Subst Level LevelTerm where
+instance Subst Level Level where
+instance Subst Level TypeTerm where
+instance Subst Level Term where
+instance Subst Level TypeTermOfTermsThatCanBeApplied where
+instance Subst Level TyAppable where
+instance Subst Level TermThatCannotBeApplied where
+instance Subst Level TermThatCanBeApplied where
+instance Subst Level Arg where
+instance Subst Level FreeVar where
+instance Subst Level TyCon where
+instance Subst Level AName where
+instance Subst Level Appable where
+instance Subst Level Grade where
+instance Subst Level NameId where
+instance Subst Level CName where
+instance Subst Level DCon where
+instance Subst Level PartiallyAppable where
+
+
+instance (Subst Type a) => Subst Type (Leveled a) where
+instance (Subst Type a) => Subst Type (FullyApplied a) where
+instance (Subst Type a) => Subst Type (PartiallyApplied a) where
+instance (Subst Type a, Subst Type t) => Subst Type (IsTyped t a) where
+instance (Subst Type a, Subst Type g) => Subst Type (Graded g a) where
+instance Subst Type Type where
+instance Subst Type LAppable where
+instance Subst Type LevelTerm where
+instance Subst Type Level where
+instance Subst Type TypeTerm where
+instance Subst Type Term where
+instance Subst Type TypeTermOfTermsThatCanBeApplied where
+instance Subst Type TyAppable where
+instance Subst Type TermThatCannotBeApplied where
+instance Subst Type TermThatCanBeApplied where
+instance Subst Type Arg where
+instance Subst Type FreeVar where
+instance Subst Type TyCon where
+instance Subst Type AName where
+instance Subst Type Appable where
+instance Subst Type Grade where
+instance Subst Type NameId where
+instance Subst Type CName where
+instance Subst Type DCon where
+instance Subst Type PartiallyAppable where

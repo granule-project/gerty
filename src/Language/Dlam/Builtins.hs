@@ -199,18 +199,18 @@ builtinType (BinDef (_, args, _, ty)) = mkDefTy args ty
 
 
 mkTyConTy :: TyCon -> Type
-mkTyConTy con = foldr (\arg t -> mkFunTy (argVar arg) (typeOf arg) t) (conTy con) (args con)
+mkTyConTy con = foldr (\arg t -> mkFunTy' arg t) (conTy con) (args con)
 
 
 -- TODO: make sure this is actually going to have the correct level w/
 -- the arguments passed (will need to build the builtins in the monad,
 -- I think) (2020-03-16)
 mkDConTy :: DCon -> Type
-mkDConTy con = foldr (\arg t -> mkFunTy (argVar arg) (typeOf arg) t) (mkType (TyApp $ fmap AppTyCon (dconTy con)) (level $ conTy (un $ dconTy con))) (args con)
+mkDConTy con = foldr (\arg t -> mkFunTy' arg t) (mkType (TyApp $ fmap AppTyCon (dconTy con)) (level $ conTy (un $ dconTy con))) (args con)
 
 
 mkDefTy :: [Arg] -> Type -> Type
-mkDefTy args ty = foldr (\arg t -> mkFunTy (argVar arg) (typeOf arg) t) ty args
+mkDefTy args ty = foldr (\arg t -> mkFunTy' arg t) ty args
 
 
 levelTy, natTy, emptyTy :: Type
@@ -249,8 +249,8 @@ tcCoproduct =
       a = nameFromString "a"
       b = nameFromString "b"
   in mkBuiltinTyCon "Coproduct"
-     [ mkArg' (nameForTerm l1) levelTy, mkArg' (nameForTerm l2) levelTy
-     , mkArg' a (mkUnivTy l1v), mkArg' b (mkUnivTy l2v)]
+     [ mkLevelArg l1, mkLevelArg l2
+     , mkTyArg a l1v, mkTyArg b l2v]
      (Max l1v l2v)
 
 
@@ -260,7 +260,7 @@ tcId =
       a = nameFromString "a"
       av = mkTypeVar a lv
   in mkBuiltinTyCon "Id"
-       [ mkArg' (nameForTerm l) levelTy, mkTyArg a (mkUnivTy lv)
+       [ mkLevelArg l, mkTyArg a lv
        , mkArgNoBind av, mkArgNoBind av]
        lv
 
@@ -282,13 +282,13 @@ dcLmax, dcLsuc, dcLzero :: BuiltinDCon
 dcLzero = mkBuiltinDCon "lzero" [] tcLevel' (Level levelZero)
 
 
-dcLsuc = let l = nameFromString "l" in mkBuiltinDCon "lsuc" [mkArg' (nameForTerm l) levelTy] tcLevel'
+dcLsuc = let l = nameFromString "l" in mkBuiltinDCon "lsuc" [mkLevelArg l] tcLevel'
                (Level (nextLevel (mkLevelVar l)))
 
 
 dcLmax =
   let l1 = nameFromString "l1"; l2 = nameFromString "l2" in
-  mkBuiltinDCon "lmax" [mkArg' (nameForTerm l1) levelTy, mkArg' (nameForTerm l2) levelTy] tcLevel'
+  mkBuiltinDCon "lmax" [mkLevelArg l1, mkLevelArg l2] tcLevel'
                   (Level (Max (mkLevelVar l1) (mkLevelVar l2)))
 
 
@@ -306,8 +306,8 @@ dcInl =
       a = nameFromString "a"; av = mkTypeVar a l1v
       b = nameFromString "b"; bv = mkTypeVar b l2v
   in mkBuiltinDConNoDef "inl"
-       [ mkArg' (nameForTerm l1) levelTy, mkArg' (nameForTerm l2) levelTy
-       , mkTyArg a (mkUnivTy l1v), mkTyArg b (mkUnivTy l2v)
+       [ mkLevelArg l1, mkLevelArg l2
+       , mkTyArg a l1v, mkTyArg b l2v
        , mkArgNoBind av
        ]
        (mkCoproductTyForApp av bv)
@@ -323,8 +323,8 @@ dcInr =
       a = nameFromString "a"; av = mkTypeVar a l1v
       b = nameFromString "b"; bv = mkTypeVar b l2v
   in mkBuiltinDConNoDef "inr"
-       [ mkArg' (nameForTerm l1) levelTy, mkArg' (nameForTerm l2) levelTy
-       , mkTyArg a (mkUnivTy l1v), mkTyArg b (mkUnivTy l2v)
+       [ mkLevelArg l1, mkLevelArg l2
+       , mkTyArg a l1v, mkTyArg b l2v
        , mkArgNoBind bv
        ]
        (mkCoproductTyForApp av bv)
@@ -342,7 +342,7 @@ dcRefl =
       x = nameFromString "x"
       xv = mkVar x
   in mkBuiltinDConNoDef "refl"
-       [mkArg' (nameForTerm l) levelTy, mkTyArg a (mkUnivTy lv), mkArg' x av]
+       [mkLevelArg l, mkTyArg a lv, mkArg' x av]
        (fullyApplied tcId [Level lv, TypeTerm av, xv, xv])
 
 
@@ -387,8 +387,8 @@ elimNat =
       appC a = mkType (TyApp (fullyApplied (AppTyVar tC) [a])) lv
       succApp a = App (fullyApplied (ConData $ snd dcSucc) [a])
       args =
-        [ mkArg' (nameForTerm l) levelTy
-        , mkTyArg tC (mkFunTyNoBind natTy (mkUnivTy lv))
+        [ mkLevelArg l
+        , mkTyArg' tC (mkFunTyNoBind natTy (mkUnivTy lv))
         , mkArg' cz (appC (mkVar cz))
         , mkArg' cs (mkFunTy x natTy (mkFunTy y (appC xv) (appC (succApp xv))))
         , mkArg' n natTy
@@ -416,8 +416,8 @@ elimEmpty =
       lv = mkLevelVar l
       appC a = mkType (TyApp (fullyApplied (AppTyVar tC) [a])) lv
       args =
-        [ mkArg' (nameForTerm l) levelTy
-        , mkTyArg tC (mkFunTyNoBind emptyTy (mkUnivTy lv))
+        [ mkLevelArg l
+        , mkTyArg' tC (mkFunTyNoBind emptyTy (mkUnivTy lv))
         , mkArg' a  emptyTy
         ]
       ty = appC (mkVar a)
@@ -452,9 +452,9 @@ elimCoproduct =
       copAB = mkCoproductTy aty bty
       pv = mkVar p
       args =
-        [ mkArg' (nameForTerm l1) levelTy, mkArg' (nameForTerm l2) levelTy, mkArg' (nameForTerm l3) levelTy
-        , mkTyArg a (mkUnivTy l1v), mkTyArg b (mkUnivTy l2v)
-        , mkTyArg tC (mkFunTyNoBind copAB (mkUnivTy l3v))
+        [ mkLevelArg l1, mkLevelArg l2, mkLevelArg l3
+        , mkTyArg a l1v, mkTyArg b l2v
+        , mkTyArg' tC (mkFunTyNoBind copAB (mkUnivTy l3v))
         , mkArg' p copAB
         , mkArgNoBind (mkFunTyNoBind aty (appC pv))
         , mkArgNoBind (mkFunTyNoBind bty (appC pv))
@@ -482,6 +482,26 @@ defType :: BuiltinDef
 defType =
   let l = nameFromString "l"; lv = mkLevelVar l
   in mkBuiltinDefWithBody "Type"
-     [ mkArg' (nameForTerm l) levelTy ]
+     [ mkLevelArg l ]
      (TypeTerm $ mkUnivTy lv)
      (mkUnivTy (nextLevel lv))
+
+
+-------------------
+----- Helpers -----
+-------------------
+
+
+-- | Make an argument that captures a level variable.
+mkLevelArg :: LVarId -> Arg
+mkLevelArg n = mkArg n thatMagicalGrading levelTy
+
+
+-- | Make an argument that captures a type variable.
+mkTyArg :: TyVarId -> Level -> Arg
+mkTyArg n l = mkArg n thatMagicalGrading (mkUnivTy l)
+
+
+-- | Make an argument that captures a type variable.
+mkTyArg' :: TyVarId -> Type -> Arg
+mkTyArg' n = mkArg n thatMagicalGrading
