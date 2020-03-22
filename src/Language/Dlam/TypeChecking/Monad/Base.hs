@@ -352,6 +352,10 @@ withLocalCheckingOf e = local (tceSetCurrentExpr e)
 type FreeVar = AnyName
 
 
+nameToFreeVar :: Name a -> FreeVar
+nameToFreeVar n = AnyName (translate n :: Name ())
+
+
 type FreeVarInfo = (I.Grading, I.Type)
 
 
@@ -403,29 +407,28 @@ tceAddBinding v bod env = env { tceFVContext = fvcMap (M.insert v bod) (tceFVCon
 
 -- | Execute the action with the given free variable bound with the
 -- | given grading and type.
-withVarBound :: (Rep n) => I.Name n -> I.Grading -> I.Type -> CM a -> CM a
+withVarBound :: I.Name n -> I.Grading -> I.Type -> CM a -> CM a
 withVarBound n g ty =
-  local (tceAddBinding (I.AnyName n) (g, ty))
+  local (tceAddBinding (nameToFreeVar n) (g, ty))
 
 
 -- | Execute the action with the given free variable bound with the
 -- | given type (ignoring grading).
-withVarTypeBound :: (Rep n) => I.Name n -> I.Type -> CM a -> CM a
+withVarTypeBound :: I.Name n -> I.Type -> CM a -> CM a
 withVarTypeBound n ty = withVarBound n I.thatMagicalGrading ty
 
 
-lookupFVInfo :: (Rep n) => I.Name n -> CM FreeVarInfo
+lookupFVInfo :: I.Name n -> CM FreeVarInfo
 lookupFVInfo n = do
   ctx <- getContext
   maybe (hitABug $ "tried to look up the type of free variable '" <> pprintShow n <> "' but it wasn't in scope. Scope checking or type-checking is broken.\nContext was: " <> pprintShow ctx) pure . fvcMapOp (M.lookup (nameToFreeVar n)) =<< getContext
-  where nameToFreeVar = I.AnyName
 
 
-lookupFVType :: (Rep n) => I.Name n -> CM I.Type
+lookupFVType :: I.Name n -> CM I.Type
 lookupFVType = fmap snd . lookupFVInfo
 
 
-lookupFVSubjectRemaining :: (Rep n) => I.Name n -> CM I.Grade
+lookupFVSubjectRemaining :: I.Name n -> CM I.Grade
 lookupFVSubjectRemaining = fmap (I.subjectGrade . fst) . lookupFVInfo
 
 

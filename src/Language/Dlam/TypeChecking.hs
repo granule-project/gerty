@@ -793,7 +793,7 @@ instance InScope AName where
   typeOfThing = lookupType
 
 
-instance (Rep a) => InScope (Name a) where
+instance InScope (Name a) where
   typeOfThing = lookupFVType
 
 
