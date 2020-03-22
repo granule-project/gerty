@@ -94,7 +94,7 @@ import qualified Language.Dlam.Syntax.Internal as I
 import Language.Dlam.Syntax.Common (NameId(..))
 import qualified Language.Dlam.Syntax.Concrete.Name as C
 import Language.Dlam.Syntax.Parser.Monad (ParseError)
-import Language.Dlam.Util.Pretty (pprintShow)
+import Language.Dlam.Util.Pretty hiding ((<>))
 
 
 data CheckerState
@@ -355,7 +355,28 @@ type FreeVar = AnyName
 type FreeVarInfo = (I.Grading, I.Type)
 
 
-type FreeVarContext = M.Map FreeVar FreeVarInfo
+newtype FreeVarContext = FVC { unFVC :: M.Map FreeVar FreeVarInfo }
+
+
+fvcToList :: FreeVarContext -> [(FreeVar, FreeVarInfo)]
+fvcToList = M.toList . unFVC
+
+
+fvcMapOp :: (M.Map FreeVar FreeVarInfo -> a) -> FreeVarContext -> a
+fvcMapOp f (FVC m) = f m
+
+
+fvcMap :: (M.Map FreeVar FreeVarInfo -> M.Map FreeVar FreeVarInfo) -> FreeVarContext -> FreeVarContext
+fvcMap f = fvcMapOp (FVC . f)
+
+
+emptyContext :: FreeVarContext
+emptyContext = FVC M.empty
+
+
+instance Pretty FreeVarContext where
+  pprint xs = hsep $ punctuate comma $ fmap pprintBinding (fvcToList xs)
+    where pprintBinding (n, (g, t)) = pprint n <+> text "->" <+> char '{' <+> pprint g `beside` char ',' <+> pprint t <+> char '}'
 
 
 tceAddInScope :: [AnyName] -> TCEnv -> TCEnv
@@ -372,16 +393,12 @@ withInScope :: [AnyName] -> CM a -> CM a
 withInScope names = local (tceAddInScope names)
 
 
-emptyContext :: FreeVarContext
-emptyContext = M.empty
-
-
 getContext :: CM FreeVarContext
 getContext = fmap tceFVContext ask
 
 
 tceAddBinding :: FreeVar -> FreeVarInfo -> TCEnv -> TCEnv
-tceAddBinding v bod env = env { tceFVContext = M.insert v bod (tceFVContext env) }
+tceAddBinding v bod env = env { tceFVContext = fvcMap (M.insert v bod) (tceFVContext env) }
 
 
 -- | Execute the action with the given free variable bound with the
@@ -398,8 +415,9 @@ withVarTypeBound n ty = withVarBound n I.thatMagicalGrading ty
 
 
 lookupFVInfo :: (Rep n) => I.Name n -> CM FreeVarInfo
-lookupFVInfo n =
-  maybe (hitABug $ "tried to look up the type of free variable '" <> pprintShow n <> "' but it wasn't in scope. Scope checking or type-checking is broken.") pure . M.lookup (nameToFreeVar n) =<< getContext
+lookupFVInfo n = do
+  ctx <- getContext
+  maybe (hitABug $ "tried to look up the type of free variable '" <> pprintShow n <> "' but it wasn't in scope. Scope checking or type-checking is broken.\nContext was: " <> pprintShow ctx) pure . fvcMapOp (M.lookup (nameToFreeVar n)) =<< getContext
   where nameToFreeVar = I.AnyName
 
 
