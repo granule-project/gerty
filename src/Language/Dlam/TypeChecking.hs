@@ -397,7 +397,7 @@ checkExpr_ (CoproductCase (z, tC) (x, c) (y, d) e) t = do
           (tA, tB) <-
             case un ty of
               (TyApp app) ->
-                if un app == AppTyCon tcCoproduct
+                if un app == AppTyCon (getTyCon tcCoproduct)
                 then case appliedArgs app of
                        [TypeTerm tA, TypeTerm tB] -> pure (tA, tB)
                        _ -> error "ill-formed coproduct"

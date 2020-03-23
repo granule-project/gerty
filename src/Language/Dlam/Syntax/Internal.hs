@@ -98,7 +98,6 @@ module Language.Dlam.Syntax.Internal
   , mkPi'
   , mkTermDef
   , mkTLevel
-  , mkTyAxiom
   , mkTyDef
   , mkTyVar
   , mkTypeVar
@@ -757,10 +756,6 @@ mkLevelVar n = mkTLevel (LApp (fullyApplied (LVar n) []))
 -- | Make a new (fully-applied) type variable.
 mkTypeVar :: TyVarId -> Level -> Type
 mkTypeVar n = mkType (TyApp (fullyApplied (AppTyVar n) []))
-
-
-mkTyAxiom :: TyCon -> Level -> Type
-mkTyAxiom tc = mkType (TyApp (fullyApplied (AppTyCon tc) []))
 
 
 -- | Make a new (fully-applied) free variable.

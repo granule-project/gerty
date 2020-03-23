@@ -1,3 +1,6 @@
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE TypeSynonymInstances #-}
 module Language.Dlam.Builtins
   (
 
@@ -34,6 +37,7 @@ module Language.Dlam.Builtins
   , elimNatForApp
   , elimEmptyForApp
   , elimCoproductForApp
+  , getTyCon
   , mkCoproductTy
   , mkInlTerm
   , mkInrTerm
@@ -43,7 +47,8 @@ module Language.Dlam.Builtins
 import qualified Data.Map as M
 
 import Language.Dlam.Syntax.Abstract (AName, mkIdent)
-import Language.Dlam.Syntax.Internal
+import Language.Dlam.Syntax.Common.Language (HasType(typeOf))
+import Language.Dlam.Syntax.Internal hiding (typeOf)
 import Language.Dlam.Util.Peekaboo
 
 
@@ -107,95 +112,155 @@ dcZeroBody = builtinBody (BinDCon dcZero)
 -- | A builtin.
 data Builtin
   -- | Builtin type constructor.
-  = BinTyCon TyCon
+  = BinTyCon BuiltinTyCon
   -- | Builtin data constructor.
   | BinDCon BuiltinDCon
   -- | A constant (postulate).
   | BinDef BuiltinDef
 
 
-type BuiltinDCon = (Maybe Term, DCon)
+newtype BuiltinDCon = BuiltinDCon (Maybe Term, DCon)
 
 
-type BuiltinDef = (AName, [Arg], Maybe Term, Type)
+newtype BuiltinDef = BuiltinDef (AName, [Arg], Maybe Term, Type)
+
+
+newtype BuiltinTyCon = BuiltinTyCon TyCon
 
 
 type BuiltinName = String
 
 
 mkBuiltinDef :: BuiltinName -> [Arg] -> Type -> BuiltinDef
-mkBuiltinDef bn args ty = let n = mkIdent bn in (n, args, Nothing, ty)
+mkBuiltinDef bn args ty = let n = mkIdent bn in BuiltinDef (n, args, Nothing, ty)
 
 
 mkBuiltinDefWithBody :: BuiltinName -> [Arg] -> Term -> Type -> BuiltinDef
-mkBuiltinDefWithBody bn args body ty = let n = mkIdent bn in (n, args, Just body, ty)
+mkBuiltinDefWithBody bn args body ty = let n = mkIdent bn in BuiltinDef (n, args, Just body, ty)
 
 
 mkBuiltinDCon :: BuiltinName -> [Arg] -> FullyApplied TyCon -> Term -> BuiltinDCon
-mkBuiltinDCon bn args tyc body = let n = mkIdent bn in (Just body, mkDCon n args tyc)
+mkBuiltinDCon bn args tyc body = let n = mkIdent bn in BuiltinDCon (Just body, mkDCon n args tyc)
 
 
 mkBuiltinDConNoDef :: BuiltinName -> [Arg] -> FullyApplied TyCon -> BuiltinDCon
-mkBuiltinDConNoDef bn args tyc = let n = mkIdent bn in (Nothing, mkDCon n args tyc)
+mkBuiltinDConNoDef bn args tyc = let n = mkIdent bn in BuiltinDCon (Nothing, mkDCon n args tyc)
 
 
-mkBuiltinTyCon :: BuiltinName -> [Arg] -> Level -> TyCon
-mkBuiltinTyCon bn args l = let n = mkIdent bn in mkTyCon n args (mkUnivTy l)
+mkBuiltinTyCon :: BuiltinName -> [Arg] -> Level -> BuiltinTyCon
+mkBuiltinTyCon bn args l = let n = mkIdent bn in BuiltinTyCon $ mkTyCon n args (mkUnivTy l)
 
 
 -- | Make a new builtin type (0-argument type constructor).
-mkBuiltinType :: BuiltinName -> TyCon
+mkBuiltinType :: BuiltinName -> BuiltinTyCon
 mkBuiltinType n = mkBuiltinTyCon n [] levelZero
+
+
+class ToTerm a where
+  toTerm :: a -> Term
+
+
+instance ToTerm Builtin where
+  toTerm (BinTyCon tc) = toTerm tc
+  toTerm (BinDCon dc)  = toTerm dc
+  toTerm (BinDef  d)   = toTerm d
+
+
+instance ToTerm BuiltinTyCon where
+  toTerm (BuiltinTyCon tcon) =
+    if length (args tcon) > 0
+    then PartialApp (partiallyApplied (TyConPartial tcon) [])
+    -- TODO: not sure if this is the correct level! (2020-03-16)
+    else TypeTerm $ mkType (TyApp $ fullyApplied (AppTyCon tcon) []) (level $ conTy tcon)
+
+
+instance ToTerm BuiltinDCon where
+  -- no internal representation provided, this behaves like an axiom
+  toTerm (BuiltinDCon (Nothing, dcon)) =
+    if length (args dcon) > 0
+    then PartialApp (partiallyApplied (DConPartial dcon) [])
+    else App (fullyApplied (ConData dcon) [])
+
+  -- if an internal representation is provided, then we can produce a
+  -- lambda or concrete term
+  toTerm (BuiltinDCon (Just inner, dcon)) =
+    mkLamFromArgsAndBody (args dcon) inner
+    where mkLamFromArgsAndBody :: [Arg] -> Term -> Term
+          mkLamFromArgsAndBody [] body = body
+          mkLamFromArgsAndBody (arg:args) body = mkLam' arg (mkLamFromArgsAndBody args body)
+
+
+instance ToTerm BuiltinDef where
+  -- If the 'postulate' has an associated builtin reduction, we provide it.
+  toTerm (BuiltinDef (_, args, Just inner, _)) =
+    mkLamFromArgsAndBody args inner
+    where mkLamFromArgsAndBody :: [Arg] -> Term -> Term
+          mkLamFromArgsAndBody [] body = body
+          mkLamFromArgsAndBody (arg:args) body = mkLam' arg (mkLamFromArgsAndBody args body)
+  -- Constant postulate, so we don't do any fancy reduction.
+  toTerm (BuiltinDef (n, args, Nothing, _)) =
+    if length args > 0
+    then PartialApp (partiallyApplied (DefPartial n) [])
+    else App (fullyApplied (AppDef n) [])
+
+
+getDCon :: BuiltinDCon -> DCon
+getDCon (BuiltinDCon (_, dc)) = dc
+
+
+getTyCon :: BuiltinTyCon -> TyCon
+getTyCon (BuiltinTyCon tc) = tc
+
+
+instance HasName Builtin where
+  getName (BinTyCon tc) = getName tc
+  getName (BinDCon dc)  = getName dc
+  getName (BinDef  d)   = getName d
+
+
+instance HasName BuiltinTyCon where
+  getName = getName . getTyCon
+
+
+instance HasName BuiltinDCon where
+  getName = getName . getDCon
+
+
+instance HasName BuiltinDef where
+  getName (BuiltinDef (n,_,_,_)) = n
+
+
+instance HasType Builtin Type where
+  typeOf (BinTyCon tc) = typeOf tc
+  typeOf (BinDCon dc)  = typeOf dc
+  typeOf (BinDef  d)   = typeOf d
+
+
+instance HasType BuiltinTyCon Type where
+  typeOf = mkTyConTy . getTyCon
+
+
+instance HasType BuiltinDCon Type where
+  typeOf (BuiltinDCon (_, dcon)) = mkDConTy dcon
+
+
+instance HasType BuiltinDef Type where
+  typeOf (BuiltinDef (_, args, _, ty)) = mkDefTy args ty
 
 
 -- | Syntactic name of a builtin term.
 builtinName :: Builtin -> AName
-builtinName (BinTyCon tcon) = getName tcon
-builtinName (BinDCon  dcon) = getName $ snd dcon
-builtinName (BinDef (n,_,_,_)) = n
+builtinName = getName
 
 
 -- | Body for a builtin term (potentially a postulate).
 builtinBody :: Builtin -> Term
-builtinBody (BinTyCon tcon) =
-  if length (args tcon) > 0
-  then PartialApp (partiallyApplied (TyConPartial tcon) [])
-  -- TODO: not sure if this is the correct level! (2020-03-16)
-  else TypeTerm $ mkType (TyApp $ fullyApplied (AppTyCon tcon) []) (level $ conTy tcon)
-  -- else TypeTerm $ mkType (Constructed $ fullyApplied tcon []) (prevLevel $ level $ conTy tcon)
-
--- no internal representation provided, this behaves like an axiom
-builtinBody (BinDCon (Nothing, dcon)) =
-  if length (args dcon) > 0
-  then PartialApp (partiallyApplied (DConPartial dcon) [])
-  else App (fullyApplied (ConData dcon) [])
-
--- if an internal representation is provided, then we can produce a
--- lambda or concrete term
-builtinBody (BinDCon (Just inner, dcon)) =
-  mkLamFromArgsAndBody (args dcon) inner
-  where mkLamFromArgsAndBody :: [Arg] -> Term -> Term
-        mkLamFromArgsAndBody [] body = body
-        mkLamFromArgsAndBody (arg:args) body = mkLam' arg (mkLamFromArgsAndBody args body)
-
--- If the 'postulate' has an associated builtin reduction, we provide it.
-builtinBody (BinDef (_, args, Just inner, _)) =
-  mkLamFromArgsAndBody args inner
-  where mkLamFromArgsAndBody :: [Arg] -> Term -> Term
-        mkLamFromArgsAndBody [] body = body
-        mkLamFromArgsAndBody (arg:args) body = mkLam' arg (mkLamFromArgsAndBody args body)
--- Constant postulate, so we don't do any fancy reduction.
-builtinBody (BinDef (n, args, Nothing, _)) =
-  if length args > 0
-  then PartialApp (partiallyApplied (DefPartial n) [])
-  else App (fullyApplied (AppDef n) [])
+builtinBody = toTerm
 
 
 -- | The type of a builtin term.
 builtinType :: Builtin -> Type
-builtinType (BinTyCon tcon) = mkTyConTy tcon
-builtinType (BinDCon (_, dcon)) = mkDConTy dcon
-builtinType (BinDef (_, args, _, ty)) = mkDefTy args ty
+builtinType = typeOf
 
 
 mkTyConTy :: TyCon -> Type
@@ -223,7 +288,7 @@ mkUnivTy :: Level -> Type
 mkUnivTy l = mkType (Universe l) (nextLevel l)
 
 mkCoproductTyForApp :: Type -> Type -> FullyApplied TyCon
-mkCoproductTyForApp t1 t2 = fullyApplied tcCoproduct [Level (level t1), Level (level t2), TypeTerm t1, TypeTerm t2]
+mkCoproductTyForApp t1 t2 = fullyAppliedTC tcCoproduct [Level (level t1), Level (level t2), TypeTerm t1, TypeTerm t2]
 
 mkCoproductTy :: Type -> Type -> Type
 mkCoproductTy t1 t2 = mkType (TyApp (fmap AppTyCon (mkCoproductTyForApp t1 t2))) (Max (level t1) (level t2))
@@ -234,7 +299,7 @@ mkCoproductTy t1 t2 = mkType (TyApp (fmap AppTyCon (mkCoproductTyForApp t1 t2)))
 -----------------------------
 
 
-tcCoproduct, tcEmpty, tcId, tcLevel, tcNat, tcUnit :: TyCon
+tcCoproduct, tcEmpty, tcId, tcLevel, tcNat, tcUnit :: BuiltinTyCon
 
 
 tcEmpty = mkBuiltinType "Empty"
@@ -266,9 +331,9 @@ tcId =
 
 
 tcLevel', tcNat', tcUnit' :: FullyApplied TyCon
-tcLevel' = fullyApplied tcLevel []
-tcNat' = fullyApplied tcNat []
-tcUnit' = fullyApplied tcUnit []
+tcLevel' = fullyAppliedTC tcLevel []
+tcNat' = fullyAppliedTC tcNat []
+tcUnit' = fullyAppliedTC tcUnit []
 
 
 --------------------------------------------------------
@@ -314,7 +379,7 @@ dcInl =
 
 
 mkInlTerm :: Type -> Type -> Term -> Term
-mkInlTerm tA tB a = App (fullyApplied (ConData $ snd dcInr) [Level (level tA), Level (level tB), TypeTerm tA, TypeTerm tB, a])
+mkInlTerm tA tB a = App (fullyApplied (ConData $ getDCon dcInr) [Level (level tA), Level (level tB), TypeTerm tA, TypeTerm tB, a])
 
 
 dcInr =
@@ -331,7 +396,7 @@ dcInr =
 
 
 mkInrTerm :: Type -> Type -> Term -> Term
-mkInrTerm tA tB b = App (fullyApplied (ConData $ snd dcInr) [Level (level tA), Level (level tB), TypeTerm tA, TypeTerm tB, b])
+mkInrTerm tA tB b = App (fullyApplied (ConData $ getDCon dcInr) [Level (level tA), Level (level tB), TypeTerm tA, TypeTerm tB, b])
 
 
 dcRefl =
@@ -343,7 +408,7 @@ dcRefl =
       xv = mkVar x
   in mkBuiltinDConNoDef "refl"
        [mkLevelArg l, mkTyArg a lv, mkArg' x av]
-       (fullyApplied tcId [Level lv, TypeTerm av, xv, xv])
+       (fullyAppliedTC tcId [Level lv, TypeTerm av, xv, xv])
 
 
 dcZero = mkBuiltinDConNoDef "zero" [] tcNat'
@@ -356,7 +421,7 @@ dcUnit = mkBuiltinDConNoDef "unit" [] tcUnit'
 
 
 succForApp :: TermThatCanBeApplied
-succForApp = IsPartialApp $ partiallyApplied (DConPartial (snd dcSucc)) []
+succForApp = IsPartialApp $ partiallyApplied (DConPartial (getDCon dcSucc)) []
 
 
 succTy :: TypeOfTermsThatCanBeApplied
@@ -385,7 +450,7 @@ elimNat =
       lv = mkLevelVar l
       xv = mkVar x
       appC a = mkType (TyApp (fullyApplied (AppTyVar tC) [a])) lv
-      succApp a = App (fullyApplied (ConData $ snd dcSucc) [a])
+      succApp a = App (fullyApplied (ConData $ getDCon dcSucc) [a])
       args =
         [ mkLevelArg l
         , mkTyArg' tC (mkFunTyNoBind natTy (mkUnivTy lv))
@@ -505,3 +570,11 @@ mkTyArg n l = mkArg n thatMagicalGrading (mkUnivTy l)
 -- | Make an argument that captures a type variable.
 mkTyArg' :: TyVarId -> Type -> Arg
 mkTyArg' n = mkArg n thatMagicalGrading
+
+
+mkTyAxiom :: BuiltinTyCon -> Level -> Type
+mkTyAxiom (BuiltinTyCon tc) = mkType (TyApp (fullyApplied (AppTyCon tc) []))
+
+
+fullyAppliedTC :: BuiltinTyCon -> [Term] -> FullyApplied TyCon
+fullyAppliedTC = fullyApplied . getTyCon
