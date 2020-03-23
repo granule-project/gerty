@@ -16,6 +16,9 @@ module Language.Dlam.Builtins
   , builtinBody
   , builtinType
 
+  -- ** Data Constructors
+  , dcSucc
+
   -- ** Type Constructors
   , tcCoproduct
 
@@ -37,7 +40,6 @@ module Language.Dlam.Builtins
   , mkLevelVar
   , mkVar
   , mkArg'
-  , succForApp
   , succTy
   , getTyCon
   , mkCoproductTy
@@ -421,10 +423,6 @@ dcSucc = mkBuiltinDConNoDef "succ" [mkArgNoBind natTy] tcNat'
 
 
 dcUnit = mkBuiltinDConNoDef "unit" [] tcUnit'
-
-
-succForApp :: TermThatCanBeApplied
-succForApp = IsPartialApp $ partiallyApplied (DConPartial (getDCon dcSucc)) []
 
 
 succTy :: TypeOfTermsThatCanBeApplied

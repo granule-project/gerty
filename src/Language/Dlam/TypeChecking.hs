@@ -429,7 +429,7 @@ checkExpr_ (NatCase (x, tC) cz (w, y, cs) n) t = do
 
   -- G, w : Nat, y : [w/x]C |- cs : [succ w/x]C
   wvar <- freeVarToTermVar w natTy
-  (succw, _) <- applyPartialToTerm succForApp wvar succTy
+  (succw, _) <- applyThing dcSucc [wvar]
   succwforxinC <- substitute (xv, succw) tC
   wforxinC <- substitute (xv, wvar) tC
   cs <- withVarTypeBound y wforxinC
