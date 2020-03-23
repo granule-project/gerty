@@ -514,8 +514,8 @@ elimCoproduct =
         , mkTyArg a l1v, mkTyArg b l2v
         , mkTyArg' tC (mkFunTyNoBind copAB (mkUnivTy l3v))
         , mkArg' p copAB
-        , mkArgNoBind (mkFunTyNoBind aty (appC pv))
-        , mkArgNoBind (mkFunTyNoBind bty (appC pv))
+        , mkTyArgNoBind (mkFunTyNoBind aty (appC pv))
+        , mkTyArgNoBind (mkFunTyNoBind bty (appC pv))
         ]
       ty = appC pv
   in mkBuiltinDef "elimCoproduct" args ty
@@ -554,6 +554,11 @@ mkLevelArg n = mkArg n thatMagicalGrading levelTy
 -- | Make an argument that captures a type variable.
 mkTyArg :: TyVarId -> Level -> Arg
 mkTyArg n l = mkArg n thatMagicalGrading (mkUnivTy l)
+
+
+-- | Make an argument that captures a type variable.
+mkTyArgNoBind :: Type -> Arg
+mkTyArgNoBind = mkArg (nameFromString "_" :: TyVarId) thatMagicalGrading
 
 
 -- | Make an argument that captures a type variable.
