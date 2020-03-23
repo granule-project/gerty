@@ -608,7 +608,11 @@ isPhaseErr phase err = not (isImplementationErr err) && errPhase err == phase
 
 
 isImplementationErr :: TCErr -> Bool
-isImplementationErr e = case tcErrErr e of NotImplemented{} -> True; _ -> False
+isImplementationErr e =
+  case tcErrErr e of
+    NotImplemented{}    -> True
+    ImplementationBug{} -> True
+    _                   -> False
 
 
 -----------------------
