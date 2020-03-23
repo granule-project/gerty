@@ -454,7 +454,7 @@ elimNat =
       succApp a = App (fullyApplied (ConData $ getDCon dcSucc) [a])
       args =
         [ mkLevelArg l
-        , mkTyArg' tC (mkFunTyNoBind natTy (mkUnivTy lv))
+        , mkArg' (nameForTerm tC) (mkFunTyNoBind natTy (mkUnivTy lv))
         , mkArg' cz (appC (mkVar cz))
         , mkArg' cs (mkFunTy x natTy (mkFunTy y (appC xv) (appC (succApp xv))))
         , mkArg' n natTy
@@ -479,7 +479,7 @@ elimEmpty =
       appC a = mkType (TyApp (fullyApplied (AppTyVar tC) [a])) lv
       args =
         [ mkLevelArg l
-        , mkTyArg' tC (mkFunTyNoBind emptyTy (mkUnivTy lv))
+        , mkArg' (nameForTerm tC) (mkFunTyNoBind emptyTy (mkUnivTy lv))
         , mkArg' a  emptyTy
         ]
       ty = appC (mkVar a)
@@ -512,10 +512,10 @@ elimCoproduct =
       args =
         [ mkLevelArg l1, mkLevelArg l2, mkLevelArg l3
         , mkTyArg a l1v, mkTyArg b l2v
-        , mkTyArg' tC (mkFunTyNoBind copAB (mkUnivTy l3v))
+        , mkArg' (nameForTerm tC) (mkFunTyNoBind copAB (mkUnivTy l3v))
         , mkArg' p copAB
-        , mkTyArgNoBind (mkFunTyNoBind aty (appC pv))
-        , mkTyArgNoBind (mkFunTyNoBind bty (appC pv))
+        , mkArgNoBind (mkFunTyNoBind aty (appC pv))
+        , mkArgNoBind (mkFunTyNoBind bty (appC pv))
         ]
       ty = appC pv
   in mkBuiltinDef "elimCoproduct" args ty
@@ -548,22 +548,12 @@ defType =
 
 -- | Make an argument that captures a level variable.
 mkLevelArg :: LVarId -> Arg
-mkLevelArg n = mkArg n thatMagicalGrading levelTy
+mkLevelArg n = mkArg (VISLevel, n) thatMagicalGrading levelTy
 
 
 -- | Make an argument that captures a type variable.
 mkTyArg :: TyVarId -> Level -> Arg
-mkTyArg n l = mkArg n thatMagicalGrading (mkUnivTy l)
-
-
--- | Make an argument that captures a type variable.
-mkTyArgNoBind :: Type -> Arg
-mkTyArgNoBind = mkArg (nameFromString "_" :: TyVarId) thatMagicalGrading
-
-
--- | Make an argument that captures a type variable.
-mkTyArg' :: TyVarId -> Type -> Arg
-mkTyArg' n = mkArg n thatMagicalGrading
+mkTyArg n l = mkArg (VISType l, n) thatMagicalGrading (mkUnivTy l)
 
 
 mkTyAxiom :: BuiltinTyCon -> Level -> Type

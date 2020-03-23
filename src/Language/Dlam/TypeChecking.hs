@@ -1,5 +1,6 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE GADTs #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 module Language.Dlam.TypeChecking
   ( checkExpr
@@ -604,14 +605,14 @@ openAbs ab = lunbind ab $ \(absArg, absExpr) ->
 -- | Execute the action with the binder active (for subject checking).
 withArgBound :: Arg -> CM a -> CM a
 withArgBound arg act =
-  let x = freeVarToName $ argVar arg
+  let x = freeVarName $ argVar arg
   in withVarBound x (I.grading arg) (typeOf arg) act
 
 
 -- | Execute the action with the binder active (for subject-type checking).
 withArgBoundForType :: Arg -> CM a -> CM a
 withArgBoundForType arg act =
-  let x = freeVarToName $ argVar arg
+  let x = freeVarName $ argVar arg
       g = I.grading arg
       stgrade = I.subjectTypeGrade g
   -- bind the subject-type grade to the subject grade since we are
@@ -634,10 +635,13 @@ instance (Applicative m, Functor m, Normalise m a) => Normalise m (Maybe a) wher
 instance Normalise CM TermThatCanBeApplied where
   normalise (IsPartialApp p) = IsPartialApp . partiallyApplied (un p) <$> normalise (appliedArgs p)
   normalise (IsLam lam) = lunbind lam $ \(arg, body) -> do
+    let xold = argVar arg
+        xoldFV = (\(AnyName n) -> translate n) (freeVarName xold)
     g <- normalise (I.grading arg)
     argTy <- normalise (typeOf arg)
-    arg' <- buildArg (translate (freeVarToName (argVar arg))) g argTy
-    body' <- normalise body
+    arg' <- buildArg xoldFV g argTy
+    newSort <- vsortForType argTy
+    body' <- normalise =<< reSort xold newSort body
     pure $ IsLam (bind arg' body')
 
 
@@ -675,10 +679,13 @@ instance Normalise CM Level where
 
 instance Normalise CM TypeTermOfTermsThatCanBeApplied where
   normalise (IsPi pi) = lunbind pi $ \(arg, t) -> do
+    let xold = argVar arg
+        xoldFV = (\(AnyName n) -> translate n) (freeVarName xold)
     g <- normalise (I.grading arg)
     argTy <- normalise (typeOf arg)
-    arg' <- buildArg (translate (freeVarToName (argVar arg))) g argTy
-    t' <- normalise t
+    arg' <- buildArg xoldFV g argTy
+    newSort <- vsortForType argTy
+    t' <- normalise =<< reSort xold newSort t
     pure $ IsPi (bind arg' t')
 
 
@@ -706,10 +713,11 @@ substituteAndNormalise (n, s) t = normalise =<< substitute (n, s) t
 
 doTermSubst :: (Subst Level t, Subst Type t, Subst Term t) => (FreeVar, Term) -> t -> CM t
 doTermSubst (n, b) t =
-  case b of
-    Level l -> maybe (hitABug "wrong sort for name") (\n -> pure $ subst n l t) (freeVarToLevelName n)
-    TypeTerm ty -> maybe (hitABug "wrong sort for name") (\n -> pure $ subst n ty t) (freeVarToTypeName n)
-    _ -> maybe (hitABug "wrong sort for name") (\n -> pure $ subst n b t) (freeVarToTermName n)
+  case (fvToSortedName n, b) of
+    (SortedName (VISLevel,  n), Level l)     -> pure $ subst n l t
+    (SortedName (VISType{}, n), TypeTerm ty) -> pure $ subst n ty t
+    (SortedName (VISTerm,   n), _)           -> pure $ subst n b t
+    _ -> hitABug "wrong sort for name"
 
 
 substitute :: (Subst Level t, Subst Type t, Pretty t, Subst Term t) => (FreeVar, Term) -> t -> CM t
@@ -718,6 +726,43 @@ substitute (n, s) t =
     ("substituting '" <> pprintShow s <> "' for '" <> pprintShow n <> "' in '" <> pprintShow t <> "'")
     (\res -> "substituted to get '" <> pprintShow res <> "'")
     (doTermSubst (n, s) t)
+
+
+--------------------------
+----- Free Variables -----
+--------------------------
+
+
+-- | Try and replace all occurrences of the variable with a variable of the given sort.
+reSort :: (Pretty t, Subst Term t) => FreeVar -> VSort -> t -> CM t
+reSort fv vsort t =
+  debugBlock "reSort"
+    ("re-sorting variable '" <> pprintShow fv <> "' to sort '" <> pprintShow vsort <> "' in '" <> pprintShow t <> "'")
+    (\res -> "resorted to '" <> pprintShow res <> "'")
+    $
+  let vn = fvToSortedName fv in
+  case (vn, vsort) of
+    -- re-sorting a Term to a Level
+    (SortedName (VISTerm, n), VLevel) -> pure $ subst n (Level $ mkLevelVar (translate n)) t
+    -- re-sorting a Term to a Type
+    (SortedName (VISTerm, n), VType l) -> pure $ subst n (TypeTerm $ mkTypeVar (translate n) l) t
+    (SortedName (o, _), n)
+      -- the sort wouldn't change, so keep it as is
+      | toVSort o == n -> pure t
+      -- otherwise we aren't allowed to perform this re-sorting, so
+      -- there must be a bug in the implementation
+      | otherwise -> hitABug $ "tried to re-sort variable '" <> pprintShow fv <> "' of sort '" <> pprintShow (toVSort o) <> "'"
+
+
+-- | The sort variables of the given type should belong to.
+vsortForType :: Type -> CM VSort
+vsortForType ty =
+  case un ty of
+    -- TODO: perhaps add a sort for variables that can be applied (2020-03-23, GD)
+    Universe l -> pure (VType l)
+    _    -> do
+      isLevTy <- typeIsLevelType ty
+      pure $ if isLevTy then VLevel else VTerm
 
 
 ------------------------
@@ -844,14 +889,12 @@ typeIsLevelType = typesAreEqual levelTy
 
 -- | Build an argument, where the sort of the bound name is guided by the given type.
 renderNameForType :: FVName -> Type -> CM FreeVar
-renderNameForType n argTy = fmap mkFreeVar $
-  case un argTy of
-    -- TODO: maybe set this up so it can be a TermThatCanBeApplied (2020-03-22)
-    Pi{} -> pure $ AnyName (translate n :: Name Term)
-    Universe{} -> pure $ AnyName (translate n :: Name Type)
-    _    -> do
-      isLevTy <- typeIsLevelType argTy
-      pure $ if isLevTy then AnyName (translate n :: Name Level) else AnyName (translate n :: Name Term)
+renderNameForType n argTy = do
+  vs <- vsortForType argTy
+  case vs of
+    VLevel   -> pure $ mkFreeVar VISLevel    (translate n :: Name Level)
+    VTerm    -> pure $ mkFreeVar VISTerm     (translate n :: Name Term)
+    VType l  -> pure $ mkFreeVar (VISType l) (translate n :: Name Type)
 
 
 -- | Build an argument, where the sort of the bound name is guided by the given type.

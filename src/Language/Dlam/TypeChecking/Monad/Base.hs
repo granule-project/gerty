@@ -335,11 +335,24 @@ withLocalCheckingOf e = local (tceSetCurrentExpr e)
 ---------------------------
 
 
-type FreeVar = AnyName
+newtype FreeVar = FreeVar { unFreeVar :: AnyName }
+  deriving (Eq, Ord, Pretty)
 
 
-nameToFreeVar :: Name a -> FreeVar
-nameToFreeVar n = AnyName (translate n :: Name ())
+class ToFreeVar a where
+  toFreeVar :: a -> FreeVar
+
+
+instance ToFreeVar AnyName where
+  toFreeVar (AnyName n) = toFreeVar n
+
+
+instance ToFreeVar (Name n) where
+  toFreeVar n = FreeVar (AnyName (forgetSort n))
+
+
+forgetSort :: Name a -> Name ()
+forgetSort = translate
 
 
 type FreeVarInfo = (I.Grading, I.Type)
@@ -369,7 +382,7 @@ instance Pretty FreeVarContext where
     where pprintBinding (n, (g, t)) = pprint n <+> text "->" <+> char '{' <+> pprint g `beside` char ',' <+> pprint t <+> char '}'
 
 
-tceAddInScope :: [AnyName] -> TCEnv -> TCEnv
+tceAddInScope :: [FreeVar] -> TCEnv -> TCEnv
 tceAddInScope names env =
   env { inScopeSet = Set.union (Set.fromList names) (inScopeSet env) }
 
@@ -379,7 +392,7 @@ getInScope = fmap inScopeSet ask
 
 
 -- | Execute the action with the given free variables in scope.
-withInScope :: [AnyName] -> CM a -> CM a
+withInScope :: [FreeVar] -> CM a -> CM a
 withInScope names = local (tceAddInScope names)
 
 
@@ -393,24 +406,24 @@ tceAddBinding v bod env = env { tceFVContext = fvcMap (M.insert v bod) (tceFVCon
 
 -- | Execute the action with the given free variable bound with the
 -- | given grading and type.
-withVarBound :: I.Name n -> I.Grading -> I.Type -> CM a -> CM a
+withVarBound :: (ToFreeVar n, Pretty n) => n -> I.Grading -> I.Type -> CM a -> CM a
 withVarBound n g ty act =
   debugBlock "withVarBound"
     ("binding '" <> pprintShow n <> "' with grades '" <> pprintShow g <> "' and type '" <> pprintShow ty <> "'")
     (\_ -> "unbinding '" <> pprintShow n <> "'")
-    (local (tceAddBinding (nameToFreeVar n) (g, ty)) act)
+    (local (tceAddBinding (toFreeVar n) (g, ty)) act)
 
 
 -- | Execute the action with the given free variable bound with the
 -- | given type (ignoring grading).
-withVarTypeBound :: I.Name n -> I.Type -> CM a -> CM a
+withVarTypeBound :: (ToFreeVar n, Pretty n) => n -> I.Type -> CM a -> CM a
 withVarTypeBound n ty = withVarBound n I.thatMagicalGrading ty
 
 
-lookupFVInfo :: I.Name n -> CM FreeVarInfo
+lookupFVInfo :: (ToFreeVar n, Pretty n) => n -> CM FreeVarInfo
 lookupFVInfo n = do
   ctx <- getContext
-  maybe (hitABug $ "tried to look up the type of free variable '" <> pprintShow n <> "' but it wasn't in scope. Scope checking or type-checking is broken.\nContext was: " <> pprintShow ctx) pure . fvcMapOp (M.lookup (nameToFreeVar n)) =<< getContext
+  maybe (hitABug $ "tried to look up the type of free variable '" <> pprintShow n <> "' but it wasn't in scope. Scope checking or type-checking is broken.\nContext was: " <> pprintShow ctx) pure . fvcMapOp (M.lookup (toFreeVar n)) =<< getContext
 
 
 lookupFVType :: I.Name n -> CM I.Type
@@ -621,8 +634,8 @@ isImplementationErr e =
 
 
 instance I.LFresh CM where
-  getAvoids = getInScope
-  avoid = withInScope
+  getAvoids = Set.map unFreeVar <$> getInScope
+  avoid xs = withInScope (fmap toFreeVar xs)
   lfresh n = do
     let s = name2String n
     used <- getAvoids

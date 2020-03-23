@@ -1,5 +1,6 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE GADTs #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE PatternSynonyms #-}
@@ -46,10 +47,15 @@ module Language.Dlam.Syntax.Internal
   -- *** FreeVar
   , FreeVar
   , mkFreeVar
-  , freeVarToName
-  , freeVarToLevelName
-  , freeVarToTermName
-  , freeVarToTypeName
+  , freeVarName
+
+  -- **** Var Sorts
+  , VSort(..)
+  , ISSort(..)
+  , toVSort
+  , standsFor
+  , SortedName(..)
+  , fvToSortedName
 
   -- * Levels
   , Level(..)
@@ -153,28 +159,66 @@ type VarId = Name Term
 -----------------
 
 
-newtype FreeVar = FreeVar { unFreeVar :: AnyName }
-  deriving (Ord, Eq)
+newtype FreeVar = FreeVar { unFreeVar :: (VSort, AnyName) }
 
 
-mkFreeVar :: AnyName -> FreeVar
-mkFreeVar = FreeVar
+freeVarName :: FreeVar -> AnyName
+freeVarName = snd . unFreeVar
+
+instance Eq FreeVar where
+  (FreeVar (_, n1)) == (FreeVar (_, n2)) = n1 == n2
 
 
-freeVarToName :: FreeVar -> Name ()
-freeVarToName (FreeVar (AnyName n)) = translate n
+data SortedName where
+  SortedName :: (ISSort t, Name t) -> SortedName
 
 
-freeVarToLevelName :: FreeVar -> Maybe (Name Level)
-freeVarToLevelName = toSortedName . unFreeVar
+fvToSortedName :: FreeVar -> SortedName
+fvToSortedName (FreeVar (VLevel, n)) =
+  maybe (error "malformed free variable") (\r -> SortedName (VISLevel, r)) (toSortedName n)
+fvToSortedName (FreeVar (VType l, n)) =
+  maybe (error "malformed free variable") (\r -> SortedName (VISType l, r)) (toSortedName n)
+fvToSortedName (FreeVar (VTerm, n)) =
+  maybe (error "malformed free variable") (\r -> SortedName (VISTerm, r)) (toSortedName n)
 
 
-freeVarToTypeName :: FreeVar -> Maybe (Name Type)
-freeVarToTypeName = toSortedName . unFreeVar
+mkFreeVar :: (Rep s) => ISSort s -> Name s -> FreeVar
+mkFreeVar s n = FreeVar (toVSort s, AnyName n)
 
 
-freeVarToTermName :: FreeVar -> Maybe (Name Term)
-freeVarToTermName = toSortedName . unFreeVar
+data ISSort a where
+  VISLevel :: ISSort Level
+  VISType :: Level -> ISSort Type
+  VISTerm :: ISSort Term
+
+
+toVSort :: ISSort t -> VSort
+toVSort VISLevel = VLevel
+toVSort (VISType l) = VType l
+toVSort VISTerm = VTerm
+
+
+data VSort = VTerm | VLevel | VType Level
+
+
+instance Pretty VSort where
+  isLexicallyAtomic _ = True
+  pprint VTerm = text "Term"
+  pprint VLevel = text "Level"
+  pprint VType{} = text "Type"
+
+
+instance Eq VSort where
+  VTerm == VTerm = True
+  VLevel == VLevel = True
+  -- ignoring Universes for now (2020-03-23, GD)
+  VType{} == VType{} = True
+  _ == _ = False
+
+
+-- | The sort the variable belongs to.
+standsFor :: FreeVar -> VSort
+standsFor (FreeVar (s, _)) = s
 
 
 newtype Arg = Arg { unArg :: Graded (Embed Grade) (IsTyped (Embed Type) FreeVar) }
@@ -186,8 +230,8 @@ instance Com.HasType Arg Type where
   typeOf = (\(Embed e) -> e) . Com.typeOf . unArg
 
 
-mkArg :: (Rep a) => Name a -> Grading -> Type -> Arg
-mkArg n g t = Arg $ (FreeVar . AnyName $ n) `typedWith` (Embed t) `gradedWith` (Com.mapGrading Embed g)
+mkArg :: (Rep a) => (ISSort a, Name a) -> Grading -> Type -> Arg
+mkArg n g t = Arg $ (uncurry mkFreeVar n) `typedWith` (Embed t) `gradedWith` (Com.mapGrading Embed g)
 
 
 mkArgAN :: FreeVar -> Grading -> Type -> Arg
@@ -497,8 +541,8 @@ instance Pretty Arg where
 
 
 instance Pretty FreeVar where
-  isLexicallyAtomic = isLexicallyAtomic . unFreeVar
-  pprint = pprint . unFreeVar
+  isLexicallyAtomic = isLexicallyAtomic . freeVarName
+  pprint = pprint . freeVarName
 
 
 instance Pretty Grading where
@@ -693,7 +737,7 @@ decrementGrade e =
 
 
 mkLam :: Name Term -> Type -> Term -> Term
-mkLam n ty = mkLam' (mkArg n thatMagicalGrading ty)
+mkLam n ty = mkLam' (mkArg (VISTerm, n) thatMagicalGrading ty)
 
 
 mkLam' :: Arg -> Term -> Term
@@ -717,11 +761,11 @@ mkPi' arg = Pi . bind arg
 
 
 mkPi'' :: Name Term -> Type -> Type -> TypeTermOfTermsThatCanBeApplied
-mkPi'' n argTy = IsPi . bind (mkArg n thatMagicalGrading argTy)
+mkPi'' n argTy = IsPi . bind (mkArg (VISTerm, n) thatMagicalGrading argTy)
 
 
 mkPi :: Name Term -> Type -> Type -> TypeTerm
-mkPi n argTy = mkPi' (mkArg n thatMagicalGrading argTy)
+mkPi n argTy = mkPi' (mkArg (VISTerm, n) thatMagicalGrading argTy)
 
 
 mkFunTy :: Name Term -> Type -> Type -> Type
@@ -764,7 +808,7 @@ mkVar n = App (fullyApplied (Var n) [])
 
 
 mkArg' :: VarId -> Type -> Arg
-mkArg' n t = mkArg n thatMagicalGrading t
+mkArg' n t = mkArg (VISTerm, n) thatMagicalGrading t
 
 
 mkArgNoBind :: Type -> Arg
@@ -833,6 +877,7 @@ $(derive
   , ''Type'
   , ''TypeTerm
   , ''TypeTermOfTermsThatCanBeApplied
+  , ''VSort
   ])
 
 
@@ -856,6 +901,7 @@ instance Alpha PartiallyAppable
 instance Alpha TyAppable
 instance Alpha DCon
 instance Alpha TyCon
+instance Alpha VSort
 
 
 instance (Subst Term a) => Subst Term (Leveled a) where
@@ -874,6 +920,7 @@ instance Subst Term TyAppable where
 instance Subst Term TermThatCannotBeApplied where
 instance Subst Term TermThatCanBeApplied where
 instance Subst Term Arg where
+instance Subst Term FreeVar where
 instance Subst Term TyCon where
 instance Subst Term AName where
 instance Subst Term Appable where
@@ -882,6 +929,7 @@ instance Subst Term NameId where
 instance Subst Term CName where
 instance Subst Term DCon where
 instance Subst Term PartiallyAppable where
+instance Subst Term VSort where
 
 
 instance (Subst Level a) => Subst Level (Leveled a) where
@@ -909,6 +957,7 @@ instance Subst Level NameId where
 instance Subst Level CName where
 instance Subst Level DCon where
 instance Subst Level PartiallyAppable where
+instance Subst Level VSort where
 
 
 instance (Subst Type a) => Subst Type (Leveled a) where
@@ -936,3 +985,4 @@ instance Subst Type NameId where
 instance Subst Type CName where
 instance Subst Type DCon where
 instance Subst Type PartiallyAppable where
+instance Subst Type VSort where
