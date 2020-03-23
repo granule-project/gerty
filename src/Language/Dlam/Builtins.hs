@@ -24,6 +24,11 @@ module Language.Dlam.Builtins
   , natTy
   , emptyTy
 
+  -- ** Eliminators
+  , elimCoproduct
+  , elimEmpty
+  , elimNat
+
   -- ** Type Universes
   , mkUnivTy
 
@@ -34,13 +39,11 @@ module Language.Dlam.Builtins
   , mkArg'
   , succForApp
   , succTy
-  , elimNatForApp
-  , elimEmptyForApp
-  , elimCoproductForApp
   , getTyCon
   , mkCoproductTy
   , mkInlTerm
   , mkInrTerm
+  , ToTerm(..)
   ) where
 
 
@@ -462,10 +465,6 @@ elimNat =
   in mkBuiltinDef "elimNat" args ty
 
 
-elimNatForApp :: Appable
-elimNatForApp = AppDef (builtinName $ (BinDef elimNat))
-
-
 {-
   elimEmpty :
     (l : Level)
@@ -487,10 +486,6 @@ elimEmpty =
         ]
       ty = appC (mkVar a)
   in mkBuiltinDef "elimEmpty" args ty
-
-
-elimEmptyForApp :: Appable
-elimEmptyForApp = AppDef (builtinName $ (BinDef elimEmpty))
 
 
 {-
@@ -526,10 +521,6 @@ elimCoproduct =
         ]
       ty = appC pv
   in mkBuiltinDef "elimCoproduct" args ty
-
-
-elimCoproductForApp :: Appable
-elimCoproductForApp = AppDef (builtinName $ (BinDef elimCoproduct))
 
 
 -------------------------------

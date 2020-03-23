@@ -11,6 +11,7 @@ import Control.Monad (when)
 
 import Language.Dlam.Builtins
 import Language.Dlam.Syntax.Abstract hiding (nameFromString)
+import Language.Dlam.Syntax.Common.Language (HasType)
 import Language.Dlam.Syntax.Internal hiding (Var, App, Lam)
 import qualified Language.Dlam.Syntax.Internal as I
 import Language.Dlam.TypeChecking.Monad
@@ -383,13 +384,13 @@ checkExpr_ (CoproductCase (z, tC) (x, c) (y, d) e) t = do
   -- now we essentially build an instance of the eliminator
   -- (axiomatic) by converting free variables to lambda-bound
   -- arguments
-  pure $ I.App (fullyApplied elimCoproductForApp
-     [ Level (level tA), Level (level tB), Level (level tC)
-     , TypeTerm tA, TypeTerm tB, mkLam' zarg (TypeTerm tC)
-     , e
-     , mkLam' xarg c
-     , mkLam' yarg d
-     ])
+  fmap fst $ applyThing elimCoproduct
+               [ Level (level tA), Level (level tB), Level (level tC)
+               , TypeTerm tA, TypeTerm tB, mkLam' zarg (TypeTerm tC)
+               , e
+               , mkLam' xarg c
+               , mkLam' yarg d
+               ]
 
   where inferCoproductTy :: Expr -> CM (Term, Type, Type, Type)
         inferCoproductTy e = withLocalCheckingOf e $ do
@@ -449,12 +450,13 @@ checkExpr_ (NatCase (x, tC) cz (w, y, cs) n) t = do
   -- now we essentially build an instance of the eliminator
   -- (axiomatic) by converting free variables to lambda-bound
   -- arguments
-  pure $ I.App (fullyApplied elimNatForApp
-     [ Level (level tC)
-     , mkLam' xarg (TypeTerm tC)
-     , cz
-     , mkLam' warg (mkLam' yarg cs)
-     , n])
+  fmap fst $ applyThing elimNat
+               [ Level (level tC)
+               , mkLam' xarg (TypeTerm tC)
+               , cz
+               , mkLam' warg (mkLam' yarg cs)
+               , n
+               ]
 
 -----------
 -- Empty --
@@ -484,10 +486,11 @@ checkExpr_ (EmptyElim (x, tC) a) t = do
   -- now we essentially build an instance of the eliminator
   -- (axiomatic) by converting free variables to lambda-bound
   -- arguments
-  pure $ I.App (fullyApplied elimEmptyForApp
-     [ Level (level tC)
-     , mkLam' xarg (TypeTerm tC)
-     , a])
+  fmap fst $ applyThing elimEmpty
+               [ Level (level tC)
+               , mkLam' xarg (TypeTerm tC)
+               , a
+               ]
 
 ---------
 -- Sig --
@@ -722,6 +725,11 @@ substitute (n, s) t =
 ------------------------
 
 
+-- | Try and apply the term-like thing to the given arguments.
+applyThing :: (ToTerm f, HasType f Type) => f -> [Term] -> CM (Term, Type)
+applyThing f = applyMany (toTerm f) (typeOf f)
+
+
 -- | @applyPartial app arg resTy@ resolves a partial application
 -- | (with expected type @resTy@) by applying the argument. The result
 -- | is either yet another partial application, a fully-applied term, or
@@ -779,6 +787,17 @@ applyPartialToExpr f e ty = do
   e <- checkExpr e piArgTy
   -- G |- f e : [e/x]B
   applyPartialToTerm f e ty
+
+
+-- | Try and apply a term to zero or more arguments.
+applyMany :: Term -> Type -> [Term] -> CM (Term, Type)
+applyMany f ty [] = pure (f, ty)
+applyMany f ty (arg:args) =
+  case (f, un ty) of
+    (PartialTerm app, TTForApp pi) -> do
+      (newf, newty) <- applyPartial app arg (mkType' pi (level ty))
+      applyMany newf newty args
+    (_, _) -> expectedInferredTypeForm "function" ty
 
 
 -- | Render an Abstract free variable as a Term, using the given type to guide
