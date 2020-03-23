@@ -741,7 +741,20 @@ applyPartial l@(IsLam lam) arg lamTy = do
     (larg, body, piArg, resTy) <- maybe (hitABug $ "binding structure of '" <> pprintShow l <> "' and '" <> pprintShow lamTy <> "' differed.") pure $ unbound
     body <- substituteAndNormalise (argVar larg, arg) body
     resTy <- substituteAndNormalise (argVar piArg, arg) resTy
-    pure (body, resTy)
+    -- we now check to see if we have produced an application which
+    -- appears to be fully-applied, but is actually partial (in which
+    -- case we need to say it is partial). An example of when this
+    -- could occur is if you have a function 'id : a -> a', then do
+    -- the application 'id id', which would itself have type 'a -> a'.
+    let body' = case (body, un resTy) of
+                  (I.App app, Pi{}) ->
+                    let papp = case un app of
+                                 I.Var v    -> VarPartial v
+                                 ConData dc -> DConPartial dc
+                                 AppDef d   -> DefPartial d
+                    in PartialApp (partiallyApplied papp (appliedArgs app))
+                  _ -> body
+    pure (body', resTy)
 applyPartial (IsPartialApp pa) arg ty =
   let (IsPi pi) = un ty in lunbind pi $ \(piArg, resTy) -> do
   let newArgs = appliedArgs pa <> [arg]
