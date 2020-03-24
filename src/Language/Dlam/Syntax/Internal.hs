@@ -590,6 +590,14 @@ data Level
   | Max Level Level
 
 
+pattern LevelVar :: LVarId -> Level
+pattern LevelVar x = LTerm (LApp (FullyApplied [] (LVar x)))
+
+
+pattern LTerm :: LevelTerm -> Level
+pattern LTerm t = Plus 0 t
+
+
 -- | Atomic terms that are levels.
 data LevelTerm
   = LApp (FullyApplied LAppable)
@@ -645,11 +653,11 @@ instance Un Leveled where
 
 instance Pretty Level where
   isLexicallyAtomic Concrete{} = True
-  isLexicallyAtomic (Plus 0 x) = isLexicallyAtomic x
+  isLexicallyAtomic (LevelVar x) = isLexicallyAtomic x
   isLexicallyAtomic _ = False
 
   pprint (Concrete n) = integer n
-  pprint (Plus 0 x) = pprint x
+  pprint (LevelVar x) = pprint x
   pprint (Plus n x) = integer n <+> char '+' <+> pprintParened x
   pprint (Max n m) = text "lmax" <+> pprintParened n <+> pprintParened m
 
@@ -788,12 +796,11 @@ mkFunTyNoBind' t e = mkType' (mkPi'' (nameFromString "_") t e) (nextLevel $ max2
 
 
 mkTLevel :: LevelTerm -> Level
-mkTLevel = Plus 0
+mkTLevel = LTerm
 
 
--- TODO: switch this to be 'Name Level' (2020-03-20)
 mkLevelVar :: LVarId -> Level
-mkLevelVar n = mkTLevel (LApp (fullyApplied (LVar n) []))
+mkLevelVar = LevelVar
 
 
 -- | Make a new (fully-applied) type variable.
