@@ -290,7 +290,8 @@ emptyTy = mkTyAxiom tcEmpty levelZero
 
 
 mkUnivTy :: Level -> Type
-mkUnivTy l = mkType (Universe l) (nextLevel l)
+mkUnivTy l = mkType (Universe l) l
+
 
 mkCoproductTyForApp :: Type -> Type -> FullyApplied TyCon
 mkCoproductTyForApp t1 t2 = fullyAppliedTC tcCoproduct [Level (level t1), Level (level t2), TypeTerm t1, TypeTerm t2]
