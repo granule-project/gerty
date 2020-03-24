@@ -159,14 +159,28 @@ type VarId = Name Term
 -----------------
 
 
-newtype FreeVar = FreeVar { unFreeVar :: (VSort, AnyName) }
+data FreeVar where
+  FreeVar :: (ISSort t, Name t) -> FreeVar
 
 
 freeVarName :: FreeVar -> AnyName
-freeVarName = snd . unFreeVar
+freeVarName (FreeVar (VISTerm, n)) = AnyName n
+freeVarName (FreeVar (VISLevel, n)) = AnyName n
+freeVarName (FreeVar (VISType{}, n)) = AnyName n
+
 
 instance Eq FreeVar where
-  (FreeVar (_, n1)) == (FreeVar (_, n2)) = n1 == n2
+  (FreeVar (VISTerm, n1)) == (FreeVar (VISTerm, n2)) = n1 == n2
+  (FreeVar (VISType{}, n1)) == (FreeVar (VISType{}, n2)) = n1 == n2
+  (FreeVar (VISLevel, n1)) == (FreeVar (VISLevel, n2)) = n1 == n2
+  _ == _ = False
+
+
+instance Ord FreeVar where
+  (FreeVar (VISTerm, n1)) `compare` (FreeVar (VISTerm, n2)) = compare n1 n2
+  (FreeVar (VISType{}, n1)) `compare` (FreeVar (VISType{}, n2)) = compare n1 n2
+  (FreeVar (VISLevel, n1)) `compare` (FreeVar (VISLevel, n2)) = compare n1 n2
+  _ `compare` _ = error "tried to compare free vars of different sorts"
 
 
 data SortedName where
@@ -174,16 +188,11 @@ data SortedName where
 
 
 fvToSortedName :: FreeVar -> SortedName
-fvToSortedName (FreeVar (VLevel, n)) =
-  maybe (error "malformed free variable") (\r -> SortedName (VISLevel, r)) (toSortedName n)
-fvToSortedName (FreeVar (VType l, n)) =
-  maybe (error "malformed free variable") (\r -> SortedName (VISType l, r)) (toSortedName n)
-fvToSortedName (FreeVar (VTerm, n)) =
-  maybe (error "malformed free variable") (\r -> SortedName (VISTerm, r)) (toSortedName n)
+fvToSortedName (FreeVar (s, n)) = SortedName (s, n)
 
 
-mkFreeVar :: (Rep s) => ISSort s -> Name s -> FreeVar
-mkFreeVar s n = FreeVar (toVSort s, AnyName n)
+mkFreeVar :: ISSort s -> Name s -> FreeVar
+mkFreeVar s n = FreeVar (s, n)
 
 
 data ISSort a where
@@ -218,7 +227,7 @@ instance Eq VSort where
 
 -- | The sort the variable belongs to.
 standsFor :: FreeVar -> VSort
-standsFor (FreeVar (s, _)) = s
+standsFor (FreeVar (s, _)) = toVSort s
 
 
 newtype Arg = Arg { unArg :: Graded (Embed Grade) (IsTyped (Embed Type) FreeVar) }
@@ -230,7 +239,7 @@ instance Com.HasType Arg Type where
   typeOf = (\(Embed e) -> e) . Com.typeOf . unArg
 
 
-mkArg :: (Rep a) => (ISSort a, Name a) -> Grading -> Type -> Arg
+mkArg :: (ISSort a, Name a) -> Grading -> Type -> Arg
 mkArg n g t = Arg $ (uncurry mkFreeVar n) `typedWith` (Embed t) `gradedWith` (Com.mapGrading Embed g)
 
 
@@ -860,7 +869,6 @@ $(derive
   [ ''Appable
   , ''Arg
   , ''DCon
-  , ''FreeVar
   , ''FullyApplied
   , ''Grade
   , ''LAppable
@@ -881,12 +889,20 @@ $(derive
   ])
 
 
+$(derive_abstract [''FreeVar])
+
+
 instance Alpha Arg
 instance (Alpha a) => Alpha (Type' a)
 instance (Alpha a) => Alpha (PartiallyApplied a)
 instance (Alpha a) => Alpha (FullyApplied a)
 instance (Alpha a) => Alpha (Leveled a)
-instance Alpha FreeVar
+-- we have to provide definitions for aeq' and acompare' as FreeVar is
+-- abstract (see
+-- https://hackage.haskell.org/package/unbound-0.5.1.1/docs/Unbound-LocallyNameless-Alpha.html#t:Alpha)
+instance Alpha FreeVar where
+  aeq' _c x y = x == y
+  acompare' _c x y = compare x y
 instance Alpha Grade
 instance Alpha Term
 instance Alpha TermThatCannotBeApplied
