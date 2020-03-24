@@ -706,11 +706,11 @@ instance Normalise CM Type where
   normalise t = mkType <$> normalise (un t) <*> normalise (level t)
 
 
-substituteAndNormalise :: (Normalise CM t, Subst Level t, Subst Type t, Subst Term t, Pretty t) => (FreeVar, Term) -> t -> CM t
+substituteAndNormalise :: (Normalise CM t, SubstAll t, Pretty t) => (FreeVar, Term) -> t -> CM t
 substituteAndNormalise (n, s) t = normalise =<< substitute (n, s) t
 
 
-doTermSubst :: (Subst Level t, Subst Type t, Subst Term t) => (FreeVar, Term) -> t -> CM t
+doTermSubst :: (SubstAll t) => (FreeVar, Term) -> t -> CM t
 doTermSubst (n, b) t =
   case (fvToSortedName n, b) of
     (SortedName (VISLevel,  n), Level l)     -> pure $ subst n l t
@@ -719,7 +719,7 @@ doTermSubst (n, b) t =
     _ -> hitABug "wrong sort for name"
 
 
-substitute :: (Subst Level t, Subst Type t, Pretty t, Subst Term t) => (FreeVar, Term) -> t -> CM t
+substitute :: (SubstAll t, Pretty t) => (FreeVar, Term) -> t -> CM t
 substitute (n, s) t =
   debugBlock "substitute"
     ("substituting '" <> pprintShow s <> "' for '" <> pprintShow n <> "' in '" <> pprintShow t <> "'")
