@@ -60,7 +60,6 @@ module Language.Dlam.Syntax.Internal
   -- * Levels
   , Level(..)
   , nextLevel
-  , prevLevel
   , HasLevel(..)
   , LevelTerm(..)
   , LVarId
@@ -607,28 +606,9 @@ instance Inc Level where
   inc (Max x y) = Max (inc x) (inc y)
 
 
-class Dec a where
-  dec :: a -> a
-
-
-instance Dec Level where
-  dec l@(Concrete n)
-    | n > 0 = Concrete (pred n)
-    | otherwise = error $ "dec on already-zero level (" ++ pprintShow l ++ ")"
-  dec lev@(Plus n l)
-    | n > 0 = Plus (pred n) l
-    | otherwise = error $ "dec on already-zero level (" ++ pprintShow lev ++ ")"
-  dec (Max x y) = Max (dec x) (dec y)
-
-
 -- | The next highest level.
 nextLevel :: Level -> Level
 nextLevel = inc
-
-
--- | The next lowest level (can fail).
-prevLevel :: Level -> Level
-prevLevel = dec
 
 
 -- | Something with a level.
