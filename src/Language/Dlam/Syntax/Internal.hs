@@ -63,6 +63,8 @@ module Language.Dlam.Syntax.Internal
   , HasLevel(..)
   , LevelTerm(..)
   , LVarId
+  , max2
+  , singleLevel
   -- * Types
   , Type
   , unType
@@ -570,6 +572,18 @@ instance Pretty Grade where
 type Nat = Integer
 
 
+max2 :: Level -> Level -> Level
+max2 = Max
+
+
+singleLevel :: Level -> Level
+singleLevel = id
+
+
+levelZero :: Level
+levelZero = Concrete 0
+
+
 data Level
   = Concrete Nat
   | Plus Nat LevelTerm
@@ -758,23 +772,19 @@ mkPi n argTy = mkPi' (mkArg (VISTerm, n) thatMagicalGrading argTy)
 
 
 mkFunTy :: Name Term -> Type -> Type -> Type
-mkFunTy n t e = mkType (mkPi n t e) (nextLevel $ Max (level t) (level e))
+mkFunTy n t e = mkType (mkPi n t e) (nextLevel $ max2 (level t) (level e))
 
 
 mkFunTy' :: Arg -> Type -> Type
-mkFunTy' arg ty = mkType (mkPi' arg ty) (nextLevel $ Max (level (typeOf arg)) (level ty))
+mkFunTy' arg ty = mkType (mkPi' arg ty) (nextLevel $ max2 (level (typeOf arg)) (level ty))
 
 
 mkFunTyNoBind :: Type -> Type -> Type
-mkFunTyNoBind t e = mkType (mkPi (nameFromString "_") t e) (nextLevel $ Max (level t) (level e))
+mkFunTyNoBind t e = mkType (mkPi (nameFromString "_") t e) (nextLevel $ max2 (level t) (level e))
 
 
 mkFunTyNoBind' :: Type -> Type -> TypeOfTermsThatCanBeApplied
-mkFunTyNoBind' t e = mkType' (mkPi'' (nameFromString "_") t e) (nextLevel $ Max (level t) (level e))
-
-
-levelZero :: Level
-levelZero = Concrete 0
+mkFunTyNoBind' t e = mkType' (mkPi'' (nameFromString "_") t e) (nextLevel $ max2 (level t) (level e))
 
 
 mkTLevel :: LevelTerm -> Level

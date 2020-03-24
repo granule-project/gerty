@@ -296,7 +296,7 @@ mkCoproductTyForApp :: Type -> Type -> FullyApplied TyCon
 mkCoproductTyForApp t1 t2 = fullyAppliedTC tcCoproduct [Level (level t1), Level (level t2), TypeTerm t1, TypeTerm t2]
 
 mkCoproductTy :: Type -> Type -> Type
-mkCoproductTy t1 t2 = mkType (TyApp (fmap AppTyCon (mkCoproductTyForApp t1 t2))) (Max (level t1) (level t2))
+mkCoproductTy t1 t2 = mkType (TyApp (fmap AppTyCon (mkCoproductTyForApp t1 t2))) (max2 (level t1) (level t2))
 
 
 -----------------------------
@@ -321,7 +321,7 @@ tcCoproduct =
   in mkBuiltinTyCon "Coproduct"
      [ mkLevelArg l1, mkLevelArg l2
      , mkTyArg a l1v, mkTyArg b l2v]
-     (Max l1v l2v)
+     (max2 l1v l2v)
 
 
 tcId =
@@ -359,7 +359,7 @@ dcLsuc = let l = nameFromString "l" in mkBuiltinDCon "lsuc" [mkLevelArg l] tcLev
 dcLmax =
   let l1 = nameFromString "l1"; l2 = nameFromString "l2" in
   mkBuiltinDCon "lmax" [mkLevelArg l1, mkLevelArg l2] tcLevel'
-                  (Level (Max (mkLevelVar l1) (mkLevelVar l2)))
+                  (Level (max2 (mkLevelVar l1) (mkLevelVar l2)))
 
 
 ------------------------------------------------------

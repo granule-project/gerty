@@ -61,7 +61,7 @@ checkExprIsType_ (FunTy ab) = do
   -- TODO: improve support for gradings here (2020-03-17)
   arg' <- buildArg x thatMagicalGrading argTy
   ty <- withArgBoundForType arg' $ checkExprIsType absExpr
-  pure $ mkType (mkPi' arg' ty) (nextLevel (Max (level argTy) (level ty)))
+  pure $ mkType (mkPi' arg' ty) (nextLevel (max2 (level argTy) (level ty)))
 
 {-
    G |- A : Type l1
@@ -282,7 +282,7 @@ checkExpr_ (FunTy ab) t = do
   tB <- withArgBoundForType arg $ checkExprIsType absExpr
 
   -- G |- (x : A) -> B : Type (lmax l1 l2)
-  let lmaxl1l2 = Max (level tA) (level tB)
+  let lmaxl1l2 = max2 (level tA) (level tB)
   ensureEqualTypes t (mkUnivTy lmaxl1l2)
   pure . TypeTerm $ mkType (mkPi' arg tB) lmaxl1l2
 
@@ -520,7 +520,7 @@ checkExpr_ (Sig e t') t = do
 ----------------------
 checkExpr_ (LitLevel l) t = do
   ensureEqualTypes t levelTy
-  pure (Level $ Concrete l)
+  pure (Level $ singleLevel (Concrete l))
 checkExpr_ e t = notImplemented $ "checkExpr_: I don't yet know how to check whether the type of the expression '" <> pprintShow e <> "' matches expected type '" <> pprintShow t <> "'"
 
 
