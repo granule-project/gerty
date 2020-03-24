@@ -62,6 +62,23 @@ checkExprIsType_ (FunTy ab) = do
   arg' <- buildArg x thatMagicalGrading argTy
   ty <- withArgBoundForType arg' $ checkExprIsType absExpr
   pure $ mkType (mkPi' arg' ty) (nextLevel (Max (level argTy) (level ty)))
+
+{-
+   G |- A : Type l1
+   G |- B : Type l2
+   ------------------------------ :: Coproduct
+   G |- A + B : Type (lmax l1 l2)
+-}
+checkExprIsType_ (Coproduct tA tB) = do
+  -- G |- A : Type l1
+  tA <- checkExprIsType tA
+
+  -- G |- B : Type l2
+  tB <- checkExprIsType tB
+
+  -- G |- A + B : Type (lmax l1 l2)
+  pure $ mkCoproductTy tA tB
+
 checkExprIsType_ _e = notAType
 
 
@@ -329,24 +346,12 @@ checkExpr_ (App e1 e2) t = do
 -- Coproducts --
 ----------------
 
-{-
-   G |- A : Type l1
-   G |- B : Type l2
-   ------------------------------ :: Coproduct
-   G |- A + B : Type (lmax l1 l2)
--}
-checkExpr_ (Coproduct tA tB) t = do
-  -- G |- A : Type l1
-  tA <- checkExprIsType tA
-
-  -- G |- B : Type l2
-  tB <- checkExprIsType tB
-
-  -- G |- (x : A) -> B : Type (lmax l1 l2)
-  let lmaxl1l2 = Max (level tA) (level tB)
-  ensureEqualTypes t (mkUnivTy lmaxl1l2)
-
-  pure $ TypeTerm $ mkCoproductTy tA tB
+checkExpr_ e@Coproduct{} t = do
+  -- coproducts are types, so we should be able to determine a type for this
+  copAB <- checkExprIsType e
+  -- we just need to make sure that we are expecting a type of the right level
+  ensureEqualTypes t (mkUnivTy (level copAB))
+  pure . TypeTerm $ copAB
 
 {-
    G, z : A + B |- C : Type l
@@ -404,7 +409,7 @@ checkExpr_ (CoproductCase (z, tC) (x, c) (y, d) e) t = do
               (TyApp app) ->
                 if un app == AppTyCon (getTyCon tcCoproduct)
                 then case appliedArgs app of
-                       [TypeTerm tA, TypeTerm tB] -> pure (tA, tB)
+                       [Level _, Level _, TypeTerm tA, TypeTerm tB] -> pure (tA, tB)
                        _ -> error "ill-formed coproduct"
                 else expectedInferredTypeForm "coproduct" ty
               _ -> expectedInferredTypeForm "coproduct" ty
