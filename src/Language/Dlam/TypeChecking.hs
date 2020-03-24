@@ -65,6 +65,34 @@ checkExprIsType_ (FunTy ab) = do
 
 {-
    G |- A : Type l1
+   G, x : A |- B : Type l2
+   ------------------------------------- :: ProductTy
+   G |- (x :: A) * B : Type (lmax l1 l2)
+-}
+checkExprIsType_ (ProductTy ab) = do
+  (x, absTy, absExpr) <- openAbs ab
+
+  -- G |- A : Type l1
+  tA <- checkExprIsType absTy
+
+  -- TODO: improve support for gradings here (2020-03-24, GD)
+  arg' <- buildArg x thatMagicalGrading tA
+
+  -- G, x : A |- B : Type l2
+  tB <- withArgBoundForType arg' $ checkExprIsType absExpr
+
+
+  -- G |- (x :: A) * B : Type (lmax l1 l2)
+  t <- fmap fst $ applyThing tcProduct
+                  [ Level (level tA), Level (level tB)
+                  , TypeTerm tA, mkLam' arg' (TypeTerm tB)
+                  ]
+  case t of
+    TypeTerm t -> pure t
+    _ -> hitABug "builtin product is broken"
+
+{-
+   G |- A : Type l1
    G |- B : Type l2
    ------------------------------ :: Coproduct
    G |- A + B : Type (lmax l1 l2)
@@ -341,6 +369,17 @@ checkExpr_ (App e1 e2) t = do
   (t1t2, t2forXinB) <- applyPartialToExpr e1Term e2 e1Ty
   ensureEqualTypes t t2forXinB
   pure t1t2
+
+--------------
+-- Products --
+--------------
+
+checkExpr_ e@ProductTy{} t = do
+  -- products are types, so we should be able to determine a type for this
+  prodAB <- checkExprIsType e
+  -- we just need to make sure that we are expecting a type of the right level
+  ensureEqualTypes t (mkUnivTy (level prodAB))
+  pure . TypeTerm $ prodAB
 
 ----------------
 -- Coproducts --

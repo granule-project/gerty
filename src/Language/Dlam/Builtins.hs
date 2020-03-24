@@ -21,6 +21,7 @@ module Language.Dlam.Builtins
 
   -- ** Type Constructors
   , tcCoproduct
+  , tcProduct
 
   -- ** Common types
   , levelTy
@@ -85,6 +86,7 @@ builtins =
       , tcId
       , tcLevel
       , tcNat
+      , tcProduct
       , tcUnit
       ]
     builtinEliminators = fmap BinDef
@@ -305,7 +307,7 @@ mkCoproductTy t1 t2 = mkType (TyApp (fmap AppTyCon (mkCoproductTyForApp t1 t2)))
 -----------------------------
 
 
-tcCoproduct, tcEmpty, tcId, tcLevel, tcNat, tcUnit :: BuiltinTyCon
+tcCoproduct, tcEmpty, tcId, tcLevel, tcNat, tcProduct, tcUnit :: BuiltinTyCon
 
 
 tcEmpty = mkBuiltinType "Empty"
@@ -334,6 +336,20 @@ tcId =
        [ mkLevelArg l, mkTyArg a lv
        , mkArgNoBind av, mkArgNoBind av]
        lv
+
+
+{-
+  Product : {l1 l2 : Level} (a : Type l1) -> (a -> Type l2) -> Type (lmax l1 l2)
+-}
+tcProduct =
+  let l1 = nameFromString "l1"; l1v = mkLevelVar l1
+      l2 = nameFromString "l2"; l2v = mkLevelVar l2
+      a = nameFromString "a"
+      av = mkTypeVar a l1v
+  in mkBuiltinTyCon "Product"
+     [ mkLevelArg l1, mkLevelArg l2
+     , mkTyArg a l1v, mkArgNoBind (mkFunTyNoBind av (mkUnivTy l2v))]
+     (max2 l1v l2v)
 
 
 tcLevel', tcNat', tcUnit' :: FullyApplied TyCon
