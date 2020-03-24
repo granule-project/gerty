@@ -1,3 +1,4 @@
+{-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
@@ -155,12 +156,10 @@ typesAreEqual t1 t2 = do
           ys = appliedArgs app2
       in (&&) <$> pure (length xs == length ys && x == y) <*> (and <$> (mapM (uncurry termsAreEqual) (zip xs ys)))
     (Universe l1, Universe l2) -> levelsAreEqual l1 l2
-    (Pi pi1, Pi pi2) -> lunbind2 pi1 pi2 $ \unbound ->
+    (Pi pi1, Pi pi2) -> lopenArg2 pi1 pi2 $ \unbound ->
       case unbound of
         Nothing -> pure False
-        Just (arg1, t1, arg2, t2) ->
-          (&&) <$> typesAreEqual (typeOf arg1) (typeOf arg2)
-               <*> withArgBound arg1 (typesAreEqual t1 t2)
+        Just (t1, t2) -> typesAreEqual t1 t2
     -- for any other combination, we assume they are not equal
     (_, _) -> pure False
 
@@ -895,6 +894,31 @@ renderNameForType n argTy = do
     VLevel   -> pure $ mkFreeVar VISLevel    (translate n :: Name Level)
     VTerm    -> pure $ mkFreeVar VISTerm     (translate n :: Name Term)
     VType l  -> pure $ mkFreeVar (VISType l) (translate n :: Name Type)
+
+
+type SubstAll a = (Subst Term a, Subst Level a, Subst Type a)
+
+
+-- | Open two things bound with arguments, making sure the argument
+-- | names align.
+-- |
+-- | This executes the action with the argument variable in scope.
+-- |
+-- | Executes the action with 'Nothing' if the arguments are of
+-- | different sorts or types.
+lopenArg2 :: (Alpha a, Normalise CM a, SubstAll a, Pretty a) => Bind Arg a -> Bind Arg a -> ((Maybe (a, a) -> CM b) -> CM b)
+lopenArg2 bound1 bound2 act = lunbind2 bound1 bound2 $ \unbound ->
+  case unbound of
+    Nothing -> act Nothing
+    Just (arg1, b1, arg2, b2) -> do
+      -- TODO: also add a check for grades (2020-03-24)
+      typesEqual <- typesAreEqual (typeOf arg1) (typeOf arg2)
+      if not typesEqual then (act Nothing) else do
+        let x2 = argVar arg2
+        -- substitute in to make sure names are the same
+        arg1v <- freeVarToTermVar (((\(AnyName n) -> translate n) (freeVarName (argVar arg1)))) (typeOf arg1)
+        b2 <- substituteAndNormalise (x2, arg1v) b2
+        withArgBound arg1 $ act $ Just (b1, b2)
 
 
 -- | Build an argument, where the sort of the bound name is guided by the given type.
