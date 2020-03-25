@@ -871,9 +871,13 @@ instance Normalise CM Level where
   normalise (Max l1 l2) = do
     l1 <- normalise l1
     l2 <- normalise l2
-    pure $ case (l1, l2) of
-             (Concrete n, Concrete m) -> Concrete (max n m)
-             _ -> Max l1 l2
+    areEq <- levelsAreEqual l1 l2
+    if areEq then pure l1 else pure $
+      case (l1, l2) of
+        (Concrete 0, _) -> l2
+        (_, Concrete 0) -> l1
+        (Concrete n, Concrete m) -> Concrete (max n m)
+        _ -> Max l1 l2
 
 
 instance Normalise CM TypeTermOfTermsThatCanBeApplied where
