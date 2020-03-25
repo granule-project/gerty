@@ -155,6 +155,7 @@ import Language.Dlam.Syntax.Common (NameId(..))
 import Language.Dlam.Util.Peekaboo
 import Language.Dlam.Util.Pretty
 import Unbound.LocallyNameless
+import Unbound.LocallyNameless.Subst
 import Unbound.LocallyNameless.Ops (unsafeUnbind) -- for pretty-printing
 
 
@@ -1015,12 +1016,41 @@ instance (Subst Term a) => Subst Term (PartiallyApplied a) where
 instance (Subst Term a, Subst Term t) => Subst Term (IsTyped t a) where
 instance (Subst Term a, Subst Term g) => Subst Term (Graded g a) where
 instance (Subst Term a, Subst Term t) => Subst Term (Final t a) where
+
 instance Subst Term Type where
+  isCoerceVar ty =
+    case un ty of
+      (TyApp app) ->
+        case app of
+          FinalVar v -> pure (SubstCoerce (translate v) (\t ->
+            case t of
+              (TypeTerm ty) -> pure ty
+              _ -> Nothing))
+          _ -> Nothing
+      _ -> Nothing
+
 instance Subst Term LAppable where
+
 instance Subst Term LevelTerm where
+
 instance Subst Term Level where
+  isCoerceVar (LevelVar x) = pure (SubstCoerce (translate x) (\t ->
+    case t of
+      Level l -> pure l
+      _ -> Nothing))
+  isCoerceVar _ = Nothing
+
 instance Subst Term TypeTerm where
 instance Subst Term Term where
+  isvar (App app) =
+    case (un app, appliedArgs app) of
+      (Var x, []) -> pure (SubstName x)
+      _ -> Nothing
+  isvar (PartialApp app) =
+    case (un app, appliedArgs app) of
+      (VarPartial x, []) -> pure (SubstName x)
+      _ -> Nothing
+  isvar _ = Nothing
 instance Subst Term TypeTermOfTermsThatCanBeApplied where
 instance Subst Term TyAppable where
 instance Subst Term TermThatCannotBeApplied where
@@ -1049,6 +1079,22 @@ instance Subst Level Type where
 instance Subst Level LAppable where
 instance Subst Level LevelTerm where
 instance Subst Level Level where
+  isCoerceVar (Plus n (LApp (FinalVar x))) =
+      pure (SubstCoerce (translate x) (\t ->
+        case t of
+          -- if we are substituting in a concrete level, we can
+          -- simplify by doing an addition
+          (Concrete m) -> pure (Concrete (n + m))
+          -- if we are substituting in an addition, we can simplify by
+          -- combining the additions
+          (Plus m (LApp (FinalVar y))) ->
+            pure (Plus (m + n) (LApp (mkFinalVar y)))
+
+          (Max (Plus m1 l1) (Plus m2 l2)) ->
+            pure $ Max (Plus (n + m1) l1) (Plus (n + m2) l2)
+          l -> pure l))
+  isCoerceVar _ = Nothing
+
 instance Subst Level TypeTerm where
 instance Subst Level Term where
 instance Subst Level TypeTermOfTermsThatCanBeApplied where
@@ -1076,6 +1122,10 @@ instance (Subst Type a, Subst Type t) => Subst Type (IsTyped t a) where
 instance (Subst Type a, Subst Type g) => Subst Type (Graded g a) where
 instance (Subst Type a, Subst Type t) => Subst Type (Final t a) where
 instance Subst Type Type where
+  isCoerceVar ty =
+    case un ty of
+      (TyApp (FinalVar v)) -> pure (SubstCoerce (translate v) pure)
+      _ -> Nothing
 instance Subst Type LAppable where
 instance Subst Type LevelTerm where
 instance Subst Type Level where
