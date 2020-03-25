@@ -381,6 +381,32 @@ checkExpr_ e@ProductTy{} t = do
   ensureEqualTypes t (mkUnivTy (level prodAB))
   pure . TypeTerm $ prodAB
 
+{-
+   G |- t1 : A
+   G |- t2 : [t1/x]B
+   G, x : A |- B : Type l
+   --------------------------- :: Pair
+   G |- (t1, t2) : (x : A) * B
+-}
+checkExpr_ (Pair e1 e2) t = do
+  -- TODO: add support for checking grades (2020-03-25)
+  withOpenProductTy t $ \(arg, tB) -> do
+    let x = argVar arg
+        tA = typeOf arg
+
+    -- G |- t1 : A
+    t1 <- checkExpr e1 tA
+
+    -- G, x : A |- B : Type l
+    -- we get this from the withOpenProductTy (x is (potentially) free in tB)
+
+    -- G |- t2 : [t1/x]B
+    t1forXinB <- substitute (x, t1) tB
+    t2 <- checkExpr e2 t1forXinB
+
+    -- G |- (t1, t2) : (x : A) * B
+    mkPair (arg, tB) t1 t2
+
 ----------------
 -- Coproducts --
 ----------------
@@ -642,6 +668,33 @@ inferExprForApp_ e = do
 -------------------
 ----- Helpers -----
 -------------------
+
+
+-- | Try and open the type as a product type, and execute the action with the binder
+-- | active, passing the (now free) argument and dependent type to the action.
+withOpenProductTy :: Type -> ((Arg, Type) -> CM a) -> CM a
+withOpenProductTy ty act =
+  case un ty of
+    TyApp app ->
+      case (un app, appliedArgs app) of
+        (AppTyCon con, [_, _, _, I.Lam lam])
+          | getName con == getName tcProduct -> lunbind lam $ \(arg, tB) ->
+              case tB of
+                TypeTerm tB -> act (arg, tB)
+                _ -> malformedProduct
+          | otherwise -> malformedProduct
+        _ -> notAProduct
+    _ -> notAProduct
+  where malformedProduct = hitABug "malformed product type"
+        notAProduct = expectedInferredTypeForm "product" ty
+
+
+mkPair :: (Arg, Type) -> Term -> Term -> CM Term
+mkPair (arg, tB) t1 t2 =
+  let tA = typeOf arg
+  in fmap fst $ applyThing dcPair [ Level (level tA), Level (level tB)
+                                  , TypeTerm tA, mkLam' arg (TypeTerm tB)
+                                  , t1, t2]
 
 
 openAbs :: Abstraction -> CM (FVName, Expr, Expr)

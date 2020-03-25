@@ -17,6 +17,7 @@ module Language.Dlam.Builtins
   , builtinType
 
   -- ** Data Constructors
+  , dcPair
   , dcSucc
 
   -- ** Type Constructors
@@ -75,6 +76,7 @@ builtins =
       , dcLmax
       , dcLsuc
       , dcLzero
+      , dcPair
       , dcRefl
       , dcSucc
       , dcUnit
@@ -384,7 +386,7 @@ dcLmax =
 ------------------------------------------------------
 
 
-dcInl, dcInr, dcRefl, dcSucc, dcUnit, dcZero :: BuiltinDCon
+dcInl, dcInr, dcPair, dcRefl, dcSucc, dcUnit, dcZero :: BuiltinDCon
 
 
 dcInl =
@@ -419,6 +421,33 @@ dcInr =
 
 mkInrTerm :: Type -> Type -> Term -> Term
 mkInrTerm tA tB b = App (fullyApplied (ConData $ getDCon dcInr) [Level (level tA), Level (level tB), TypeTerm tA, TypeTerm tB, b])
+
+
+{-
+  pair ::
+    {l1 l2 : Level} {A : Type l1} {B : A -> Type l2}
+    (x : A) -> B x -> Product A B
+-}
+dcPair =
+  let l1 = nameFromString "l1"
+      l2 = nameFromString "l2"
+      l1v = mkLevelVar l1
+      l2v = mkLevelVar l2
+      a = nameFromString "a"
+      av = mkTypeVar a l1v
+      x = nameFromString "x"
+      b = nameFromString "B"
+      bv = mkTypeVar b l2v
+      xv = mkVar x
+      appB a = mkType (TyApp (fullyApplied (AppTyVar b) [a])) l2v
+  in mkBuiltinDConNoDef "pair"
+       [ mkLevelArg l1, mkLevelArg l2
+       , mkTyArg a l1v, mkArg' (nameForTerm b) (mkFunTyNoBind av (mkUnivTy l2v))
+       , mkArg' x av
+       , mkArgNoBind (appB xv)
+       ]
+       (fullyAppliedTC tcProduct [ Level l1v, Level l2v
+                                 , TypeTerm av, mkLam' (mkArg' x av) (TypeTerm bv)])
 
 
 dcRefl =
