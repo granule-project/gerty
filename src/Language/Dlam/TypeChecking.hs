@@ -158,6 +158,10 @@ termsAreEqual (I.App app1) (I.App app2) =
   in (&&) <$> pure (length xs == length ys && x == y)
           <*> (and <$> (mapM (uncurry termsAreEqual) (zip xs ys)))
 termsAreEqual (TypeTerm t1) (TypeTerm t2) = typesAreEqual t1 t2
+termsAreEqual (I.Lam lam1) (I.Lam lam2) = lopenArg2 lam1 lam2 $ \unbound ->
+  case unbound of
+    Nothing -> pure False
+    Just (body1, body2) -> termsAreEqual body1 body2
 termsAreEqual t1 t2 = notImplemented $ "termsAreEqual: TODO: equality of terms '" <> pprintShow t1 <> "' and '" <> pprintShow t2 <> "'"
 
 
