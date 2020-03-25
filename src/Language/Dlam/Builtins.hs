@@ -17,8 +17,10 @@ module Language.Dlam.Builtins
   , builtinType
 
   -- ** Data Constructors
+  , BuiltinDCon
   , dcPair
   , dcSucc
+  , dcUnit
 
   -- ** Type Constructors
   , tcCoproduct
@@ -28,6 +30,7 @@ module Language.Dlam.Builtins
   , levelTy
   , natTy
   , emptyTy
+  , unitTy
 
   -- ** Eliminators
   , elimCoproduct
@@ -290,10 +293,11 @@ mkDefTy :: [Arg] -> Type -> Type
 mkDefTy args ty = foldr (\arg t -> mkFunTy' arg t) ty args
 
 
-levelTy, natTy, emptyTy :: Type
+levelTy, natTy, emptyTy, unitTy :: Type
 levelTy = mkTyAxiom tcLevel levelZero
 natTy = mkTyAxiom tcNat levelZero
 emptyTy = mkTyAxiom tcEmpty levelZero
+unitTy = mkTyAxiom tcUnit levelZero
 
 
 mkUnivTy :: Level -> Type

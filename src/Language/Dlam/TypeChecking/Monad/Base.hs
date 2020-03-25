@@ -24,6 +24,9 @@ module Language.Dlam.TypeChecking.Monad.Base
 
   , getFreshNameId
 
+  -- ** Metas
+  , getFreshMetaId
+
   -- ** Scope
   , lookupType
   , maybeLookupType
@@ -104,6 +107,8 @@ data CheckerState
     -- ^ Scope of provisions (how can an assumption be used---grades remaining).
     , nextNameId :: NameId
     -- ^ Unique NameId for naming.
+    , nextMetaId :: I.MetaId
+    -- ^ Unique id for metas.
     , debugNesting :: Int
     -- ^ Counter used to make it easier to locate debugging messages.
     }
@@ -116,6 +121,7 @@ startCheckerState =
                , valueScope = builtinsValues
                , provisionScope = M.empty
                , nextNameId = 0
+               , nextMetaId = 0
                , debugNesting = 0
                }
 
@@ -261,6 +267,16 @@ setValue :: AName -> I.Term -> CM ()
 setValue n t = modify (\s -> s { valueScope = M.insert n t (valueScope s) })
 
 
+-----------
+-- Metas --
+-----------
+
+
+-- | Get a unique MetaId.
+getFreshMetaId :: CM I.MetaId
+getFreshMetaId = get >>= \s -> let c = nextMetaId s in put s { nextMetaId = succ c } >> pure c
+
+
 -------------
 -- Grading --
 -------------
@@ -349,6 +365,10 @@ instance ToFreeVar AnyName where
 
 instance ToFreeVar (Name n) where
   toFreeVar n = FreeVar (AnyName (forgetSort n))
+
+
+instance ToFreeVar I.FreeVar where
+  toFreeVar n = toFreeVar (I.freeVarName n)
 
 
 forgetSort :: Name a -> Name ()
@@ -474,7 +494,7 @@ data TCError
   -- Pattern Errors --
   --------------------
 
-  | PatternMismatch Pattern Expr
+  | PatternMismatch Pattern I.Type
 
   --------------------
   -- Grading Errors --
@@ -551,7 +571,7 @@ notAType :: CM a
 notAType = throwCM NotAType
 
 
-patternMismatch :: Pattern -> Expr -> CM a
+patternMismatch :: Pattern -> I.Type -> CM a
 patternMismatch p t = throwCM (PatternMismatch p t)
 
 

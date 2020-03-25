@@ -27,10 +27,18 @@ module Language.Dlam.Syntax.Internal
   , pattern Pi
   , PartiallyAppable(..)
 
+  -- ** Metas
+  , MetaId
+  , MetaVar
+  , metaId
+  , mkLevelMeta
+  , mkTypeMeta
+
   -- ** Application
   , Final(..)
   , mkFinalApp
   , mkFinalVar
+  , mkFinalMeta
   , fullyAppliedToFinal
 
   -- ** Type Constructors
@@ -264,6 +272,25 @@ type TyVarId = Name Type
 type DefId = AName
 
 
+-----------------
+----- Metas -----
+-----------------
+
+
+type MetaId = Int
+
+
+newtype MetaVar = MetaVar { metaId :: MetaId }
+
+
+mkLevelMeta :: MetaId -> Level
+mkLevelMeta i = LTerm $ LApp (mkFinalMeta i [])
+
+
+mkTypeMeta :: MetaId -> Level -> Type
+mkTypeMeta i = mkType (TyApp (mkFinalMeta i []))
+
+
 -----------------------
 ----- Application -----
 -----------------------
@@ -274,6 +301,7 @@ data Final t a
   = FinalVar (Name t)
   -- | A fully-applied application.
   | Application (FullyApplied a)
+  | MetaApp (FullyApplied MetaVar)
 
 
 mkFinalApp :: a -> [Term] -> Final t a
@@ -288,8 +316,13 @@ mkFinalVar :: Name t -> Final t a
 mkFinalVar = FinalVar
 
 
+mkFinalMeta :: MetaId -> [Term] -> Final t a
+mkFinalMeta i = MetaApp . fullyApplied (MetaVar i)
+
+
 instance Functor (Final t) where
   fmap _ (FinalVar n) = FinalVar n
+  fmap _ (MetaApp n) =  MetaApp n
   fmap f (Application a) = Application (fmap f a)
 
 
@@ -551,11 +584,18 @@ instance Pretty PartiallyAppable where
   pprint (DefPartial d) = pprint d
 
 
+instance Pretty MetaVar where
+  isLexicallyAtomic _ = True
+  pprint m = char '{' <> int (metaId m) <> char '}'
+
+
 instance (Pretty a) => Pretty (Final t a) where
   isLexicallyAtomic (FinalVar v) = isLexicallyAtomic v
   isLexicallyAtomic (Application p) = isLexicallyAtomic p
+  isLexicallyAtomic (MetaApp p) = isLexicallyAtomic p
   pprint (FinalVar v) = pprint v
   pprint (Application p) = pprint p
+  pprint (MetaApp p) = pprint p
 
 
 instance Pretty TypeTerm where
@@ -921,6 +961,7 @@ $(derive
   , ''Level
   , ''Leveled
   , ''LevelTerm
+  , ''MetaVar
   , ''PartiallyAppable
   , ''PartiallyApplied
   , ''Term
@@ -959,6 +1000,7 @@ instance Alpha TypeTerm
 instance Alpha LAppable
 instance Alpha Level
 instance Alpha LevelTerm
+instance Alpha MetaVar
 instance Alpha Appable
 instance Alpha PartiallyAppable
 instance Alpha TyAppable
@@ -986,6 +1028,7 @@ instance Subst Term TermThatCanBeApplied where
 instance Subst Term Arg where
 instance Subst Term FreeVar where
 instance Subst Term TyCon where
+instance Subst Term MetaVar where
 instance Subst Term AName where
 instance Subst Term Appable where
 instance Subst Term Grade where
@@ -1013,6 +1056,7 @@ instance Subst Level TyAppable where
 instance Subst Level TermThatCannotBeApplied where
 instance Subst Level TermThatCanBeApplied where
 instance Subst Level Arg where
+instance Subst Level MetaVar where
 instance Subst Level FreeVar where
 instance Subst Level TyCon where
 instance Subst Level AName where
@@ -1044,6 +1088,7 @@ instance Subst Type TermThatCanBeApplied where
 instance Subst Type Arg where
 instance Subst Type FreeVar where
 instance Subst Type TyCon where
+instance Subst Type MetaVar where
 instance Subst Type AName where
 instance Subst Type Appable where
 instance Subst Type Grade where

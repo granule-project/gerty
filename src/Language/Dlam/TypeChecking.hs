@@ -563,6 +563,86 @@ checkExpr_ (EmptyElim (x, tC) a) t = do
                , a
                ]
 
+--------------------
+-- Let Eliminator --
+--------------------
+
+{-
+   G, tass(pat) |- C : Type l
+   G, sass(pats) |- e2 : [Intro(T, sass(pat))/z]C
+   G |- e1 : T
+   ---------------------------------------------- :: Let
+   G |- let z@pat = e1 in e2 : [e1/z]C
+-}
+checkExpr_ (Let (LetPatBound p e1) e2) t = do
+
+  -- G |- t1 : T
+  -- the type we are going to try and eliminate
+  (t1, toElimTy) <- synthTypePatGuided p e1
+
+  -- gather some information about the constructor
+  (svars, tvars) <- patternVarsForType p toElimTy
+
+  -- TODO: support cases when e2 isn't a Sig (but normalises to one,
+  -- when it is well-typed) (2020-03-04)
+  (e2, tC) <-
+    case e2 of
+      (Sig e2 tC) -> do
+        -- G, tass(pat) |- C : Type l
+        tC <- withBinders tvars $ checkExprIsType tC
+        pure (e2, tC)
+      -- if we don't have an explicit type for e2, just assume it
+      -- is t for now (2020-03-04)
+      _ -> pure (e2, t)
+
+  -- TODO: generalise the 'z' to arbitrary type vars---make sure the
+  -- introConstructed gets substituted in for the vars
+  -- correctly (2020-03-04)
+  z <- patTyVar p toElimTy
+
+  -- G, sass(pat) |- t2 : [Intro(T, sass...)/z]C
+
+  -- build the general element
+  con <- findConstructorForType toElimTy
+  introConstructed <- applyCon con svars
+
+  introForzinC <- maybe (pure tC) (\z -> substitute (z, introConstructed) tC) z
+  t2 <- withBinders svars $ withActivePattern t1 introConstructed
+        $ checkExpr e2 introForzinC
+
+  t1forzinC <- maybe (pure tC) (\z -> substitute (z, t1) tC) z
+  ensureEqualTypes t t1forzinC
+  pure t2
+
+  where
+        withBinders :: [(PatVar, Type)] -> CM a -> CM a
+        withBinders [] m = m
+        withBinders (b:bs) m = uncurry withPatVarBound b $ withBinders bs m
+
+        -- TODO (maybe?): support arbitrarily nested typing patterns (e.g.,
+        -- (x@(y, z), a)) (2020-03-04)
+        -- | Get the typing variable of a pattern.
+        patTyVar :: Pattern -> Type -> CM (Maybe PatVar)
+        patTyVar (PAt b _) ty = Just <$> renderNameForType b ty
+        patTyVar _ _ = pure Nothing
+
+        -- TODO: support non-builtin constructors (2020-03-25)
+        applyCon :: BuiltinDCon -> [(PatVar, Type)] -> CM Term
+        applyCon d args = do
+          args <- mapM (uncurry freeVarToTerm) args
+          fmap fst $ applyThing d args
+
+        -- TODO: for now we're just going to hardcode certain
+        -- constructors to minimise the overhead of getting the new
+        -- type checker up and running. When support for user-defined
+        -- records is added, this will need to be
+        -- changed. (2020-03-25, GD)
+        findConstructorForType :: Type -> CM BuiltinDCon
+        findConstructorForType ty = do
+          isUnit <- typesAreEqual ty unitTy
+          if isUnit then pure $ dcUnit
+          else notImplemented $ "I don't yet know how to form a constructor of type '" <> pprintShow ty <> "'"
+
 ---------
 -- Sig --
 ---------
@@ -755,15 +835,24 @@ instance Normalise CM TermThatCanBeApplied where
     pure $ IsLam (bind arg' body')
 
 
-instance Normalise CM TermThatCannotBeApplied where
-  normalise (IsTypeTerm t) = IsTypeTerm <$> normalise t
-  normalise (IsLevel l) = IsLevel <$> normalise l
-  normalise (IsApp (FinalVar x)) = pure . IsApp $ mkFinalVar x
-  normalise (IsApp (Application app)) = do
+instance Normalise CM (Final t a) where
+  normalise (FinalVar x) = pure $ FinalVar x
+  normalise (Application app) = do
     let n = un app
         xs = appliedArgs app
     xs <- normalise xs
-    pure $ IsApp (mkFinalApp n xs)
+    pure $ mkFinalApp n xs
+  normalise (MetaApp app) = do
+    let n = un app
+        xs = appliedArgs app
+    xs <- normalise xs
+    pure $ mkFinalMeta (metaId n) xs
+
+
+instance Normalise CM TermThatCannotBeApplied where
+  normalise (IsTypeTerm t) = IsTypeTerm <$> normalise t
+  normalise (IsLevel l) = IsLevel <$> normalise l
+  normalise (IsApp app) = IsApp <$> normalise app
 
 
 instance Normalise CM Term where
@@ -772,8 +861,7 @@ instance Normalise CM Term where
 
 
 instance Normalise CM LevelTerm where
-  normalise (LApp (FinalVar v)) = pure $ LApp (mkFinalVar v)
-  normalise (LApp (Application app)) = LApp . mkFinalApp (un app) <$> mapM normalise (appliedArgs app)
+  normalise (LApp app) = LApp <$> normalise app
 
 
 instance Normalise CM Level where
@@ -806,8 +894,7 @@ instance Normalise CM TypeTerm where
   -- Type variables are free, and thus cannot reduce through application.
   -- Type constructors are constants, and thus also cannot reduce.
   -- TODO: perhaps check we have correct number of arguments  (2020-03-16)
-  normalise (TyApp (Application app)) = TyApp . mkFinalApp (un app) <$> normalise (appliedArgs app)
-  normalise (TyApp (FinalVar v)) = pure $ TyApp (mkFinalVar v)
+  normalise (TyApp app) = TyApp <$> normalise app
   normalise (TTForApp t) = TTForApp <$> normalise t
 
 
@@ -987,6 +1074,16 @@ freeVarToTermVar n ty =
       pure $ if isLevTy then Level (mkLevelVar (translate n)) else mkVar (translate n)
 
 
+freeVarToTerm :: FreeVar -> Type -> CM Term
+freeVarToTerm fv ty =
+  case (fvToSortedName fv, un ty) of
+    (SortedName (VISType{}, n), Universe l) -> pure $ TypeTerm $ mkTyVar n l
+    (SortedName (VISLevel, n), _) -> pure $ Level $ mkLevelVar n
+    (SortedName (VISTerm, n), TTForApp{}) -> pure $ PartialApp (partiallyApplied (VarPartial n) [])
+    (SortedName (VISTerm, n), _) -> pure $ mkVar n
+    _ -> hitABug $ "bad conversion of free variable '" <> pprintShow fv <> "' to term, with type '" <> pprintShow ty <> "'"
+
+
 -- TODO: make sure this gives back a type def when appropriate (2020-03-21)
 mkUnboundDef :: AName -> Type -> Term
 mkUnboundDef n ty =
@@ -1069,9 +1166,61 @@ instance InScope (Name a) where
 --------------------
 
 
--- | 'withActivePattern e pat act' takes an expression,
+type PatVar = FreeVar
+
+
+-- TODO: support grades for pattern variables (2020-03-25)
+withPatVarBound :: PatVar -> Type -> CM a -> CM a
+withPatVarBound n = withVarBound n thatMagicalGrading
+
+
+-- | Compare a pattern against a type, and attempt to build a mapping
+-- | from subject binders and subject type binders to their
+-- | respective types.
+patternVarsForType :: Pattern -> Type -> CM ([(FreeVar, Type)], [(FreeVar, Type)])
+patternVarsForType (PAt n p) t = do
+  fv <- renderNameForType n t
+  (([], [(fv, t)]) <>) <$> patternVarsForType p t
+patternVarsForType PUnit ty = ensureEqualTypes ty unitTy >> pure ([], [])
+patternVarsForType p t = patternMismatch p t
+-- | Synthesise a term and type for an expression, guided by a pattern it should match.
+synthTypePatGuided :: Pattern -> Expr -> CM (Term, Type)
+synthTypePatGuided p e = do
+  ty <- patToImplTy p
+  e <- checkExpr e ty
+  pure (e, ty)
+  where
+    -- | Build up a type with implicits for the expression.
+    patToImplTy :: Pattern -> CM Type
+    patToImplTy (PAt _ p) = patToImplTy p
+    patToImplTy (PPair (PVar n) r) = do
+      -- we generate a new meta to be solved later
+      tyImpl <- genPatMetaForTy
+      n <- renderNameForType n tyImpl
+      tyr <- patToImplTy r
+      mkProductTy (mkArgAN n thatMagicalGrading tyImpl) tyr
+    patToImplTy PUnit = pure unitTy
+    patToImplTy (PVar _) = genPatMetaForTy
+    patToImplTy p = notImplemented $ "patToImplTy: I don't yet know how to generate a type for pattern '" <> pprintShow p <> "'"
+
+
+-- | 'withActivePattern e pat act' takes a term,
 -- | an introduction form produced from a pattern match on the
--- | expression, and an action, then runs the action with variables
+-- | term, and an action, then runs the action with variables
 -- | rebound as appropriate for equality checking.
 withActivePattern :: Term -> Term -> CM a -> CM a
-withActivePattern e intro _act = notImplemented $ "withActivePattern: TODO (called with term '" <> pprintShow e <> "' and pattern term '" <> pprintShow intro <> "')"
+withActivePattern _ _ = id
+
+
+--------------------------
+----- Meta Variables -----
+--------------------------
+
+
+genLevelMeta :: CM Level
+genLevelMeta = mkLevelMeta <$> getFreshMetaId
+
+
+-- TODO: add a warning for any unsolved metas at the top level (2020-03-25)
+genPatMetaForTy :: CM Type
+genPatMetaForTy = mkTypeMeta <$> getFreshMetaId <*> genLevelMeta
