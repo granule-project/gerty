@@ -83,13 +83,7 @@ checkExprIsType_ (ProductTy ab) = do
 
 
   -- G |- (x :: A) * B : Type (lmax l1 l2)
-  t <- fmap fst $ applyThing tcProduct
-                  [ Level (level tA), Level (level tB)
-                  , TypeTerm tA, mkLam' arg' (TypeTerm tB)
-                  ]
-  case t of
-    TypeTerm t -> pure t
-    _ -> hitABug "builtin product is broken"
+  mkProductTy arg' tB
 
 {-
    G |- A : Type l1
@@ -690,6 +684,19 @@ withOpenProductTy ty act =
     _ -> notAProduct
   where malformedProduct = hitABug "malformed product type"
         notAProduct = expectedInferredTypeForm "product" ty
+
+
+mkProductTy :: Arg -> Type -> CM Type
+mkProductTy xtA tB = do
+  let tA = typeOf xtA
+  -- G |- (x :: A) * B : Type (lmax l1 l2)
+  t <- fmap fst $ applyThing tcProduct
+                  [ Level (level tA), Level (level tB)
+                  , TypeTerm tA, mkLam' xtA (TypeTerm tB)
+                  ]
+  case t of
+    TypeTerm t -> pure t
+    _ -> hitABug "builtin product is broken"
 
 
 mkPair :: (Arg, Type) -> Term -> Term -> CM Term
