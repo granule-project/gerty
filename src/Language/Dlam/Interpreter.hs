@@ -31,7 +31,7 @@ scopeAnalyseCST cst =
   let res = SC.runNewScoper (toAbstract cst)
   in case SC.scrRes res of
        Left err -> scoperError err
-       Right ast -> pure ast
+       Right ast -> updateWithScopeInfo res >> pure ast
 
 
 runParser :: FilePath -> String -> CM C.AST
@@ -65,6 +65,10 @@ runTypeChecker fname input = do
 
   -- Typing
   checkAST ast
+  -- TODO: add a warning for any unsolved metas at the top level (2020-03-25)
+  -- TODO: add a check to make sure there are no unsolved implicits (2020-03-25)
+  metas <- getMetas
+  info $ "I was able to produce the following information about metas\n" <> pprintShow metas
 
 
 ansi_reset, ansi_bold :: String

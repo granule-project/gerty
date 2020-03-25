@@ -1,0 +1,15 @@
+-- tests for when substitution should apply
+
+
+-- (\x -> x) lzero = [lzero/x]x = lzero
+t1 : Level
+t1 = (\x -> x) lzero
+
+{-
+   G |- t1 : (x : A) -> B
+   G |- t2 : A
+   ---------------------- :: App
+   G |- t1 t2 : [t2/x]B
+-}
+app : (l1 l2 : Level) (A : Type l1) (B : A -> Type l2) (t1 : (x : A) -> B x) (t2 : A) -> B t2
+app = \l1 l2 A B t1 t2 -> t1 t2

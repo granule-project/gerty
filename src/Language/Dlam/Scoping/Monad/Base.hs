@@ -11,8 +11,10 @@ module Language.Dlam.Scoping.Monad.Base
   , SCResult
   , scrLog
   , scrRes
+  , scrState
   , getFreshNameId
   , getFreshImplicitId
+  , nextImplicitId
 
   -- * Environment
 
@@ -78,14 +80,15 @@ type SCLog = String
 data SCResult a
   = SCResult
     { scrLog :: SCLog
+    , scrState :: ScoperState
     , scrRes :: Either SCError a
     }
 
 
 runScoper :: SCEnv -> ScoperState -> SM a -> SCResult a
 runScoper env st p =
-  let (res, log) = evalState (runReaderT (runWriterT $ (runExceptT (runSM p))) env) st
-  in SCResult { scrLog = log, scrRes = res }
+  let ((res, log), str) = runState (runReaderT (runWriterT $ (runExceptT (runSM p))) env) st
+  in SCResult { scrLog = log, scrState = str, scrRes = res }
 
 
 runNewScoper :: SM a -> SCResult a

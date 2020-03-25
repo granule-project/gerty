@@ -101,6 +101,11 @@ checkExprIsType_ (Coproduct tA tB) = do
   -- G |- A + B : Type (lmax l1 l2)
   pure $ mkCoproductTy tA tB
 
+checkExprIsType_ (Implicit i) = do
+  l <- genLevelMeta
+  registerMeta i IsImplicit (VISType l)
+  pure (mkTypeMeta i l)
+
 checkExprIsType_ _e = notAType
 
 
@@ -209,6 +214,14 @@ typesAreEqual t1 t2 = do
         Nothing -> pure False
         Just (t1, t2) -> typesAreEqual t1 t2
     -- for any other combination, we assume they are not equal
+    (TyApp (MetaApp app), _) ->
+      case (un app, appliedArgs app) of
+        (m, []) -> solveMeta (metaId m) (VISType (level t2), typesAreEqual, t2) >> pure True
+        _ -> notImplemented "typesAreEqual: equality for applied meta"
+    (_, TyApp (MetaApp app)) ->
+      case (un app, appliedArgs app) of
+        (m, []) -> solveMeta (metaId m) (VISType (level t1), typesAreEqual, t1) >> pure True
+        _ -> notImplemented "typesAreEqual: equality for applied meta"
     (_, _) -> pure False
 
 
@@ -335,7 +348,9 @@ checkExpr_ (Lam ab) t = do
 
   (x, absTy, absExpr) <- openAbs ab
   tA <- case absTy of
-              Implicit i -> solveImplicit i (VISType (level tA), tA) >> pure tA
+              Implicit i -> do
+                registerMeta i IsImplicit (VISType (level tA))
+                solveMeta i (VISType (level tA), typesAreEqual, tA) >> pure tA
               lta -> checkExprIsType lta
 
   lamArg <- buildArg x gr tA
@@ -1223,16 +1238,20 @@ withActivePattern _ _ = id
 --------------------------
 
 
--- TODO: have this check if the implicit is already solved, and if so,
--- that it matches the given solution (2020-03-25)
-solveImplicit :: ImplicitId -> (ISSort t, t) -> CM ()
-solveImplicit _ _ = pure ()
-
-
 genLevelMeta :: CM Level
-genLevelMeta = mkLevelMeta <$> getFreshMetaId
+genLevelMeta = do
+  i <- getFreshMetaId
+  registerMeta i IsMeta VISLevel
+  pure $ mkLevelMeta i
 
 
--- TODO: add a warning for any unsolved metas at the top level (2020-03-25)
 genPatMetaForTy :: CM Type
-genPatMetaForTy = mkTypeMeta <$> getFreshMetaId <*> genLevelMeta
+genPatMetaForTy = genTypeMeta
+
+
+genTypeMeta :: CM Type
+genTypeMeta = do
+  l <- genLevelMeta
+  i <- getFreshMetaId
+  registerMeta i IsMeta (VISType l)
+  pure $ mkTypeMeta i l

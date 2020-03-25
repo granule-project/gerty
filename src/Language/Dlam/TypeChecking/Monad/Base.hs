@@ -1,3 +1,5 @@
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE GADTs #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Language.Dlam.TypeChecking.Monad.Base
   (
@@ -25,6 +27,10 @@ module Language.Dlam.TypeChecking.Monad.Base
   , getFreshNameId
 
   -- ** Metas
+  , getMetas
+  , MetaType(..)
+  , registerMeta
+  , solveMeta
   , getFreshMetaId
 
   -- ** Scope
@@ -34,6 +40,7 @@ module Language.Dlam.TypeChecking.Monad.Base
   , lookupValue
   , maybeLookupValue
   , setValue
+  , updateWithScopeInfo
 
   -- ** Grading
   , withGradedVariable
@@ -90,6 +97,7 @@ import qualified Data.Map as M
 import qualified Data.Set as Set
 
 import Language.Dlam.Builtins
+import qualified Language.Dlam.Scoping.Monad.Base as SM
 import qualified Language.Dlam.Scoping.Monad.Exception as SE
 import Language.Dlam.Syntax.Abstract
 import qualified Language.Dlam.Syntax.Internal as I
@@ -111,9 +119,11 @@ data CheckerState
     -- ^ Unique id for metas.
     , debugNesting :: Int
     -- ^ Counter used to make it easier to locate debugging messages.
+    , metas :: MetaContext
     }
 
 
+-- TODO: take the scoper state as an argument so e.g., we can set the meta id (2020-03-25)
 -- | The starting checker state.
 startCheckerState :: CheckerState
 startCheckerState =
@@ -123,7 +133,15 @@ startCheckerState =
                , nextNameId = 0
                , nextMetaId = 0
                , debugNesting = 0
+               , metas = M.empty
                }
+
+
+-- | Update the checker with information from a scope analysis. USE WITH CAUTION.
+updateWithScopeInfo :: SM.SCResult a -> CM ()
+updateWithScopeInfo = setNextMetaId . SM.nextImplicitId . SM.scrState
+  where setNextMetaId :: MetaId -> CM ()
+        setNextMetaId i = modify (\s -> s { nextMetaId = i })
 
 
 -- | The checker monad.
@@ -270,6 +288,76 @@ setValue n t = modify (\s -> s { valueScope = M.insert n t (valueScope s) })
 -----------
 -- Metas --
 -----------
+
+
+type MetaId = I.MetaId
+
+
+type MetaContext = M.Map MetaId MetaInfo
+
+
+instance Pretty MetaContext where
+  pprint xs = vcat $ fmap pprintBinding (M.toList xs)
+    where pprintBinding (n, MetaInfo mt ms) =
+            let mtt = brackets $ case mt of
+                        IsImplicit -> text "IMPLICIT"
+                        IsMeta     -> text "META"
+                mst = case ms of
+                        MetaUnsolved{} -> text "(wasn't able to solve)"
+                        MetaSolved (I.VISType{}, _, t) -> equals <+> pprint t
+                        MetaSolved (I.VISTerm, _, t) -> equals <+> pprint t
+                        MetaSolved (I.VISLevel, _, t) -> equals <+> pprint t
+            in mtt <+> pprint n <+> mst
+
+
+data MetaType = IsImplicit | IsMeta
+
+
+data MetaState = forall t. MetaSolved (I.ISSort t, t -> t -> CM Bool, t) | forall t. MetaUnsolved (I.ISSort t)
+
+
+data MetaInfo = MetaInfo MetaType MetaState
+
+
+getMetas :: CM MetaContext
+getMetas = metas <$> get
+
+
+setMetas :: MetaContext -> CM ()
+setMetas impls = modify (\s -> s { metas = impls })
+
+
+registerMeta :: MetaId -> MetaType -> I.ISSort t -> CM ()
+registerMeta i mt s = do
+  debug $ "registering meta '" <> pprintShow i <> "'"
+  metas <- getMetas
+  case M.lookup i metas of
+    Nothing -> setMetas (M.insert i (MetaInfo mt (MetaUnsolved s)) metas)
+    Just{} -> hitABug "meta already registered"
+
+
+solveMeta :: (Pretty t) => MetaId -> (I.ISSort t, t -> t -> CM Bool, t) -> CM ()
+solveMeta i s = do
+  metas <- getMetas
+  soln <- case M.lookup i metas of
+            Nothing -> hitABug $ "tried to solve meta '" <> pprintShow i <> "' with solution '" <> pprintShow (thd3 s) <> "' but the meta isn't registered."
+            -- TODO: check that the solutions are equal (2020-03-25)
+            Just (MetaInfo mt (MetaSolved (st,eq,t1))) -> do
+              areEq <- case (s, st) of
+                         ((I.VISType{}, _, t2), I.VISType{}) -> eq t1 t2
+                         ((I.VISLevel, _, t2), I.VISLevel) -> eq t1 t2
+                         ((I.VISTerm, _, t2), I.VISTerm) -> eq t1 t2
+                         (_, _) -> pure False
+              if areEq then pure (MetaInfo mt (MetaSolved s)) else hitABug "meta already solved"
+            Just (MetaInfo mt (MetaUnsolved r)) ->
+              case (r, s) of
+                -- TODO: add check that the levels are the same (2020-03-25)
+                (I.VISType{}, (I.VISType l, eq, t)) -> pure $ MetaInfo mt (MetaSolved (I.VISType l, eq, t))
+                (I.VISTerm, (I.VISTerm, eq, t)) -> pure $ MetaInfo mt (MetaSolved (I.VISTerm, eq, t))
+                (I.VISLevel, (I.VISLevel, eq, t)) -> pure $ MetaInfo mt (MetaSolved (I.VISLevel, eq, t))
+                (_, _) -> hitABug $ "tried to solve meta with incorrect sort"
+  setMetas (M.insert i soln metas)
+  where thd3 (_,_,c) = c
 
 
 -- | Get a unique MetaId.

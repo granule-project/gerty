@@ -1,0 +1,7 @@
+{-
+  Simple tests for meta variables and implicits.
+-}
+
+-- should be able to infer this is 'Type 0'
+t1 : _
+t1 = Nat

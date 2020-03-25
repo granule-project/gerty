@@ -55,3 +55,7 @@ instance Pretty AnyName where
 instance Pretty (Name a) where
   isLexicallyAtomic _ = True
   pprint n = text (name2String n) <> let i = name2Integer n in if i == 0 then empty else char '_' <> integer i
+
+
+instance Pretty Int where
+  pprint = int

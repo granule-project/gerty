@@ -404,7 +404,7 @@ instance Pretty Expr where
     pprint (Def var) = pprint var
     pprint (Sig e t) = pprintParened e <+> colon <+> pprint t
     pprint Hole = char '?'
-    pprint Implicit{} = char '_'
+    pprint (Implicit n) = text "_{" <> pprint n <> char '}'
     pprint (EmptyElim (x, tC) a) =
       text "let" <+> pprint x <> at <> text "()" <+> equals <+> pprint a <+> colon <+> pprint tC
     pprint (Let lb e) = text "let" <+> pprint lb <+> text "in" <+> pprint e
