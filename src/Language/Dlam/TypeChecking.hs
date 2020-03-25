@@ -335,7 +335,7 @@ checkExpr_ (Lam ab) t = do
 
   (x, absTy, absExpr) <- openAbs ab
   tA <- case absTy of
-              Implicit -> pure tA
+              Implicit i -> solveImplicit i (VISType (level tA), tA) >> pure tA
               lta -> checkExprIsType lta
 
   lamArg <- buildArg x gr tA
@@ -1221,6 +1221,12 @@ withActivePattern _ _ = id
 --------------------------
 ----- Meta Variables -----
 --------------------------
+
+
+-- TODO: have this check if the implicit is already solved, and if so,
+-- that it matches the given solution (2020-03-25)
+solveImplicit :: ImplicitId -> (ISSort t, t) -> CM ()
+solveImplicit _ _ = pure ()
 
 
 genLevelMeta :: CM Level

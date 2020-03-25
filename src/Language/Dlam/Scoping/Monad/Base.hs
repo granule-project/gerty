@@ -12,6 +12,7 @@ module Language.Dlam.Scoping.Monad.Base
   , scrLog
   , scrRes
   , getFreshNameId
+  , getFreshImplicitId
 
   -- * Environment
 
@@ -48,6 +49,8 @@ data ScoperState
   = ScoperState
     { nextNameId :: NameId
     -- ^ Unique NameId for naming.
+    , nextImplicitId :: ImplicitId
+    -- ^ Unique ImplicitId.
     , scScope :: ScopeInfo
     -- ^ Information about the current scope.
     }
@@ -56,7 +59,7 @@ data ScoperState
 -- | The starting checker state.
 startScoperState :: ScoperState
 startScoperState =
-  ScoperState { nextNameId = 0, scScope = startScopeInfo }
+  ScoperState { nextNameId = 0, nextImplicitId = 0, scScope = startScopeInfo }
 
 
 -- | The checker monad.
@@ -93,6 +96,11 @@ runNewScoper = runScoper startEnv startScoperState
 -- | Get a unique NameId.
 getFreshNameId :: SM NameId
 getFreshNameId = get >>= \s -> let c = nextNameId s in put s { nextNameId = succ c } >> pure c
+
+
+-- | Get a unique ImplicitId.
+getFreshImplicitId :: SM ImplicitId
+getFreshImplicitId = get >>= \s -> let c = nextImplicitId s in put s { nextImplicitId = succ c } >> pure c
 
 
 -------------------------------

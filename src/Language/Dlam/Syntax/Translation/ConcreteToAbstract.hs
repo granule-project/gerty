@@ -138,7 +138,7 @@ instance ToAbstract C.PiBindings ([A.TypedBinding], Locals) where
         s  :: C.Expr = typeOf arg
     ns' <- mapM toAbstract ns
     s' <- toAbstract s
-    g' <- maybe (pure A.implicitGrading) toAbstract g
+    g' <- maybe mkImplicitGrading toAbstract g
     let nsLocs = zip ns ns'
     (piBinds, locals) <- withLocals nsLocs $ toAbstract (C.PiBindings bs)
     pure (fmap (A.mkTypedBinding i g' s') ns' <> piBinds, nsLocs <> locals)
@@ -153,7 +153,7 @@ instance ToAbstract C.LambdaArgs ([A.LambdaArg], Locals) where
         s :: C.Expr = idc typeOf (const C.Implicit) $ un arg
     ns' <- mapM toAbstract ns
     s' <- toAbstract s
-    g' <- maybe (pure A.implicitGrading) toAbstract g
+    g' <- maybe mkImplicitGrading toAbstract g
     let nsLocs = zip ns ns'
     (args, locals) <- withLocals nsLocs $ toAbstract bs
     pure (fmap (A.mkLambdaArg i g' s') ns' <> args, nsLocs <> locals)
@@ -170,7 +170,8 @@ instance ToAbstract C.Expr A.Expr where
     name <- newIgnoredName
     e1' <- toAbstract e1
     e2' <- toAbstract e2
-    pure $ A.FunTy (A.mkAbs name e1' e2')
+    g <- mkImplicitGrading
+    pure $ A.FunTy (A.mkAbs name g e1' e2')
   toAbstract (C.Pi piBinds expr) = do
     (piBinds' :: [A.TypedBinding], mySpace) <- toAbstract piBinds
     expr' <- withLocals mySpace $ toAbstract expr
@@ -219,7 +220,7 @@ instance ToAbstract C.Expr A.Expr where
   toAbstract (C.App f e) = A.App <$> toAbstract f <*> toAbstract e
   toAbstract (C.Sig e t) = A.Sig <$> toAbstract e <*> toAbstract t
   toAbstract C.Hole = pure A.Hole
-  toAbstract C.Implicit = pure A.Implicit
+  toAbstract C.Implicit = A.mkImplicit <$> getFreshImplicitId
   toAbstract (C.Let (C.LetPatBound p e1) e2) = do
     (p', names) <- toAbstract p
     e1' <- toAbstract e1
@@ -287,4 +288,13 @@ instance ToAbstract C.Abstraction A.Abstraction where
     v <- toAbstract (C.absVar ab)
     t <- toAbstract (C.absTy ab)
     e <- withLocals [(C.absVar ab, v)] $ toAbstract (C.absExpr ab)
-    pure $ A.mkAbs v t e
+    -- TODO: add proper support for grades here (Concrete syntax should support them) (2020-03-25)
+    g <- mkImplicitGrading
+    pure $ A.mkAbs v g t e
+
+
+mkImplicitGrading :: SM A.Grading
+mkImplicitGrading = do
+  i1 <- getFreshImplicitId
+  i2 <- getFreshImplicitId
+  pure $ A.mkGrading (A.mkImplicit i1) (A.mkImplicit i2)

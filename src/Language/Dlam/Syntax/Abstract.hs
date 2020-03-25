@@ -33,12 +33,14 @@ module Language.Dlam.Syntax.Abstract
   , FRHS(..)
   , Declaration(..)
   , Abstraction
+
+  -- ** Implicits
+  , ImplicitId
   , mkImplicit
 
   -- * Grading
   , Grade
   , Grading
-  , implicitGrading
   , mkGrading
   , grading
   , subjectGrade
@@ -91,10 +93,6 @@ grading = Com.grading
 subjectGrade, subjectTypeGrade :: (Com.IsGraded a Grade) => a -> Grade
 subjectGrade = Com.subjectGrade
 subjectTypeGrade = Com.subjectTypeGrade
-
-
-implicitGrading :: Grading
-implicitGrading = mkGrading Implicit Implicit
 
 
 -- TODO: update this to support binding multiple names at once (see
@@ -184,8 +182,8 @@ argGrading = Com.mapGrading (\(Embed g) -> g) . Com.grading
 type Abstraction = Bind Arg Expr
 
 
-mkAbs :: FVName -> Expr -> Expr -> Abstraction
-mkAbs v = mkAbs' NotHidden v implicitGrading
+mkAbs :: FVName -> Grading -> Type -> Expr -> Abstraction
+mkAbs = mkAbs' NotHidden
 
 
 mkAbs' :: IsHiddenOrNot -> FVName -> Grading -> Type -> Expr -> Abstraction
@@ -193,6 +191,9 @@ mkAbs' isHid v g e1 e2 = bind (mkArg' isHid g e1 v) e2
 
 
 type FVName = Name Expr
+
+
+type ImplicitId = Int
 
 
 data Expr
@@ -240,14 +241,14 @@ data Expr
   | Hole
 
   -- | Implicits for synthesis.
-  | Implicit
+  | Implicit ImplicitId
 
   | Let LetBinding Expr
   deriving (Show)
 
 
 -- | Make a new, unnamed, implicit term.
-mkImplicit :: Expr
+mkImplicit :: ImplicitId -> Expr
 mkImplicit = Implicit
 
 
@@ -378,7 +379,7 @@ instance Pretty Expr where
     pprint (App e1 e2) = pprint e1 <+> pprintParened e2
     pprint (Pair e1 e2) = parens (pprint e1 <> comma <+> pprint e2)
     pprint (Coproduct e1 e2) = pprint e1 <+> char '+' <+> pprint e2
-    pprint (CoproductCase (_, Implicit) (x, c) (y, d) e) =
+    pprint (CoproductCase (_, Implicit{}) (x, c) (y, d) e) =
       caset <+> pprint e <+> text "of"
               <+> text "Inl" <+> pprint x <+> arrow <+> pprint c <> semi
               <+> text "Inr" <+> pprint y <+> arrow <+> pprint d
