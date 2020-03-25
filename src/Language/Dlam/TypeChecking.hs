@@ -169,13 +169,15 @@ termsAreEqual t1 t2 = notImplemented $ "termsAreEqual: TODO: equality of terms '
 
 -- | Are the levels equal in the current context?
 levelTermsAreEqual :: LevelTerm -> LevelTerm -> CM Bool
-levelTermsAreEqual (LApp app1) (LApp app2) =
+levelTermsAreEqual (LApp (FinalVar x)) (LApp (FinalVar y)) = pure $ x == y
+levelTermsAreEqual (LApp (Application app1)) (LApp (Application app2)) =
   let x = un app1
       y = un app2
       xs = appliedArgs app1
       ys = appliedArgs app2
   in (&&) <$> pure (length xs == length ys && x == y)
           <*> (and <$> (mapM (uncurry termsAreEqual) (zip xs ys)))
+levelTermsAreEqual _ _ = pure $ False
 
 
 -- | Are the levels equal in the current context?
@@ -198,7 +200,8 @@ typesAreEqual t1 t2 = do
   -- _levEq <- levelsAreEqual (level t1) (level t2)
   case (un t1, un t2) of
     -- TODO: add proper equality here (2020-03-14)
-    (TyApp app1, TyApp app2) ->
+    (TyApp (FinalVar v1), TyApp (FinalVar v2)) -> pure $ v1 == v2
+    (TyApp (Application app1), TyApp (Application app2)) ->
       let x = un app1
           y = un app2
           xs = appliedArgs app1
@@ -471,7 +474,7 @@ checkExpr_ (CoproductCase (z, tC) (x, c) (y, d) e) t = do
           (e, ty) <- inferExpr e
           (tA, tB) <-
             case un ty of
-              (TyApp app) ->
+              (TyApp (Application app)) ->
                 if un app == AppTyCon (getTyCon tcCoproduct)
                 then case appliedArgs app of
                        [Level _, Level _, TypeTerm tA, TypeTerm tB] -> pure (tA, tB)
@@ -675,7 +678,7 @@ inferExprForApp_ e = do
 withOpenProductTy :: Type -> ((Arg, Type) -> CM a) -> CM a
 withOpenProductTy ty act =
   case un ty of
-    TyApp app ->
+    TyApp (Application app) ->
       case (un app, appliedArgs app) of
         (AppTyCon con, [_, _, _, I.Lam lam])
           | getName con == getName tcProduct -> lunbind lam $ \(arg, tB) ->
@@ -748,11 +751,12 @@ instance Normalise CM TermThatCanBeApplied where
 instance Normalise CM TermThatCannotBeApplied where
   normalise (IsTypeTerm t) = IsTypeTerm <$> normalise t
   normalise (IsLevel l) = IsLevel <$> normalise l
-  normalise (IsApp app) = do
+  normalise (IsApp (FinalVar x)) = pure . IsApp $ mkFinalVar x
+  normalise (IsApp (Application app)) = do
     let n = un app
         xs = appliedArgs app
     xs <- normalise xs
-    pure $ IsApp (fullyApplied n xs)
+    pure $ IsApp (mkFinalApp n xs)
 
 
 instance Normalise CM Term where
@@ -761,7 +765,8 @@ instance Normalise CM Term where
 
 
 instance Normalise CM LevelTerm where
-  normalise (LApp app) = LApp . fullyApplied (un app) <$> mapM normalise (appliedArgs app)
+  normalise (LApp (FinalVar v)) = pure $ LApp (mkFinalVar v)
+  normalise (LApp (Application app)) = LApp . mkFinalApp (un app) <$> mapM normalise (appliedArgs app)
 
 
 instance Normalise CM Level where
@@ -794,7 +799,8 @@ instance Normalise CM TypeTerm where
   -- Type variables are free, and thus cannot reduce through application.
   -- Type constructors are constants, and thus also cannot reduce.
   -- TODO: perhaps check we have correct number of arguments  (2020-03-16)
-  normalise (TyApp app) = TyApp . fullyApplied (un app) <$> normalise (appliedArgs app)
+  normalise (TyApp (Application app)) = TyApp . mkFinalApp (un app) <$> normalise (appliedArgs app)
+  normalise (TyApp (FinalVar v)) = pure $ TyApp (mkFinalVar v)
   normalise (TTForApp t) = TTForApp <$> normalise t
 
 
@@ -911,14 +917,14 @@ applyPartial (IsPartialApp pa) arg ty =
           Pi{} -> PartialApp (partiallyApplied (un pa) newArgs)
           -- if the result is a universe, we've just produced a type
           Universe l ->
-            let thingApplied =
+            let finalApp =
                   case un pa of
-                    VarPartial v -> AppTyVar (termVarToTyVar v)
-                    TyConPartial c -> AppTyCon c
-                    DefPartial d -> AppTyDef d
+                    VarPartial v -> mkFinalVar (termVarToTyVar v)
+                    TyConPartial c -> mkFinalApp (AppTyCon c) newArgs
+                    DefPartial d -> mkFinalApp (AppTyDef d) newArgs
                     DConPartial{} -> error "I completed a data constructor application, but produced a type."
 
-            in TypeTerm (mkType (TyApp (fullyApplied thingApplied newArgs)) l)
+            in TypeTerm (mkType (TyApp finalApp) l)
           -- wasn't a universe, but is fully applied, so it's a term application
           _ -> I.App (fullyApplied (case un pa of
                                       VarPartial v -> I.Var v

@@ -180,7 +180,7 @@ instance ToTerm BuiltinTyCon where
     if length (args tcon) > 0
     then PartialApp (partiallyApplied (TyConPartial tcon) [])
     -- TODO: not sure if this is the correct level! (2020-03-16)
-    else TypeTerm $ mkType (TyApp $ fullyApplied (AppTyCon tcon) []) (level $ conTy tcon)
+    else TypeTerm $ mkType (TyApp $ mkFinalApp (AppTyCon tcon) []) (level $ conTy tcon)
 
 
 instance ToTerm BuiltinDCon where
@@ -280,7 +280,10 @@ mkTyConTy con = foldr (\arg t -> mkFunTy' arg t) (conTy con) (args con)
 -- the arguments passed (will need to build the builtins in the monad,
 -- I think) (2020-03-16)
 mkDConTy :: DCon -> Type
-mkDConTy con = foldr (\arg t -> mkFunTy' arg t) (mkType (TyApp $ fmap AppTyCon (dconTy con)) (level $ conTy (un $ dconTy con))) (args con)
+mkDConTy con =
+  let tyCon = dconTy con
+      lev = level . conTy . un $ tyCon
+  in foldr (\arg t -> mkFunTy' arg t) (mkType (TyApp $ fmap AppTyCon (fullyAppliedToFinal tyCon)) lev) (args con)
 
 
 mkDefTy :: [Arg] -> Type -> Type
@@ -301,7 +304,7 @@ mkCoproductTyForApp :: Type -> Type -> FullyApplied TyCon
 mkCoproductTyForApp t1 t2 = fullyAppliedTC tcCoproduct [Level (level t1), Level (level t2), TypeTerm t1, TypeTerm t2]
 
 mkCoproductTy :: Type -> Type -> Type
-mkCoproductTy t1 t2 = mkType (TyApp (fmap AppTyCon (mkCoproductTyForApp t1 t2))) (max2 (level t1) (level t2))
+mkCoproductTy t1 t2 = mkType (TyApp (fmap AppTyCon (fullyAppliedToFinal $ mkCoproductTyForApp t1 t2))) (max2 (level t1) (level t2))
 
 
 -----------------------------
@@ -437,12 +440,12 @@ dcPair =
       av = mkTypeVar a l1v
       x = nameFromString "x"
       b = nameFromString "B"
-      bv = mkTypeVar b l2v
+      bv = mkTypeVar (nameForType b) l2v
       xv = mkVar x
-      appB a = mkType (TyApp (fullyApplied (AppTyVar b) [a])) l2v
+      appB a = mkType (TyApp (mkFinalApp (AppTyVar b) [a])) l2v
   in mkBuiltinDConNoDef "pair"
        [ mkLevelArg l1, mkLevelArg l2
-       , mkTyArg a l1v, mkArg' (nameForTerm b) (mkFunTyNoBind av (mkUnivTy l2v))
+       , mkTyArg a l1v, mkArg' b (mkFunTyNoBind av (mkUnivTy l2v))
        , mkArg' x av
        , mkArgNoBind (appB xv)
        ]
@@ -496,7 +499,7 @@ elimNat =
       five fun (a,b,c,d,e) = (fun a, fun b, fun c, fun d, fun e)
       lv = mkLevelVar l
       xv = mkVar x
-      appC a = mkType (TyApp (fullyApplied (AppTyVar tC) [a])) lv
+      appC a = mkType (TyApp (mkFinalApp (AppTyVar tC) [a])) lv
       succApp a = App (fullyApplied (ConData $ getDCon dcSucc) [a])
       args =
         [ mkLevelArg l
@@ -522,7 +525,7 @@ elimEmpty =
       a = nameFromString "a"
       tC = nameFromString "tC"
       lv = mkLevelVar l
-      appC a = mkType (TyApp (fullyApplied (AppTyVar tC) [a])) lv
+      appC a = mkType (TyApp (mkFinalApp (AppTyVar tC) [a])) lv
       args =
         [ mkLevelArg l
         , mkArg' (nameForTerm tC) (mkFunTyNoBind emptyTy (mkUnivTy lv))
@@ -544,15 +547,16 @@ elimEmpty =
 elimCoproduct :: BuiltinDef
 elimCoproduct =
   let (l1, l2, l3) = three nameFromString ("l1", "l2", "l3")
-      (a, b, tC) = three nameFromString ("a", "b", "tC")
-      p = nameFromString "p"
+      (a, b) = two nameFromString ("a", "b")
+      (p, tC) = two nameFromString ("p", "C")
       three fun (a,b,c) = (fun a, fun b, fun c)
+      two fun (a,b) = (fun a, fun b)
       l1v = mkLevelVar l1
       l2v = mkLevelVar l2
       l3v = mkLevelVar l3
       aty = mkTypeVar a l1v
       bty = mkTypeVar b l2v
-      appC a = mkType (TyApp (fullyApplied (AppTyVar tC) [a])) l3v
+      appC a = mkType (TyApp (mkFinalApp (AppTyVar tC) [a])) l3v
       copAB = mkCoproductTy aty bty
       pv = mkVar p
       args =
@@ -603,7 +607,7 @@ mkTyArg n l = mkArg (VISType l, n) thatMagicalGrading (mkUnivTy l)
 
 
 mkTyAxiom :: BuiltinTyCon -> Level -> Type
-mkTyAxiom (BuiltinTyCon tc) = mkType (TyApp (fullyApplied (AppTyCon tc) []))
+mkTyAxiom (BuiltinTyCon tc) = mkType (TyApp (mkFinalApp (AppTyCon tc) []))
 
 
 fullyAppliedTC :: BuiltinTyCon -> [Term] -> FullyApplied TyCon

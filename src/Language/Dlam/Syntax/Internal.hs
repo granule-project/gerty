@@ -26,6 +26,13 @@ module Language.Dlam.Syntax.Internal
   , TypeTerm(..)
   , pattern Pi
   , PartiallyAppable(..)
+
+  -- ** Application
+  , Final(..)
+  , mkFinalApp
+  , mkFinalVar
+  , fullyAppliedToFinal
+
   -- ** Type Constructors
   , TyCon
   , conTy
@@ -257,6 +264,40 @@ type TyVarId = Name Type
 type DefId = AName
 
 
+-----------------------
+----- Application -----
+-----------------------
+
+
+data Final t a
+  -- | A free-variable of the underlying sort.
+  = FinalVar (Name t)
+  -- | A fully-applied application.
+  | Application (FullyApplied a)
+
+
+mkFinalApp :: a -> [Term] -> Final t a
+mkFinalApp f args = Application $ fullyApplied f args
+
+
+fullyAppliedToFinal :: FullyApplied a -> Final t a
+fullyAppliedToFinal = Application
+
+
+mkFinalVar :: Name t -> Final t a
+mkFinalVar = FinalVar
+
+
+instance Functor (Final t) where
+  fmap _ (FinalVar n) = FinalVar n
+  fmap f (Application a) = Application (fmap f a)
+
+
+----------------------
+----- Type Terms -----
+----------------------
+
+
 -- | Types of things that can be applied.
 data TypeTermOfTermsThatCanBeApplied
   -- | Dependent function space.
@@ -270,7 +311,7 @@ data TypeTerm
   -- | A type universe.
   | Universe Level
   -- | A type constructed from an application.
-  | TyApp (FullyApplied TyAppable)
+  | TyApp (Final Type TyAppable)
 
 
 pattern Pi :: Bind Arg Type -> TypeTerm
@@ -279,7 +320,7 @@ pattern Pi pi = TTForApp (IsPi pi)
 
 data TyAppable
   -- | Free variable whose type ends in a universe.
-  = AppTyVar TyVarId
+  = AppTyVar VarId
   -- | Type constructor.
   | AppTyCon TyCon
   -- | Constant definition (axiom).
@@ -310,7 +351,7 @@ data TermThatCannotBeApplied
   -- | A type.
   | IsTypeTerm Type
   -- | An application.
-  | IsApp (FullyApplied Appable)
+  | IsApp (Final Term Appable)
 
 
 -- | Terms representing raw values.
@@ -326,7 +367,7 @@ pattern PartialApp e = PartialTerm (IsPartialApp e)
 
 
 pattern App :: FullyApplied Appable -> Term
-pattern App app = FullTerm (IsApp app)
+pattern App app = FullTerm (IsApp (Application app))
 
 
 pattern TypeTerm :: Type -> Term
@@ -510,6 +551,13 @@ instance Pretty PartiallyAppable where
   pprint (DefPartial d) = pprint d
 
 
+instance (Pretty a) => Pretty (Final t a) where
+  isLexicallyAtomic (FinalVar v) = isLexicallyAtomic v
+  isLexicallyAtomic (Application p) = isLexicallyAtomic p
+  pprint (FinalVar v) = pprint v
+  pprint (Application p) = pprint p
+
+
 instance Pretty TypeTerm where
   isLexicallyAtomic (TyApp t) = isLexicallyAtomic t
   isLexicallyAtomic (TTForApp t) = isLexicallyAtomic t
@@ -591,7 +639,7 @@ data Level
 
 
 pattern LevelVar :: LVarId -> Level
-pattern LevelVar x = LTerm (LApp (FullyApplied [] (LVar x)))
+pattern LevelVar x = LTerm (LApp (FinalVar x))
 
 
 pattern LTerm :: LevelTerm -> Level
@@ -600,7 +648,7 @@ pattern LTerm t = Plus 0 t
 
 -- | Atomic terms that are levels.
 data LevelTerm
-  = LApp (FullyApplied LAppable)
+  = LApp (Final Level LAppable)
 
 
 type LVarId = Name Level
@@ -756,11 +804,11 @@ mkLam' arg body = Lam $ bind arg body
 
 
 mkTyVar :: TyVarId -> Level -> Type
-mkTyVar n l = mkType (TyApp (fullyApplied (AppTyVar n) [])) l
+mkTyVar n l = mkType (TyApp (FinalVar n)) l
 
 
 mkTyDef :: DefId -> Level -> [Term] -> Type
-mkTyDef n l args = mkType (TyApp (fullyApplied (AppTyDef n) args)) l
+mkTyDef n l args = mkType (TyApp (mkFinalApp (AppTyDef n) args)) l
 
 
 mkTermDef :: DefId -> [Term] -> Term
@@ -805,7 +853,7 @@ mkLevelVar = LevelVar
 
 -- | Make a new (fully-applied) type variable.
 mkTypeVar :: TyVarId -> Level -> Type
-mkTypeVar n = mkType (TyApp (fullyApplied (AppTyVar n) []))
+mkTypeVar n = mkType (TyApp (mkFinalVar n))
 
 
 -- | Make a new (fully-applied) free variable.
@@ -866,6 +914,7 @@ $(derive
   [ ''Appable
   , ''Arg
   , ''DCon
+  , ''Final
   , ''FullyApplied
   , ''Grade
   , ''LAppable
@@ -894,6 +943,7 @@ instance (Alpha a) => Alpha (Type' a)
 instance (Alpha a) => Alpha (PartiallyApplied a)
 instance (Alpha a) => Alpha (FullyApplied a)
 instance (Alpha a) => Alpha (Leveled a)
+instance (Alpha t, Alpha a) => Alpha (Final t a)
 -- we have to provide definitions for aeq' and acompare' as FreeVar is
 -- abstract (see
 -- https://hackage.haskell.org/package/unbound-0.5.1.1/docs/Unbound-LocallyNameless-Alpha.html#t:Alpha)
@@ -922,6 +972,7 @@ instance (Subst Term a) => Subst Term (FullyApplied a) where
 instance (Subst Term a) => Subst Term (PartiallyApplied a) where
 instance (Subst Term a, Subst Term t) => Subst Term (IsTyped t a) where
 instance (Subst Term a, Subst Term g) => Subst Term (Graded g a) where
+instance (Subst Term a, Subst Term t) => Subst Term (Final t a) where
 instance Subst Term Type where
 instance Subst Term LAppable where
 instance Subst Term LevelTerm where
@@ -950,6 +1001,7 @@ instance (Subst Level a) => Subst Level (FullyApplied a) where
 instance (Subst Level a) => Subst Level (PartiallyApplied a) where
 instance (Subst Level a, Subst Level t) => Subst Level (IsTyped t a) where
 instance (Subst Level a, Subst Level g) => Subst Level (Graded g a) where
+instance (Subst Level a, Subst Level t) => Subst Level (Final t a) where
 instance Subst Level Type where
 instance Subst Level LAppable where
 instance Subst Level LevelTerm where
@@ -978,6 +1030,7 @@ instance (Subst Type a) => Subst Type (FullyApplied a) where
 instance (Subst Type a) => Subst Type (PartiallyApplied a) where
 instance (Subst Type a, Subst Type t) => Subst Type (IsTyped t a) where
 instance (Subst Type a, Subst Type g) => Subst Type (Graded g a) where
+instance (Subst Type a, Subst Type t) => Subst Type (Final t a) where
 instance Subst Type Type where
 instance Subst Type LAppable where
 instance Subst Type LevelTerm where
