@@ -183,8 +183,7 @@ levelsAreEqual (Max l1 l2) (Max l1' l2') =
   (||) <$>
     ((&&) <$> levelsAreEqual l1 l1' <*> levelsAreEqual l2 l2') <*>
     ((&&) <$> levelsAreEqual l1 l2' <*> levelsAreEqual l2 l1')
--- TODO: support remaining cases (2020-03-14)
-levelsAreEqual l1 l2 = notImplemented $ "levelsAreEqual: TODO: equality of levels '" <> pprintShow l1 <> "' and '" <> pprintShow l2 <> "'"
+levelsAreEqual _ _ = pure False
 
 
 -- | Are the types equal in the current context?
