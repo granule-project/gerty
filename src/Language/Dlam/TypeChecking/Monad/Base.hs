@@ -1,3 +1,5 @@
+{-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
@@ -512,6 +514,9 @@ tceAddBinding :: FreeVar -> FreeVarInfo -> TCEnv -> TCEnv
 tceAddBinding v bod env = env { tceFVContext = fvcMap (M.insert v bod) (tceFVContext env) }
 
 
+type CMEnv = MonadReader TCEnv
+
+
 -- | Execute the action with the given free variable bound with the
 -- | given grading and type.
 withVarBound :: (ToFreeVar n, Pretty n) => n -> I.Grading -> I.Type -> CM a -> CM a
@@ -545,6 +550,9 @@ lookupFVSubjectRemaining = fmap (I.subjectGrade . fst) . lookupFVInfo
 -----------------------------------------
 ----- Exceptions and error handling -----
 -----------------------------------------
+
+
+type TCExcept m = (MonadError TCErr m, CMEnv m)
 
 
 data TCError
@@ -622,16 +630,16 @@ instance Show TCError where
 instance Exception TCError
 
 
-notImplemented :: String -> CM a
+notImplemented :: (TCExcept m) => String -> m a
 notImplemented descr = throwCM (NotImplemented descr)
 
 
-hitABug :: String -> CM a
+hitABug :: (TCExcept m) => String -> m a
 hitABug descr = throwCM (ImplementationBug descr)
 
 
 -- | Indicate that an issue occurred when performing a scope analysis.
-scoperError :: SE.SCError -> CM a
+scoperError :: (TCExcept m) => SE.SCError -> m a
 scoperError e = throwCM (ScoperError e)
 
 
@@ -639,7 +647,7 @@ cannotSynthTypeForExpr :: CM a
 cannotSynthTypeForExpr = throwCM CannotSynthTypeForExpr
 
 
-cannotSynthExprForType :: Expr -> CM a
+cannotSynthExprForType :: (TCExcept m) => Expr -> m a
 cannotSynthExprForType t = throwCM (CannotSynthExprForType t)
 
 
@@ -650,24 +658,24 @@ tyMismatch tyExpected tyActual =
   throwCM (TypeMismatch tyExpected tyActual)
 
 
-expectedInferredTypeForm :: String -> I.Type -> CM a
+expectedInferredTypeForm :: (TCExcept m) => String -> I.Type -> m a
 expectedInferredTypeForm descr t =
   throwCM (ExpectedInferredTypeForm descr t)
 
 
-notAType :: CM a
+notAType :: (TCExcept m) => m a
 notAType = throwCM NotAType
 
 
-patternMismatch :: Pattern -> I.Type -> CM a
+patternMismatch :: (TCExcept m) => Pattern -> I.Type -> m a
 patternMismatch p t = throwCM (PatternMismatch p t)
 
 
-usedTooManyTimes :: I.Name b -> CM a
+usedTooManyTimes :: (TCExcept m) => I.Name b -> m a
 usedTooManyTimes = throwCM . UsedTooManyTimes . I.translate
 
 
-parseError :: ParseError -> CM a
+parseError :: (TCExcept m) => ParseError -> m a
 parseError = throwCM . ParseError
 
 
@@ -692,7 +700,7 @@ tcErrExpr :: TCErr -> Maybe Expr
 tcErrExpr = tceCurrentExpr . tcErrEnv
 
 
-throwCM :: TCError -> CM a
+throwCM :: (TCExcept m) => TCError -> m a
 throwCM e = do
   env <- ask
   throwError $ TCErr { tcErrErr = e, tcErrEnv = env }
