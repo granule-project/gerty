@@ -187,31 +187,34 @@ verbosityInfo = Info
 verbosityDebug = Debug
 
 
+type TCDebug m = (MonadWriter TCLog m, MonadState CheckerState m)
+
+
 -- | Write some debugging information.
-debug :: String -> CM ()
+debug :: (TCDebug m) => String -> m ()
 debug msg = do
   debugNest <- fmap debugNesting get
   let formattedMessage = if debugNest == 0 then msg else unwords [replicate debugNest '>', msg]
   tell . pure . DebugMessage $ formattedMessage
 
 
-info :: String -> CM ()
+info :: (TCDebug m) => String -> m ()
 info = tell . pure . InfoMessage
 
 
 -- | Indicate we are entering a debug block.
-debugOpen :: CM ()
+debugOpen :: (TCDebug m) => m ()
 debugOpen = modify (\s -> s { debugNesting = succ (debugNesting s) })
 
 
 -- | Indicate we are leaving a debug block.
-debugClose :: CM ()
+debugClose :: (TCDebug m) => m ()
 debugClose = modify (\s -> s { debugNesting = pred (debugNesting s) })
 
 
 -- | Wrap the action in some debugging messages. The final message can
 -- | use the result of the action.
-debugBlock :: String -> String -> (a -> String) -> CM a -> CM a
+debugBlock :: (TCDebug m) => String -> String -> (a -> String) -> m a -> m a
 debugBlock blockDesc' open close action = do
   let blockDesc = if blockDesc' /= "" then blockDesc' <> ": " else ""
   debug (blockDesc <> open)
