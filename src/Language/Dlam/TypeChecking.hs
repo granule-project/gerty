@@ -153,23 +153,72 @@ checkAST :: AST -> CM ()
 checkAST (AST ds) = mapM_ checkDeclaration ds
 
 
--- | Are the terms equal in the current context?
-termsAreEqual :: EqFun Term
-termsAreEqual (Level l1) (Level l2) = Level <$> levelsAreEqual l1 l2
-termsAreEqual (I.App app1) (I.App app2) = do
+class TCEq a where
+  areEqual :: EqFun a
+
+
+liftBoolEq :: (Eq a) => EqFun a
+liftBoolEq t1 t2 = if t1 == t2 then pure t1 else notEqual
+
+
+instance TCEq (Name a) where
+  areEqual = liftBoolEq
+
+
+instance TCEq Appable where
+  areEqual = liftBoolEq
+
+
+instance TCEq LAppable where
+  areEqual = liftBoolEq
+
+
+instance TCEq TyAppable where
+  areEqual = liftBoolEq
+
+
+instance (TCEq a) => TCEq (FullyApplied a) where
+  areEqual = fullyAppliedAreEqual
+
+
+instance TCEq Level where
+  areEqual = levelsAreEqual
+
+
+instance TCEq LevelTerm where
+  areEqual = levelTermsAreEqual
+
+
+instance TCEq Term where
+  areEqual = termsAreEqual
+
+
+instance TCEq Type where
+  areEqual = typesAreEqual
+
+
+fullyAppliedAreEqual :: (TCEq a) => EqFun (FullyApplied a)
+fullyAppliedAreEqual app1 app2 = do
   let x = un app1
       y = un app2
       xs = appliedArgs app1
       ys = appliedArgs app2
-  if length xs == length ys && x == y
+  if length xs == length ys
   then do
-    ts <- mapM (uncurry termsAreEqual) (zip xs ys)
-    pure $ I.App (fullyApplied x ts)
+    z <- areEqual x y
+    zs <- mapM (uncurry areEqual) (zip xs ys)
+    pure $ fullyApplied z zs
   else notEqual
-termsAreEqual (TypeTerm t1) (TypeTerm t2) = TypeTerm <$> typesAreEqual t1 t2
+
+
+-- | Are the terms equal in the current context?
+termsAreEqual :: EqFun Term
+termsAreEqual (Level l1) (Level l2) = Level <$> areEqual l1 l2
+termsAreEqual (I.App app1) (I.App app2) = I.App <$> areEqual app1 app2
+termsAreEqual (TypeTerm t1) (TypeTerm t2) = TypeTerm <$> areEqual t1 t2
 termsAreEqual (I.Lam lam1) (I.Lam lam2) =
   lopenArg2 lam1 lam2 $ \(arg, body1, body2) -> do
-    bod <- termsAreEqual body1 body2
+    bod <- areEqual body1 body2
     pure (mkLam' arg bod)
 termsAreEqual (TermMeta m) t2 = solveMeta m (VISTerm, t2)
 termsAreEqual t1 (TermMeta m) = solveMeta m (VISTerm, t1)
@@ -178,17 +227,10 @@ termsAreEqual _ _ = notEqual
 
 -- | Are the levels equal in the current context?
 levelTermsAreEqual :: EqFun LevelTerm
-levelTermsAreEqual (LApp (FinalVar x)) (LApp (FinalVar y)) = if x == y then pure (LApp (FinalVar x)) else notEqual
-levelTermsAreEqual (LApp (Application app1)) (LApp (Application app2)) = do
-  let x = un app1
-      y = un app2
-      xs = appliedArgs app1
-      ys = appliedArgs app2
-  if length xs == length ys && x == y
-  then do
-    ts <- mapM (uncurry termsAreEqual) (zip xs ys)
-    pure $ LApp (mkFinalApp x ts)
-  else notEqual
+levelTermsAreEqual (LApp (FinalVar x)) (LApp (FinalVar y)) =
+  LApp . FinalVar <$> areEqual x y
+levelTermsAreEqual (LApp (Application app1)) (LApp (Application app2)) =
+  LApp . fullyAppliedToFinal <$> areEqual app1 app2
 levelTermsAreEqual (LApp (MetaApp app)) l2 =
   case (un app, appliedArgs app) of
     (m, []) -> solveMeta (metaId m) (VISLevel, l2)
@@ -210,7 +252,7 @@ levelsAreEqual (LevelMeta i) l2 = solveMeta i (VISLevel, l2)
 levelsAreEqual l1 (LevelMeta i) = solveMeta i (VISLevel, l1)
 levelsAreEqual (Plus n t1) (Plus m t2) =
   if n == m then do
-   t <- levelTermsAreEqual t1 t2
+   t <- areEqual t1 t2
    pure (Plus n t)
   else notEqual
 levelsAreEqual (Max l1 l2) (Max l1' l2') =
@@ -225,23 +267,16 @@ levelsAreEqual _ _ = notEqual
 -- | Are the types equal in the current context?
 typesAreEqual :: EqFun Type
 typesAreEqual t1 t2 = do
-  l <- levelsAreEqual (level t1) (level t2)
+  l <- areEqual (level t1) (level t2)
   t <- case (un t1, un t2) of
     -- TODO: add proper equality here (2020-03-14)
-    (TyApp (FinalVar v1), TyApp (FinalVar v2)) -> if v1 == v2 then pure (TyApp (FinalVar v1)) else notEqual
+    (TyApp (FinalVar v1), TyApp (FinalVar v2)) ->
+      TyApp . FinalVar <$> areEqual v1 v2
     (TyApp (Application app1), TyApp (Application app2)) -> do
-      let x = un app1
-          y = un app2
-          xs = appliedArgs app1
-          ys = appliedArgs app2
-      if length xs == length ys && x == y
-      then do
-        ts <- mapM (uncurry termsAreEqual) (zip xs ys)
-        pure . TyApp $ mkFinalApp x ts
-      else notEqual
-    (Universe l1, Universe l2) -> Universe <$> levelsAreEqual l1 l2
+      TyApp . fullyAppliedToFinal <$> areEqual app1 app2
+    (Universe l1, Universe l2) -> Universe <$> areEqual l1 l2
     (Pi pi1, Pi pi2) -> lopenArg2 pi1 pi2 $ \(arg, piT1, piT2) ->
-      mkPi' arg <$> typesAreEqual piT1 piT2
+      mkPi' arg <$> areEqual piT1 piT2
     -- TODO: make sure we don't bind metas to themselves---see how we handled it for levels (2020-03-26)
     (TyApp (MetaApp app), _) ->
       case (un app, appliedArgs app) of
@@ -1209,7 +1244,7 @@ lopenArg2 bound1 bound2 act = lunbind2 bound1 bound2 $ \unbound ->
     Nothing -> fail "arguments had wrong sorts or names"
     Just (arg1, b1, arg2, b2) -> do
       -- TODO: also add a check for grades (2020-03-24)
-      ty <- typesAreEqual (typeOf arg1) (typeOf arg2)
+      ty <- areEqual (typeOf arg1) (typeOf arg2)
       let x1 = argVar arg1
           x2 = argVar arg2
       -- substitute in to make sure names are the same

@@ -77,6 +77,7 @@ module Language.Dlam.Syntax.Internal
   , fvToSortedName
 
   -- * Levels
+  , LAppable
   , Level(..)
   , nextLevel
   , HasLevel(..)
