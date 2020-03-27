@@ -31,6 +31,7 @@ module Language.Dlam.Syntax.Internal
   , MetaId
   , MetaVar
   , metaId
+  , mkMetaForSort
   , mkTermMeta
   , mkLevelMeta
   , mkTypeMeta
@@ -300,6 +301,12 @@ pattern TermMeta i = FullTerm (IsApp (MetaApp (FullyApplied [] (MetaVar i))))
 
 pattern TypeMeta :: MetaId -> Level -> Type
 pattern TypeMeta i l = Type' (Leveled (TyApp (MetaApp (FullyApplied [] (MetaVar i)))) l)
+
+
+mkMetaForSort :: ISSort t -> MetaId -> t
+mkMetaForSort VISTerm = mkTermMeta
+mkMetaForSort VISLevel = mkLevelMeta
+mkMetaForSort (VISType l) = flip mkTypeMeta l
 
 
 mkTermMeta :: MetaId -> Term

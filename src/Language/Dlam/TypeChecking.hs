@@ -1365,6 +1365,7 @@ termsAreEqual (I.Lam lam1) (I.Lam lam2) =
   lopenArg2 lam1 lam2 $ \(arg, body1, body2) -> do
     bod <- areEqual body1 body2
     pure (mkLam' arg bod)
+termsAreEqual (TermMeta m1) (TermMeta m2) = metasAreEqual VISTerm m1 m2
 termsAreEqual (TermMeta m) t2 = solveMeta m (VISTerm, t2)
 termsAreEqual t1 (TermMeta m) = solveMeta m (VISTerm, t1)
 termsAreEqual _ _ = notEqual
@@ -1391,8 +1392,7 @@ levelTermsAreEqual _ _ = notEqual
 levelsAreEqual :: EqFun Level
 levelsAreEqual (Concrete n) (Concrete m) =
   if n == m then pure (Concrete n) else notEqual
-levelsAreEqual (LevelMeta i1) (LevelMeta i2) =
-  if i1 == i2 then pure (LevelMeta i1) else solveMeta i1 (VISLevel, LevelMeta i2)
+levelsAreEqual (LevelMeta m1) (LevelMeta m2) = metasAreEqual VISLevel m1 m2
 levelsAreEqual (LevelMeta i) l2 = solveMeta i (VISLevel, l2)
 levelsAreEqual l1 (LevelMeta i) = solveMeta i (VISLevel, l1)
 levelsAreEqual (Plus n t1) (Plus m t2) =
@@ -1411,6 +1411,9 @@ levelsAreEqual _ _ = notEqual
 
 -- | Are the types equal in the current context?
 typesAreEqual :: EqFun Type
+typesAreEqual (TypeMeta m1 l1) (TypeMeta m2 l2) = do
+  l <- areEqual l1 l2
+  metasAreEqual (VISType l) m1 m2
 typesAreEqual t1 t2 = do
   l <- areEqual (level t1) (level t2)
   t <- case (un t1, un t2) of
@@ -1433,6 +1436,25 @@ typesAreEqual t1 t2 = do
         _ -> lift $ notImplemented "typesAreEqual: equality for applied meta"
     (_, _) -> notEqual
   pure (mkType t l)
+
+
+metasAreEqual :: (TCEq t, Pretty t) => ISSort t -> MetaId -> MetaId -> Solver t
+metasAreEqual s i1 i2 =
+  -- if this represents the same meta ID, then we don't want to bind as this would
+  -- cause lookups to point metas to themselves
+  if i1 == i2 then lift $ normaliseMetaVar s i1
+  -- if the IDs are not equal, we either have:
+  else do
+    val1 <- maybeGetMetaSolution s i1
+    val2 <- maybeGetMetaSolution s i2
+    case (val1, val2) of
+      -- 1. no solutions for either, so we can safely map one to the other
+      (Nothing, Nothing) -> solveMeta i1 (s, mkMetaForSort s i2)
+      -- 2. solution for one or the other, so we can directly map the unknown
+      (Just v1, Nothing) -> solveMeta i2 (s, v1)
+      (Nothing, Just v2) -> solveMeta i1 (s, v2)
+      -- 3. solutions for both, in which case we can compare the solutions
+      (Just v1, Just v2) -> areEqual v1 v2
 
 
 ensureEqualTypes' :: Type -> Type -> CM Type
