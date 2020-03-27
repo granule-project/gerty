@@ -19,7 +19,7 @@ import Language.Dlam.Syntax.Common.Language (HasType)
 import Language.Dlam.Syntax.Internal hiding (Var, App, Lam)
 import qualified Language.Dlam.Syntax.Internal as I
 import Language.Dlam.TypeChecking.Monad
-import Language.Dlam.Util.Pretty (Pretty, pprintShow)
+import Language.Dlam.Util.Pretty (Pretty(..), pprintShow, parens, text, int, beside)
 import Language.Dlam.Util.Peekaboo
 
 
@@ -1198,8 +1198,10 @@ type EqFun a = a -> a -> Solver a
 
 
 -- | Currently just fails.
-notEqual :: Solver a
-notEqual = fail ""
+notEqual :: (Pretty t) => t -> t -> Solver a
+notEqual t1 t2 =
+  let msg = "equality failed when comparing '" <> pprintShow t1 <> "' and '" <> pprintShow t2 <> "'"
+  in debug msg >> fail msg
 
 
 -- | Execute the solver, restoring appropriate state information when the solver fails.
@@ -1302,8 +1304,8 @@ class TCEq a where
   areEqual :: EqFun a
 
 
-liftBoolEq :: (Eq a) => EqFun a
-liftBoolEq t1 t2 = if t1 == t2 then pure t1 else notEqual
+liftBoolEq :: (Pretty a, Eq a) => EqFun a
+liftBoolEq t1 t2 = if t1 == t2 then pure t1 else notEqual t1 t2
 
 
 instance TCEq (Name a) where
@@ -1338,9 +1340,22 @@ instance TCEq Type where
   areEqual = typesAreEqual
 
 
+-- | For pretty-printing of lengths.
+newtype Length = Length Int
+  deriving (Eq)
+
+
+instance TCEq Length where
+  areEqual = liftBoolEq
+
+
+instance Pretty Length where
+  pprint (Length i) = text "length" `beside` parens (int i)
+
+
 instance (TCEq a) => TCEq [a] where
-  areEqual xs ys =
-    if length xs == length ys then mapM (uncurry areEqual) (zip xs ys) else notEqual
+  areEqual xs ys = areEqual (Length (length xs)) (Length (length ys)) >>
+    mapM (uncurry areEqual) (zip xs ys)
 
 
 fullyAppliedAreEqual :: (TCEq a) => EqFun (FullyApplied a)
@@ -1360,13 +1375,13 @@ termsAreEqual (I.Lam lam1) (I.Lam lam2) =
   lopenArg2 lam1 lam2 $ \(arg, body1, body2) -> do
     bod <- areEqual body1 body2
     pure (mkLam' arg bod)
-termsAreEqual _ _ = notEqual
+termsAreEqual t1 t2 = notEqual t1 t2
 
 
 -- | Are the levels equal in the current context?
 levelsAreEqual :: EqFun Level
 levelsAreEqual (Concrete n) (Concrete m) =
-  if n == m then pure (Concrete n) else notEqual
+  if n == m then pure (Concrete n) else notEqual (Concrete n) (Concrete m)
 levelsAreEqual (Plus 0 (LApp t1)) l2 = finalEquality VISLevel t1 l2
 levelsAreEqual l1 (Plus 0 (LApp t2)) = finalEquality VISLevel t2 l1
 levelsAreEqual (Plus n (LApp t1)) (Plus m t2) =
@@ -1375,14 +1390,14 @@ levelsAreEqual (Plus n (LApp t1)) (Plus m t2) =
    case l of
      Plus 0 t -> pure (Plus n t)
      _ -> hitABug "bad equality on levels"
-  else notEqual
+  else notEqual (Concrete n) (Concrete m)
 levelsAreEqual (Max l1 l2) (Max l1' l2') =
   maxsEq l1 l2 l1' l2' `alternatively` maxsEq l1 l2' l2 l1'
   where maxsEq l1 l2 l1' l2' = do
           l1 <- levelsAreEqual l1 l1'
           l2 <- levelsAreEqual l2 l2'
           pure (Max l1 l2)
-levelsAreEqual _ _ = notEqual
+levelsAreEqual l1 l2 = notEqual l1 l2
 
 
 -- | Are the types equal in the current context?
@@ -1395,7 +1410,7 @@ typesAreEqual t1 t2 = do
     (Universe l1, Universe l2) -> Universe <$> areEqual l1 l2
     (Pi pi1, Pi pi2) -> lopenArg2 pi1 pi2 $ \(arg, piT1, piT2) ->
       mkPi' arg <$> areEqual piT1 piT2
-    (_, _) -> notEqual
+    (p1, p2) -> notEqual p1 p2
   pure (mkType t l)
 
 
@@ -1404,7 +1419,7 @@ finalEquality s f t =
   case (f, toFinal t) of
     (MetaApp app, Nothing) -> case (un app, appliedArgs app) of
                                 (m, []) -> solveMeta (metaId m) (s, t)
-                                _ -> notEqual
+                                _ -> notEqual (fromFinal s f) t
     (MetaApp app1, Just (MetaApp app2)) -> do
       let m1 = un app1; m2 = un app2
           m1args = appliedArgs app1; m2args = appliedArgs app2
@@ -1423,12 +1438,12 @@ finalEquality s f t =
     (MetaApp app, Just (FinalVar v)) -> do
       case (un app, appliedArgs app) of
         (m, []) -> solveMeta (metaId m) (s, fromFinal s (FinalVar v))
-        _ -> notEqual
+        _ -> notEqual (fromFinal s f) t
     (FinalVar v, Just (MetaApp app)) -> do
       case (un app, appliedArgs app) of
         (m, []) -> solveMeta (metaId m) (s, fromFinal s (FinalVar v))
-        _ -> notEqual
-    _ -> notEqual
+        _ -> notEqual (fromFinal s f) t
+    _ -> notEqual (fromFinal s f) t
   where
     checkMetaWithApp app1 app2 = do
       let m = un app1; f = un app2
