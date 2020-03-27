@@ -153,157 +153,6 @@ checkAST :: AST -> CM ()
 checkAST (AST ds) = mapM_ checkDeclaration ds
 
 
-class TCEq a where
-  areEqual :: EqFun a
-
-
-liftBoolEq :: (Eq a) => EqFun a
-liftBoolEq t1 t2 = if t1 == t2 then pure t1 else notEqual
-
-
-instance TCEq (Name a) where
-  areEqual = liftBoolEq
-
-
-instance TCEq Appable where
-  areEqual = liftBoolEq
-
-
-instance TCEq LAppable where
-  areEqual = liftBoolEq
-
-
-instance TCEq TyAppable where
-  areEqual = liftBoolEq
-
-
-instance (TCEq a) => TCEq (FullyApplied a) where
-  areEqual = fullyAppliedAreEqual
-
-
-instance TCEq Level where
-  areEqual = levelsAreEqual
-
-
-instance TCEq LevelTerm where
-  areEqual = levelTermsAreEqual
-
-
-instance TCEq Term where
-  areEqual = termsAreEqual
-
-
-instance TCEq Type where
-  areEqual = typesAreEqual
-
-
-fullyAppliedAreEqual :: (TCEq a) => EqFun (FullyApplied a)
-fullyAppliedAreEqual app1 app2 = do
-  let x = un app1
-      y = un app2
-      xs = appliedArgs app1
-      ys = appliedArgs app2
-  if length xs == length ys
-  then do
-    z <- areEqual x y
-    zs <- mapM (uncurry areEqual) (zip xs ys)
-    pure $ fullyApplied z zs
-  else notEqual
-
-
--- | Are the terms equal in the current context?
-termsAreEqual :: EqFun Term
-termsAreEqual (Level l1) (Level l2) = Level <$> areEqual l1 l2
-termsAreEqual (I.App app1) (I.App app2) = I.App <$> areEqual app1 app2
-termsAreEqual (TypeTerm t1) (TypeTerm t2) = TypeTerm <$> areEqual t1 t2
-termsAreEqual (I.Lam lam1) (I.Lam lam2) =
-  lopenArg2 lam1 lam2 $ \(arg, body1, body2) -> do
-    bod <- areEqual body1 body2
-    pure (mkLam' arg bod)
-termsAreEqual (TermMeta m) t2 = solveMeta m (VISTerm, t2)
-termsAreEqual t1 (TermMeta m) = solveMeta m (VISTerm, t1)
-termsAreEqual _ _ = notEqual
-
-
--- | Are the levels equal in the current context?
-levelTermsAreEqual :: EqFun LevelTerm
-levelTermsAreEqual (LApp (FinalVar x)) (LApp (FinalVar y)) =
-  LApp . FinalVar <$> areEqual x y
-levelTermsAreEqual (LApp (Application app1)) (LApp (Application app2)) =
-  LApp . fullyAppliedToFinal <$> areEqual app1 app2
-levelTermsAreEqual (LApp (MetaApp app)) l2 =
-  case (un app, appliedArgs app) of
-    (m, []) -> solveMeta (metaId m) (VISLevel, l2)
-    _ -> lift $ notImplemented "levelTermsAreEqual: equality for applied meta"
-levelTermsAreEqual l1 (LApp (MetaApp app)) =
-    case (un app, appliedArgs app) of
-      (m, []) -> solveMeta (metaId m) (VISLevel, l1)
-      _ -> lift $ notImplemented "levelTermsAreEqual: equality for applied meta"
-levelTermsAreEqual _ _ = notEqual
-
-
--- | Are the levels equal in the current context?
-levelsAreEqual :: EqFun Level
-levelsAreEqual (Concrete n) (Concrete m) =
-  if n == m then pure (Concrete n) else notEqual
-levelsAreEqual (LevelMeta i1) (LevelMeta i2) =
-  if i1 == i2 then pure (LevelMeta i1) else solveMeta i1 (VISLevel, LevelMeta i2)
-levelsAreEqual (LevelMeta i) l2 = solveMeta i (VISLevel, l2)
-levelsAreEqual l1 (LevelMeta i) = solveMeta i (VISLevel, l1)
-levelsAreEqual (Plus n t1) (Plus m t2) =
-  if n == m then do
-   t <- areEqual t1 t2
-   pure (Plus n t)
-  else notEqual
-levelsAreEqual (Max l1 l2) (Max l1' l2') =
-  maxsEq l1 l2 l1' l2' `alternatively` maxsEq l1 l2' l2 l1'
-  where maxsEq l1 l2 l1' l2' = do
-          l1 <- levelsAreEqual l1 l1'
-          l2 <- levelsAreEqual l2 l2'
-          pure (Max l1 l2)
-levelsAreEqual _ _ = notEqual
-
-
--- | Are the types equal in the current context?
-typesAreEqual :: EqFun Type
-typesAreEqual t1 t2 = do
-  l <- areEqual (level t1) (level t2)
-  t <- case (un t1, un t2) of
-    -- TODO: add proper equality here (2020-03-14)
-    (TyApp (FinalVar v1), TyApp (FinalVar v2)) ->
-      TyApp . FinalVar <$> areEqual v1 v2
-    (TyApp (Application app1), TyApp (Application app2)) -> do
-      TyApp . fullyAppliedToFinal <$> areEqual app1 app2
-    (Universe l1, Universe l2) -> Universe <$> areEqual l1 l2
-    (Pi pi1, Pi pi2) -> lopenArg2 pi1 pi2 $ \(arg, piT1, piT2) ->
-      mkPi' arg <$> areEqual piT1 piT2
-    -- TODO: make sure we don't bind metas to themselves---see how we handled it for levels (2020-03-26)
-    (TyApp (MetaApp app), _) ->
-      case (un app, appliedArgs app) of
-        (m, []) -> un <$> solveMeta (metaId m) (VISType l, t2)
-        _ -> lift $ notImplemented "typesAreEqual: equality for applied meta"
-    (_, TyApp (MetaApp app)) ->
-      case (un app, appliedArgs app) of
-        (m, []) -> un <$> solveMeta (metaId m) (VISType l, t1)
-        _ -> lift $ notImplemented "typesAreEqual: equality for applied meta"
-    (_, _) -> notEqual
-  pure (mkType t l)
-
-
-ensureEqualTypes' :: Type -> Type -> CM Type
-ensureEqualTypes' tyExpected tyActual =
-  debugBlock "ensureEqualTypes'"
-    ("checking equality of expected type '" <> pprintShow tyExpected <> "' and actual type '" <> pprintShow tyActual <> "'")
-    (\res -> "types were equal with common type '" <> pprintShow res <> "'") $ do
-  maybe (tyMismatch tyExpected tyActual) pure =<< runEquality' typesAreEqual tyExpected tyActual
-
-
--- | 'ensureEqualTypes tyExpected tyActual' checks that 'tyExpected'
--- | and 'tyActual' represent the same type, and fails if they differ.
-ensureEqualTypes :: Type -> Type -> CM ()
-ensureEqualTypes t1 t2 = ensureEqualTypes' t1 t2 >> pure ()
-
-
 -- | Check the expression against the given type, and
 -- | if it is well-typed, yield the underlying term.
 checkExpr :: Expr -> Type -> CM Term
@@ -1442,3 +1291,159 @@ genTypeMeta = do
   i <- getFreshMetaId
   registerMeta i IsMeta (VISType l)
   pure $ mkTypeMeta i l
+
+
+-----------------------------------
+----- Equality and comparison -----
+-----------------------------------
+
+
+class TCEq a where
+  areEqual :: EqFun a
+
+
+liftBoolEq :: (Eq a) => EqFun a
+liftBoolEq t1 t2 = if t1 == t2 then pure t1 else notEqual
+
+
+instance TCEq (Name a) where
+  areEqual = liftBoolEq
+
+
+instance TCEq Appable where
+  areEqual = liftBoolEq
+
+
+instance TCEq LAppable where
+  areEqual = liftBoolEq
+
+
+instance TCEq TyAppable where
+  areEqual = liftBoolEq
+
+
+instance (TCEq a) => TCEq (FullyApplied a) where
+  areEqual = fullyAppliedAreEqual
+
+
+instance TCEq Level where
+  areEqual = levelsAreEqual
+
+
+instance TCEq LevelTerm where
+  areEqual = levelTermsAreEqual
+
+
+instance TCEq Term where
+  areEqual = termsAreEqual
+
+
+instance TCEq Type where
+  areEqual = typesAreEqual
+
+
+fullyAppliedAreEqual :: (TCEq a) => EqFun (FullyApplied a)
+fullyAppliedAreEqual app1 app2 = do
+  let x = un app1
+      y = un app2
+      xs = appliedArgs app1
+      ys = appliedArgs app2
+  if length xs == length ys
+  then do
+    z <- areEqual x y
+    zs <- mapM (uncurry areEqual) (zip xs ys)
+    pure $ fullyApplied z zs
+  else notEqual
+
+
+-- | Are the terms equal in the current context?
+termsAreEqual :: EqFun Term
+termsAreEqual (Level l1) (Level l2) = Level <$> areEqual l1 l2
+termsAreEqual (I.App app1) (I.App app2) = I.App <$> areEqual app1 app2
+termsAreEqual (TypeTerm t1) (TypeTerm t2) = TypeTerm <$> areEqual t1 t2
+termsAreEqual (I.Lam lam1) (I.Lam lam2) =
+  lopenArg2 lam1 lam2 $ \(arg, body1, body2) -> do
+    bod <- areEqual body1 body2
+    pure (mkLam' arg bod)
+termsAreEqual (TermMeta m) t2 = solveMeta m (VISTerm, t2)
+termsAreEqual t1 (TermMeta m) = solveMeta m (VISTerm, t1)
+termsAreEqual _ _ = notEqual
+
+
+-- | Are the levels equal in the current context?
+levelTermsAreEqual :: EqFun LevelTerm
+levelTermsAreEqual (LApp (FinalVar x)) (LApp (FinalVar y)) =
+  LApp . FinalVar <$> areEqual x y
+levelTermsAreEqual (LApp (Application app1)) (LApp (Application app2)) =
+  LApp . fullyAppliedToFinal <$> areEqual app1 app2
+levelTermsAreEqual (LApp (MetaApp app)) l2 =
+  case (un app, appliedArgs app) of
+    (m, []) -> solveMeta (metaId m) (VISLevel, l2)
+    _ -> lift $ notImplemented "levelTermsAreEqual: equality for applied meta"
+levelTermsAreEqual l1 (LApp (MetaApp app)) =
+    case (un app, appliedArgs app) of
+      (m, []) -> solveMeta (metaId m) (VISLevel, l1)
+      _ -> lift $ notImplemented "levelTermsAreEqual: equality for applied meta"
+levelTermsAreEqual _ _ = notEqual
+
+
+-- | Are the levels equal in the current context?
+levelsAreEqual :: EqFun Level
+levelsAreEqual (Concrete n) (Concrete m) =
+  if n == m then pure (Concrete n) else notEqual
+levelsAreEqual (LevelMeta i1) (LevelMeta i2) =
+  if i1 == i2 then pure (LevelMeta i1) else solveMeta i1 (VISLevel, LevelMeta i2)
+levelsAreEqual (LevelMeta i) l2 = solveMeta i (VISLevel, l2)
+levelsAreEqual l1 (LevelMeta i) = solveMeta i (VISLevel, l1)
+levelsAreEqual (Plus n t1) (Plus m t2) =
+  if n == m then do
+   t <- areEqual t1 t2
+   pure (Plus n t)
+  else notEqual
+levelsAreEqual (Max l1 l2) (Max l1' l2') =
+  maxsEq l1 l2 l1' l2' `alternatively` maxsEq l1 l2' l2 l1'
+  where maxsEq l1 l2 l1' l2' = do
+          l1 <- levelsAreEqual l1 l1'
+          l2 <- levelsAreEqual l2 l2'
+          pure (Max l1 l2)
+levelsAreEqual _ _ = notEqual
+
+
+-- | Are the types equal in the current context?
+typesAreEqual :: EqFun Type
+typesAreEqual t1 t2 = do
+  l <- areEqual (level t1) (level t2)
+  t <- case (un t1, un t2) of
+    -- TODO: add proper equality here (2020-03-14)
+    (TyApp (FinalVar v1), TyApp (FinalVar v2)) ->
+      TyApp . FinalVar <$> areEqual v1 v2
+    (TyApp (Application app1), TyApp (Application app2)) -> do
+      TyApp . fullyAppliedToFinal <$> areEqual app1 app2
+    (Universe l1, Universe l2) -> Universe <$> areEqual l1 l2
+    (Pi pi1, Pi pi2) -> lopenArg2 pi1 pi2 $ \(arg, piT1, piT2) ->
+      mkPi' arg <$> areEqual piT1 piT2
+    -- TODO: make sure we don't bind metas to themselves---see how we handled it for levels (2020-03-26)
+    (TyApp (MetaApp app), _) ->
+      case (un app, appliedArgs app) of
+        (m, []) -> un <$> solveMeta (metaId m) (VISType l, t2)
+        _ -> lift $ notImplemented "typesAreEqual: equality for applied meta"
+    (_, TyApp (MetaApp app)) ->
+      case (un app, appliedArgs app) of
+        (m, []) -> un <$> solveMeta (metaId m) (VISType l, t1)
+        _ -> lift $ notImplemented "typesAreEqual: equality for applied meta"
+    (_, _) -> notEqual
+  pure (mkType t l)
+
+
+ensureEqualTypes' :: Type -> Type -> CM Type
+ensureEqualTypes' tyExpected tyActual =
+  debugBlock "ensureEqualTypes'"
+    ("checking equality of expected type '" <> pprintShow tyExpected <> "' and actual type '" <> pprintShow tyActual <> "'")
+    (\res -> "types were equal with common type '" <> pprintShow res <> "'") $ do
+  maybe (tyMismatch tyExpected tyActual) pure =<< runEquality' typesAreEqual tyExpected tyActual
+
+
+-- | 'ensureEqualTypes tyExpected tyActual' checks that 'tyExpected'
+-- | and 'tyActual' represent the same type, and fails if they differ.
+ensureEqualTypes :: Type -> Type -> CM ()
+ensureEqualTypes t1 t2 = ensureEqualTypes' t1 t2 >> pure ()
