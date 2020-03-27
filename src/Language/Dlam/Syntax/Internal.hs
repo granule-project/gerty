@@ -31,8 +31,12 @@ module Language.Dlam.Syntax.Internal
   , MetaId
   , MetaVar
   , metaId
+  , mkTermMeta
   , mkLevelMeta
   , mkTypeMeta
+  , pattern LevelMeta
+  , pattern TermMeta
+  , pattern TypeMeta
 
   -- ** Application
   , Final(..)
@@ -80,6 +84,7 @@ module Language.Dlam.Syntax.Internal
   , LVarId
   , max2
   , singleLevel
+
   -- * Types
   , Type
   , unType
@@ -284,12 +289,28 @@ type MetaId = Int
 newtype MetaVar = MetaVar { metaId :: MetaId }
 
 
+pattern LevelMeta :: MetaId -> Level
+pattern LevelMeta i = LTerm (LApp (MetaApp (FullyApplied [] (MetaVar i))))
+
+
+pattern TermMeta :: MetaId -> Term
+pattern TermMeta i = FullTerm (IsApp (MetaApp (FullyApplied [] (MetaVar i))))
+
+
+pattern TypeMeta :: MetaId -> Level -> Type
+pattern TypeMeta i l = Type' (Leveled (TyApp (MetaApp (FullyApplied [] (MetaVar i)))) l)
+
+
+mkTermMeta :: MetaId -> Term
+mkTermMeta = TermMeta
+
+
 mkLevelMeta :: MetaId -> Level
-mkLevelMeta i = LTerm $ LApp (mkFinalMeta i [])
+mkLevelMeta = LevelMeta
 
 
 mkTypeMeta :: MetaId -> Level -> Type
-mkTypeMeta i = mkType (TyApp (mkFinalMeta i []))
+mkTypeMeta = TypeMeta
 
 
 -----------------------
@@ -771,6 +792,7 @@ instance Pretty LAppable where
 
 newtype Type' a = Type' { unType :: Leveled a }
   deriving (HasLevel, Un)
+
 
 type Type = Type' TypeTerm
 type TypeOfTermsThatCanBeApplied = Type' TypeTermOfTermsThatCanBeApplied

@@ -30,10 +30,21 @@ module Language.Dlam.TypeChecking.Monad.Base
 
   -- ** Metas
   , getMetas
+  , setMetas
+  , MetaInfo
+  , metaState
+  , metaType
+  , MetaSolution(..)
+  , MetaState(..)
   , MetaType(..)
+  , MetaContext
   , registerMeta
-  , solveMeta
+  , mkMetaSolution
+  , mkSolvedMeta
+  , getMetaInfo
   , getFreshMetaId
+  , getMetaType
+  , maybeGetMetaSolution
 
   -- ** Scope
   , lookupType
@@ -88,6 +99,12 @@ module Language.Dlam.TypeChecking.Monad.Base
 
   -- ** Parse errors
   , parseError
+
+  -- * Helper classes
+  , TCExcept
+  , CMEnv
+  , TCDebug
+  , HasMetas
   ) where
 
 import Control.Exception (Exception)
@@ -309,27 +326,68 @@ instance Pretty MetaContext where
                         IsMeta     -> text "META"
                 mst = case ms of
                         MetaUnsolved{} -> text "(wasn't able to solve)"
-                        MetaSolved (I.VISType{}, _, t) -> equals <+> pprint t
-                        MetaSolved (I.VISTerm, _, t) -> equals <+> pprint t
-                        MetaSolved (I.VISLevel, _, t) -> equals <+> pprint t
+                        MetaSolved (MetaSolution (I.VISType{}, t)) -> equals <+> pprint t
+                        MetaSolved (MetaSolution (I.VISTerm, t)) -> equals <+> pprint t
+                        MetaSolved (MetaSolution (I.VISLevel, t)) -> equals <+> pprint t
             in mtt <+> pprint n <+> mst
 
 
 data MetaType = IsImplicit | IsMeta
 
 
-data MetaState = forall t. MetaSolved (I.ISSort t, t -> t -> CM Bool, t) | forall t. MetaUnsolved (I.ISSort t)
+data MetaSolution = forall t. MetaSolution (I.ISSort t, t)
 
 
-data MetaInfo = MetaInfo MetaType MetaState
+data MetaState = MetaSolved MetaSolution | forall t. MetaUnsolved (I.ISSort t)
 
 
-getMetas :: CM MetaContext
+data MetaInfo = MetaInfo { metaType :: MetaType, metaState :: MetaState }
+
+
+type HasMetas = MonadState CheckerState
+
+
+mkMetaSolution :: (I.ISSort t, t) -> MetaSolution
+mkMetaSolution = MetaSolution
+
+
+mkSolvedMeta :: MetaType -> MetaSolution -> MetaInfo
+mkSolvedMeta mt s = MetaInfo mt (MetaSolved s)
+
+
+getMetas :: (HasMetas m) => m MetaContext
 getMetas = metas <$> get
 
 
-setMetas :: MetaContext -> CM ()
+setMetas :: (HasMetas m) => MetaContext -> m ()
 setMetas impls = modify (\s -> s { metas = impls })
+
+
+maybeGetMetaInfo :: (HasMetas m) => MetaId -> m (Maybe MetaInfo)
+maybeGetMetaInfo i = M.lookup i . metas <$> get
+
+
+getMetaInfo :: (HasMetas m, TCExcept m) => MetaId -> m MetaInfo
+getMetaInfo i =
+  maybeGetMetaInfo i >>= maybe (hitABug $ "meta '" <> pprintShow i <> "' isn't registered.") pure
+
+
+getMetaType :: (HasMetas m, TCExcept m) => MetaId -> m MetaType
+getMetaType = fmap (\(MetaInfo t _) -> t) . getMetaInfo
+
+
+maybeGetMetaSolution :: (HasMetas m) => I.ISSort t -> MetaId -> m (Maybe t)
+maybeGetMetaSolution s i = do
+  minfo <- maybeGetMetaInfo i
+  pure $ case minfo of
+           Nothing -> Nothing
+           Just (MetaInfo _ MetaUnsolved{}) -> Nothing
+           Just (MetaInfo _ (MetaSolved (MetaSolution (s', t)))) ->
+             case (s, s') of
+               (I.VISTerm, I.VISTerm) -> Just t
+               (I.VISLevel, I.VISLevel) -> Just t
+               (I.VISType{}, I.VISType{}) -> Just t
+               (_, _) -> Nothing
 
 
 registerMeta :: MetaId -> MetaType -> I.ISSort t -> CM ()
@@ -339,30 +397,6 @@ registerMeta i mt s = do
   case M.lookup i metas of
     Nothing -> setMetas (M.insert i (MetaInfo mt (MetaUnsolved s)) metas)
     Just{} -> hitABug "meta already registered"
-
-
-solveMeta :: (Pretty t) => MetaId -> (I.ISSort t, t -> t -> CM Bool, t) -> CM ()
-solveMeta i s = do
-  metas <- getMetas
-  soln <- case M.lookup i metas of
-            Nothing -> hitABug $ "tried to solve meta '" <> pprintShow i <> "' with solution '" <> pprintShow (thd3 s) <> "' but the meta isn't registered."
-            -- TODO: check that the solutions are equal (2020-03-25)
-            Just (MetaInfo mt (MetaSolved (st,eq,t1))) -> do
-              areEq <- case (s, st) of
-                         ((I.VISType{}, _, t2), I.VISType{}) -> eq t1 t2
-                         ((I.VISLevel, _, t2), I.VISLevel) -> eq t1 t2
-                         ((I.VISTerm, _, t2), I.VISTerm) -> eq t1 t2
-                         (_, _) -> pure False
-              if areEq then pure (MetaInfo mt (MetaSolved s)) else hitABug "meta already solved"
-            Just (MetaInfo mt (MetaUnsolved r)) ->
-              case (r, s) of
-                -- TODO: add check that the levels are the same (2020-03-25)
-                (I.VISType{}, (I.VISType l, eq, t)) -> pure $ MetaInfo mt (MetaSolved (I.VISType l, eq, t))
-                (I.VISTerm, (I.VISTerm, eq, t)) -> pure $ MetaInfo mt (MetaSolved (I.VISTerm, eq, t))
-                (I.VISLevel, (I.VISLevel, eq, t)) -> pure $ MetaInfo mt (MetaSolved (I.VISLevel, eq, t))
-                (_, _) -> hitABug $ "tried to solve meta with incorrect sort"
-  setMetas (M.insert i soln metas)
-  where thd3 (_,_,c) = c
 
 
 -- | Get a unique MetaId.
@@ -522,7 +556,7 @@ type CMEnv = MonadReader TCEnv
 
 -- | Execute the action with the given free variable bound with the
 -- | given grading and type.
-withVarBound :: (ToFreeVar n, Pretty n) => n -> I.Grading -> I.Type -> CM a -> CM a
+withVarBound :: (ToFreeVar n, Pretty n, CMEnv m, TCDebug m) => n -> I.Grading -> I.Type -> m a -> m a
 withVarBound n g ty act =
   debugBlock "withVarBound"
     ("binding '" <> pprintShow n <> "' with grades '" <> pprintShow g <> "' and type '" <> pprintShow ty <> "'")

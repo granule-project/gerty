@@ -9,7 +9,9 @@ module Language.Dlam.TypeChecking
   ) where
 
 
-import Control.Monad (when)
+import Control.Monad.Trans (lift)
+import Control.Monad.Trans.Maybe (MaybeT(..), runMaybeT)
+import qualified Data.Map as M
 
 import Language.Dlam.Builtins
 import Language.Dlam.Syntax.Abstract hiding (nameFromString)
@@ -152,89 +154,119 @@ checkAST (AST ds) = mapM_ checkDeclaration ds
 
 
 -- | Are the terms equal in the current context?
-termsAreEqual :: Term -> Term -> CM Bool
-termsAreEqual (Level l1) (Level l2) = levelsAreEqual l1 l2
-termsAreEqual (I.App app1) (I.App app2) =
+termsAreEqual :: EqFun Term
+termsAreEqual (Level l1) (Level l2) = Level <$> levelsAreEqual l1 l2
+termsAreEqual (I.App app1) (I.App app2) = do
   let x = un app1
       y = un app2
       xs = appliedArgs app1
       ys = appliedArgs app2
-  in (&&) <$> pure (length xs == length ys && x == y)
-          <*> (and <$> (mapM (uncurry termsAreEqual) (zip xs ys)))
-termsAreEqual (TypeTerm t1) (TypeTerm t2) = typesAreEqual t1 t2
-termsAreEqual (I.Lam lam1) (I.Lam lam2) = lopenArg2 lam1 lam2 $ \unbound ->
-  case unbound of
-    Nothing -> pure False
-    Just (body1, body2) -> termsAreEqual body1 body2
-termsAreEqual _ _ = pure False
+  if length xs == length ys && x == y
+  then do
+    ts <- mapM (uncurry termsAreEqual) (zip xs ys)
+    pure $ I.App (fullyApplied x ts)
+  else notEqual
+termsAreEqual (TypeTerm t1) (TypeTerm t2) = TypeTerm <$> typesAreEqual t1 t2
+termsAreEqual (I.Lam lam1) (I.Lam lam2) =
+  lopenArg2 lam1 lam2 $ \(arg, body1, body2) -> do
+    bod <- termsAreEqual body1 body2
+    pure (mkLam' arg bod)
+termsAreEqual (TermMeta m) t2 = solveMeta m (VISTerm, t2)
+termsAreEqual t1 (TermMeta m) = solveMeta m (VISTerm, t1)
+termsAreEqual _ _ = notEqual
 
 
 -- | Are the levels equal in the current context?
-levelTermsAreEqual :: LevelTerm -> LevelTerm -> CM Bool
-levelTermsAreEqual (LApp (FinalVar x)) (LApp (FinalVar y)) = pure $ x == y
-levelTermsAreEqual (LApp (Application app1)) (LApp (Application app2)) =
+levelTermsAreEqual :: EqFun LevelTerm
+levelTermsAreEqual (LApp (FinalVar x)) (LApp (FinalVar y)) = if x == y then pure (LApp (FinalVar x)) else notEqual
+levelTermsAreEqual (LApp (Application app1)) (LApp (Application app2)) = do
   let x = un app1
       y = un app2
       xs = appliedArgs app1
       ys = appliedArgs app2
-  in (&&) <$> pure (length xs == length ys && x == y)
-          <*> (and <$> (mapM (uncurry termsAreEqual) (zip xs ys)))
-levelTermsAreEqual _ _ = pure $ False
+  if length xs == length ys && x == y
+  then do
+    ts <- mapM (uncurry termsAreEqual) (zip xs ys)
+    pure $ LApp (mkFinalApp x ts)
+  else notEqual
+levelTermsAreEqual (LApp (MetaApp app)) l2 =
+  case (un app, appliedArgs app) of
+    (m, []) -> solveMeta (metaId m) (VISLevel, l2)
+    _ -> lift $ notImplemented "levelTermsAreEqual: equality for applied meta"
+levelTermsAreEqual l1 (LApp (MetaApp app)) =
+    case (un app, appliedArgs app) of
+      (m, []) -> solveMeta (metaId m) (VISLevel, l1)
+      _ -> lift $ notImplemented "levelTermsAreEqual: equality for applied meta"
+levelTermsAreEqual _ _ = notEqual
 
 
 -- | Are the levels equal in the current context?
-levelsAreEqual :: Level -> Level -> CM Bool
-levelsAreEqual (Concrete n) (Concrete m) = pure $ n == m
+levelsAreEqual :: EqFun Level
+levelsAreEqual (Concrete n) (Concrete m) =
+  if n == m then pure (Concrete n) else notEqual
+levelsAreEqual (LevelMeta i1) (LevelMeta i2) =
+  if i1 == i2 then pure (LevelMeta i1) else solveMeta i1 (VISLevel, LevelMeta i2)
+levelsAreEqual (LevelMeta i) l2 = solveMeta i (VISLevel, l2)
+levelsAreEqual l1 (LevelMeta i) = solveMeta i (VISLevel, l1)
 levelsAreEqual (Plus n t1) (Plus m t2) =
-  (&&) <$> pure (n == m) <*> levelTermsAreEqual t1 t2
+  if n == m then do
+   t <- levelTermsAreEqual t1 t2
+   pure (Plus n t)
+  else notEqual
 levelsAreEqual (Max l1 l2) (Max l1' l2') =
-  (||) <$>
-    ((&&) <$> levelsAreEqual l1 l1' <*> levelsAreEqual l2 l2') <*>
-    ((&&) <$> levelsAreEqual l1 l2' <*> levelsAreEqual l2 l1')
-levelsAreEqual _ _ = pure False
+  maxsEq l1 l2 l1' l2' `alternatively` maxsEq l1 l2' l2 l1'
+  where maxsEq l1 l2 l1' l2' = do
+          l1 <- levelsAreEqual l1 l1'
+          l2 <- levelsAreEqual l2 l2'
+          pure (Max l1 l2)
+levelsAreEqual _ _ = notEqual
 
 
 -- | Are the types equal in the current context?
-typesAreEqual :: Type -> Type -> CM Bool
+typesAreEqual :: EqFun Type
 typesAreEqual t1 t2 = do
-  -- TODO: figure out whether we should actually care whether the levels are equal (2020-03-15)
-  -- _levEq <- levelsAreEqual (level t1) (level t2)
-  case (un t1, un t2) of
+  l <- levelsAreEqual (level t1) (level t2)
+  t <- case (un t1, un t2) of
     -- TODO: add proper equality here (2020-03-14)
-    (TyApp (FinalVar v1), TyApp (FinalVar v2)) -> pure $ v1 == v2
-    (TyApp (Application app1), TyApp (Application app2)) ->
+    (TyApp (FinalVar v1), TyApp (FinalVar v2)) -> if v1 == v2 then pure (TyApp (FinalVar v1)) else notEqual
+    (TyApp (Application app1), TyApp (Application app2)) -> do
       let x = un app1
           y = un app2
           xs = appliedArgs app1
           ys = appliedArgs app2
-      in (&&) <$> pure (length xs == length ys && x == y) <*> (and <$> (mapM (uncurry termsAreEqual) (zip xs ys)))
-    (Universe l1, Universe l2) -> levelsAreEqual l1 l2
-    (Pi pi1, Pi pi2) -> lopenArg2 pi1 pi2 $ \unbound ->
-      case unbound of
-        Nothing -> pure False
-        Just (t1, t2) -> typesAreEqual t1 t2
-    -- for any other combination, we assume they are not equal
+      if length xs == length ys && x == y
+      then do
+        ts <- mapM (uncurry termsAreEqual) (zip xs ys)
+        pure . TyApp $ mkFinalApp x ts
+      else notEqual
+    (Universe l1, Universe l2) -> Universe <$> levelsAreEqual l1 l2
+    (Pi pi1, Pi pi2) -> lopenArg2 pi1 pi2 $ \(arg, piT1, piT2) ->
+      mkPi' arg <$> typesAreEqual piT1 piT2
+    -- TODO: make sure we don't bind metas to themselves---see how we handled it for levels (2020-03-26)
     (TyApp (MetaApp app), _) ->
       case (un app, appliedArgs app) of
-        (m, []) -> solveMeta (metaId m) (VISType (level t2), typesAreEqual, t2) >> pure True
-        _ -> notImplemented "typesAreEqual: equality for applied meta"
+        (m, []) -> un <$> solveMeta (metaId m) (VISType l, t2)
+        _ -> lift $ notImplemented "typesAreEqual: equality for applied meta"
     (_, TyApp (MetaApp app)) ->
       case (un app, appliedArgs app) of
-        (m, []) -> solveMeta (metaId m) (VISType (level t1), typesAreEqual, t1) >> pure True
-        _ -> notImplemented "typesAreEqual: equality for applied meta"
-    (_, _) -> pure False
+        (m, []) -> un <$> solveMeta (metaId m) (VISType l, t1)
+        _ -> lift $ notImplemented "typesAreEqual: equality for applied meta"
+    (_, _) -> notEqual
+  pure (mkType t l)
+
+
+ensureEqualTypes' :: Type -> Type -> CM Type
+ensureEqualTypes' tyExpected tyActual =
+  debugBlock "ensureEqualTypes'"
+    ("checking equality of expected type '" <> pprintShow tyExpected <> "' and actual type '" <> pprintShow tyActual <> "'")
+    (\res -> "types were equal with common type '" <> pprintShow res <> "'") $ do
+  maybe (tyMismatch tyExpected tyActual) pure =<< runEquality' typesAreEqual tyExpected tyActual
 
 
 -- | 'ensureEqualTypes tyExpected tyActual' checks that 'tyExpected'
 -- | and 'tyActual' represent the same type, and fails if they differ.
 ensureEqualTypes :: Type -> Type -> CM ()
-ensureEqualTypes tyExpected tyActual = do
-  tyE <- normalise tyExpected
-  tyA <- normalise tyActual
-  debug $ "ensureEqualTypes: checking equality of expected type '" <> pprintShow tyExpected <> "' and actual type '" <> pprintShow tyActual <> "' which respectively normalise to '" <> pprintShow tyE <> "' and '" <> pprintShow tyA <> "'"
-  typesEqual <- typesAreEqual tyE tyA
-  -- typesEqual <- typesAreEqual tyExpected tyActual
-  when (not typesEqual) (tyMismatch tyExpected tyActual)
+ensureEqualTypes t1 t2 = ensureEqualTypes' t1 t2 >> pure ()
 
 
 -- | Check the expression against the given type, and
@@ -272,8 +304,8 @@ checkExpr_ (Var x) t = do
   -- x @ (k, n) : A in G
   -- G |- x : A
   -- setSubjectRemaining x k
-  ensureEqualTypes t tA
-  freeVarToTermVar x tA
+  ty <- ensureEqualTypes' t tA
+  freeVarToTermVar x ty
 checkExpr_ (Def x) t = do
   -- x @ (k+1, n) : A in G
   tA <- typeOfThing x
@@ -288,7 +320,7 @@ checkExpr_ (Def x) t = do
   -- x @ (k, n) : A in G
   -- G |- x : A
   -- setSubjectRemaining x k
-  ensureEqualTypes t tA
+  tA <- ensureEqualTypes' t tA
   val <- maybeLookupValue x
   case val of
     Nothing -> pure $
@@ -317,7 +349,7 @@ checkExpr_ (FunTy ab) t = do
   tA <- checkExprIsType absTy
 
   -- G, x : A |- B : Type l2
-  let -- TODO: add proper support for grades (2020-03-16)
+  -- TODO: add proper support for grades (2020-03-16)
   arg <- buildArg x thatMagicalGrading tA
   tB <- withArgBoundForType arg $ checkExprIsType absExpr
 
@@ -341,17 +373,17 @@ checkOrInferType' Implicit expr@(Lam ab) = do
 -}
 checkExpr_ (Lam ab) t = do
   -- TODO: check grading (2020-03-14)
-  (tyArg, gr, tA, tB) <- case un t of
+  (tyArg, gr, ttA, tB) <- case un t of
     (Pi pi) -> lunbind pi $ \(arg, resTy) ->
       pure (arg, I.grading arg, typeOf arg, resTy)
     _ -> expectedInferredTypeForm "function" t
 
   (x, absTy, absExpr) <- openAbs ab
-  tA <- case absTy of
-              Implicit i -> do
-                registerMeta i IsImplicit (VISType (level tA))
-                solveMeta i (VISType (level tA), typesAreEqual, tA) >> pure tA
-              lta -> checkExprIsType lta
+  tA <- checkExprIsType absTy
+  -- TODO: I've had to put this check here to make sure that the meta
+  -- gets solved as early as possible, to make sure that the variable
+  -- sorts get normalised properly (2020-03-26)
+  tA <- ensureEqualTypes' ttA tA
 
   lamArg <- buildArg x gr tA
 
@@ -656,7 +688,7 @@ checkExpr_ (Let (LetPatBound p e1) e2) t = do
         -- changed. (2020-03-25, GD)
         findConstructorForType :: Type -> CM BuiltinDCon
         findConstructorForType ty = do
-          isUnit <- typesAreEqual ty unitTy
+          isUnit <- runEquality typesAreEqual ty unitTy
           if isUnit then pure $ dcUnit
           else notImplemented $ "I don't yet know how to form a constructor of type '" <> pprintShow ty <> "'"
 
@@ -674,12 +706,31 @@ checkExpr_ (Sig e t') t = do
   ensureEqualTypes t ty
   checkExpr e ty
 -}
+
 ----------------------
 -- Level expression --
 ----------------------
 checkExpr_ (LitLevel l) t = do
   ensureEqualTypes t levelTy
   pure (Level $ singleLevel (Concrete l))
+
+---------------
+-- Implicits --
+---------------
+
+checkExpr_ (Implicit i) t = do
+  v <- vsortForType t
+  it <- case v of
+          VType l -> registerMeta i IsImplicit (VISType l) >> (pure . TypeTerm $ mkTypeMeta i l)
+          VLevel  -> registerMeta i IsImplicit VISLevel >> (pure . Level $ mkLevelMeta i)
+          VTerm   -> registerMeta i IsImplicit VISTerm >> (pure $ mkTermMeta i)
+  pure it
+
+
+-------------------------
+-- Unimplemented Cases --
+-------------------------
+
 checkExpr_ e t = notImplemented $ "checkExpr_: I don't yet know how to check whether the type of the expression '" <> pprintShow e <> "' matches expected type '" <> pprintShow t <> "'"
 
 
@@ -810,7 +861,7 @@ openAbs ab = lunbind ab $ \(absArg, absExpr) ->
 
 
 -- | Execute the action with the binder active (for subject checking).
-withArgBound :: Arg -> CM a -> CM a
+withArgBound :: (TCDebug m, CMEnv m) => Arg -> m a -> m a
 withArgBound arg act =
   let x = freeVarName $ argVar arg
   in withVarBound x (I.grading arg) (typeOf arg) act
@@ -873,6 +924,7 @@ instance Normalise CM TermThatCannotBeApplied where
 
 
 instance Normalise CM Term where
+  normalise (TermMeta m) = normaliseMetaVar VISTerm m
   normalise (FullTerm t) = FullTerm <$> normalise t
   normalise (PartialTerm t) = PartialTerm <$> normalise t
 
@@ -882,6 +934,7 @@ instance Normalise CM LevelTerm where
 
 
 instance Normalise CM Level where
+  normalise (LevelMeta m) = normaliseMetaVar VISLevel m
   normalise l@Concrete{} = pure l
   normalise (Plus n t) = do
     t' <- normalise t
@@ -889,7 +942,7 @@ instance Normalise CM Level where
   normalise (Max l1 l2) = do
     l1 <- normalise l1
     l2 <- normalise l2
-    areEq <- levelsAreEqual l1 l2
+    areEq <- runEquality levelsAreEqual l1 l2
     if areEq then pure l1 else pure $
       case (l1, l2) of
         (Concrete 0, _) -> l2
@@ -925,6 +978,7 @@ instance Normalise CM I.Grading where
 
 
 instance Normalise CM Type where
+  normalise (TypeMeta m l) = normaliseMetaVar (VISType l) m
   normalise t = mkType <$> normalise (un t) <*> normalise (level t)
 
 
@@ -947,6 +1001,17 @@ substitute (n, s) t =
     ("substituting '" <> pprintShow s <> "' for '" <> pprintShow n <> "' in '" <> pprintShow t <> "'")
     (\res -> "substituted to get '" <> pprintShow res <> "'")
     (doTermSubst (n, s) t)
+
+
+normaliseMetaVar :: ISSort t -> MetaId -> CM t
+normaliseMetaVar s i = do
+  met <- maybeGetMetaSolution s i
+  pure $ case met of
+           Nothing -> case s of
+                        VISLevel  -> mkLevelMeta i
+                        VISTerm   -> mkTermMeta  i
+                        VISType l -> mkTypeMeta  i l
+           Just r -> r
 
 
 --------------------------
@@ -1115,7 +1180,7 @@ mkUnboundDef n ty =
 
 -- | Is the given type the type of levels?
 typeIsLevelType :: Type -> CM Bool
-typeIsLevelType = typesAreEqual levelTy
+typeIsLevelType = runEquality typesAreEqual levelTy
 
 
 -- | Build an argument, where the sort of the bound name is guided by the given type.
@@ -1138,19 +1203,20 @@ type SubstAll a = (Subst Term a, Subst Level a, Subst Type a)
 -- |
 -- | Executes the action with 'Nothing' if the arguments are of
 -- | different sorts or types.
-lopenArg2 :: (Alpha a, Normalise CM a, SubstAll a, Pretty a) => Bind Arg a -> Bind Arg a -> ((Maybe (a, a) -> CM b) -> CM b)
+lopenArg2 :: (Alpha a, Normalise CM a, SubstAll a, Pretty a) => Bind Arg a -> Bind Arg a -> (((Arg, a, a) -> Solver b) -> Solver b)
 lopenArg2 bound1 bound2 act = lunbind2 bound1 bound2 $ \unbound ->
   case unbound of
-    Nothing -> act Nothing
+    Nothing -> fail "arguments had wrong sorts or names"
     Just (arg1, b1, arg2, b2) -> do
       -- TODO: also add a check for grades (2020-03-24)
-      typesEqual <- typesAreEqual (typeOf arg1) (typeOf arg2)
-      if not typesEqual then (act Nothing) else do
-        let x2 = argVar arg2
-        -- substitute in to make sure names are the same
-        arg1v <- freeVarToTermVar (((\(AnyName n) -> translate n) (freeVarName (argVar arg1)))) (typeOf arg1)
-        b2 <- substituteAndNormalise (x2, arg1v) b2
-        withArgBound arg1 $ act $ Just (b1, b2)
+      ty <- typesAreEqual (typeOf arg1) (typeOf arg2)
+      let x1 = argVar arg1
+          x2 = argVar arg2
+      -- substitute in to make sure names are the same
+      arg1v <- lift $ freeVarToTermVar (((\(AnyName n) -> translate n) (freeVarName x1))) ty
+      b2 <- lift $ substituteAndNormalise (x2, arg1v) b2
+      let newArg = mkArgAN x1 (I.grading arg1) ty
+      withArgBound newArg $ act (newArg, b1, b2)
 
 
 -- | Build an argument, where the sort of the bound name is guided by the given type.
@@ -1236,6 +1302,92 @@ withActivePattern _ _ = id
 --------------------------
 ----- Meta Variables -----
 --------------------------
+
+
+-- | A checker that can gracefully fail.
+type Solver a = MaybeT CM a
+
+
+-- | A function that compares two things for equality, producing a
+-- | solution context and the common term if they are equal.
+type EqFun a = a -> a -> Solver a
+
+
+-- | Currently just fails.
+notEqual :: Solver a
+notEqual = fail ""
+
+
+-- | Execute the solver, restoring appropriate state information when the solver fails.
+withLocalSolving :: Solver a -> CM (Maybe a)
+withLocalSolving sol = do
+  metas <- getMetas
+  res <- runMaybeT sol
+  maybe (setMetas metas >> pure Nothing) (pure . Just) $ res
+
+
+alternatively :: Solver a -> Solver a -> Solver a
+alternatively s1 s2 = MaybeT $ do
+  maybe (withLocalSolving s2) (pure . Just) =<< withLocalSolving s1
+
+
+-- | Check if the two things are equal by the given equality test. If the things are
+-- | equal, then update the current solution context, if they aren't, then don't touch
+-- | the current context.
+runEquality :: (Normalise CM a, Pretty a) => EqFun a -> a -> a -> CM Bool
+runEquality f t1 t2 = maybe False (const True) <$> runEquality' f t1 t2
+
+
+runEquality' :: (Normalise CM a, Pretty a) => EqFun a -> a -> a -> CM (Maybe a)
+runEquality' f t1 t2 = do
+  debugBlock "runEquality'"
+    ("checking equality of '" <> pprintShow t1 <> "' and '" <> pprintShow t2 <> "'")
+    (maybe "were not equal" (\r -> "were equal with common '" <> pprintShow r <> "'")) $ do
+    t1 <- normalise t1
+    t2 <- normalise t2
+    withLocalSolving (f t1 t2)
+
+
+class Inj a t where
+  inj :: a -> t
+
+
+instance Inj LevelTerm Level where
+  inj = mkTLevel
+
+
+instance Inj a a where
+  inj = id
+
+
+-- | Try and solve the meta and yield the solution.
+solveMeta :: (Pretty a, Inj a t) => MetaId -> (I.ISSort t, a) -> Solver a
+solveMeta i (s, t) = do
+  debug $ "solving meta '" <> pprintShow i <> "' with solution '" <> pprintShow t <> "'"
+  mt <- getMetaType i
+  metas <- getMetas
+  -- TODO: maybe have 'mergeSolution' yield the new solution (2020-03-26)
+  setMetas =<< mergeSolution i (mt, mkMetaSolution (s, inj t)) metas
+  pure t
+  where mergeSolution :: MetaId -> (MetaType, MetaSolution) -> MetaContext -> Solver MetaContext
+        mergeSolution i (mt, mi) mc = do
+          s <- getMetaInfo i
+          case (mi, metaState s) of
+            (MetaSolution (VISTerm, t1), MetaSolved (MetaSolution (VISTerm, t2))) -> do
+              debug $ "found existing solution: " <> pprintShow t2
+              t <- termsAreEqual t1 t2
+              pure (M.insert i (mkSolvedMeta mt (MetaSolution (VISTerm, t))) mc)
+            (MetaSolution (VISLevel, l1), MetaSolved (MetaSolution (VISLevel, l2))) -> do
+              debug $ "found existing solution: " <> pprintShow l2
+              l <- levelsAreEqual l1 l2
+              pure (M.insert i (mkSolvedMeta mt (MetaSolution (VISLevel, l))) mc)
+            (MetaSolution (VISType l1, t1), MetaSolved (MetaSolution (VISType l2, t2))) -> do
+              debug $ "found existing solution: " <> pprintShow t2
+              l <- levelsAreEqual l1 l2
+              t <- typesAreEqual t1 t2
+              pure (M.insert i (mkSolvedMeta mt (MetaSolution (VISType l, t))) mc)
+            (_, MetaSolved _) -> fail "wrong sorts"
+            (_, MetaUnsolved _) -> pure (M.insert i (mkSolvedMeta mt mi) mc)
 
 
 genLevelMeta :: CM Level
