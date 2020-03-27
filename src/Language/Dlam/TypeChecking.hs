@@ -963,11 +963,7 @@ applyPartial l@(IsLam lam) arg lamTy = do
     -- the application 'id id', which would itself have type 'a -> a'.
     let body' = case (body, un resTy) of
                   (I.App app, Pi{}) ->
-                    let papp = case un app of
-                                 I.Var v    -> VarPartial v
-                                 ConData dc -> DConPartial dc
-                                 AppDef d   -> DefPartial d
-                    in PartialApp (partiallyApplied papp (appliedArgs app))
+                    mkPartialApp (toPartialTerm (un app)) (appliedArgs app)
                   _ -> body
     pure (body', resTy)
 applyPartial (IsPartialApp pa) arg ty =
