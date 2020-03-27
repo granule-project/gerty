@@ -1330,10 +1330,6 @@ instance TCEq Level where
   areEqual = levelsAreEqual
 
 
-instance TCEq LevelTerm where
-  areEqual = levelTermsAreEqual
-
-
 instance TCEq Term where
   areEqual = termsAreEqual
 
@@ -1342,63 +1338,43 @@ instance TCEq Type where
   areEqual = typesAreEqual
 
 
+instance (TCEq a) => TCEq [a] where
+  areEqual xs ys =
+    if length xs == length ys then mapM (uncurry areEqual) (zip xs ys) else notEqual
+
+
 fullyAppliedAreEqual :: (TCEq a) => EqFun (FullyApplied a)
 fullyAppliedAreEqual app1 app2 = do
-  let x = un app1
-      y = un app2
-      xs = appliedArgs app1
-      ys = appliedArgs app2
-  if length xs == length ys
-  then do
-    z <- areEqual x y
-    zs <- mapM (uncurry areEqual) (zip xs ys)
-    pure $ fullyApplied z zs
-  else notEqual
+  z <- areEqual (un app1) (un app2)
+  zs <- mapM (uncurry areEqual) (zip (appliedArgs app1) (appliedArgs app2))
+  pure $ fullyApplied z zs
 
 
 -- | Are the terms equal in the current context?
 termsAreEqual :: EqFun Term
 termsAreEqual (Level l1) (Level l2) = Level <$> areEqual l1 l2
-termsAreEqual (I.App app1) (I.App app2) = I.App <$> areEqual app1 app2
+termsAreEqual (FullTerm (IsApp app)) t = finalEquality VISTerm app t
+termsAreEqual t (FullTerm (IsApp app)) = finalEquality VISTerm app t
 termsAreEqual (TypeTerm t1) (TypeTerm t2) = TypeTerm <$> areEqual t1 t2
 termsAreEqual (I.Lam lam1) (I.Lam lam2) =
   lopenArg2 lam1 lam2 $ \(arg, body1, body2) -> do
     bod <- areEqual body1 body2
     pure (mkLam' arg bod)
-termsAreEqual (TermMeta m1) (TermMeta m2) = metasAreEqual VISTerm m1 m2
-termsAreEqual (TermMeta m) t2 = solveMeta m (VISTerm, t2)
-termsAreEqual t1 (TermMeta m) = solveMeta m (VISTerm, t1)
 termsAreEqual _ _ = notEqual
-
-
--- | Are the levels equal in the current context?
-levelTermsAreEqual :: EqFun LevelTerm
-levelTermsAreEqual (LApp (FinalVar x)) (LApp (FinalVar y)) =
-  LApp . FinalVar <$> areEqual x y
-levelTermsAreEqual (LApp (Application app1)) (LApp (Application app2)) =
-  LApp . fullyAppliedToFinal <$> areEqual app1 app2
-levelTermsAreEqual (LApp (MetaApp app)) l2 =
-  case (un app, appliedArgs app) of
-    (m, []) -> solveMeta (metaId m) (VISLevel, l2)
-    _ -> lift $ notImplemented "levelTermsAreEqual: equality for applied meta"
-levelTermsAreEqual l1 (LApp (MetaApp app)) =
-    case (un app, appliedArgs app) of
-      (m, []) -> solveMeta (metaId m) (VISLevel, l1)
-      _ -> lift $ notImplemented "levelTermsAreEqual: equality for applied meta"
-levelTermsAreEqual _ _ = notEqual
 
 
 -- | Are the levels equal in the current context?
 levelsAreEqual :: EqFun Level
 levelsAreEqual (Concrete n) (Concrete m) =
   if n == m then pure (Concrete n) else notEqual
-levelsAreEqual (LevelMeta m1) (LevelMeta m2) = metasAreEqual VISLevel m1 m2
-levelsAreEqual (LevelMeta i) l2 = solveMeta i (VISLevel, l2)
-levelsAreEqual l1 (LevelMeta i) = solveMeta i (VISLevel, l1)
-levelsAreEqual (Plus n t1) (Plus m t2) =
+levelsAreEqual (Plus 0 (LApp t1)) l2 = finalEquality VISLevel t1 l2
+levelsAreEqual l1 (Plus 0 (LApp t2)) = finalEquality VISLevel t2 l1
+levelsAreEqual (Plus n (LApp t1)) (Plus m t2) =
   if n == m then do
-   t <- areEqual t1 t2
-   pure (Plus n t)
+   l <- finalEquality VISLevel t1 (Plus 0 t2)
+   case l of
+     Plus 0 t -> pure (Plus n t)
+     _ -> hitABug "bad equality on levels"
   else notEqual
 levelsAreEqual (Max l1 l2) (Max l1' l2') =
   maxsEq l1 l2 l1' l2' `alternatively` maxsEq l1 l2' l2 l1'
@@ -1411,31 +1387,63 @@ levelsAreEqual _ _ = notEqual
 
 -- | Are the types equal in the current context?
 typesAreEqual :: EqFun Type
-typesAreEqual (TypeMeta m1 l1) (TypeMeta m2 l2) = do
-  l <- areEqual l1 l2
-  metasAreEqual (VISType l) m1 m2
 typesAreEqual t1 t2 = do
   l <- areEqual (level t1) (level t2)
   t <- case (un t1, un t2) of
-    -- TODO: add proper equality here (2020-03-14)
-    (TyApp (FinalVar v1), TyApp (FinalVar v2)) ->
-      TyApp . FinalVar <$> areEqual v1 v2
-    (TyApp (Application app1), TyApp (Application app2)) -> do
-      TyApp . fullyAppliedToFinal <$> areEqual app1 app2
+    (TyApp t1, _) -> un <$> finalEquality (VISType l) t1 t2
+    (_, TyApp t2) -> un <$> finalEquality (VISType l) t2 t1
     (Universe l1, Universe l2) -> Universe <$> areEqual l1 l2
     (Pi pi1, Pi pi2) -> lopenArg2 pi1 pi2 $ \(arg, piT1, piT2) ->
       mkPi' arg <$> areEqual piT1 piT2
-    -- TODO: make sure we don't bind metas to themselves---see how we handled it for levels (2020-03-26)
-    (TyApp (MetaApp app), _) ->
-      case (un app, appliedArgs app) of
-        (m, []) -> un <$> solveMeta (metaId m) (VISType l, t2)
-        _ -> lift $ notImplemented "typesAreEqual: equality for applied meta"
-    (_, TyApp (MetaApp app)) ->
-      case (un app, appliedArgs app) of
-        (m, []) -> un <$> solveMeta (metaId m) (VISType l, t1)
-        _ -> lift $ notImplemented "typesAreEqual: equality for applied meta"
     (_, _) -> notEqual
   pure (mkType t l)
+
+
+finalEquality :: (ToPartialTerm a, Pretty t, HasFinal t a, TCEq t, TCEq a) => ISSort t -> Final t a -> t -> Solver t
+finalEquality s f t =
+  case (f, toFinal t) of
+    (MetaApp app, Nothing) -> case (un app, appliedArgs app) of
+                                (m, []) -> solveMeta (metaId m) (s, t)
+                                _ -> notEqual
+    (MetaApp app1, Just (MetaApp app2)) -> do
+      let m1 = un app1; m2 = un app2
+          m1args = appliedArgs app1; m2args = appliedArgs app2
+      args <- areEqual m1args m2args
+      case args of
+        -- no arguments, so we can do a full normalisation of the metas
+        [] -> metasAreEqual s (metaId m1) (metaId m2)
+        -- had some arguments, so at best we can link each component of the application
+        _  -> do
+          m <- metaVarsAreEqual s m1 m2
+          pure . fromFinal s $ mkFinalMeta (metaId m) args
+    (Application app1, Just (Application app2)) -> fromFinal s . Application <$> areEqual app1 app2
+    (FinalVar v1, Just (FinalVar v2)) -> fromFinal s . FinalVar <$> areEqual v1 v2
+    (MetaApp app1, Just (Application app2)) -> checkMetaWithApp app1 app2
+    (Application app1, Just (MetaApp app2)) -> checkMetaWithApp app2 app1
+    (MetaApp app, Just (FinalVar v)) -> do
+      case (un app, appliedArgs app) of
+        (m, []) -> solveMeta (metaId m) (s, fromFinal s (FinalVar v))
+        _ -> notEqual
+    (FinalVar v, Just (MetaApp app)) -> do
+      case (un app, appliedArgs app) of
+        (m, []) -> solveMeta (metaId m) (s, fromFinal s (FinalVar v))
+        _ -> notEqual
+    _ -> notEqual
+  where
+    checkMetaWithApp app1 app2 = do
+      let m = un app1; f = un app2
+          margs = appliedArgs app1; fargs = appliedArgs app2
+      args <- areEqual margs fargs
+      case args of
+        -- this was a fully-applied application, so we can solve the meta directly
+        [] -> solveMeta (metaId m) (s, fromFinal s (mkFinalApp f args))
+        -- we had some arguments, so the meta would have to normalise
+        -- to something partial
+        _  -> do
+          -- we can give the meta the solution of the (unapplied) head
+          -- of the application
+          _ <- solveMeta (metaId m) (VISTerm, mkPartialApp (toPartialTerm f) [])
+          pure (fromFinal s (mkFinalApp f args))
 
 
 metasAreEqual :: (TCEq t, Pretty t) => ISSort t -> MetaId -> MetaId -> Solver t
@@ -1455,6 +1463,29 @@ metasAreEqual s i1 i2 =
       (Nothing, Just v2) -> solveMeta i1 (s, v2)
       -- 3. solutions for both, in which case we can compare the solutions
       (Just v1, Just v2) -> areEqual v1 v2
+
+
+-- usually you'll want to use 'metasAreEqual', but when the meta is
+-- applied to something, then we are expecting the application to be
+-- in normal form, which means we can only give back a meta variable.
+metaVarsAreEqual :: (Pretty t, TCEq t) => ISSort t -> EqFun MetaVar
+metaVarsAreEqual s m1 m2 = do
+  let i1 = metaId m1; i2 = metaId m2
+  -- if this represents the same meta ID, then we don't want to bind as this would
+  -- cause lookups to point metas to themselves
+  if i1 == i2 then pure $ mkMetaVar i1
+  -- if the IDs are not equal, we either have:
+  else do
+    val1 <- maybeGetMetaSolution s i1
+    val2 <- maybeGetMetaSolution s i2
+    case (val1, val2) of
+      -- 1. no solutions for either, so we can safely map one to the other
+      (Nothing, Nothing) -> solveMeta i1 (s, mkMetaForSort s i2) >> pure m2
+      -- 2. solution for one or the other, so we can directly map the unknown
+      (Just v1, Nothing) -> solveMeta i2 (s, v1) >> pure m2
+      (Nothing, Just v2) -> solveMeta i1 (s, v2) >> pure m1
+      -- 3. solutions for both, in which case we can compare the solutions
+      (Just v1, Just v2) -> areEqual v1 v2 >> pure m1
 
 
 ensureEqualTypes' :: Type -> Type -> CM Type

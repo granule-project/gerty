@@ -1,5 +1,6 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
@@ -14,6 +15,7 @@ module Language.Dlam.Syntax.Internal
   (
   -- * Terms
     Term(..)
+  , ToPartialTerm(..)
   , pattern App
   , pattern TypeTerm
   , pattern Lam
@@ -26,6 +28,7 @@ module Language.Dlam.Syntax.Internal
   , TypeTerm(..)
   , pattern Pi
   , PartiallyAppable(..)
+  , mkPartialApp
 
   -- ** Metas
   , MetaId
@@ -35,12 +38,14 @@ module Language.Dlam.Syntax.Internal
   , mkTermMeta
   , mkLevelMeta
   , mkTypeMeta
+  , mkMetaVar
   , pattern LevelMeta
   , pattern TermMeta
   , pattern TypeMeta
 
   -- ** Application
   , Final(..)
+  , HasFinal(..)
   , mkFinalApp
   , mkFinalVar
   , mkFinalMeta
@@ -291,6 +296,10 @@ type MetaId = Int
 newtype MetaVar = MetaVar { metaId :: MetaId }
 
 
+mkMetaVar :: MetaId -> MetaVar
+mkMetaVar = MetaVar
+
+
 pattern LevelMeta :: MetaId -> Level
 pattern LevelMeta i = LTerm (LApp (MetaApp (FullyApplied [] (MetaVar i))))
 
@@ -356,6 +365,29 @@ instance Functor (Final t) where
   fmap f (Application a) = Application (fmap f a)
 
 
+class HasFinal t a | t -> a where
+  toFinal :: t -> Maybe (Final t a)
+  fromFinal :: ISSort t -> Final t a -> t
+
+
+instance HasFinal Term Appable where
+  toFinal (FullTerm (IsApp f)) = Just f
+  toFinal _ = Nothing
+  fromFinal VISTerm f = FullTerm (IsApp f)
+
+
+instance HasFinal Level LAppable where
+  toFinal (Plus 0 (LApp f)) = Just f
+  toFinal _ = Nothing
+  fromFinal VISLevel f = mkTLevel (LApp f)
+
+
+instance HasFinal Type TyAppable where
+  toFinal (TyApp' _ f) = Just f
+  toFinal _ = Nothing
+  fromFinal (VISType l) f = TyApp' l f
+
+
 ----------------------
 ----- Type Terms -----
 ----------------------
@@ -379,6 +411,10 @@ data TypeTerm
 
 pattern Pi :: Bind Arg Type -> TypeTerm
 pattern Pi pi = TTForApp (IsPi pi)
+
+
+pattern TyApp' :: Level -> Final Type TyAppable -> Type
+pattern TyApp' l f = Type' (Leveled (TyApp f) l)
 
 
 data TyAppable
@@ -443,6 +479,10 @@ pattern Lam lam = PartialTerm (IsLam lam)
 
 pattern Level :: Level -> Term
 pattern Level l = FullTerm (IsLevel l)
+
+
+mkPartialApp :: PartiallyAppable -> [Term] -> Term
+mkPartialApp p args = PartialApp (partiallyApplied p args)
 
 
 -- | Things that when fully applied are terms (and not types).
@@ -725,7 +765,7 @@ type LVarId = Name Level
 
 
 data LAppable
-  = LVar LVarId
+  = LVar VarId
   | LDef DefId
 
 
@@ -974,6 +1014,32 @@ instance HasName TyCon where
 
 instance HasName DCon where
   getName = dconID
+
+
+-----------------------
+----- Conversions -----
+-----------------------
+
+
+class ToPartialTerm a where
+  toPartialTerm :: a -> PartiallyAppable
+
+
+instance ToPartialTerm Appable where
+  toPartialTerm (Var v) = VarPartial v
+  toPartialTerm (AppDef d) = DefPartial d
+  toPartialTerm (ConData d) = DConPartial d
+
+
+instance ToPartialTerm LAppable where
+  toPartialTerm (LVar v) = VarPartial v
+  toPartialTerm (LDef d) = DefPartial d
+
+
+instance ToPartialTerm TyAppable where
+  toPartialTerm (AppTyVar v) = VarPartial v
+  toPartialTerm (AppTyDef d) = DefPartial d
+  toPartialTerm (AppTyCon t) = TyConPartial t
 
 
 -----------------------
