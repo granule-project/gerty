@@ -274,7 +274,7 @@ checkExpr_ (Lam ab) t = do
   -- replace occurrences of the pi-bound variable with the
   -- lambda-bound variable in the result type (specific to the lambda)
   xvar <- freeVarToTermVar (translate x) tA
-  tB <- withArgBound lamArg $ substituteAndNormalise (argVar tyArg, xvar) tB
+  tB <- withArgBound lamArg $ substitute (argVar tyArg, xvar) tB
 
   -- G, x : A |- e : B
   e <- withArgBound lamArg (checkExpr absExpr tB)
@@ -866,10 +866,6 @@ instance Normalise CM Type where
   normalise t = mkType <$> normalise (un t) <*> normalise (level t)
 
 
-substituteAndNormalise :: (Normalise CM t, SubstAll t, Pretty t) => (FreeVar, Term) -> t -> CM t
-substituteAndNormalise (n, s) t = normalise =<< substitute (n, s) t
-
-
 doTermSubst :: (SubstAll t) => (FreeVar, Term) -> t -> CM t
 doTermSubst (n, b) t =
   case (fvToSortedName n, b) of
@@ -879,12 +875,12 @@ doTermSubst (n, b) t =
     _ -> hitABug "wrong sort for name"
 
 
-substitute :: (SubstAll t, Pretty t) => (FreeVar, Term) -> t -> CM t
+substitute :: (Normalise CM t, SubstAll t, Pretty t) => (FreeVar, Term) -> t -> CM t
 substitute (n, s) t =
   debugBlock "substitute"
     ("substituting '" <> pprintShow s <> "' for '" <> pprintShow n <> "' in '" <> pprintShow t <> "'")
     (\res -> "substituted to get '" <> pprintShow res <> "'")
-    (doTermSubst (n, s) t)
+    (normalise =<< doTermSubst (n, s) t)
 
 
 normaliseMetaVar :: ISSort t -> MetaId -> CM t
@@ -954,8 +950,8 @@ applyPartial l@(IsLam lam) arg lamTy = do
   let (IsPi pi) = un lamTy
   lunbind2 lam pi $ \unbound -> do
     (larg, body, piArg, resTy) <- maybe (hitABug $ "binding structure of '" <> pprintShow l <> "' and '" <> pprintShow lamTy <> "' differed.") pure $ unbound
-    body <- substituteAndNormalise (argVar larg, arg) body
-    resTy <- substituteAndNormalise (argVar piArg, arg) resTy
+    body <- substitute (argVar larg, arg) body
+    resTy <- substitute (argVar piArg, arg) resTy
     -- we now check to see if we have produced an application which
     -- appears to be fully-applied, but is actually partial (in which
     -- case we need to say it is partial). An example of when this
@@ -969,7 +965,7 @@ applyPartial l@(IsLam lam) arg lamTy = do
 applyPartial (IsPartialApp pa) arg ty =
   let (IsPi pi) = un ty in lunbind pi $ \(piArg, resTy) -> do
   let newArgs = appliedArgs pa <> [arg]
-  resTy <- substituteAndNormalise (argVar piArg, arg) resTy
+  resTy <- substitute (argVar piArg, arg) resTy
   let resTerm =
         case un resTy of
           -- if the result is a Pi, then this is still partial---it
@@ -1094,7 +1090,7 @@ lopenArg2 bound1 bound2 act = lunbind2 bound1 bound2 $ \unbound ->
           x2 = argVar arg2
       -- substitute in to make sure names are the same
       arg1v <- lift $ freeVarToTermVar (((\(AnyName n) -> translate n) (freeVarName x1))) ty
-      b2 <- lift $ substituteAndNormalise (x2, arg1v) b2
+      b2 <- lift $ substitute (x2, arg1v) b2
       let newArg = mkArgAN x1 (I.grading arg1) ty
       withArgBound newArg $ act (newArg, b1, b2)
 
