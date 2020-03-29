@@ -1,8 +1,8 @@
 module Dlam (main) where
 
-import Language.Dlam.Interpreter (formatError)
 import Language.Dlam.TypeChecking.Monad
   ( runNewChecker
+  , displayError
   , tcrLog
   , tcrRes
   , Verbosity
@@ -20,11 +20,11 @@ import System.Environment (getArgs)
 import System.Exit
 
 
-data Options = Options { verbosity :: Verbosity }
+data Options = Options { verbosity :: Verbosity, verboseErrors :: Bool }
 
 
 defaultOptions :: Options
-defaultOptions = Options { verbosity = verbosityInfo }
+defaultOptions = Options { verbosity = verbosityInfo, verboseErrors = False }
 
 
 printLog :: Verbosity -> TCLog -> IO ()
@@ -43,6 +43,8 @@ parseArgs args = do
           parseArgsWithDefaults (opts { verbosity = verbosityInfo }) xs
         parseArgsWithDefaults opts ("--debug":xs) =
           parseArgsWithDefaults (opts { verbosity = verbosityDebug }) xs
+        parseArgsWithDefaults opts ("--verbose-errors":xs) =
+          parseArgsWithDefaults (opts { verboseErrors = True }) xs
         parseArgsWithDefaults _ (x:_) = do
           putStrLn $ "unknown option: " <> x
           exitFailure
@@ -62,5 +64,5 @@ main = do
           let res = runNewChecker (Interpreter.runTypeChecker fname input)
           printLog (verbosity opts) (tcrLog res)
           case tcrRes res of
-            Left err -> putStrLn (formatError err) >> exitFailure
+            Left err -> putStrLn (displayError (verboseErrors opts) err) >> exitFailure
             Right _ -> exitSuccess

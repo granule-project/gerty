@@ -74,6 +74,7 @@ module Language.Dlam.TypeChecking.Monad.Base
   , isSyntaxErr
   , isScopingErr
   , isTypingErr
+  , displayError
 
   -- ** Implementation errors
   , notImplemented
@@ -107,7 +108,7 @@ module Language.Dlam.TypeChecking.Monad.Base
   , HasMetas
   ) where
 
-import Control.Exception (Exception)
+import Control.Exception (Exception, displayException)
 import Control.Monad.Except
 import Control.Monad.Reader
 import Control.Monad.State
@@ -140,6 +141,9 @@ data CheckerState
     -- ^ Counter used to make it easier to locate debugging messages.
     , metas :: MetaContext
     }
+
+
+type CMState = MonadState CheckerState
 
 
 -- TODO: take the scoper state as an argument so e.g., we can set the meta id (2020-03-25)
@@ -589,7 +593,7 @@ lookupFVSubjectRemaining = fmap (I.subjectGrade . fst) . lookupFVInfo
 -----------------------------------------
 
 
-type TCExcept m = (MonadError TCErr m, CMEnv m)
+type TCExcept m = (MonadError TCErr m, CMEnv m, CMState m)
 
 
 data TCError
@@ -726,6 +730,8 @@ data TCErr = TCErr
   -- ^ The underlying error.
   , tcErrEnv :: TCEnv
   -- ^ Environment at point of the error.
+  , tcErrState :: CheckerState
+  -- ^ State at point of the error.
   }
 
 
@@ -740,7 +746,8 @@ tcErrExpr = tceCurrentExpr . tcErrEnv
 throwCM :: (TCExcept m) => TCError -> m a
 throwCM e = do
   env <- ask
-  throwError $ TCErr { tcErrErr = e, tcErrEnv = env }
+  st  <- get
+  throwError $ TCErr { tcErrErr = e, tcErrEnv = env, tcErrState = st }
 
 
 instance Show TCErr where
@@ -779,6 +786,24 @@ isImplementationErr e =
     NotImplemented{}    -> True
     ImplementationBug{} -> True
     _                   -> False
+
+
+displayError :: Bool -> TCErr -> String
+displayError verboseErrors err =
+  if verboseErrors then show (cat
+    [ hangTag "ERROR" (text (displayException err))
+    , hangTag "ENVIRONMENT" (pprintEnv (tcErrEnv err))
+    , hangTag "STATE" (pprintState (tcErrState err))
+    ])
+  else displayException err
+  where pprintEnv env =
+          let ctx = tceFVContext env
+          in hang (text "FREE-VARIABLE CONTEXT") indent (pprint ctx)
+        pprintState st =
+          let ms = metas st
+          in hang (text "METAS") indent (pprint ms)
+        indent = 2
+        hangTag t x = hang (text t) indent x
 
 
 -----------------------
