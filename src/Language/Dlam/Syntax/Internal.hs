@@ -418,6 +418,10 @@ pattern TyApp' :: Level -> Final Type TyAppable -> Type
 pattern TyApp' l f = Type' (Leveled (TyApp f) l)
 
 
+pattern TypeVar :: Level -> Name Type -> Type
+pattern TypeVar l n = Type' (Leveled (TyApp (FinalVar n)) l)
+
+
 data TyAppable
   -- | Free variable whose type ends in a universe.
   = AppTyVar VarId
@@ -1189,9 +1193,7 @@ instance Subst Level Type
 
 
 instance Subst Type Type where
-  isCoerceVar ty =
-    case un ty of
-      (TyApp (FinalVar v)) -> pure (SubstCoerce (translate v) pure)
-      _ -> Nothing
+  isvar (TypeVar _ v) = pure (SubstName v)
+  isvar _ = Nothing
 instance Subst Type Level
 instance Subst Type Term
