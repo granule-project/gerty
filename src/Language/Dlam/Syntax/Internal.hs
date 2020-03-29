@@ -495,6 +495,10 @@ pattern TermVar :: Name Term -> Term
 pattern TermVar x = FullTerm (IsApp (FinalVar x))
 
 
+pattern UnappliedPartialTermVar :: Name Term -> Term
+pattern UnappliedPartialTermVar x = PartialApp (PartiallyApplied [] (VarPartial x))
+
+
 pattern Lam :: Bind Arg Term -> Term
 pattern Lam lam = PartialTerm (IsLam lam)
 
@@ -1206,14 +1210,8 @@ instance Subst Term Level where
   isCoerceVar _ = Nothing
 
 instance Subst Term Term where
-  isvar (App app) =
-    case (un app, appliedArgs app) of
-      (Var x, []) -> pure (SubstName x)
-      _ -> Nothing
-  isvar (PartialApp app) =
-    case (un app, appliedArgs app) of
-      (VarPartial x, []) -> pure (SubstName x)
-      _ -> Nothing
+  isvar (TermVar x) = pure (SubstName x)
+  isvar (UnappliedPartialTermVar x) = pure (SubstName x)
   isvar _ = Nothing
   isCoerceVar _ = Nothing
 
