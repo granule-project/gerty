@@ -6,6 +6,7 @@ module Language.Dlam.Builtins
 
   -- * Collected builtins
     builtins
+  , builtinsNames
   , builtinsTypes
   , builtinsValues
 
@@ -100,6 +101,10 @@ builtins =
       ]
     builtinSpecialDefinitions = fmap BinDef
       [ defType ]
+
+
+builtinsNames :: [AName]
+builtinsNames = fmap builtinName builtins
 
 
 builtinsTypes :: M.Map AName Type

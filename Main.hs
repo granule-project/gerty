@@ -50,6 +50,7 @@ parseArgs args = do
           verb <- case v of
                     "none" -> pure errVerbosityNone
                     "partial" -> pure errVerbosityPartial
+                    "full-no-builtins" -> pure errVerbosityFullNoBuiltins
                     "full" -> pure errVerbosityFull
                     _ -> putStrLn ("bad value for option '--verbose-errors': " <> v) >> exitFailure
           parseValArgsWithDefaults (opts { verboseErrors = verb }) xs

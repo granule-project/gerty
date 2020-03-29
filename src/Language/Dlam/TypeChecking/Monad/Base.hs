@@ -81,6 +81,7 @@ module Language.Dlam.TypeChecking.Monad.Base
   , ErrorVerbosity
   , errVerbosityNone
   , errVerbosityPartial
+  , errVerbosityFullNoBuiltins
   , errVerbosityFull
 
   -- ** Implementation errors
@@ -803,14 +804,15 @@ isImplementationErr e =
     _                   -> False
 
 
-data ErrorVerbosity = ErrVerbosityNone | ErrVerbosityPartial | ErrVerbosityFull
+data ErrorVerbosity = ErrVerbosityNone | ErrVerbosityPartial | ErrVerbosityFull Bool
   deriving (Eq, Ord)
 
 
-errVerbosityNone, errVerbosityPartial, errVerbosityFull :: ErrorVerbosity
+errVerbosityNone, errVerbosityPartial, errVerbosityFullNoBuiltins, errVerbosityFull :: ErrorVerbosity
 errVerbosityNone = ErrVerbosityNone
 errVerbosityPartial = ErrVerbosityPartial
-errVerbosityFull = ErrVerbosityFull
+errVerbosityFullNoBuiltins = ErrVerbosityFull False
+errVerbosityFull = ErrVerbosityFull True
 
 
 displayError :: ErrorVerbosity -> TCErr -> String
@@ -827,10 +829,14 @@ displayError errVerbosity err =
           , whenScopePrinting $ pprintKMap "SIGNATURES IN SCOPE" (colon `beside` space) (typingScope st)
           , whenScopePrinting $ pprintKMap "DEFINITIONS IN SCOPE" (space `beside` equals `beside` space) (valueScope st)
           ]
-        pprintKMap :: (Pretty t, Pretty k, Pretty v) => t -> Doc -> M.Map k v -> Doc
-        pprintKMap t sep = hangTag t . vcat . M.foldrWithKey (\k v xs -> pprint k `beside` sep `beside` pprint v : xs) []
+        pprintKMap :: (Pretty t, Pretty v) => t -> Doc -> M.Map AName v -> Doc
+        pprintKMap t sep m = hangTag t $
+          let (builtins, user) = M.partitionWithKey (\k _ -> k `elem` builtinsNames) m
+              pmap = vcat . M.foldrWithKey (\k v xs -> pprint k `beside` sep `beside` pprint v : xs) []
+          in vcat $ [whenBuiltinsPrinting $ hangTag "BUILTINS" (pmap builtins), hangTag "USER" (pmap user)]
         verboseErrors = errVerbosity > ErrVerbosityNone
-        whenScopePrinting s = if errVerbosity == errVerbosityFull then s else mempty
+        whenScopePrinting s = if errVerbosity >= errVerbosityFullNoBuiltins then s else mempty
+        whenBuiltinsPrinting s = if errVerbosity >= errVerbosityFull then s else mempty
 
 
 -----------------------
