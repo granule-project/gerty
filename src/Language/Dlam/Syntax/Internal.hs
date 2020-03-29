@@ -378,7 +378,7 @@ instance HasFinal Term Appable where
 
 
 instance HasFinal Level LAppable where
-  toFinal (Plus 0 (LApp f)) = Just f
+  toFinal (LTerm (LApp f)) = Just f
   toFinal _ = Nothing
   fromFinal VISLevel f = mkTLevel (LApp f)
 
@@ -749,16 +749,13 @@ levelZero = Concrete 0
 
 data Level
   = Concrete Nat
-  | Plus Nat LevelTerm
+  | Plus Nat Level
   | Max Level Level
+  | LTerm LevelTerm
 
 
 pattern LevelVar :: LVarId -> Level
 pattern LevelVar x = LTerm (LApp (FinalVar x))
-
-
-pattern LTerm :: LevelTerm -> Level
-pattern LTerm t = Plus 0 t
 
 
 -- | Atomic terms that are levels.
@@ -789,6 +786,7 @@ instance Inc Level where
   inc (Concrete n) = Concrete (succ n)
   inc (Plus n l) = Plus (succ n) l
   inc (Max x y) = Max (inc x) (inc y)
+  inc (LTerm t) = Plus 1 (LTerm t)
 
 
 -- | The next highest level.
@@ -816,13 +814,13 @@ instance Un Leveled where
 
 instance Pretty Level where
   isLexicallyAtomic Concrete{} = True
-  isLexicallyAtomic (LevelVar x) = isLexicallyAtomic x
+  isLexicallyAtomic (LTerm t) = isLexicallyAtomic t
   isLexicallyAtomic _ = False
 
   pprint (Concrete n) = integer n
-  pprint (LevelVar x) = pprint x
   pprint (Plus n x) = integer n <+> char '+' <+> pprintParened x
   pprint (Max n m) = text "lmax" <+> pprintParened n <+> pprintParened m
+  pprint (LTerm t) = pprint t
 
 
 instance Pretty LevelTerm where
@@ -1172,22 +1170,12 @@ instance Subst Term Term where
       (VarPartial x, []) -> pure (SubstName x)
       _ -> Nothing
   isvar _ = Nothing
-instance Subst Level Level where
-  isCoerceVar (Plus n (LApp (FinalVar x))) =
-      pure (SubstCoerce (translate x) (\t ->
-        case t of
-          -- if we are substituting in a concrete level, we can
-          -- simplify by doing an addition
-          (Concrete m) -> pure (Concrete (n + m))
-          -- if we are substituting in an addition, we can simplify by
-          -- combining the additions
-          (Plus m (LApp (FinalVar y))) ->
-            pure (Plus (m + n) (LApp (mkFinalVar y)))
-
-          (Max (Plus m1 l1) (Plus m2 l2)) ->
-            pure $ Max (Plus (n + m1) l1) (Plus (n + m2) l2)
-          l -> pure l))
   isCoerceVar _ = Nothing
+
+
+instance Subst Level Level where
+  isvar (LevelVar v) = pure (SubstName v)
+  isvar _ = Nothing
 instance Subst Level Term
 instance Subst Level Type
 

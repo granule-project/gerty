@@ -820,9 +820,13 @@ instance Normalise CM LevelTerm where
 instance Normalise CM Level where
   normalise (LevelMeta m) = normaliseMetaVar VISLevel m
   normalise l@Concrete{} = pure l
+  normalise (LTerm t) = LTerm <$> normalise t
   normalise (Plus n t) = do
     t' <- normalise t
-    pure (Plus n t')
+    pure $ case t' of
+             (Concrete m) -> Concrete (m + n)
+             (Plus m l)   -> Plus (m + n) l
+             _ -> Plus n t'
   normalise (Max l1 l2) = do
     l1 <- normalise l1
     l2 <- normalise l2
@@ -1374,14 +1378,12 @@ termsAreEqual t1 t2 = notEqual t1 t2
 levelsAreEqual :: EqFun Level
 levelsAreEqual (Concrete n) (Concrete m) =
   if n == m then pure (Concrete n) else notEqual (Concrete n) (Concrete m)
-levelsAreEqual (Plus 0 (LApp t1)) l2 = finalEquality VISLevel t1 l2
-levelsAreEqual l1 (Plus 0 (LApp t2)) = finalEquality VISLevel t2 l1
-levelsAreEqual (Plus n (LApp t1)) (Plus m t2) =
+levelsAreEqual (LTerm (LApp t1)) l2 = finalEquality VISLevel t1 l2
+levelsAreEqual l1 (LTerm (LApp t2)) = finalEquality VISLevel t2 l1
+levelsAreEqual (Plus n l1) (Plus m l2) =
   if n == m then do
-   l <- finalEquality VISLevel t1 (Plus 0 t2)
-   case l of
-     Plus 0 t -> pure (Plus n t)
-     _ -> hitABug "bad equality on levels"
+   l <- levelsAreEqual l1 l2
+   pure (Plus n l)
   else notEqual (Concrete n) (Concrete m)
 levelsAreEqual (Max l1 l2) (Max l1' l2') =
   maxsEq l1 l2 l1' l2' `alternatively` maxsEq l1 l2' l2 l1'
