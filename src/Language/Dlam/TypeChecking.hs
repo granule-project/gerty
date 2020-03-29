@@ -16,7 +16,7 @@ import qualified Data.Map as M
 import Language.Dlam.Builtins
 import Language.Dlam.Syntax.Abstract hiding (nameFromString)
 import Language.Dlam.Syntax.Common.Language (HasType)
-import Language.Dlam.Syntax.Internal hiding (Var, App, Lam)
+import Language.Dlam.Syntax.Internal hiding (App, Lam)
 import qualified Language.Dlam.Syntax.Internal as I
 import Language.Dlam.TypeChecking.Monad
 import Language.Dlam.Util.Pretty (Pretty(..), pprintShow, parens, text, int, beside)
@@ -770,6 +770,10 @@ instance (Monad m, Normalise m a) => Normalise m [a] where
   normalise = mapM normalise
 
 
+instance Normalise CM NonEmptyArgs where
+  normalise = mapArgs normalise
+
+
 instance (Applicative m, Functor m, Normalise m a) => Normalise m (Maybe a) where
   normalise = maybe (pure Nothing) (fmap Just . normalise)
 
@@ -794,6 +798,7 @@ instance Normalise CM (Final t a) where
         xs = appliedArgs app
     xs <- normalise xs
     pure $ mkFinalApp n xs
+  normalise (VarApp n xs) = mkFinalVarApp n <$> normalise xs
   normalise (MetaApp app) = do
     let n = un app
         xs = appliedArgs app
@@ -970,7 +975,9 @@ applyPartial l@(IsLam lam) arg lamTy = do
     pure (body', resTy)
 applyPartial (IsPartialApp pa) arg ty =
   let (IsPi pi) = un ty in lunbind pi $ \(piArg, resTy) -> do
-  let newArgs = appliedArgs pa <> [arg]
+  let paArgs = appliedArgs pa
+      newArgs = paArgs <> [arg]
+      newArgs' = addArg paArgs arg
   resTy <- substitute (argVar piArg, arg) resTy
   resTerm <-
     case un resTy of
@@ -979,11 +986,11 @@ applyPartial (IsPartialApp pa) arg ty =
       Pi{} -> pure $ PartialApp (partiallyApplied (un pa) newArgs)
       -- if the result is a universe, we've just produced a type
       Universe l -> do
-        finalApp <- flip mkFinalApp newArgs <$>
+        finalApp <-
           case un pa of
-            VarPartial v -> pure $ AppTyVar v
-            TyConPartial c -> pure $ AppTyCon c
-            DefPartial d -> pure $ AppTyDef d
+            VarPartial v -> pure $ mkFinalVarApp v (addArg paArgs arg)
+            TyConPartial c -> pure $ mkFinalApp (AppTyCon c) newArgs
+            DefPartial d -> pure $ mkFinalApp (AppTyDef d) newArgs
             DConPartial{} -> hitABug "I completed a data constructor application, but produced a type."
 
         pure $ TypeTerm (mkType (TyApp finalApp) l)
@@ -991,18 +998,17 @@ applyPartial (IsPartialApp pa) arg ty =
       _ -> do
         isLevel <- typeIsLevelType resTy
         if isLevel
-        then Level . flip mkLevelApp newArgs <$>
+        then Level <$>
                case un pa of
-                 VarPartial v -> pure $ LVar v
-                 DefPartial d -> pure $ LDef d
+                 VarPartial v -> pure $ mkLVarApp v newArgs'
+                 DefPartial d -> pure $ mkLevelApp (LDef d) newArgs
                  DConPartial _ -> hitABug "I completed a data constructor application and produced a level."
                  TyConPartial{} -> hitABug "I completed a type application and produced a level."
-        else flip mkApp newArgs <$>
-               case un pa of
-                 VarPartial v -> pure $ I.Var v
-                 DConPartial dc -> pure $ ConData dc
-                 DefPartial d -> pure $ AppDef d
-                 TyConPartial{} -> hitABug "I completed a type application and produced something that wasn't a type."
+        else case un pa of
+               VarPartial v -> pure $ mkVarApp v newArgs'
+               DConPartial dc -> pure $ mkApp (ConData dc) newArgs
+               DefPartial d -> pure $ mkApp (AppDef d) newArgs
+               TyConPartial{} -> hitABug "I completed a type application and produced something that wasn't a type."
   pure (resTerm, resTy)
 
 
@@ -1122,7 +1128,6 @@ class InScope a where
 
 
 instance InScope Appable where
-  typeOfThing (I.Var v) = typeOfThing v
   typeOfThing (ConData d) = typeOfThing d
   typeOfThing (AppDef d) = typeOfThing d
 

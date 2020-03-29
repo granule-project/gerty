@@ -451,7 +451,7 @@ dcPair =
       b = nameFromString "B"
       bv = mkTypeVar (nameForType b) l2v
       xv = mkVar x
-      appB a = mkType (TyApp (mkFinalApp (AppTyVar b) [a])) l2v
+      appB a = mkType (TyApp (mkFinalVarApp b (singleArg a))) l2v
   in mkBuiltinDConNoDef "pair"
        [ mkLevelArg l1, mkLevelArg l2
        , mkTyArg a l1v, mkArg' b (mkFunTyNoBind av (mkUnivTy l2v))
@@ -508,7 +508,7 @@ elimNat =
       five fun (a,b,c,d,e) = (fun a, fun b, fun c, fun d, fun e)
       lv = mkLevelVar l
       xv = mkVar x
-      appC a = mkType (TyApp (mkFinalApp (AppTyVar tC) [a])) lv
+      appC a = mkType (TyApp (mkFinalVarApp tC (singleArg a))) lv
       succApp a = App (fullyApplied (ConData $ getDCon dcSucc) [a])
       args =
         [ mkLevelArg l
@@ -534,7 +534,7 @@ elimEmpty =
       a = nameFromString "a"
       tC = nameFromString "tC"
       lv = mkLevelVar l
-      appC a = mkType (TyApp (mkFinalApp (AppTyVar tC) [a])) lv
+      appC a = mkType (TyApp (mkFinalVarApp tC (singleArg a))) lv
       args =
         [ mkLevelArg l
         , mkArg' (nameForTerm tC) (mkFunTyNoBind emptyTy (mkUnivTy lv))
@@ -565,7 +565,7 @@ elimCoproduct =
       l3v = mkLevelVar l3
       aty = mkTypeVar a l1v
       bty = mkTypeVar b l2v
-      appC a = mkType (TyApp (mkFinalApp (AppTyVar tC) [a])) l3v
+      appC a = mkType (TyApp (mkFinalVarApp tC (singleArg a))) l3v
       copAB = mkCoproductTy aty bty
       pv = mkVar p
       args =

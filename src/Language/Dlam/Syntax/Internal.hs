@@ -49,6 +49,7 @@ module Language.Dlam.Syntax.Internal
   , HasFinal(..)
   , mkFinalApp
   , mkFinalVar
+  , mkFinalVarApp
   , mkFinalMeta
   , fullyAppliedToFinal
 
@@ -69,6 +70,10 @@ module Language.Dlam.Syntax.Internal
   , argVar
   , Applied(..)
   , Applicable(..)
+  , addArg
+  , singleArg
+  , NonEmptyArgs
+  , mapArgs
 
   -- *** FreeVar
   , FreeVar
@@ -144,6 +149,7 @@ module Language.Dlam.Syntax.Internal
 
   -- *** Levels
   , mkLevelApp
+  , mkLVarApp
 
   -- *** Terms that are partial applications
 
@@ -154,6 +160,7 @@ module Language.Dlam.Syntax.Internal
 
   -- *** Terms that are full applications
   , mkApp
+  , mkVarApp
 
   -- *** Arguments
   , mkArg
@@ -168,6 +175,9 @@ module Language.Dlam.Syntax.Internal
   -- * Unbound
   , module Unbound.LocallyNameless
   ) where
+
+
+import Data.List.NonEmpty (NonEmpty(..))
 
 
 import Prelude hiding ((<>))
@@ -352,13 +362,24 @@ mkTypeMeta = TypeMeta
 data Final t a
   -- | A free-variable of the underlying sort.
   = FinalVar (Name t)
+
+  -- | A fully-applied variable application. This must have non-empty arguments so it
+  -- | doesn't overlap with a final variable.
+  | VarApp VarId NonEmptyArgs
+
   -- | A fully-applied application.
   | Application (FullyApplied a)
+
+  -- | Application of a meta.
   | MetaApp (FullyApplied MetaVar)
 
 
 mkFinalApp :: a -> [Term] -> Final t a
 mkFinalApp f args = Application $ fullyApplied f args
+
+
+mkFinalVarApp :: VarId -> NonEmptyArgs -> Final t a
+mkFinalVarApp = VarApp
 
 
 fullyAppliedToFinal :: FullyApplied a -> Final t a
@@ -374,8 +395,9 @@ mkFinalMeta i = MetaApp . fullyApplied (MetaVar i)
 
 
 instance Functor (Final t) where
-  fmap _ (FinalVar n) = FinalVar n
-  fmap _ (MetaApp n) =  MetaApp n
+  fmap _ (FinalVar n)  = FinalVar n
+  fmap _ (MetaApp n)   =  MetaApp n
+  fmap _ (VarApp n xs) = VarApp n xs
   fmap f (Application a) = Application (fmap f a)
 
 
@@ -436,17 +458,13 @@ pattern TypeVar l n = Type' (Leveled (TyApp (FinalVar n)) l)
 
 
 data TyAppable
-  -- | Free variable whose type ends in a universe.
-  = AppTyVar VarId
   -- | Type constructor.
-  | AppTyCon TyCon
+  = AppTyCon TyCon
   -- | Constant definition (axiom).
   | AppTyDef DefId
 
 
 instance Eq TyAppable where
-  -- free variables are equality compared on concrete names
-  (AppTyVar v1) == (AppTyVar v2) = name2String v1 == name2String v2
   -- otherwise we require them to be the exact same name
   (AppTyCon t1) == (AppTyCon t2) = getName t1 == getName t2
   (AppTyDef d1) == (AppTyDef d2) = d1 == d2
@@ -513,17 +531,13 @@ mkPartialApp p args = PartialApp (partiallyApplied p args)
 
 -- | Things that when fully applied are terms (and not types).
 data Appable
-  -- | A free variable.
-  = Var (Name Term)
   -- | A data constructor.
-  | ConData DCon
+  = ConData DCon
   -- | Constant (axiom).
   | AppDef DefId
 
 
 instance Eq Appable where
-  -- free variables are equality compared on concrete names
-  (Var v1) == (Var v2) = name2String v1 == name2String v2
   -- otherwise we require them to be the exact same name
   (ConData c1) == (ConData c2) = getName c1 == getName c2
   (AppDef d1) == (AppDef d2) = d1 == d2
@@ -659,11 +673,9 @@ instance Pretty TermThatCanBeApplied where
 
 
 instance Pretty Appable where
-  isLexicallyAtomic (Var d) = isLexicallyAtomic d
   isLexicallyAtomic (ConData d) = isLexicallyAtomic d
   isLexicallyAtomic (AppDef d) = isLexicallyAtomic d
 
-  pprint (Var v) = pprint v
   pprint (ConData d) = pprint d
   pprint (AppDef d) = pprint d
 
@@ -689,9 +701,12 @@ instance (Pretty a) => Pretty (Final t a) where
   isLexicallyAtomic (FinalVar v) = isLexicallyAtomic v
   isLexicallyAtomic (Application p) = isLexicallyAtomic p
   isLexicallyAtomic (MetaApp p) = isLexicallyAtomic p
+  isLexicallyAtomic VarApp{} = False
+
   pprint (FinalVar v) = pprint v
   pprint (Application p) = pprint p
   pprint (MetaApp p) = pprint p
+  pprint (VarApp n xs) = pprint (fullyApplied n (nonEmptyArgsToList xs))
 
 
 instance Pretty TypeTerm where
@@ -712,11 +727,9 @@ instance Pretty TypeTermOfTermsThatCanBeApplied where
 
 
 instance Pretty TyAppable where
-  isLexicallyAtomic (AppTyVar v) = isLexicallyAtomic v
   isLexicallyAtomic (AppTyCon t) = isLexicallyAtomic t
   isLexicallyAtomic (AppTyDef d) = isLexicallyAtomic d
 
-  pprint (AppTyVar v) = pprint v
   pprint (AppTyCon t) = pprint t
   pprint (AppTyDef d) = pprint d
 
@@ -788,19 +801,16 @@ type LVarId = Name Level
 
 
 data LAppable
-  = LVar VarId
-  | LDef DefId
-
-
-instance Eq LAppable where
-  -- free variables are equality compared on concrete names
-  (LVar v1) == (LVar v2) = name2String v1 == name2String v2
-  (LDef d1) == (LDef d2) = d1 == d2
-  _ == _ = False
+  = LDef DefId
+  deriving (Eq)
 
 
 mkLevelApp :: LAppable -> [Term] -> Level
 mkLevelApp p xs = LTerm (LApp (mkFinalApp p xs))
+
+
+mkLVarApp :: VarId -> NonEmptyArgs -> Level
+mkLVarApp p xs = LTerm (LApp (mkFinalVarApp p xs))
 
 
 class Inc a where
@@ -854,10 +864,8 @@ instance Pretty LevelTerm where
 
 
 instance Pretty LAppable where
-  isLexicallyAtomic (LVar t) = isLexicallyAtomic t
   isLexicallyAtomic (LDef t) = isLexicallyAtomic t
 
-  pprint (LVar t) = pprint t
   pprint (LDef t) = pprint t
 
 
@@ -1024,6 +1032,29 @@ mkApp :: Appable -> [Term] -> Term
 mkApp p xs = FullTerm (IsApp (mkFinalApp p xs))
 
 
+mkVarApp :: VarId -> NonEmptyArgs -> Term
+mkVarApp p xs = FullTerm (IsApp (mkFinalVarApp p xs))
+
+
+newtype NonEmptyArgs = NonEmptyArgs (NonEmpty Term)
+
+
+addArg :: [Term] -> Term -> NonEmptyArgs
+addArg xs x = NonEmptyArgs (x :| xs)
+
+
+singleArg :: Term -> NonEmptyArgs
+singleArg x = NonEmptyArgs (x :| [])
+
+
+mapArgs :: (Monad m) => (Term -> m Term) -> NonEmptyArgs -> m NonEmptyArgs
+mapArgs f (NonEmptyArgs (x :| xs)) = addArg <$> mapM f xs <*> f x
+
+
+nonEmptyArgsToList :: NonEmptyArgs -> [Term]
+nonEmptyArgsToList (NonEmptyArgs (x :| xs)) = xs ++ [x]
+
+
 mkArg' :: VarId -> Type -> Arg
 mkArg' n t = mkArg (VISTerm, n) thatMagicalGrading t
 
@@ -1078,18 +1109,15 @@ class ToPartialTerm a where
 
 
 instance ToPartialTerm Appable where
-  toPartialTerm (Var v) = VarPartial v
   toPartialTerm (AppDef d) = DefPartial d
   toPartialTerm (ConData d) = DConPartial d
 
 
 instance ToPartialTerm LAppable where
-  toPartialTerm (LVar v) = VarPartial v
   toPartialTerm (LDef d) = DefPartial d
 
 
 instance ToPartialTerm TyAppable where
-  toPartialTerm (AppTyVar v) = VarPartial v
   toPartialTerm (AppTyDef d) = DefPartial d
   toPartialTerm (AppTyCon t) = TyConPartial t
 
@@ -1111,6 +1139,7 @@ $(derive
   , ''Leveled
   , ''LevelTerm
   , ''MetaVar
+  , ''NonEmptyArgs
   , ''PartiallyAppable
   , ''PartiallyApplied
   , ''Term
@@ -1125,10 +1154,11 @@ $(derive
   ])
 
 
-$(derive_abstract [''FreeVar])
+$(derive_abstract [''FreeVar, ''NonEmpty])
 
 
 instance Alpha Arg
+instance (Alpha a) => Alpha (NonEmpty a)
 instance (Alpha a) => Alpha (Type' a)
 instance (Alpha a) => Alpha (PartiallyApplied a)
 instance (Alpha a) => Alpha (FullyApplied a)
@@ -1150,6 +1180,7 @@ instance Alpha LAppable
 instance Alpha Level
 instance Alpha LevelTerm
 instance Alpha MetaVar
+instance Alpha NonEmptyArgs
 instance Alpha Appable
 instance Alpha PartiallyAppable
 instance Alpha TyAppable
@@ -1182,6 +1213,8 @@ instance (SubstAll t) => Subst t PartiallyAppable
 instance (SubstAll t) => Subst t Arg
 instance (SubstAll t) => Subst t LAppable
 instance (Subst t Level) => Subst t VSort
+instance (Subst t Term) => Subst t NonEmptyArgs
+instance (Subst t a) => Subst t (NonEmpty a)
 instance Subst t FreeVar
 instance Subst t MetaVar
 instance Subst t AName
