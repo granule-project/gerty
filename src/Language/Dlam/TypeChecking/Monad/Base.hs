@@ -575,9 +575,8 @@ withVarTypeBound n ty = withVarBound n I.thatMagicalGrading ty
 
 
 lookupFVInfo :: (ToFreeVar n, Pretty n) => n -> CM FreeVarInfo
-lookupFVInfo n = do
-  ctx <- getContext
-  maybe (hitABug $ "tried to look up the type of free variable '" <> pprintShow n <> "' but it wasn't in scope. Scope checking or type-checking is broken.\nContext was: " <> pprintShow ctx) pure . fvcMapOp (M.lookup (toFreeVar n)) =<< getContext
+lookupFVInfo n =
+  maybe (hitABug $ "tried to look up the type of free variable '" <> pprintShow n <> "' but it wasn't in scope. Scope checking or type-checking is broken.") pure . fvcMapOp (M.lookup (toFreeVar n)) =<< getContext
 
 
 lookupFVType :: I.Name n -> CM I.Type
