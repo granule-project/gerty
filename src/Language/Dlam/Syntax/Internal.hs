@@ -1,3 +1,4 @@
+{-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FunctionalDependencies #-}
@@ -1106,12 +1107,36 @@ instance Alpha TyCon
 instance Alpha VSort
 
 
-instance (Subst t a, Subst t Level) => Subst t (Leveled a)
-instance (Subst t a, Subst t Term) => Subst t (FullyApplied a)
-instance (Subst t a, Subst t Term) => Subst t (PartiallyApplied a)
-instance (Subst t a, Subst t ty, Subst t Term) => Subst t (IsTyped ty a)
-instance (Subst t a, Subst t g) => Subst t (Graded g a)
-instance (Subst t a, Subst t te, Subst t Term, Subst t MetaVar) => Subst t (Final te a)
+type SubstAll t = (Subst t Level, Subst t Term, Subst t Type)
+
+
+instance (SubstAll t, Subst t a)             => Subst t (Leveled a)
+instance (SubstAll t, Subst t a)             => Subst t (FullyApplied a)
+instance (SubstAll t, Subst t a)             => Subst t (PartiallyApplied a)
+instance (SubstAll t, Subst t a, Subst t ty) => Subst t (IsTyped ty a)
+instance (SubstAll t, Subst t a, Subst t g)  => Subst t (Graded g a)
+instance (SubstAll t, Subst t a, Rep te)     => Subst t (Final te a)
+
+
+instance (SubstAll t) => Subst t LevelTerm
+instance (SubstAll t) => Subst t TypeTerm
+instance (SubstAll t) => Subst t TypeTermOfTermsThatCanBeApplied
+instance (SubstAll t) => Subst t TyAppable
+instance (SubstAll t) => Subst t TermThatCannotBeApplied
+instance (SubstAll t) => Subst t TermThatCanBeApplied
+instance (SubstAll t) => Subst t TyCon
+instance (SubstAll t) => Subst t Appable
+instance (SubstAll t) => Subst t DCon
+instance (SubstAll t) => Subst t PartiallyAppable
+instance (SubstAll t) => Subst t Arg
+instance (SubstAll t) => Subst t LAppable
+instance (Subst t Level) => Subst t VSort
+instance Subst t FreeVar
+instance Subst t MetaVar
+instance Subst t AName
+instance Subst t Grade
+instance Subst t NameId
+instance Subst t CName
 
 
 instance Subst Term Type where
@@ -1126,10 +1151,6 @@ instance Subst Term Type where
           _ -> Nothing
       _ -> Nothing
 
-instance Subst Term LAppable where
-
-instance Subst Term LevelTerm where
-
 instance Subst Term Level where
   isCoerceVar (LevelVar x) = pure (SubstCoerce (translate x) (\t ->
     case t of
@@ -1137,7 +1158,6 @@ instance Subst Term Level where
       _ -> Nothing))
   isCoerceVar _ = Nothing
 
-instance Subst Term TypeTerm where
 instance Subst Term Term where
   isvar (App app) =
     case (un app, appliedArgs app) of
@@ -1148,27 +1168,6 @@ instance Subst Term Term where
       (VarPartial x, []) -> pure (SubstName x)
       _ -> Nothing
   isvar _ = Nothing
-instance Subst Term TypeTermOfTermsThatCanBeApplied where
-instance Subst Term TyAppable where
-instance Subst Term TermThatCannotBeApplied where
-instance Subst Term TermThatCanBeApplied where
-instance Subst Term Arg where
-instance Subst Term FreeVar where
-instance Subst Term TyCon where
-instance Subst Term MetaVar where
-instance Subst Term AName where
-instance Subst Term Appable where
-instance Subst Term Grade where
-instance Subst Term NameId where
-instance Subst Term CName where
-instance Subst Term DCon where
-instance Subst Term PartiallyAppable where
-instance Subst Term VSort where
-
-
-instance Subst Level Type where
-instance Subst Level LAppable where
-instance Subst Level LevelTerm where
 instance Subst Level Level where
   isCoerceVar (Plus n (LApp (FinalVar x))) =
       pure (SubstCoerce (translate x) (\t ->
@@ -1185,25 +1184,8 @@ instance Subst Level Level where
             pure $ Max (Plus (n + m1) l1) (Plus (n + m2) l2)
           l -> pure l))
   isCoerceVar _ = Nothing
-
-instance Subst Level TypeTerm where
-instance Subst Level Term where
-instance Subst Level TypeTermOfTermsThatCanBeApplied where
-instance Subst Level TyAppable where
-instance Subst Level TermThatCannotBeApplied where
-instance Subst Level TermThatCanBeApplied where
-instance Subst Level Arg where
-instance Subst Level MetaVar where
-instance Subst Level FreeVar where
-instance Subst Level TyCon where
-instance Subst Level AName where
-instance Subst Level Appable where
-instance Subst Level Grade where
-instance Subst Level NameId where
-instance Subst Level CName where
-instance Subst Level DCon where
-instance Subst Level PartiallyAppable where
-instance Subst Level VSort where
+instance Subst Level Term
+instance Subst Level Type
 
 
 instance Subst Type Type where
@@ -1211,24 +1193,5 @@ instance Subst Type Type where
     case un ty of
       (TyApp (FinalVar v)) -> pure (SubstCoerce (translate v) pure)
       _ -> Nothing
-instance Subst Type LAppable where
-instance Subst Type LevelTerm where
-instance Subst Type Level where
-instance Subst Type TypeTerm where
-instance Subst Type Term where
-instance Subst Type TypeTermOfTermsThatCanBeApplied where
-instance Subst Type TyAppable where
-instance Subst Type TermThatCannotBeApplied where
-instance Subst Type TermThatCanBeApplied where
-instance Subst Type Arg where
-instance Subst Type FreeVar where
-instance Subst Type TyCon where
-instance Subst Type MetaVar where
-instance Subst Type AName where
-instance Subst Type Appable where
-instance Subst Type Grade where
-instance Subst Type NameId where
-instance Subst Type CName where
-instance Subst Type DCon where
-instance Subst Type PartiallyAppable where
-instance Subst Type VSort where
+instance Subst Type Level
+instance Subst Type Term
