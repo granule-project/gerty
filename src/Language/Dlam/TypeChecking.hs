@@ -980,11 +980,11 @@ applyPartial (IsPartialApp pa) arg ty =
           -- if the result is a universe, we've just produced a type
           Universe l ->
             let finalApp =
-                  case un pa of
-                    VarPartial v -> mkFinalVar (termVarToTyVar v)
-                    TyConPartial c -> mkFinalApp (AppTyCon c) newArgs
-                    DefPartial d -> mkFinalApp (AppTyDef d) newArgs
-                    DConPartial{} -> error "I completed a data constructor application, but produced a type."
+                  mkFinalApp (case un pa of
+                    VarPartial v -> AppTyVar v
+                    TyConPartial c -> AppTyCon c
+                    DefPartial d -> AppTyDef d
+                    DConPartial{} -> error "I completed a data constructor application, but produced a type.") newArgs
 
             in TypeTerm (mkType (TyApp finalApp) l)
           -- wasn't a universe, but is fully applied, so it's a term application
