@@ -1106,12 +1106,13 @@ instance Alpha TyCon
 instance Alpha VSort
 
 
-instance (Subst Term a) => Subst Term (Leveled a) where
-instance (Subst Term a) => Subst Term (FullyApplied a) where
-instance (Subst Term a) => Subst Term (PartiallyApplied a) where
-instance (Subst Term a, Subst Term t) => Subst Term (IsTyped t a) where
-instance (Subst Term a, Subst Term g) => Subst Term (Graded g a) where
-instance (Subst Term a, Subst Term t) => Subst Term (Final t a) where
+instance (Subst t a, Subst t Level) => Subst t (Leveled a)
+instance (Subst t a, Subst t Term) => Subst t (FullyApplied a)
+instance (Subst t a, Subst t Term) => Subst t (PartiallyApplied a)
+instance (Subst t a, Subst t ty, Subst t Term) => Subst t (IsTyped ty a)
+instance (Subst t a, Subst t g) => Subst t (Graded g a)
+instance (Subst t a, Subst t te, Subst t Term, Subst t MetaVar) => Subst t (Final te a)
+
 
 instance Subst Term Type where
   isCoerceVar ty =
@@ -1165,12 +1166,6 @@ instance Subst Term PartiallyAppable where
 instance Subst Term VSort where
 
 
-instance (Subst Level a) => Subst Level (Leveled a) where
-instance (Subst Level a) => Subst Level (FullyApplied a) where
-instance (Subst Level a) => Subst Level (PartiallyApplied a) where
-instance (Subst Level a, Subst Level t) => Subst Level (IsTyped t a) where
-instance (Subst Level a, Subst Level g) => Subst Level (Graded g a) where
-instance (Subst Level a, Subst Level t) => Subst Level (Final t a) where
 instance Subst Level Type where
 instance Subst Level LAppable where
 instance Subst Level LevelTerm where
@@ -1211,12 +1206,6 @@ instance Subst Level PartiallyAppable where
 instance Subst Level VSort where
 
 
-instance (Subst Type a) => Subst Type (Leveled a) where
-instance (Subst Type a) => Subst Type (FullyApplied a) where
-instance (Subst Type a) => Subst Type (PartiallyApplied a) where
-instance (Subst Type a, Subst Type t) => Subst Type (IsTyped t a) where
-instance (Subst Type a, Subst Type g) => Subst Type (Graded g a) where
-instance (Subst Type a, Subst Type t) => Subst Type (Final t a) where
 instance Subst Type Type where
   isCoerceVar ty =
     case un ty of
