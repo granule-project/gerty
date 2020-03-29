@@ -40,6 +40,7 @@ class Pretty a where
 
 
 instance Pretty Int32 where
+  isLexicallyAtomic _ = True
   pprint = text . show
 
 
@@ -58,4 +59,5 @@ instance Pretty (Name a) where
 
 
 instance Pretty Int where
+  isLexicallyAtomic _ = True
   pprint = int
