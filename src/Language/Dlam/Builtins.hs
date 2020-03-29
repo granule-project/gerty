@@ -186,7 +186,7 @@ instance ToTerm Builtin where
 instance ToTerm BuiltinTyCon where
   toTerm (BuiltinTyCon tcon) =
     if length (args tcon) > 0
-    then PartialApp (partiallyApplied (TyConPartial tcon) [])
+    then mkUnappliedPartialTyCon tcon
     -- TODO: not sure if this is the correct level! (2020-03-16)
     else TypeTerm $ mkType (TyApp $ mkFinalApp (AppTyCon tcon) []) (level $ conTy tcon)
 
@@ -195,7 +195,7 @@ instance ToTerm BuiltinDCon where
   -- no internal representation provided, this behaves like an axiom
   toTerm (BuiltinDCon (Nothing, dcon)) =
     if length (args dcon) > 0
-    then PartialApp (partiallyApplied (DConPartial dcon) [])
+    then mkUnappliedPartialDCon dcon
     else App (fullyApplied (ConData dcon) [])
 
   -- if an internal representation is provided, then we can produce a
@@ -217,7 +217,7 @@ instance ToTerm BuiltinDef where
   -- Constant postulate, so we don't do any fancy reduction.
   toTerm (BuiltinDef (n, args, Nothing, _)) =
     if length args > 0
-    then PartialApp (partiallyApplied (DefPartial n) [])
+    then mkUnappliedPartialDef n
     else App (fullyApplied (AppDef n) [])
 
 

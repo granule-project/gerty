@@ -210,7 +210,7 @@ checkExpr_ (Def x) t = do
     Nothing -> pure $
       case un tA of
         -- this is a partial application
-        Pi{} -> I.PartialApp (partiallyApplied (DefPartial x) [])
+        Pi{} -> mkUnappliedPartialDef x
         -- if this is a universe then we construct a type
         Universe l -> TypeTerm (mkTyDef x l [])
         -- if it's not a Pi, then it must be fully applied
@@ -1032,7 +1032,7 @@ freeVarToTermVar :: FVName -> Type -> CM Term
 freeVarToTermVar n ty =
   case un ty of
     -- this is a partial application
-    Pi{} -> pure $ I.PartialApp (partiallyApplied (VarPartial (translate n)) [])
+    Pi{} -> pure $ mkUnappliedPartialVar (translate n)
     -- if this is a universe then we construct a type
     Universe l -> pure $ TypeTerm (mkTyVar (translate n) l)
     -- otherwise we check to see if it is a level, and if not, we just
@@ -1047,7 +1047,7 @@ freeVarToTerm fv ty =
   case (fvToSortedName fv, un ty) of
     (SortedName (VISType{}, n), Universe l) -> pure $ TypeTerm $ mkTyVar n l
     (SortedName (VISLevel, n), _) -> pure $ Level $ mkLevelVar n
-    (SortedName (VISTerm, n), TTForApp{}) -> pure $ PartialApp (partiallyApplied (VarPartial n) [])
+    (SortedName (VISTerm, n), TTForApp{}) -> pure $ mkUnappliedPartialVar n
     (SortedName (VISTerm, n), _) -> pure $ mkVar n
     _ -> hitABug $ "bad conversion of free variable '" <> pprintShow fv <> "' to term, with type '" <> pprintShow ty <> "'"
 
@@ -1056,7 +1056,7 @@ freeVarToTerm fv ty =
 mkUnboundDef :: AName -> Type -> Term
 mkUnboundDef n ty =
   case un ty of
-    Pi{} -> PartialApp (partiallyApplied (DefPartial n) [])
+    Pi{} -> mkUnappliedPartialDef n
     _    -> mkTermDef n []
 
 

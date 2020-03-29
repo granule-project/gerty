@@ -142,6 +142,13 @@ module Language.Dlam.Syntax.Internal
   , termVarToTyVar
   , tyVarToTermVar
 
+  -- *** Terms that are partial applications
+
+  , mkUnappliedPartialDCon
+  , mkUnappliedPartialDef
+  , mkUnappliedPartialTyCon
+  , mkUnappliedPartialVar
+
   -- *** Arguments
   , mkArg
   , mkArgAN
@@ -977,6 +984,26 @@ mkTypeVar n = mkType (TyApp (mkFinalVar n))
 -- | Make a new (fully-applied) free variable.
 mkVar :: VarId -> Term
 mkVar = TermVar
+
+
+mkUnappliedPartial :: PartiallyAppable -> Term
+mkUnappliedPartial p = PartialApp $ partiallyApplied p []
+
+
+mkUnappliedPartialDef :: DefId -> Term
+mkUnappliedPartialDef = mkUnappliedPartial . DefPartial
+
+
+mkUnappliedPartialVar :: VarId -> Term
+mkUnappliedPartialVar = mkUnappliedPartial . VarPartial
+
+
+mkUnappliedPartialTyCon :: TyCon -> Term
+mkUnappliedPartialTyCon = mkUnappliedPartial . TyConPartial
+
+
+mkUnappliedPartialDCon :: DCon -> Term
+mkUnappliedPartialDCon = mkUnappliedPartial . DConPartial
 
 
 mkArg' :: VarId -> Type -> Arg
