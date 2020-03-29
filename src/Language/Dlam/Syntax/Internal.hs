@@ -478,6 +478,10 @@ pattern TypeTerm :: Type -> Term
 pattern TypeTerm ty = FullTerm (IsTypeTerm ty)
 
 
+pattern TermVar :: Name Term -> Term
+pattern TermVar x = FullTerm (IsApp (FinalVar x))
+
+
 pattern Lam :: Bind Arg Term -> Term
 pattern Lam lam = PartialTerm (IsLam lam)
 
@@ -972,7 +976,7 @@ mkTypeVar n = mkType (TyApp (mkFinalVar n))
 
 -- | Make a new (fully-applied) free variable.
 mkVar :: VarId -> Term
-mkVar n = App (fullyApplied (Var n) [])
+mkVar = TermVar
 
 
 mkArg' :: VarId -> Type -> Arg
