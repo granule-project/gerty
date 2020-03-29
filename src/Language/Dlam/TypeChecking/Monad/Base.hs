@@ -74,7 +74,14 @@ module Language.Dlam.TypeChecking.Monad.Base
   , isSyntaxErr
   , isScopingErr
   , isTypingErr
+
+  -- ** Printing errors
+
   , displayError
+  , ErrorVerbosity
+  , errVerbosityNone
+  , errVerbosityPartial
+  , errVerbosityFull
 
   -- ** Implementation errors
   , notImplemented
@@ -796,8 +803,18 @@ isImplementationErr e =
     _                   -> False
 
 
-displayError :: Bool -> TCErr -> String
-displayError verboseErrors err =
+data ErrorVerbosity = ErrVerbosityNone | ErrVerbosityPartial | ErrVerbosityFull
+  deriving (Eq, Ord)
+
+
+errVerbosityNone, errVerbosityPartial, errVerbosityFull :: ErrorVerbosity
+errVerbosityNone = ErrVerbosityNone
+errVerbosityPartial = ErrVerbosityPartial
+errVerbosityFull = ErrVerbosityFull
+
+
+displayError :: ErrorVerbosity -> TCErr -> String
+displayError errVerbosity err =
   if verboseErrors then show (cat
     [ hangTag "ERROR" (displayException err)
     , hangTag "ENVIRONMENT" (pprintEnv (tcErrEnv err))
@@ -805,7 +822,15 @@ displayError verboseErrors err =
     ])
   else displayException err
   where pprintEnv = hangTag "FREE-VARIABLE CONTEXT" . tceFVContext
-        pprintState = hangTag "METAS" . metas
+        pprintState st = vcat $
+          [ hangTag "METAS" (metas st)
+          , whenScopePrinting $ pprintKMap "SIGNATURES IN SCOPE" (colon `beside` space) (typingScope st)
+          , whenScopePrinting $ pprintKMap "DEFINITIONS IN SCOPE" (space `beside` equals `beside` space) (valueScope st)
+          ]
+        pprintKMap :: (Pretty t, Pretty k, Pretty v) => t -> Doc -> M.Map k v -> Doc
+        pprintKMap t sep = hangTag t . vcat . M.foldrWithKey (\k v xs -> pprint k `beside` sep `beside` pprint v : xs) []
+        verboseErrors = errVerbosity > ErrVerbosityNone
+        whenScopePrinting s = if errVerbosity == errVerbosityFull then s else mempty
 
 
 -----------------------
