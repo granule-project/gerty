@@ -39,6 +39,10 @@ class Pretty a where
   pprint :: a -> Doc
 
 
+instance Pretty Doc where
+  pprint = id
+
+
 instance Pretty Int32 where
   isLexicallyAtomic _ = True
   pprint = text . show

@@ -528,9 +528,18 @@ emptyContext :: FreeVarContext
 emptyContext = FVC M.empty
 
 
+hangTag :: (Pretty t, Pretty d) => t -> d -> Doc
+hangTag t x = (pprint t) $+$ nest indent (pprint x)
+  where indent = 2
+
+
+keyed :: (Pretty t, Pretty d) => t -> d -> Doc
+keyed k v = pprint k `beside` colon <+> pprint v
+
+
 instance Pretty FreeVarContext where
-  pprint xs = hsep $ punctuate comma $ fmap pprintBinding (fvcToList xs)
-    where pprintBinding (n, (g, t)) = pprint n <+> text "->" <+> char '{' <+> pprint g `beside` char ',' <+> pprint t <+> char '}'
+  pprint xs = vcat $ fmap pprintBinding (fvcToList xs)
+    where pprintBinding (n, (g, t)) = hangTag n (vcat [keyed "GRADE" g, keyed "TYPE" t])
 
 
 tceAddInScope :: [FreeVar] -> TCEnv -> TCEnv
@@ -790,19 +799,13 @@ isImplementationErr e =
 displayError :: Bool -> TCErr -> String
 displayError verboseErrors err =
   if verboseErrors then show (cat
-    [ hangTag "ERROR" (text (displayException err))
+    [ hangTag "ERROR" (displayException err)
     , hangTag "ENVIRONMENT" (pprintEnv (tcErrEnv err))
     , hangTag "STATE" (pprintState (tcErrState err))
     ])
   else displayException err
-  where pprintEnv env =
-          let ctx = tceFVContext env
-          in hang (text "FREE-VARIABLE CONTEXT") indent (pprint ctx)
-        pprintState st =
-          let ms = metas st
-          in hang (text "METAS") indent (pprint ms)
-        indent = 2
-        hangTag t x = hang (text t) indent x
+  where pprintEnv = hangTag "FREE-VARIABLE CONTEXT" . tceFVContext
+        pprintState = hangTag "METAS" . metas
 
 
 -----------------------
