@@ -972,28 +972,37 @@ applyPartial (IsPartialApp pa) arg ty =
   let (IsPi pi) = un ty in lunbind pi $ \(piArg, resTy) -> do
   let newArgs = appliedArgs pa <> [arg]
   resTy <- substitute (argVar piArg, arg) resTy
-  let resTerm =
-        case un resTy of
-          -- if the result is a Pi, then this is still partial---it
-          -- requires more arguments to become fully applied
-          Pi{} -> PartialApp (partiallyApplied (un pa) newArgs)
-          -- if the result is a universe, we've just produced a type
-          Universe l ->
-            let finalApp =
-                  mkFinalApp (case un pa of
-                    VarPartial v -> AppTyVar v
-                    TyConPartial c -> AppTyCon c
-                    DefPartial d -> AppTyDef d
-                    DConPartial{} -> error "I completed a data constructor application, but produced a type.") newArgs
+  resTerm <-
+    case un resTy of
+      -- if the result is a Pi, then this is still partial---it
+      -- requires more arguments to become fully applied
+      Pi{} -> pure $ PartialApp (partiallyApplied (un pa) newArgs)
+      -- if the result is a universe, we've just produced a type
+      Universe l -> do
+        finalApp <- flip mkFinalApp newArgs <$>
+          case un pa of
+            VarPartial v -> pure $ AppTyVar v
+            TyConPartial c -> pure $ AppTyCon c
+            DefPartial d -> pure $ AppTyDef d
+            DConPartial{} -> hitABug "I completed a data constructor application, but produced a type."
 
-            in TypeTerm (mkType (TyApp finalApp) l)
-          -- wasn't a universe, but is fully applied, so it's a term application
-          _ -> I.App (fullyApplied (case un pa of
-                                      VarPartial v -> I.Var v
-                                      DConPartial dc -> ConData dc
-                                      DefPartial d -> AppDef d
-                                      TyConPartial{} -> error "I completed a type application and produced something that wasn't a type."
-                                   ) newArgs)
+        pure $ TypeTerm (mkType (TyApp finalApp) l)
+      -- wasn't a universe, but is fully applied, so it's a term application
+      _ -> do
+        isLevel <- typeIsLevelType resTy
+        if isLevel
+        then Level . flip mkLevelApp newArgs <$>
+               case un pa of
+                 VarPartial v -> pure $ LVar v
+                 DefPartial d -> pure $ LDef d
+                 DConPartial _ -> hitABug "I completed a data constructor application and produced a level."
+                 TyConPartial{} -> hitABug "I completed a type application and produced a level."
+        else flip mkApp newArgs <$>
+               case un pa of
+                 VarPartial v -> pure $ I.Var v
+                 DConPartial dc -> pure $ ConData dc
+                 DefPartial d -> pure $ AppDef d
+                 TyConPartial{} -> hitABug "I completed a type application and produced something that wasn't a type."
   pure (resTerm, resTy)
 
 

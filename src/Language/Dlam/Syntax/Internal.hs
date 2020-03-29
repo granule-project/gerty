@@ -84,7 +84,7 @@ module Language.Dlam.Syntax.Internal
   , fvToSortedName
 
   -- * Levels
-  , LAppable
+  , LAppable(..)
   , Level(..)
   , nextLevel
   , HasLevel(..)
@@ -142,12 +142,18 @@ module Language.Dlam.Syntax.Internal
   , termVarToTyVar
   , tyVarToTermVar
 
+  -- *** Levels
+  , mkLevelApp
+
   -- *** Terms that are partial applications
 
   , mkUnappliedPartialDCon
   , mkUnappliedPartialDef
   , mkUnappliedPartialTyCon
   , mkUnappliedPartialVar
+
+  -- *** Terms that are full applications
+  , mkApp
 
   -- *** Arguments
   , mkArg
@@ -789,6 +795,10 @@ instance Eq LAppable where
   _ == _ = False
 
 
+mkLevelApp :: LAppable -> [Term] -> Level
+mkLevelApp p xs = LTerm (LApp (mkFinalApp p xs))
+
+
 class Inc a where
   inc :: a -> a
 
@@ -1004,6 +1014,10 @@ mkUnappliedPartialTyCon = mkUnappliedPartial . TyConPartial
 
 mkUnappliedPartialDCon :: DCon -> Term
 mkUnappliedPartialDCon = mkUnappliedPartial . DConPartial
+
+
+mkApp :: Appable -> [Term] -> Term
+mkApp p xs = FullTerm (IsApp (mkFinalApp p xs))
 
 
 mkArg' :: VarId -> Type -> Arg
