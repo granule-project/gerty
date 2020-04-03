@@ -3,11 +3,18 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE UndecidableInstances #-}
 module Language.Dlam.Util.Peekaboo
   (
+  -- * CouldBeGen
+    CouldBeGen(..)
+  , MightBeGen
+  , Const
+
   -- * CouldBe
-    CouldBe(..)
+  , CouldBe(..)
   , MightBe
   , isIt
   , tryIt
@@ -31,12 +38,45 @@ import Unbound.LocallyNameless
 import Language.Dlam.Util.Pretty (Pretty(..))
 
 
+---------------------------
+----- Generic MightBe -----
+---------------------------
+
+
+newtype Const p s = Const { unConst :: p }
+  deriving (Show, Eq, Ord)
+
+
+data MightBeGen a e s p = ItIs (a s) | ItIsNot (e p)
+  deriving (Show, Eq, Ord)
+
+
+class CouldBeGen t a e s p where
+  -- | It most certainly is!
+  itIsGen :: (forall b. b -> a b) -> s -> t a e s p
+
+  -- | It most certainly is not!
+  itIsNotGen :: (forall b. b -> e b) -> p -> t a e s p
+
+  -- | Deal with it.
+  idcGen :: (a s -> b) -> (e p -> b) -> t a e s p -> b
+
+
+instance CouldBeGen MightBeGen a e s p where
+  itIsGen f = ItIs . f
+
+  itIsNotGen f = ItIsNot . f
+
+  idcGen f _ (ItIs x) = f x
+  idcGen _ g (ItIsNot x) = g x
+
+
 ------------
 -- * CouldBe
 ------------
 
 
-data MightBe a e = ItIs (a e) | ItIsNot e
+newtype MightBe a e = MightBe (MightBeGen a (Const e) e ())
   deriving (Show, Eq, Ord)
 
 
@@ -62,17 +102,16 @@ tryIt f = idc (Just . f) (const Nothing)
 
 
 instance CouldBe MightBe a e where
-  itIs f = ItIs . f
+  itIs f = MightBe . itIsGen f
 
-  itIsNot = ItIsNot
+  itIsNot e = MightBe $ itIsNotGen (const (Const e)) ()
 
-  idc f _ (ItIs x) = f x
-  idc _ g (ItIsNot x) = g x
+  idc f g (MightBe x) = idcGen f (g . unConst) x
 
 
 instance (Un t) => Un (MightBe t) where
-  un (ItIs x) = un x
-  un (ItIsNot x) = x
+  un (MightBe (ItIs x)) = un x
+  un (MightBe (ItIsNot (Const x))) = x
 
 
 instance (Pretty (t e), Pretty e) => Pretty (MightBe t e) where
@@ -152,21 +191,24 @@ annotatedWith = flip annot
 -----------------------
 
 
-rMightBe :: forall a e. (Rep (a e), Rep e) => R (MightBe a e)
-rMightBe =
-  Data (DT "MightBe" ((rep :: R (a e)) :+: (rep :: R e) :+: MNil))
-    [ Con rItIsEmb    ((rep :: R (a e)) :+: MNil)
-    , Con rItIsNotEmb ((rep :: R e)     :+: MNil)]
+$(derive [''Const])
 
 
-rMightBe1 :: forall a e ctx. (Rep (a e), Rep e) => ctx (a e) -> ctx e -> R1 ctx (MightBe a e)
-rMightBe1 ctxae ctxe =
-  Data1 (DT "MightBe" ((rep :: R (a e)) :+: (rep :: R e) :+: MNil))
+rMightBeGen :: forall a e s p. (Rep (a s), Rep (e p)) => R (MightBeGen a e s p)
+rMightBeGen =
+  Data (DT "MightBeGen" ((rep :: R (a s)) :+: (rep :: R (e p)) :+: MNil))
+    [ Con rItIsEmb    ((rep :: R (a s)) :+: MNil)
+    , Con rItIsNotEmb ((rep :: R (e p)) :+: MNil)]
+
+
+rMightBeGen1 :: forall a e s p ctx. (Rep (a s), Rep (e p)) => ctx (a s) -> ctx (e p) -> R1 ctx (MightBeGen a e s p)
+rMightBeGen1 ctxae ctxe =
+  Data1 (DT "MightBe" ((rep :: R (a s)) :+: (rep :: R (e p)) :+: MNil))
     [ Con rItIsEmb    (ctxae :+: MNil)
     , Con rItIsNotEmb (ctxe  :+: MNil) ]
 
 
-rItIsEmb :: Emb (a e :*: Nil) (MightBe a e)
+rItIsEmb :: Emb (a s :*: Nil) (MightBeGen a e s p)
 rItIsEmb =
    Emb {
             to   = (\ (v :*: Nil) -> (ItIs v)),
@@ -179,7 +221,7 @@ rItIsEmb =
           }
 
 
-rItIsNotEmb :: Emb (e :*: Nil) (MightBe a e)
+rItIsNotEmb :: Emb (e p :*: Nil) (MightBeGen a e s p)
 rItIsNotEmb =
    Emb {
             to   = (\ (v :*: Nil) -> (ItIsNot v)),
@@ -192,12 +234,55 @@ rItIsNotEmb =
           }
 
 
+rMightBe :: forall a e. (Rep (a e), Rep e) => R (MightBe a e)
+rMightBe =
+  Data (DT "MightBe" ((rep :: R (a e)) :+: (rep :: R e) :+: MNil))
+    [ Con rMightBeEmb    ((rep :: R (MightBeGen a (Const e) e ())) :+: MNil) ]
+
+
+rMightBe1 :: forall a e ctx. (Rep (a e), Rep e) => ctx (MightBeGen a (Const e) e ()) -> R1 ctx (MightBe a e)
+rMightBe1 ctxae =
+  Data1 (DT "MightBe" ((rep :: R (a e)) :+: (rep :: R e) :+: MNil))
+    [ Con rMightBeEmb    (ctxae :+: MNil) ]
+
+
+rMightBeEmb :: Emb (MightBeGen a (Const e) e () :*: Nil) (MightBe a e)
+rMightBeEmb =
+   Emb {
+            to   = (\ (v :*: Nil) -> (MightBe v)),
+            from  = \(MightBe x) -> Just (x :*: Nil),
+            labels = Nothing,
+            name = "MightBe",
+            fixity = Nonfix
+          }
+
+
+instance (Rep (a s), Rep (e p)) => Rep (MightBeGen a e s p) where
+  rep = rMightBeGen
+
+
+instance (Rep (a s), Rep (e p), Sat (ctx (a s)), Sat (ctx (e p))) => Rep1 ctx (MightBeGen a e s p) where
+  rep1 = rMightBeGen1 dict dict
+
+
+instance (Alpha (a s), Alpha (e p)) => Alpha (MightBeGen a e s p)
+
+
 instance (Rep (a e), Rep e) => Rep (MightBe a e) where
   rep = rMightBe
 
 
-instance (Rep (a e), Rep e, Sat (ctx (a e)), Sat (ctx e)) => Rep1 ctx (MightBe a e) where
-  rep1 = rMightBe1 dict dict
+instance (Rep (a e), Rep e, Sat (ctx (MightBeGen a (Const e) e ()))) => Rep1 ctx (MightBe a e) where
+  rep1 = rMightBe1 dict
 
 
 instance (Alpha (a e), Alpha e) => Alpha (MightBe a e)
+
+
+instance (Alpha e, Rep a) => Alpha (Const e a)
+
+
+instance (Subst t (a s), Subst t (e p)) => Subst t (MightBeGen a e s p)
+
+
+instance (Subst t a, Rep e) => Subst t (Const a e)
