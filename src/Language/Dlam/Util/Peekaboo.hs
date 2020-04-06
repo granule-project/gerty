@@ -51,7 +51,7 @@ data MightBeGen a e s p = ItIs (a s) | ItIsNot (e p)
   deriving (Show, Eq, Ord)
 
 
-class CouldBeGen t a e s p where
+class CouldBeGen t where
   -- | It most certainly is!
   itIsGen :: (forall b. b -> a b) -> s -> t a e s p
 
@@ -62,7 +62,7 @@ class CouldBeGen t a e s p where
   idcGen :: (a s -> b) -> (e p -> b) -> t a e s p -> b
 
 
-instance CouldBeGen MightBeGen a e s p where
+instance CouldBeGen MightBeGen where
   itIsGen f = ItIs . f
 
   itIsNotGen f = ItIsNot . f
@@ -80,7 +80,7 @@ newtype MightBe a e = MightBe (MightBeGen a (Const e) e ())
   deriving (Show, Eq, Ord)
 
 
-class CouldBe t a e where
+class CouldBe t where
   -- | It most certainly is!
   itIs :: (forall b. b -> a b) -> e -> t a e
 
@@ -92,16 +92,16 @@ class CouldBe t a e where
 
 
 -- | Was it?
-isIt :: (CouldBe t a e) => t a e -> Bool
+isIt :: (CouldBe t) => t a e -> Bool
 isIt = idc (const True) (const False)
 
 
 -- | Have a go.
-tryIt :: (CouldBe t a e) => (a e -> b) -> t a e -> Maybe b
+tryIt :: (CouldBe t) => (a e -> b) -> t a e -> Maybe b
 tryIt f = idc (Just . f) (const Nothing)
 
 
-instance CouldBe MightBe a e where
+instance CouldBe MightBe where
   itIs f = MightBe . itIsGen f
 
   itIsNot e = MightBe $ itIsNotGen (const (Const e)) ()
