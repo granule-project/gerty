@@ -615,8 +615,10 @@ checkExpr_ (Implicit i) t = do
 -- Unimplemented Cases --
 -------------------------
 
-checkExpr_ e t = notImplemented $ "checkExpr_: I don't yet know how to check whether the type of the expression '" <> pprintShow e <> "' matches expected type '" <> pprintShow t <> "'"
-
+checkExpr_ e ty = do
+  (t, ty') <- inferExpr e
+  ensureEqualTypes ty ty'
+  pure t
 
 ---------------------
 ----- Inference -----
