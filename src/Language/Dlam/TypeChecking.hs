@@ -591,13 +591,6 @@ checkExpr_ (Sig e t') t = do
   checkExpr e ty
 -}
 
-----------------------
--- Level expression --
-----------------------
-checkExpr_ (LitLevel l) t = do
-  ensureEqualTypes t levelTy
-  pure (Level $ singleLevel (Concrete l))
-
 ---------------
 -- Implicits --
 ---------------
@@ -635,10 +628,22 @@ inferExpr e =
 
 
 inferExpr_ :: Expr -> CM (Term, Type)
+
+----------------------
+-- Level expression --
+----------------------
+
+inferExpr_ (LitLevel l) =
+  pure (Level $ singleLevel (Concrete l), levelTy)
+
+
+
 inferExpr_ (Var x) = do
   ty <- typeOfThing x
   v <- freeVarToTermVar x ty
+
   pure (v, ty)
+
 inferExpr_ (Def x) = do
   ty <- typeOfThing x
   mval <- maybeLookupValue x
