@@ -312,6 +312,7 @@ Atom :: { ParseExpr }
   | QId                       { Ident $1 }
   | '_'                       { mkImplicit }
   | literal                   { LitLevel (natTokenToInt $1) }
+  | '.' literal               { natTokenToUnaryNat $2 }
 
   -- For later
   -- | '?' { Hole }
@@ -406,6 +407,11 @@ parseProgram file = parseFromSrc defaultParseFlags [layout, normal] program (Jus
 
 natTokenToInt :: Literal -> Integer
 natTokenToInt (LitNat _ x) = x
+
+natTokenToUnaryNat :: Literal -> Expr
+natTokenToUnaryNat (LitNat s 0) = Ident (Unqualified (Name "zero"))
+natTokenToUnaryNat (LitNat s n) =
+  App (Ident (Unqualified (Name "succ"))) (natTokenToUnaryNat (LitNat s (n - 1)))
 
 mkAppFromExprs :: [Expr] -> Expr
 mkAppFromExprs = foldl1 App
