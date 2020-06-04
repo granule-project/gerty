@@ -95,7 +95,6 @@ data Grading g =
   Grading { gradingSubjectGrade :: g, gradingTypeGrade :: g }
   deriving (Show, Eq, Ord)
 
-
 mkGrading :: g -> g -> Grading g
 mkGrading sg tg = Grading { gradingSubjectGrade = sg, gradingTypeGrade = tg }
 

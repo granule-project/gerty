@@ -56,16 +56,16 @@ module Language.Dlam.TypeChecking.Monad.Base
   , updateWithScopeInfo
 
   -- ** Grading
-  , withGradedVariable
-  , lookupSubjectRemaining
-  , setSubjectRemaining
+  -- DAO: temporarily out
+  --, withGradedVariable
+  --, lookupSubjectRemaining
+  --, setSubjectRemaining
 
   -- * Environment
   , withLocalCheckingOf
 
   -- ** Free Variables
   , lookupFVType
-  , lookupFVSubjectRemaining
   , withVarBound
   , withVarTypeBound
 
@@ -123,24 +123,30 @@ import Control.Monad.State
 import Control.Monad.Writer
 import qualified Data.Map as M
 import qualified Data.Set as Set
+import Data.Maybe (fromMaybe)
 
 import Language.Dlam.Builtins
 import qualified Language.Dlam.Scoping.Monad.Base as SM
 import qualified Language.Dlam.Scoping.Monad.Exception as SE
 import Language.Dlam.Syntax.Abstract
+import qualified Language.Dlam.Syntax.Common.Language as Com
 import qualified Language.Dlam.Syntax.Internal as I
 import Language.Dlam.Syntax.Common (NameId(..))
 import qualified Language.Dlam.Syntax.Concrete.Name as C
 import Language.Dlam.Syntax.Parser.Monad (ParseError)
 import Language.Dlam.Util.Pretty hiding ((<>))
 
+data GradeContext
+  -- Invariant: keys are all the same
+  = GradeContext
+    { contextGrades     :: M.Map FreeVar (M.Map FreeVar I.Grade)
+    , subjectGrades     :: M.Map FreeVar I.Grade
+    , subjectTypeGrades :: M.Map FreeVar I.Grade }
 
 data CheckerState
   = CheckerState
     { typingScope :: M.Map AName I.Type
     , valueScope :: M.Map AName I.Term
-    , provisionScope :: M.Map AName I.Grading
-    -- ^ Scope of provisions (how can an assumption be used---grades remaining).
     , nextNameId :: NameId
     -- ^ Unique NameId for naming.
     , nextMetaId :: I.MetaId
@@ -160,7 +166,6 @@ startCheckerState :: CheckerState
 startCheckerState =
   CheckerState { typingScope = builtinsTypes
                , valueScope = builtinsValues
-               , provisionScope = M.empty
                , nextNameId = 0
                , nextMetaId = 0
                , debugNesting = 0
@@ -420,6 +425,8 @@ getFreshMetaId = get >>= \s -> let c = nextMetaId s in put s { nextMetaId = succ
 -- Grading --
 -------------
 
+{-
+DAO: Out of date, but may need converting to the new style.
 
 lookupRemaining :: AName -> CM (Maybe I.Grading)
 lookupRemaining n = M.lookup n . provisionScope <$> get
@@ -454,6 +461,8 @@ withGradedVariable v gr p = do
   -- restore the provision scope
   modify (\s -> s { provisionScope = provisionScope st})
   pure res
+
+-}
 
 
 ------------------------------
@@ -514,15 +523,25 @@ forgetSort :: Name a -> Name ()
 forgetSort = translate
 
 
-type FreeVarInfo = (I.Grading, I.Type)
+type FreeVarInfo =
+  -- Type, context grades, subject grades, subject type grades
+  (I.Type, (M.Map FreeVar I.Grade, I.Grade, I.Grade))
 
 
-newtype FreeVarContext = FVC { unFVC :: M.Map FreeVar FreeVarInfo }
+data FreeVarContext =
+  -- Invariant: keys of fvTypes same as keys in fvGrades
+  FVC { fvTypes :: M.Map FreeVar I.Type
+      , fvGrades :: GradeContext }
 
 
-fvcToList :: FreeVarContext -> [(FreeVar, FreeVarInfo)]
-fvcToList = M.toList . unFVC
+fvcAddBinding :: FreeVar -> FreeVarInfo -> FreeVarContext -> FreeVarContext
+fvcAddBinding v (ty, (delta, s, r)) (FVC types (GradeContext contextGrds subjGrds subjTyGrds)) =
+  FVC (M.insert v ty types)
+       (GradeContext (M.insert v delta contextGrds)
+                     (M.insert v s subjGrds)
+                     (M.insert v r subjTyGrds))
 
+{- Deprecated
 
 fvcMapOp :: (M.Map FreeVar FreeVarInfo -> a) -> FreeVarContext -> a
 fvcMapOp f (FVC m) = f m
@@ -530,10 +549,10 @@ fvcMapOp f (FVC m) = f m
 
 fvcMap :: (M.Map FreeVar FreeVarInfo -> M.Map FreeVar FreeVarInfo) -> FreeVarContext -> FreeVarContext
 fvcMap f = fvcMapOp (FVC . f)
-
+-}
 
 emptyContext :: FreeVarContext
-emptyContext = FVC M.empty
+emptyContext = FVC M.empty (GradeContext M.empty M.empty M.empty)
 
 
 hangTag :: (Pretty t, Pretty d) => t -> d -> Doc
@@ -546,8 +565,12 @@ keyed k v = pprint k `beside` colon <+> pprint v
 
 
 instance Pretty FreeVarContext where
-  pprint xs = vcat $ fmap pprintBinding (fvcToList xs)
-    where pprintBinding (n, (g, t)) = hangTag n (vcat [keyed "GRADE" g, keyed "TYPE" t])
+  pprint ctxt = vcat $ map pprintBinding (M.assocs . fvTypes $ ctxt)
+    where
+      pprintBinding (n, t) = fromMaybe (error $ "No grade information for " ++ (render $ pprint n)) $ do
+        sg <- M.lookup n (subjectGrades . fvGrades $ ctxt)
+        st <- M.lookup n (subjectTypeGrades . fvGrades $ ctxt)
+        return $ hangTag n (vcat [keyed "subGRADE" sg, keyed "tyGRADE" st, keyed "TYPE" t])
 
 
 tceAddInScope :: [FreeVar] -> TCEnv -> TCEnv
@@ -569,7 +592,8 @@ getContext = fmap tceFVContext ask
 
 
 tceAddBinding :: FreeVar -> FreeVarInfo -> TCEnv -> TCEnv
-tceAddBinding v bod env = env { tceFVContext = fvcMap (M.insert v bod) (tceFVContext env) }
+tceAddBinding v bod env =
+  env { tceFVContext = fvcAddBinding v bod (tceFVContext env) }
 
 
 type CMEnv = MonadReader TCEnv
@@ -582,7 +606,7 @@ withVarBound n g ty act =
   debugBlock "withVarBound"
     ("binding '" <> pprintShow n <> "' with grades '" <> pprintShow g <> "' and type '" <> pprintShow ty <> "'")
     (\_ -> "unbinding '" <> pprintShow n <> "'")
-    (local (tceAddBinding (toFreeVar n) (g, ty)) act)
+    (local (tceAddBinding (toFreeVar n) (ty, (_, Com.subjectGrade g, Com.subjectTypeGrade g))) act)
 
 
 -- | Execute the action with the given free variable bound with the
@@ -592,16 +616,20 @@ withVarTypeBound n ty = withVarBound n I.thatMagicalGrading ty
 
 
 lookupFVInfo :: (ToFreeVar n, Pretty n) => n -> CM FreeVarInfo
-lookupFVInfo n =
-  maybe (hitABug $ "tried to look up the type of free variable '" <> pprintShow n <> "' but it wasn't in scope. Scope checking or type-checking is broken.") pure . fvcMapOp (M.lookup (toFreeVar n)) =<< getContext
+lookupFVInfo name = do
+  (FVC types grades) <- getContext
+  let n = toFreeVar name
+  fromMaybe (hitABug $ "tried to look up the type of free variable '" <> pprintShow n <> "' but it wasn't in scope. Scope checking or type-checking is broken.") 
+     $ (do
+         ty    <- M.lookup n types
+         delta <- M.lookup n (contextGrades grades)
+         s     <- M.lookup n (subjectGrades grades)
+         r     <- M.lookup n (subjectTypeGrades grades)
+         return (pure (ty, (delta, s, r))))
 
 
 lookupFVType :: I.Name n -> CM I.Type
-lookupFVType = fmap snd . lookupFVInfo
-
-
-lookupFVSubjectRemaining :: I.Name n -> CM I.Grade
-lookupFVSubjectRemaining = fmap (I.subjectGrade . fst) . lookupFVInfo
+lookupFVType = fmap fst . lookupFVInfo
 
 
 -----------------------------------------

@@ -45,18 +45,21 @@ checkExprIsType_ (Var x) = do
          Universe l -> pure l
          _ -> notAType
   pure $ mkTyVar (nameForType x) l
+
 checkExprIsType_ (Def x) = do
   ty <- typeOfThing x
   l <- case un ty of
          Universe l -> pure l
          _ -> notAType
   maybe (pure $ mkTyDef x l []) checkTermIsType =<< maybeLookupValue x
+
 checkExprIsType_ (App f e) = do
   (fTerm, fTy) <- inferExprForApp f
   (appres, _) <- applyPartialToExpr fTerm e fTy
   case appres of
     TypeTerm t -> pure t
     _ -> notAType
+
 checkExprIsType_ (FunTy ab) = do
   (x, absTy, absExpr) <- openAbs ab
   argTy <- checkExprIsType absTy
@@ -163,7 +166,7 @@ checkExpr e t =
     (withLocalCheckingOf e $ checkExpr_ e t)
 
 
-checkExpr_ :: Expr -> Type -> CM Term
+checkExpr_ :: Expr -> Type -> GradeContext -> CM (Term, GradeContext)
 -------------------------
 -- Variable expression --
 -------------------------
@@ -174,7 +177,7 @@ checkExpr_ :: Expr -> Type -> CM Term
    x @ (k, n) : A in G
    G |- x : A
 -}
-checkExpr_ (Var x) t = do
+checkExpr_ (Var x) t delta = do
   -- x @ (k+1, n) : A in G
   tA <- typeOfThing x
   debug $ "checkExpr_: got type '" <> pprintShow tA <> "' for variable '" <> pprintShow x <> "'"
@@ -189,8 +192,10 @@ checkExpr_ (Var x) t = do
   -- G |- x : A
   -- setSubjectRemaining x k
   ty <- ensureEqualTypes' t tA
-  freeVarToTermVar x ty
-checkExpr_ (Def x) t = do
+  tmVar <- freeVarToTermVar x ty
+  return (tmVar, [])
+
+checkExpr_ (Def x) t delta = do
   -- x @ (k+1, n) : A in G
   tA <- typeOfThing x
   debug $ "checkExpr_: got type '" <> pprintShow tA <> "' for def '" <> pprintShow x <> "'"
@@ -210,12 +215,12 @@ checkExpr_ (Def x) t = do
     Nothing -> pure $
       case un tA of
         -- this is a partial application
-        Pi{} -> mkUnappliedPartialDef x
+        Pi{} -> (mkUnappliedPartialDef x, [])
         -- if this is a universe then we construct a type
-        Universe l -> TypeTerm (mkTyDef x l [])
+        Universe l -> (TypeTerm (mkTyDef x l []), [])
         -- if it's not a Pi, then it must be fully applied
-        _      -> I.App (fullyApplied (I.AppDef x) [])
-    Just r -> pure r
+        _      -> (I.App (fullyApplied (I.AppDef x) []), [])
+    Just r -> (pure r, [])
 
 -------------------------------
 ----- Dependent Functions -----

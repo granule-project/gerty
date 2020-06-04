@@ -221,7 +221,6 @@ freeVarName (FreeVar (VISTerm, n)) = AnyName n
 freeVarName (FreeVar (VISLevel, n)) = AnyName n
 freeVarName (FreeVar (VISType{}, n)) = AnyName n
 
-
 instance Eq FreeVar where
   (FreeVar (VISTerm, n1)) == (FreeVar (VISTerm, n2)) = n1 == n2
   (FreeVar (VISType{}, n1)) == (FreeVar (VISType{}, n2)) = n1 == n2

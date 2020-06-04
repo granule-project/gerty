@@ -40,8 +40,10 @@ packages:
 #   commit: e7b331f14bcffb8367cd58fbfc8b40ec7642100a
 #
 extra-deps:
-  - unbound-0.5.1.1
   - RepLib-0.5.4.1@sha256:f1d0765fbdc55c0905b3b70f1953a440cb8d04b65b3ccd6f067ee0f082f6fa0d,1953
+  - unbound-0.5.1.1@sha256:13bc46f324b63061db1189e45c00e0d332fa0371c95077c4e474d3b94b7dd01d,3248
+  - containers-0.5.11.0@sha256:28ad7337057442f75bc689315ab4ec7bdf5e6b2c39668f306672cecd82c02798,16685
+  - binary-0.8.7.0@sha256:ae3e6cca723ac55c54bbb3fa771bcf18142bc727afd57818e66d6ee6c8044f12,7705
 
 # Override default flag values for local packages and extra-deps
 # flags: {}
