@@ -15,6 +15,9 @@ import Language.Dlam.TypeChecking.Monad
 import Language.Dlam.Util.Pretty (pprintShow)
 import qualified Language.Dlam.Scoping.Monad as SE
 
+import qualified Data.Map as M
+
+import Debug.Trace
 
 -------------------------
 ----- Normalisation -----
@@ -264,6 +267,7 @@ registerTypeForName n t = do
 -- | type, if any.
 doDeclarationInference :: Declaration -> CM Declaration
 doDeclarationInference (TypeSig n t) = do
+  traceM $ "here is a signature for " ++ show n
   -- make sure that the type is actually a type
   checkExprValidForSignature t
 
@@ -279,13 +283,18 @@ doDeclarationInference (TypeSig n t) = do
     checkExprValidForSignature expr = inferUniverseLevel expr >> pure ()
 
 doDeclarationInference (FunEqn (FLHSName v) (FRHSAssign e)) = do
-
+  traceM "FUN EQN INFERENCE"
   -- try and get a prescribed type for the equation,
   -- treating it as an implicit if no type is given
   t <- lookupType v
+  traceM $ "Decl inference for " ++ show v ++ " has type sig " ++ show t
   exprTy <- case t of
-              Nothing -> checkOrInferType mkImplicit e
-              Just ty -> checkOrInferType ty e
+              Nothing -> do
+                checkOrInferType mkImplicit e
+                return $ mkImplicit
+              Just ty -> do
+                checkOrInferTypeNew ty e
+                return ty
 
   -- assign the appopriate equation and normalised/inferred type for the name
   setValue v e
@@ -296,13 +305,25 @@ doDeclarationInference (FunEqn (FLHSName v) (FRHSAssign e)) = do
 -- | Attempt to infer the types of each definition in the AST, failing if a type
 -- | mismatch is found.
 doASTInference :: AST -> CM AST
-doASTInference (AST ds) = fmap AST $ mapM doDeclarationInference ds
+doASTInference (AST ds) = do
+  traceM $ "LENGTH " ++ (show $ length ds)
+  fmap AST $ mapM doDeclarationInference ds
+
+
+-- | Infer a level for the given type.
+checkUniverseLevel :: Type -> CM Level
+checkUniverseLevel e = withLocalCheckingOf e $ do
+  (_, u) <- inferExpr e emptyContext
+  norm <- normalise u
+  case norm of
+    (App (Builtin TypeTy) l) -> pure l
+    _        -> expectedInferredTypeForm "universe" norm
 
 
 -- | Infer a level for the given type.
 inferUniverseLevel :: Type -> CM Level
 inferUniverseLevel e = withLocalCheckingOf e $ do
-  u <- synthType e
+  (_, u) <- inferExpr e emptyContext
   norm <- normalise u
   case norm of
     (App (Builtin TypeTy) l) -> pure l
@@ -335,6 +356,142 @@ getAbsFromProductTy t =
     ProductTy ab -> pure ab
     t            -> expectedInferredTypeForm "product" t
 
+----------------------------------------------------------------------------
+-- Dominic work here on a bidirectional additive-grading algorithm
+
+-- Smart constructors for grades
+gradeZero, gradeOne :: Expr
+gradeZero = Var (mkIdent "zero")
+gradeOne  = App (Var (mkIdent "succ")) gradeZero
+{- gradePlus e1 e2 =
+gradeTimes e1 e2 -}
+
+-- DAO: may want to make this an interface so we can try
+--      different implementations. For now its just specialised
+type Ctxt a = [(Name, a)] -- M.Map Name a
+
+extend :: Ctxt a -> Name -> a -> Ctxt a
+extend ctxt n t = (n, t) : ctxt
+
+data Context =
+  Context
+    {
+      types         :: Ctxt Type
+    , contextGrades :: Ctxt (Ctxt Grade)
+    , subjectGrades :: Ctxt Grade
+    , typeGrades    :: Ctxt Grade
+    }
+    deriving Eq
+
+emptyContext = Context [] [] [] []
+
+data OutContext =
+  OutContext {
+    contextGradesOut :: Ctxt (Ctxt Grade)
+  , subjectGradesOut :: Ctxt Grade
+  , typeGradesOut    :: Ctxt Grade
+}
+ deriving Eq
+
+lookupAllInfo :: Name -> Context -> Maybe (Type, Ctxt Grade, Grade, Grade)
+lookupAllInfo n ctxt = do
+  ty    <- lookup n $ types ctxt
+  delta <- lookup n $ contextGrades ctxt
+  s     <- lookup n $ subjectGrades ctxt
+  r     <- lookup n $ typeGrades ctxt
+  return (ty, delta, s, r)
+
+lookupAndCutout1 :: Name -> Ctxt a -> Maybe (a, Ctxt a)
+lookupAndCutout1 v [] = Nothing
+lookupAndCutout1 v ((v', x) : ctxt) | v == v' =
+  Just (x, ctxt)
+lookupAndCutout1 v ((v', x) : ctxt) | otherwise = do
+  (x, ctxt') <- lookupAndCutout1 v ctxt
+  return (x, (v', x) : ctxt')
+
+lookupAndCutout :: Name -> Context -> Maybe ((Type, Ctxt Grade, Grade, Grade), Context)
+lookupAndCutout n context = do
+  (t, types')        <- lookupAndCutout1 n (types context)
+  (delta, contextGrades') <- lookupAndCutout1 n (contextGrades context)
+  (s, subjectGrades')     <- lookupAndCutout1 n (subjectGrades context)
+  (r, typeGrades')        <- lookupAndCutout1 n (typeGrades context)
+  return $ ((t, delta, s, r), Context types' contextGrades' subjectGrades' typeGrades')
+
+-- Monoid of disjoint contexts
+instance Monoid OutContext where
+  mempty = OutContext [] [] []
+
+isEmpty :: OutContext -> Bool
+isEmpty ctxt = ctxt == mempty
+
+instance Semigroup OutContext where
+  c1 <> c2 =
+      OutContext (contextGradesOut c1 `disjUnion` contextGradesOut c2)
+                 (subjectGradesOut c1 `disjUnion` subjectGradesOut c2)
+                 (typeGradesOut c1 `disjUnion` typeGradesOut c2)
+   where
+     disjUnion m1 m2 | disjoint m1 m2 = m1 ++ m2
+     disjUnion _  _  | otherwise = error $ "Non disjoint contexts"
+
+     disjoint m1 m2 = not $ any (\(v, _) -> hasVar v m2) m1
+
+     hasVar v m = foldr (\(v', _) r -> v' == v || r) False m
+
+zeroGrade, oneGrade :: Expr
+zeroGrade = Builtin DNZero
+oneGrade  = App (Builtin DNSucc) zeroGrade
+
+allZeroes :: Ctxt Grade -> CM Bool
+allZeroes ctxt = mapM (normalise . snd) ctxt >>= (return . all (== zeroGrade))
+
+zeroesMatchingShape :: Ctxt a -> Ctxt Grade
+zeroesMatchingShape = map (\(id, _) -> (id, zeroGrade))
+
+checkOrInferTypeNew :: Type -> Expr -> CM ()
+checkOrInferTypeNew ty expr = do
+  outContext <- checkExpr ty expr emptyContext
+  if isEmpty outContext
+    then return ()
+    else error "Binders are left!"
+
+checkExpr :: Type -> Expr -> Context -> CM OutContext
+checkExpr t (Var x) ctxt = do
+  case lookupAndCutout x ctxt of
+    -- Should be impossible after scope checking
+    Nothing -> error $ "Unbound " ++ show x
+    Just ((ty, delta, s, r), ctxt') -> do
+
+      -- Type of variable in context matches goal type
+      ty <- ensureEqualTypes t ty
+
+      -- Check that this type is indeed a Type
+      (outCtxt, typeType) <- inferExpr ty ctxt'
+
+      -- Two checks:
+      --  (i) Subject type grades are all zero
+      isZeroed <- allZeroes (typeGradesOut outCtxt)
+
+      --  (ii) inferred type is `Type l`
+      case typeType of
+        (App (Builtin TypeTy) (LitLevel l)) | isZeroed ->
+          -- Success
+          return $ OutContext
+                     { contextGradesOut = extend (contextGradesOut outCtxt)         x (subjectGradesOut outCtxt)
+                     , subjectGradesOut = extend (zeroesMatchingShape (types ctxt)) x oneGrade
+                     , typeGradesOut    = extend (subjectGradesOut outCtxt)         x zeroGrade }
+
+        _ -> error "Expecting a type"
+
+-- Switch over to synth case
+checkExpr t e ctxt = do
+  (ctxt', t') <- inferExpr e ctxt
+  eq <- equalExprs t t'
+  if eq
+    then return ctxt'
+    else error $ "Type error: " ++ pprintShow t ++ " expected but got " ++ pprintShow t'
+
+inferExpr :: Expr -> Context -> CM (OutContext, Type)
+inferExpr = error "TODO"
 
 -- | 'checkOrInferType ty ex' checks that the type of 'ex' matches 'ty', or infers
 -- | it 'ty' is a wild. Evaluates to the calculated type.
@@ -826,7 +983,8 @@ checkOrInferType' t e =
 
 -- | Attempt to synthesise a type for the given expression.
 synthType :: Expr -> CM Expr
-synthType = checkOrInferType mkImplicit
+synthType e =
+  checkOrInferType mkImplicit e
 
 
 --------------------
