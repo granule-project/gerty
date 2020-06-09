@@ -401,21 +401,23 @@ lookupAllInfo n ctxt = do
   r     <- lookup n $ typeGrades ctxt
   return (ty, delta, s, r)
 
-lookupAndCutout1 :: Name -> Ctxt a -> Maybe (a, Ctxt a)
+lookupAndCutout1 :: Name -> Ctxt a -> Maybe (Ctxt a, a, Ctxt a)
 lookupAndCutout1 v [] = Nothing
 lookupAndCutout1 v ((v', x) : ctxt) | v == v' =
-  Just (x, ctxt)
+  Just (mempty, x, ctxt)
 lookupAndCutout1 v ((v', x) : ctxt) | otherwise = do
-  (x, ctxt') <- lookupAndCutout1 v ctxt
-  return (x, (v', x) : ctxt')
+  (ctxtL, y, ctxtR) <- lookupAndCutout1 v ctxt
+  Just (ctxtL ++ [(v', x)], y, ctxtR)
 
-lookupAndCutout :: Name -> Context -> Maybe ((Type, Ctxt Grade, Grade, Grade), Context)
+lookupAndCutout :: Name -> Context -> Maybe (Context, (Type, Ctxt Grade, Grade, Grade), Context)
 lookupAndCutout n context = do
-  (t, types')        <- lookupAndCutout1 n (types context)
-  (delta, contextGrades') <- lookupAndCutout1 n (contextGrades context)
-  (s, subjectGrades')     <- lookupAndCutout1 n (subjectGrades context)
-  (r, typeGrades')        <- lookupAndCutout1 n (typeGrades context)
-  return $ ((t, delta, s, r), Context types' contextGrades' subjectGrades' typeGrades')
+  (typesL, t, typesR)         <- lookupAndCutout1 n (types context)
+  (cGradesL, delta, cGradesR) <- lookupAndCutout1 n (contextGrades context)
+  (subjGradesL, s, subjGradesR)     <- lookupAndCutout1 n (subjectGrades context)
+  (tyGradesL,   r, tyGradesR)        <- lookupAndCutout1 n (typeGrades context)
+  return $ (Context typesL cGradesL subjGradesL tyGradesL
+         , (t, delta, s, r)
+         , Context typesR cGradesR subjGradesR tyGradesR)
 
 -- Monoid of disjoint contexts
 instance Monoid OutContext where
@@ -454,18 +456,29 @@ checkOrInferTypeNew ty expr = do
     then return ()
     else error "Binders are left!"
 
+{-
+
+Declarative:
+
+(D | sigma | 0) . G1 |- A : Type
+---------------------------------------------------------------------- var
+((D1, sigma, D2) | 0, 1, 0 | sigma, 0, 0) . (G1, x : A, G2) |- x : A
+
+-}
+
+
 checkExpr :: Type -> Expr -> Context -> CM OutContext
 checkExpr t (Var x) ctxt = do
   case lookupAndCutout x ctxt of
     -- Should be impossible after scope checking
     Nothing -> error $ "Unbound " ++ show x
-    Just ((ty, delta, s, r), ctxt') -> do
+    Just (ctxtL, (ty, delta, s, r), ctxtR) -> do
 
       -- Type of variable in context matches goal type
       ty <- ensureEqualTypes t ty
 
       -- Check that this type is indeed a Type
-      (outCtxt, typeType) <- inferExpr ty ctxt'
+      (outCtxt, typeType) <- inferExpr ty ctxtL
 
       -- Two checks:
       --  (i) Subject type grades are all zero
@@ -477,8 +490,13 @@ checkExpr t (Var x) ctxt = do
           -- Success
           return $ OutContext
                      { contextGradesOut = extend (contextGradesOut outCtxt)         x (subjectGradesOut outCtxt)
-                     , subjectGradesOut = extend (zeroesMatchingShape (types ctxt)) x oneGrade
-                     , typeGradesOut    = extend (subjectGradesOut outCtxt)         x zeroGrade }
+                                        <> (contextGrades ctxtR)
+
+                     , subjectGradesOut = extend (zeroesMatchingShape (types ctxtL)) x oneGrade
+                                        <> (zeroesMatchingShape (types ctxtR))
+
+                     , typeGradesOut    = extend (subjectGradesOut outCtxt)         x zeroGrade
+                                        <> (zeroesMatchingShape (types ctxtR)) }
 
         _ -> error "Expecting a type"
 
