@@ -11,6 +11,7 @@ module Language.Dlam.TypeChecking.Monad.Base
   , verbosityDebug
   , TCLog
   , debug
+  , debugBlock
   , info
   , formatLog
 
@@ -95,6 +96,8 @@ data CheckerState
     -- ^ Scope of provisions (how can an assumption be used---grades remaining).
     , nextNameId :: NameId
     -- ^ Unique NameId for naming.
+    , debugNesting :: Int
+    -- ^ Counter used to make it easier to locate debugging messages.
     }
 
 
@@ -105,6 +108,7 @@ startCheckerState =
                , valueScope = builtinsValues
                , provisionScope = M.empty
                , nextNameId = 0
+               , debugNesting = 0
                }
 
 
@@ -151,11 +155,37 @@ verbosityDebug = Debug
 
 -- | Write some debugging information.
 debug :: String -> CM ()
-debug = tell . pure . DebugMessage
+debug msg = do
+  debugNest <- fmap debugNesting get
+  let formattedMessage = if debugNest == 0 then msg else unwords [replicate debugNest '>', msg]
+  tell . pure . DebugMessage $ formattedMessage
 
 
 info :: String -> CM ()
 info = tell . pure . InfoMessage
+
+
+-- | Indicate we are entering a debug block.
+debugOpen :: CM ()
+debugOpen = modify (\s -> s { debugNesting = succ (debugNesting s) })
+
+
+-- | Indicate we are leaving a debug block.
+debugClose :: CM ()
+debugClose = modify (\s -> s { debugNesting = pred (debugNesting s) })
+
+
+-- | Wrap the action in some debugging messages. The final message can
+-- | use the result of the action.
+debugBlock :: String -> String -> (a -> String) -> CM a -> CM a
+debugBlock blockDesc' open close action = do
+  let blockDesc = if blockDesc' /= "" then blockDesc' <> ": " else ""
+  debug (blockDesc <> open)
+  debugOpen
+  res <- action
+  debugClose
+  debug (blockDesc <> close res)
+  pure res
 
 
 filterLog :: Verbosity -> TCLog -> TCLog
