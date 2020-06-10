@@ -1,3 +1,5 @@
+{-# LANGUAGE ViewPatterns #-}
+
 module Language.Dlam.Types
   ( doASTInference
   ) where
@@ -9,6 +11,7 @@ import Language.Dlam.Substitution
   )
 import Language.Dlam.Syntax.Abstract
 import Language.Dlam.Syntax.Common
+import Language.Dlam.Syntax.Common.Language (Grading(..))
 import qualified Language.Dlam.Syntax.Concrete as C
 import Language.Dlam.Syntax.Internal
 import Language.Dlam.TypeChecking.Monad
@@ -313,7 +316,7 @@ doASTInference (AST ds) = do
 -- | Infer a level for the given type.
 checkUniverseLevel :: Type -> CM Level
 checkUniverseLevel e = withLocalCheckingOf e $ do
-  (_, u) <- inferExpr e emptyContext
+  (_, u) <- inferExpr e emptyInContext
   norm <- normalise u
   case norm of
     (App (Builtin TypeTy) l) -> pure l
@@ -323,7 +326,7 @@ checkUniverseLevel e = withLocalCheckingOf e $ do
 -- | Infer a level for the given type.
 inferUniverseLevel :: Type -> CM Level
 inferUniverseLevel e = withLocalCheckingOf e $ do
-  (_, u) <- inferExpr e emptyContext
+  (_, u) <- inferExpr e emptyInContext
   norm <- normalise u
   case norm of
     (App (Builtin TypeTy) l) -> pure l
@@ -366,13 +369,37 @@ gradeOne  = App (Var (mkIdent "succ")) gradeZero
 {- gradePlus e1 e2 =
 gradeTimes e1 e2 -}
 
+gradeAdd :: Expr -> Expr -> Expr
+-- Inductive part
+gradeAdd x y | x == gradeZero = y
+gradeAdd (App (Var (ident -> "succ")) x) y =
+ App (Var (mkIdent "succ")) (gradeAdd x y)
+-- Cannot apply induction
+gradeAdd x y =
+ App (App (Var (mkIdent "+r")) x) y
+
+contextGradeAdd :: Ctxt Grade -> Ctxt Grade -> Ctxt Grade
+contextGradeAdd sigma1 sigma2 =
+  if map fst sigma1 == map fst sigma2
+    then zipWith (\(id, g1) (id', g2) -> (id, gradeAdd g1 g2)) sigma1 sigma2
+    else error "Internal error: context graded add on contexts of different shape"
+
+
+
 -- DAO: may want to make this an interface so we can try
 --      different implementations. For now its just specialised
 type Ctxt a = [(Name, a)] -- M.Map Name a
 
 extend :: Ctxt a -> Name -> a -> Ctxt a
-extend ctxt n t = (n, t) : ctxt
+extend ctxt n t = ctxt ++ [(n, t)]
 
+unextend :: Ctxt a -> (Ctxt a, (Name, a))
+unextend [(n, t)] = ([], (n, t))
+unextend (x : xs) = (x : xs', end)
+  where
+    (xs', end) = unextend xs
+
+{-
 data Context =
   Context
     {
@@ -382,8 +409,15 @@ data Context =
     , typeGrades    :: Ctxt Grade
     }
     deriving Eq
+-}
 
-emptyContext = Context [] [] [] []
+emptyInContext = InContext [] []
+
+data InContext =
+  InContext {
+     types           :: Ctxt Type
+   , contextGradesIn :: Ctxt (Ctxt Grade)
+  }
 
 data OutContext =
   OutContext {
@@ -393,13 +427,19 @@ data OutContext =
 }
  deriving Eq
 
-lookupAllInfo :: Name -> Context -> Maybe (Type, Ctxt Grade, Grade, Grade)
+{- lookupAllInfo :: Name -> Context -> Maybe (Type, Ctxt Grade, Grade, Grade)
 lookupAllInfo n ctxt = do
   ty    <- lookup n $ types ctxt
   delta <- lookup n $ contextGrades ctxt
   s     <- lookup n $ subjectGrades ctxt
   r     <- lookup n $ typeGrades ctxt
-  return (ty, delta, s, r)
+  return (ty, delta, s, r) -}
+
+lookupAndCutoutIn :: Name -> InContext -> Maybe (InContext, (Type, Ctxt Grade), InContext)
+lookupAndCutoutIn n context = do
+  (typesL, t, typesR)         <- lookupAndCutout1 n (types context)
+  (cGradesL, delta, cGradesR) <- lookupAndCutout1 n (contextGradesIn context)
+  return $ (InContext typesL cGradesL, (t, delta), InContext typesR cGradesR)
 
 lookupAndCutout1 :: Name -> Ctxt a -> Maybe (Ctxt a, a, Ctxt a)
 lookupAndCutout1 v [] = Nothing
@@ -409,6 +449,7 @@ lookupAndCutout1 v ((v', x) : ctxt) | otherwise = do
   (ctxtL, y, ctxtR) <- lookupAndCutout1 v ctxt
   Just (ctxtL ++ [(v', x)], y, ctxtR)
 
+{-
 lookupAndCutout :: Name -> Context -> Maybe (Context, (Type, Ctxt Grade, Grade, Grade), Context)
 lookupAndCutout n context = do
   (typesL, t, typesR)         <- lookupAndCutout1 n (types context)
@@ -418,6 +459,7 @@ lookupAndCutout n context = do
   return $ (Context typesL cGradesL subjGradesL tyGradesL
          , (t, delta, s, r)
          , Context typesR cGradesR subjGradesR tyGradesR)
+-}
 
 -- Monoid of disjoint contexts
 instance Monoid OutContext where
@@ -451,7 +493,7 @@ zeroesMatchingShape = map (\(id, _) -> (id, zeroGrade))
 
 checkOrInferTypeNew :: Type -> Expr -> CM ()
 checkOrInferTypeNew ty expr = do
-  outContext <- checkExpr ty expr emptyContext
+  outContext <- checkExpr ty expr emptyInContext
   if isEmpty outContext
     then return ()
     else error "Binders are left!"
@@ -467,12 +509,12 @@ Declarative:
 -}
 
 
-checkExpr :: Type -> Expr -> Context -> CM OutContext
+checkExpr :: Type -> Expr -> InContext -> CM OutContext
 checkExpr t (Var x) ctxt = do
-  case lookupAndCutout x ctxt of
+  case lookupAndCutoutIn x ctxt of
     -- Should be impossible after scope checking
     Nothing -> error $ "Unbound " ++ show x
-    Just (ctxtL, (ty, delta, s, r), ctxtR) -> do
+    Just (ctxtL, (ty, delta), ctxtR) -> do
 
       -- Type of variable in context matches goal type
       ty <- ensureEqualTypes t ty
@@ -490,7 +532,7 @@ checkExpr t (Var x) ctxt = do
           -- Success
           return $ OutContext
                      { contextGradesOut = extend (contextGradesOut outCtxt)         x (subjectGradesOut outCtxt)
-                                        <> (contextGrades ctxtR)
+                                        <> (contextGradesIn ctxtR)
 
                      , subjectGradesOut = extend (zeroesMatchingShape (types ctxtL)) x oneGrade
                                         <> (zeroesMatchingShape (types ctxtR))
@@ -498,7 +540,62 @@ checkExpr t (Var x) ctxt = do
                      , typeGradesOut    = extend (subjectGradesOut outCtxt)         x zeroGrade
                                         <> (zeroesMatchingShape (types ctxtR)) }
 
-        _ -> error "Expecting a type"
+        _ -> error "Expecting a Type in [Var]"
+
+{-
+
+(Delta | sigma1 | 0) . G |- A : Type l
+(Delta, sigma1 | sigma2, s | sigma3, r) . G, x : A |- t : B
+----------------------------------------------------------------------- abs
+(Delta | sigma2 | sigma1 + sigma3) . G |- \x . t : (x :(r, s) A -o B )
+
+-}
+
+checkExpr t (Lam lam) ctxt =
+  case t of
+    -- (x : A) -> B
+    FunTy pi -> do
+      (outCtxtParam, paramTy) <- inferExpr (absTy pi) ctxt
+
+      -- Two checks on parameter type:
+      --  (i) Subject type grades are all zero
+      isZeroed <- allZeroes (typeGradesOut outCtxtParam)
+
+      --  (ii) inferred type is `Type l`
+      case paramTy of
+        (App (Builtin TypeTy) (LitLevel l)) | isZeroed -> do
+          -- Check body of the lambda
+          let sigma1 = subjectGradesOut outCtxtParam
+
+          outctxtBody <-
+             checkExpr (absExpr pi) (absExpr lam)
+                     (InContext
+                        { types = extend (types ctxt) (absVar pi) (absTy pi)
+                        , contextGradesIn = extend (contextGradesIn ctxt) (absVar pi) sigma1 })
+
+          -- Check calculated grades against binder
+          let (sigma2, (_, s)) = unextend (subjectGradesOut outctxtBody)
+          let (sigma3, (_, r)) = unextend (typeGradesOut outctxtBody)
+          case (subjectGrade pi == s, subjectTypeGrade pi == r) of
+            (True, True) -> do
+              return $ OutContext {
+                         contextGradesOut = contextGradesIn ctxt
+                       , subjectGradesOut = sigma2
+                       , typeGradesOut    = contextGradeAdd sigma1 sigma3
+              }
+
+            -- Error case
+            (n, m) ->
+              error $ (if not n
+                      then "Expected subject use of `" <> (show $ subjectGrade pi)
+                            <>  "` but analysed use `" <> show s <> "`n"
+                      else "")
+                    <> (if not m
+                        then "Expected type use of `" <> (show $ subjectTypeGrade pi)
+                          <>  "` but analysed use `" <> show r <> "`"
+                        else "")
+
+    _ -> error "Expecting a function type in [Abs]"
 
 -- Switch over to synth case
 checkExpr t e ctxt = do
@@ -508,7 +605,7 @@ checkExpr t e ctxt = do
     then return ctxt'
     else error $ "Type error: " ++ pprintShow t ++ " expected but got " ++ pprintShow t'
 
-inferExpr :: Expr -> Context -> CM (OutContext, Type)
+inferExpr :: Expr -> InContext -> CM (OutContext, Type)
 inferExpr = error "TODO"
 
 -- | 'checkOrInferType ty ex' checks that the type of 'ex' matches 'ty', or infers

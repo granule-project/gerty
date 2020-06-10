@@ -17,6 +17,7 @@ module Language.Dlam.Syntax.Abstract
   , pattern Zero'
   , Name(..)
   , mkIdent
+  , ident
   , ignoreVar
   , mkAbs
   , mkAbs'
@@ -203,7 +204,7 @@ instance Com.Hiding Abstraction where
 -- | Variable bound in the abstraction.
 absVar :: Abstraction -> Name
 absVar = unBindName . argName . absArg
-
+ 
 
 -- | Type of the bound variable in the abstraction.
 absTy :: Abstraction -> Expr
@@ -365,6 +366,9 @@ ignoreVar = Name { nameId = NameId 0, nameConcrete = C.NoName (NameId 0) }
 
 mkIdent :: String -> Name
 mkIdent s = Name { nameId = NameId 0, nameConcrete = C.Name s }
+
+ident :: Name -> String
+ident (Name _ (C.Name s)) = s
 
 --------------------
 ----- Builtins -----
