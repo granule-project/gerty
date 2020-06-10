@@ -1,10 +1,8 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.33.0.
+-- This file has been generated from package.yaml by hpack version 0.34.1.
 --
 -- see: https://github.com/sol/hpack
---
--- hash: 8d77695de26e879d68437223edf936c23c98babf60f0a0e030ea2594cfbf8942
 
 name:           dependent-lamb
 version:        0.0.1
@@ -53,7 +51,7 @@ library
       Language.Dlam.Util.Pretty
   hs-source-dirs:
       src
-  ghc-options: -O0 -Wall -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns -Wredundant-constraints -Wno-name-shadowing -Wno-type-defaults
+  ghc-options: -O0 -Wall -Werror -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns -Wredundant-constraints -Wno-name-shadowing -Wno-type-defaults
   build-tools:
       alex
     , happy

@@ -11,14 +11,12 @@ import Language.Dlam.Substitution
   )
 import Language.Dlam.Syntax.Abstract
 import Language.Dlam.Syntax.Common
-import Language.Dlam.Syntax.Common.Language (Grading(..))
 import qualified Language.Dlam.Syntax.Concrete as C
 import Language.Dlam.Syntax.Internal
 import Language.Dlam.TypeChecking.Monad
 import Language.Dlam.Util.Pretty (pprintShow)
 import qualified Language.Dlam.Scoping.Monad as SE
 
-import qualified Data.Map as M
 import Control.Monad (zipWithM)
 
 
@@ -293,7 +291,7 @@ doDeclarationInference (FunEqn (FLHSName v) (FRHSAssign e)) = do
   debug $ "Decl inference for " ++ show v ++ " has type sig " ++ show t
   exprTy <- case t of
               Nothing -> do
-                checkOrInferType mkImplicit e
+                _ <- checkOrInferType mkImplicit e
                 return $ mkImplicit
               Just ty -> do
                 checkOrInferTypeNew ty e
@@ -311,16 +309,6 @@ doASTInference :: AST -> CM AST
 doASTInference (AST ds) = do
   debug $ "LENGTH " ++ (show $ length ds)
   fmap AST $ mapM doDeclarationInference ds
-
-
--- | Infer a level for the given type.
-checkUniverseLevel :: Type -> CM Level
-checkUniverseLevel e = withLocalCheckingOf e $ do
-  (_, u) <- inferExpr e emptyInContext
-  norm <- normalise u
-  case norm of
-    (App (Builtin TypeTy) l) -> pure l
-    _        -> expectedInferredTypeForm "universe" norm
 
 
 -- | Infer a level for the given type.
@@ -363,9 +351,8 @@ getAbsFromProductTy t =
 -- Dominic work here on a bidirectional additive-grading algorithm
 
 -- Smart constructors for grades
-gradeZero, gradeOne :: Grade
+gradeZero :: Grade
 gradeZero = Var (mkIdent "zero")
-gradeOne  = App (Var (mkIdent "succ")) gradeZero
 {- gradePlus e1 e2 =
 gradeTimes e1 e2 -}
 
@@ -387,14 +374,14 @@ gradeEq r1 r2 = do
 contextGradeAdd :: Ctxt Grade -> Ctxt Grade -> Ctxt Grade
 contextGradeAdd sigma1 sigma2 =
   if map fst sigma1 == map fst sigma2
-    then zipWith (\(id, g1) (id', g2) -> (id, gradeAdd g1 g2)) sigma1 sigma2
+    then zipWith (\(id, g1) (_id', g2) -> (id, gradeAdd g1 g2)) sigma1 sigma2
     else error "Internal error: context graded add on contexts of different shape"
 
 contextGradeEq :: Ctxt Grade -> Ctxt Grade -> CM Bool
 contextGradeEq sigma1 sigma2 =
   if map fst sigma2 == map fst sigma2
     then do
-      results <- zipWithM (\(id, g1) (id', g2) -> gradeEq g1 g2) sigma1 sigma2
+      results <- zipWithM (\(_id, g1) (_id', g2) -> gradeEq g1 g2) sigma1 sigma2
       return $ and results
     else error "Internal error: context graded equality on contexts of different shape"
 
@@ -408,6 +395,7 @@ extend :: Ctxt a -> Name -> a -> Ctxt a
 extend ctxt n t = ctxt ++ [(n, t)]
 
 unextend :: Ctxt a -> (Ctxt a, (Name, a))
+unextend [] = error "bad call to unextend with empty context"
 unextend [(n, t)] = ([], (n, t))
 unextend (x : xs) = (x : xs', end)
   where
@@ -425,6 +413,7 @@ data Context =
     deriving Eq
 -}
 
+emptyInContext :: InContext
 emptyInContext = InContext [] []
 
 data InContext =
@@ -455,7 +444,7 @@ lookupAndCutoutIn n context = do
   return $ (InContext typesL cGradesL, (t, delta), InContext typesR cGradesR)
 
 lookupAndCutout1 :: Name -> Ctxt a -> Maybe (Ctxt a, a, Ctxt a)
-lookupAndCutout1 v [] = Nothing
+lookupAndCutout1 _ [] = Nothing
 lookupAndCutout1 v ((v', x) : ctxt) | v == v' =
   Just (mempty, x, ctxt)
 lookupAndCutout1 v ((v', x) : ctxt) | otherwise = do
@@ -534,7 +523,7 @@ checkExpr t (Lam lam) ctxt =
 
       --  (ii) inferred type is `Type l`
       case paramTy of
-        (App (Builtin TypeTy) (LitLevel l)) | isZeroed -> do
+        (App (Builtin TypeTy) (LitLevel _l)) | isZeroed -> do
           -- Check body of the lambda
           let sigma1 = subjectGradesOut outCtxtParam
 
@@ -566,6 +555,7 @@ checkExpr t (Lam lam) ctxt =
                         then "Expected type use of `" <> (show $ subjectTypeGrade pi)
                           <>  "` but analysed use `" <> show r <> "`"
                         else "")
+        _ -> notImplemented "case of checkExpr on a lambda"
 
     _ -> error "Expecting a function type in [Abs]"
 
@@ -604,11 +594,11 @@ inferExpr (Var x) ctxt = do
 
       --  (ii) Context grades for `x` match what was calculated in typing
       let sigma = subjectGradesOut outCtxt
-      eq <- contextGradeEq sigma' sigma
+      _eq <- contextGradeEq sigma' sigma
 
       --  (iii) inferred type is `Type l`
       case typeType of
-        (App (Builtin TypeTy) (LitLevel l)) | isZeroed ->
+        (App (Builtin TypeTy) (LitLevel _l)) | isZeroed ->
           -- Success
           return $ (OutContext
                      { subjectGradesOut = extend (zeroesMatchingShape (types ctxtL)) x oneGrade

@@ -8,7 +8,6 @@ module Language.Dlam.Interpreter
   ) where
 
 import Control.Exception (displayException)
-import Control.Monad.Writer (tell)
 
 import qualified Language.Dlam.Scoping.Monad as SC
 import Language.Dlam.Syntax.Abstract
