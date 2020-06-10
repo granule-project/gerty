@@ -21,7 +21,6 @@ import qualified Language.Dlam.Scoping.Monad as SE
 import qualified Data.Map as M
 import Control.Monad (zipWithM)
 
-import Debug.Trace
 
 -------------------------
 ----- Normalisation -----
@@ -271,7 +270,7 @@ registerTypeForName n t = do
 -- | type, if any.
 doDeclarationInference :: Declaration -> CM Declaration
 doDeclarationInference (TypeSig n t) = do
-  traceM $ "here is a signature for " ++ show n
+  debug $ "here is a signature for " ++ show n
   -- make sure that the type is actually a type
   checkExprValidForSignature t
 
@@ -287,11 +286,11 @@ doDeclarationInference (TypeSig n t) = do
     checkExprValidForSignature expr = inferUniverseLevel expr >> pure ()
 
 doDeclarationInference (FunEqn (FLHSName v) (FRHSAssign e)) = do
-  traceM "FUN EQN INFERENCE"
+  debug "FUN EQN INFERENCE"
   -- try and get a prescribed type for the equation,
   -- treating it as an implicit if no type is given
   t <- lookupType v
-  traceM $ "Decl inference for " ++ show v ++ " has type sig " ++ show t
+  debug $ "Decl inference for " ++ show v ++ " has type sig " ++ show t
   exprTy <- case t of
               Nothing -> do
                 checkOrInferType mkImplicit e
@@ -310,7 +309,7 @@ doDeclarationInference (FunEqn (FLHSName v) (FRHSAssign e)) = do
 -- | mismatch is found.
 doASTInference :: AST -> CM AST
 doASTInference (AST ds) = do
-  traceM $ "LENGTH " ++ (show $ length ds)
+  debug $ "LENGTH " ++ (show $ length ds)
   fmap AST $ mapM doDeclarationInference ds
 
 
