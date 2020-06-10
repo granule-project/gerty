@@ -19,6 +19,7 @@ import Language.Dlam.Util.Pretty (pprintShow)
 import qualified Language.Dlam.Scoping.Monad as SE
 
 import qualified Data.Map as M
+import Control.Monad (zipWithM)
 
 import Debug.Trace
 
@@ -363,13 +364,13 @@ getAbsFromProductTy t =
 -- Dominic work here on a bidirectional additive-grading algorithm
 
 -- Smart constructors for grades
-gradeZero, gradeOne :: Expr
+gradeZero, gradeOne :: Grade
 gradeZero = Var (mkIdent "zero")
 gradeOne  = App (Var (mkIdent "succ")) gradeZero
 {- gradePlus e1 e2 =
 gradeTimes e1 e2 -}
 
-gradeAdd :: Expr -> Expr -> Expr
+gradeAdd :: Grade -> Grade -> Grade
 -- Inductive part
 gradeAdd x y | x == gradeZero = y
 gradeAdd (App (Var (ident -> "succ")) x) y =
@@ -378,11 +379,25 @@ gradeAdd (App (Var (ident -> "succ")) x) y =
 gradeAdd x y =
  App (App (Var (mkIdent "+r")) x) y
 
+gradeEq :: Grade -> Grade -> CM Bool
+gradeEq r1 r2 = do
+  r1' <- normalise r1
+  r2' <- normalise r2
+  return (r1' == r2')
+
 contextGradeAdd :: Ctxt Grade -> Ctxt Grade -> Ctxt Grade
 contextGradeAdd sigma1 sigma2 =
   if map fst sigma1 == map fst sigma2
     then zipWith (\(id, g1) (id', g2) -> (id, gradeAdd g1 g2)) sigma1 sigma2
     else error "Internal error: context graded add on contexts of different shape"
+
+contextGradeEq :: Ctxt Grade -> Ctxt Grade -> CM Bool
+contextGradeEq sigma1 sigma2 =
+  if map fst sigma2 == map fst sigma2
+    then do
+      results <- zipWithM (\(id, g1) (id', g2) -> gradeEq g1 g2) sigma1 sigma2
+      return $ and results
+    else error "Internal error: context graded equality on contexts of different shape"
 
 
 
@@ -421,8 +436,7 @@ data InContext =
 
 data OutContext =
   OutContext {
-    contextGradesOut :: Ctxt (Ctxt Grade)
-  , subjectGradesOut :: Ctxt Grade
+    subjectGradesOut :: Ctxt Grade
   , typeGradesOut    :: Ctxt Grade
 }
  deriving Eq
@@ -463,15 +477,14 @@ lookupAndCutout n context = do
 
 -- Monoid of disjoint contexts
 instance Monoid OutContext where
-  mempty = OutContext [] [] []
+  mempty = OutContext [] []
 
 isEmpty :: OutContext -> Bool
 isEmpty ctxt = ctxt == mempty
 
 instance Semigroup OutContext where
   c1 <> c2 =
-      OutContext (contextGradesOut c1 `disjUnion` contextGradesOut c2)
-                 (subjectGradesOut c1 `disjUnion` subjectGradesOut c2)
+      OutContext (subjectGradesOut c1 `disjUnion` subjectGradesOut c2)
                  (typeGradesOut c1 `disjUnion` typeGradesOut c2)
    where
      disjUnion m1 m2 | disjoint m1 m2 = m1 ++ m2
@@ -498,49 +511,8 @@ checkOrInferTypeNew ty expr = do
     then return ()
     else error "Binders are left!"
 
-{-
-
-Declarative:
-
-(D | sigma | 0) . G1 |- A : Type
----------------------------------------------------------------------- var
-((D1, sigma, D2) | 0, 1, 0 | sigma, 0, 0) . (G1, x : A, G2) |- x : A
-
--}
-
 
 checkExpr :: Type -> Expr -> InContext -> CM OutContext
-checkExpr t (Var x) ctxt = do
-  case lookupAndCutoutIn x ctxt of
-    -- Should be impossible after scope checking
-    Nothing -> error $ "Unbound " ++ show x
-    Just (ctxtL, (ty, delta), ctxtR) -> do
-
-      -- Type of variable in context matches goal type
-      ty <- ensureEqualTypes t ty
-
-      -- Check that this type is indeed a Type
-      (outCtxt, typeType) <- inferExpr ty ctxtL
-
-      -- Two checks:
-      --  (i) Subject type grades are all zero
-      isZeroed <- allZeroes (typeGradesOut outCtxt)
-
-      --  (ii) inferred type is `Type l`
-      case typeType of
-        (App (Builtin TypeTy) (LitLevel l)) | isZeroed ->
-          -- Success
-          return $ OutContext
-                     { contextGradesOut = extend (contextGradesOut outCtxt)         x (subjectGradesOut outCtxt)
-                                        <> (contextGradesIn ctxtR)
-
-                     , subjectGradesOut = extend (zeroesMatchingShape (types ctxtL)) x oneGrade
-                                        <> (zeroesMatchingShape (types ctxtR))
-
-                     , typeGradesOut    = extend (subjectGradesOut outCtxt)         x zeroGrade
-                                        <> (zeroesMatchingShape (types ctxtR)) }
-
-        _ -> error "Expecting a Type in [Var]"
 
 {-
 
@@ -576,11 +548,12 @@ checkExpr t (Lam lam) ctxt =
           -- Check calculated grades against binder
           let (sigma2, (_, s)) = unextend (subjectGradesOut outctxtBody)
           let (sigma3, (_, r)) = unextend (typeGradesOut outctxtBody)
-          case (subjectGrade pi == s, subjectTypeGrade pi == r) of
+          eq1 <- gradeEq s (subjectGrade pi)
+          eq2 <- gradeEq r (subjectTypeGrade pi)
+          case (eq1, eq2) of
             (True, True) -> do
               return $ OutContext {
-                         contextGradesOut = contextGradesIn ctxt
-                       , subjectGradesOut = sigma2
+                         subjectGradesOut = sigma2
                        , typeGradesOut    = contextGradeAdd sigma1 sigma3
               }
 
@@ -606,7 +579,94 @@ checkExpr t e ctxt = do
     else error $ "Type error: " ++ pprintShow t ++ " expected but got " ++ pprintShow t'
 
 inferExpr :: Expr -> InContext -> CM (OutContext, Type)
-inferExpr = error "TODO"
+
+{-
+
+Declarative:
+
+(D | sigma | 0) . G1 |- A : Type
+---------------------------------------------------------------------- var
+((D1, sigma, D2) | 0, 1, 0 | sigma, 0, 0) . (G1, x : A, G2) |- x : A
+
+-}
+
+inferExpr (Var x) ctxt = do
+  case lookupAndCutoutIn x ctxt of
+    -- Should be impossible after scope checking
+    Nothing -> error $ "Unbound " ++ show x
+    Just (ctxtL, (ty, sigma'), ctxtR) -> do
+
+      -- Check that this type is indeed a Type
+      (outCtxt, typeType) <- inferExpr ty ctxtL
+
+      -- Two checks:
+      --  (i) Subject type grades are all zero
+      isZeroed <- allZeroes (typeGradesOut outCtxt)
+
+      --  (ii) Context grades for `x` match what was calculated in typing
+      let sigma = subjectGradesOut outCtxt
+      eq <- contextGradeEq sigma' sigma
+
+      --  (iii) inferred type is `Type l`
+      case typeType of
+        (App (Builtin TypeTy) (LitLevel l)) | isZeroed ->
+          -- Success
+          return $ (OutContext
+                     { subjectGradesOut = extend (zeroesMatchingShape (types ctxtL)) x oneGrade
+                                        <> (zeroesMatchingShape (types ctxtR))
+
+                     , typeGradesOut    = extend sigma x zeroGrade
+                                        <> (zeroesMatchingShape (types ctxtR)) }, ty)
+
+        _ -> error "Expecting a Type in [Var]"
+
+{-
+
+(D         | sigma1    | 0) . G        |- A : Type l1
+(D, sigma1 | sigma2, r | 0) . G, x : A |- B : Type l2
+---------------------------------------------------------------------- -o
+(D | sigma1 + sigma2   | 0)  . G |- (x :(s, r) A -o B) : Type (l1 u l2)
+)
+
+-}
+
+-- (x :(s, r) A -o B)
+inferExpr (FunTy pi) ctxt = do
+  -- Infer type of parameter A
+  (ctxtA, typeA) <- inferExpr (absTy pi) ctxt
+
+  --  (i) Subject type grades are all zero
+  isZeroed <- allZeroes (typeGradesOut ctxtA)
+  --  (ii) inferred type is `Type l1`
+  case typeA of
+    (App (Builtin TypeTy) (LitLevel l1)) | isZeroed -> do
+
+      let sigma1 = subjectGradesOut ctxtA
+
+      -- Infer type of function type body B
+      (ctxtB, typeB) <- inferExpr (absExpr pi)
+                 (InContext { types = extend (types ctxt) (absVar pi) (absTy pi)
+                            , contextGradesIn = extend (contextGradesIn ctxt) (absVar pi) sigma1 })
+
+      -- (i) Subject type grades are all zero
+      isZeroed' <- allZeroes (typeGradesOut ctxtB)
+      -- (ii) inferred type is `Type l2`
+      case typeB of
+        (App (Builtin TypeTy) (LitLevel l2)) | isZeroed' -> do
+
+          let (sigma2, (_, r)) = unextend (subjectGradesOut ctxtB)
+
+          -- (iii) Check binder grade specification matches usage `r`
+          eq <- gradeEq r (subjectGrade pi)
+          if eq
+            then return (OutContext { subjectGradesOut = contextGradeAdd sigma1 sigma2
+                                    , typeGradesOut = zeroesMatchingShape (types ctxt) }
+                        , App (Builtin TypeTy) (LitLevel (l1 `max` l2)))
+            else error $ "Binder grade " <> pprintShow (subjectGrade pi) <> " does not match actual grade " <> pprintShow r
+        _ -> error "Expecting a Type on LHS of -o"
+    _ -> error "Expecting a Type on RHS of -o"
+
+inferExpr e _ = error $ "Cannot infer the type for " ++ pprintShow e
 
 -- | 'checkOrInferType ty ex' checks that the type of 'ex' matches 'ty', or infers
 -- | it 'ty' is a wild. Evaluates to the calculated type.
