@@ -522,11 +522,11 @@ checkOrInferTypeNew ty expr = do
 
 -- Auxiliary function that exmaines an output context to check it
 -- has 0 subject type use and that its type is of the form `Type l`
-exprIsTypeAndSubjectTypeGradesZero :: OutContext -> Type -> CM (Maybe Integer)
+exprIsTypeAndSubjectTypeGradesZero :: OutContext -> Type -> CM (Maybe Expr)
 exprIsTypeAndSubjectTypeGradesZero ctxt ty = do
   isZeroed <- allZeroes (typeGradesOut ctxt)
   case ty of
-    (App (Builtin TypeTy) (LitLevel l)) | isZeroed ->
+    (App (Builtin TypeTy) l) | isZeroed ->
       return (Just l)
     _ ->
       return Nothing
@@ -699,7 +699,7 @@ inferExpr (FunTy pi) ctxt = do
           if eq
             then return (OutContext { subjectGradesOut = contextGradeAdd sigma1 sigma2
                                     , typeGradesOut = zeroesMatchingShape (types ctxt) }
-                        , App (Builtin TypeTy) (LitLevel (l1 `max` l2)))
+                        , App (Builtin TypeTy) (lmaxApp l1 l2))
             else error $ "Binder grade " <> pprintShow (subjectGrade pi) <> " does not match actual grade " <> pprintShow r
         _ -> error "Expecting a Type on LHS of -o"
     _ -> error "Expecting a Type on RHS of -o"
@@ -707,6 +707,14 @@ inferExpr (FunTy pi) ctxt = do
 {-
 
 -}
+
+-- Specialised inference for `Type l` style things
+inferExpr (App (Builtin TypeTy) (LitLevel l)) ctxt =
+  pure (zeroedOutContextForInContext ctxt, (App (Builtin TypeTy) (LitLevel (l + 1))))
+
+inferExpr (App (Builtin TypeTy) l) ctxt =
+  pure (zeroedOutContextForInContext ctxt, (App (Builtin TypeTy) (App (Builtin LSuc) l)))
+
 
 inferExpr e@(App t1 t2) ctxt = do
   debug $ "Infer for application " <> pprintShow e
@@ -730,7 +738,7 @@ inferExpr e@(App t1 t2) ctxt = do
       -- Infer the type of the A
       debug $ "App infer for tyA = " <> pprintShow tyA
       (outCtxtA, typeOfA) <- inferExpr tyA ctxt
-      debug $ "ok is " <> pprintShow typeOfA
+      debug $ "ok A : " <> pprintShow typeOfA
 
       hasLevel <- exprIsTypeAndSubjectTypeGradesZero outCtxtA typeOfA
       case hasLevel of
@@ -746,10 +754,11 @@ inferExpr e@(App t1 t2) ctxt = do
                  types = extend (types ctxt) (absVar pi) tyA
                , contextGradesIn = extend (contextGradesIn ctxt) (absVar pi) sigma1
                }
+          debug $ "Ok B : " <> pprintShow typeOfB
 
           hasLevel' <- exprIsTypeAndSubjectTypeGradesZero outCtxtB typeOfB
           case hasLevel' of
-            Nothing -> error "Expecting type when kind checking return of function application"
+            Nothing -> error $ "Expecting type when kind checking return of function application, but got " <> pprintShow typeOfB
             Just _ -> do
               let (sigma3, (_, rInferred)) = unextend (subjectGradesOut outCtxtB)
 
