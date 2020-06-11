@@ -21,6 +21,7 @@ module Language.Dlam.Syntax.Abstract
   , ignoreVar
   , mkAbs
   , mkAbs'
+  , mkAbsGr
   , absVar
   , absTy
   , absExpr
@@ -213,6 +214,9 @@ absTy = argTy . absArg
 
 mkAbs :: Name -> Expr -> Expr -> Abstraction
 mkAbs v e1 e2 = Abst { absArg = mkArg NotHidden (BindName v `gradedWith` implicitGrading `typedWith` e1), absExpr = e2 }
+
+mkAbsGr :: Name -> Expr -> Grade -> Grade -> Expr -> Abstraction
+mkAbsGr v e1 r s e2 = Abst { absArg = mkArg NotHidden (BindName v `gradedWith` (mkGrading r s) `typedWith` e1), absExpr = e2 }
 
 
 mkAbs' :: IsHiddenOrNot -> Name -> Grading -> Expr -> Expr -> Abstraction

@@ -351,10 +351,9 @@ getAbsFromProductTy t =
 -- Dominic work here on a bidirectional additive-grading algorithm
 
 -- Smart constructors for grades
-gradeZero :: Grade
+gradeZero, gradeOne :: Grade
 gradeZero = Var (mkIdent "zero")
-{- gradePlus e1 e2 =
-gradeTimes e1 e2 -}
+gradeOne  = App (Var (mkIdent "succ")) gradeZero
 
 gradeAdd :: Grade -> Grade -> Grade
 -- Inductive part
@@ -364,6 +363,14 @@ gradeAdd (App (Var (ident -> "succ")) x) y =
 -- Cannot apply induction
 gradeAdd x y =
  App (App (Var (mkIdent "+r")) x) y
+
+gradeMult :: Grade -> Grade -> Grade
+gradeMult x _ | x == gradeZero = gradeZero
+gradeMult (App (Var (ident -> "succ")) x) y =
+  gradeAdd y (gradeMult x y)
+-- Cannot apply induction
+gradeMult x y =
+ App (App (Var (mkIdent "*r")) x) y
 
 gradeEq :: Grade -> Grade -> CM Bool
 gradeEq r1 r2 = do
@@ -376,6 +383,10 @@ contextGradeAdd sigma1 sigma2 =
   if map fst sigma1 == map fst sigma2
     then zipWith (\(id, g1) (_id', g2) -> (id, gradeAdd g1 g2)) sigma1 sigma2
     else error "Internal error: context graded add on contexts of different shape"
+
+contextGradeMult :: Grade -> Ctxt Grade -> Ctxt Grade
+contextGradeMult r sigma =
+  map (\(id, g) -> (id, gradeMult r g)) sigma
 
 contextGradeEq :: Ctxt Grade -> Ctxt Grade -> CM Bool
 contextGradeEq sigma1 sigma2 =
@@ -503,13 +514,25 @@ zeroesMatchingShape = map (\(id, _) -> (id, zeroGrade))
 
 checkOrInferTypeNew :: Type -> Expr -> CM ()
 checkOrInferTypeNew ty expr = do
-  outContext <- checkExpr ty expr emptyInContext
+  outContext <- checkExpr expr ty emptyInContext
   if isEmpty outContext
     then return ()
     else error "Binders are left!"
 
 
-checkExpr :: Type -> Expr -> InContext -> CM OutContext
+-- Auxiliary function that exmaines an output context to check it
+-- has 0 subject type use and that its type is of the form `Type l`
+exprIsTypeAndSubjectTypeGradesZero :: OutContext -> Type -> CM (Maybe Integer)
+exprIsTypeAndSubjectTypeGradesZero ctxt ty = do
+  isZeroed <- allZeroes (typeGradesOut ctxt)
+  case ty of
+    (App (Builtin TypeTy) (LitLevel l)) | isZeroed ->
+      return (Just l)
+    _ ->
+      return Nothing
+
+
+checkExpr :: Expr -> Type -> InContext -> CM OutContext
 
 {-
 
@@ -520,24 +543,23 @@ checkExpr :: Type -> Expr -> InContext -> CM OutContext
 
 -}
 
-checkExpr t (Lam lam) ctxt =
+checkExpr e@(Lam lam) t ctxt = do
+  debug $ "Check for " <> pprintShow e
+  --
   case t of
     -- (x : A) -> B
     FunTy pi -> do
       (outCtxtParam, paramTy) <- inferExpr (absTy pi) ctxt
 
-      -- Two checks on parameter type:
-      --  (i) Subject type grades are all zero
-      isZeroed <- allZeroes (typeGradesOut outCtxtParam)
-
-      --  (ii) inferred type is `Type l`
-      case paramTy of
-        (App (Builtin TypeTy) (LitLevel _l)) | isZeroed -> do
+      -- (i) Subject type grades are all zero and inferred type is `Type l`
+      hasLevel <- exprIsTypeAndSubjectTypeGradesZero outCtxtParam paramTy
+      case hasLevel of
+        Just _ -> do
           -- Check body of the lambda
           let sigma1 = subjectGradesOut outCtxtParam
 
           outctxtBody <-
-             checkExpr (absExpr pi) (absExpr lam)
+             checkExpr (absExpr lam) (absExpr pi)
                      (InContext
                         { types = extend (types ctxt) (absVar pi) (absTy pi)
                         , contextGradesIn = extend (contextGradesIn ctxt) (absVar pi) sigma1 })
@@ -569,7 +591,9 @@ checkExpr t (Lam lam) ctxt =
     _ -> error "Expecting a function type in [Abs]"
 
 -- Switch over to synth case
-checkExpr t e ctxt = do
+checkExpr e t ctxt = do
+  debug $ "Check fall through for " <> pprintShow e
+  --
   (ctxt', t') <- inferExpr e ctxt
   eq <- equalExprs t t'
   if eq
@@ -588,12 +612,27 @@ Declarative:
 
 -}
 
+inferExpr (LitLevel i) ctxt = do
+  debug $ "Infer for a literal level " <> show i
+  pure (zeroedOutContextForInContext ctxt, Builtin LevelTy)
+
+inferExpr (Builtin LevelTy) ctxt = do
+  debug "Infer for Level"
+  pure (zeroedOutContextForInContext ctxt, App (Builtin TypeTy) (LitLevel 0))
+
+inferExpr (Builtin TypeTy) ctxt = do
+  debug $ "Infer for Type"
+  pure (zeroedOutContextForInContext ctxt,
+         FunTy (mkAbsGr (mkIdent "la") (Builtin LevelTy) gradeZero gradeOne
+                     (App (Builtin TypeTy) (App (Builtin LSuc) (Var $ mkIdent "la")))))
+
 inferExpr (Var x) ctxt = do
+  debug $ "Infer for var " <> pprintShow x
+  --
   case lookupAndCutoutIn x ctxt of
     -- this means we've hit a builtin/def, so we check for that:
     Nothing -> do
-      -- if we aren't finding a definition at this point, then
-      -- something went horribly wrong with scope checking
+      -- This represents a builtin constant
       tA <- lookupType x >>= maybe (scoperError $ SE.unknownNameErr (C.Unqualified $ nameConcrete x)) pure
       pure $ (zeroedOutContextForInContext ctxt, tA)
     Just (ctxtL, (ty, sigma'), ctxtR) -> do
@@ -602,16 +641,14 @@ inferExpr (Var x) ctxt = do
       (outCtxt, typeType) <- inferExpr ty ctxtL
 
       -- Two checks:
-      --  (i) Subject type grades are all zero
-      isZeroed <- allZeroes (typeGradesOut outCtxt)
-
-      --  (ii) Context grades for `x` match what was calculated in typing
+      --  (i) Context grades for `x` match what was calculated in typing
       let sigma = subjectGradesOut outCtxt
       _eq <- contextGradeEq sigma' sigma
 
-      --  (iii) inferred type is `Type l`
-      case typeType of
-        (App (Builtin TypeTy) (LitLevel _l)) | isZeroed ->
+      --  (ii) Subject type grades are all zero and inferred type is `Type l`
+      hasLevel <- exprIsTypeAndSubjectTypeGradesZero outCtxt typeType
+      case hasLevel of
+        Just _ ->
           -- Success
           return $ (OutContext
                      { subjectGradesOut = extend (zeroesMatchingShape (types ctxtL)) x oneGrade
@@ -634,14 +671,14 @@ inferExpr (Var x) ctxt = do
 
 -- (x :(s, r) A -o B)
 inferExpr (FunTy pi) ctxt = do
+  debug $ "Infer for pi type " <> pprintShow (FunTy pi)
   -- Infer type of parameter A
   (ctxtA, typeA) <- inferExpr (absTy pi) ctxt
 
-  --  (i) Subject type grades are all zero
-  isZeroed <- allZeroes (typeGradesOut ctxtA)
-  --  (ii) inferred type is `Type l1`
-  case typeA of
-    (App (Builtin TypeTy) (LitLevel l1)) | isZeroed -> do
+  --  (i) Subject type grades are all zero inferred type is `Type l1`
+  hasLevel <- exprIsTypeAndSubjectTypeGradesZero ctxtA typeA
+  case hasLevel of
+    Just l1 -> do
 
       let sigma1 = subjectGradesOut ctxtA
 
@@ -650,16 +687,15 @@ inferExpr (FunTy pi) ctxt = do
                  (InContext { types = extend (types ctxt) (absVar pi) (absTy pi)
                             , contextGradesIn = extend (contextGradesIn ctxt) (absVar pi) sigma1 })
 
-      -- (i) Subject type grades are all zero
-      isZeroed' <- allZeroes (typeGradesOut ctxtB)
-      -- (ii) inferred type is `Type l2`
-      case typeB of
-        (App (Builtin TypeTy) (LitLevel l2)) | isZeroed' -> do
+      -- (i) Subject type grades are all zero and inferred type is `Type l2`
+      hasLevel' <- exprIsTypeAndSubjectTypeGradesZero ctxtB typeB
+      case hasLevel' of
+        Just l2 -> do
 
           let (sigma2, (_, r)) = unextend (subjectGradesOut ctxtB)
 
-          -- (iii) Check binder grade specification matches usage `r`
-          eq <- gradeEq r (subjectGrade pi)
+          -- (ii) Check binder grade specification matches usage `r`
+          eq <- gradeEq r (subjectTypeGrade pi)
           if eq
             then return (OutContext { subjectGradesOut = contextGradeAdd sigma1 sigma2
                                     , typeGradesOut = zeroesMatchingShape (types ctxt) }
@@ -667,6 +703,87 @@ inferExpr (FunTy pi) ctxt = do
             else error $ "Binder grade " <> pprintShow (subjectGrade pi) <> " does not match actual grade " <> pprintShow r
         _ -> error "Expecting a Type on LHS of -o"
     _ -> error "Expecting a Type on RHS of -o"
+
+{-
+
+-}
+
+inferExpr e@(App t1 t2) ctxt = do
+  debug $ "Infer for application " <> pprintShow e
+
+  -- Infer left of application
+  debug $ "App infer for t1 = " <> pprintShow t1
+  (outCtxtFun, funTy) <- inferExpr t1 ctxt
+
+  let sigma2 = subjectGradesOut outCtxtFun
+
+  -- Need to infer types for `funTy` to see how the context
+  -- is used to form `A` and `B`
+  case funTy of
+    -- (x :(r, s) A -o B)
+    (FunTy pi) -> do
+      let r   = subjectGrade pi
+      let s   = subjectTypeGrade pi
+      let tyA = absTy pi
+      let tyB = absExpr pi
+
+      -- Infer the type of the A
+      debug $ "App infer for tyA = " <> pprintShow tyA
+      (outCtxtA, typeOfA) <- inferExpr tyA ctxt
+      debug $ "ok is " <> pprintShow typeOfA
+
+      hasLevel <- exprIsTypeAndSubjectTypeGradesZero outCtxtA typeOfA
+      case hasLevel of
+        Nothing -> error "Expecting type when kind checking argument of function application"
+        Just _ -> do
+          let sigma1 = subjectGradesOut outCtxtA
+
+          -- Infer the type of the B in the context with `x`
+          debug $ "App infer for tyB = " <> pprintShow tyB
+          (outCtxtB, typeOfB) <-
+             inferExpr tyB
+               InContext {
+                 types = extend (types ctxt) (absVar pi) tyA
+               , contextGradesIn = extend (contextGradesIn ctxt) (absVar pi) sigma1
+               }
+
+          hasLevel' <- exprIsTypeAndSubjectTypeGradesZero outCtxtB typeOfB
+          case hasLevel' of
+            Nothing -> error "Expecting type when kind checking return of function application"
+            Just _ -> do
+              let (sigma3, (_, rInferred)) = unextend (subjectGradesOut outCtxtB)
+
+              eq <- gradeEq rInferred r
+              if eq then do
+                eq' <- contextGradeEq (contextGradeAdd sigma1 sigma3) (typeGradesOut outCtxtFun)
+                if eq' then do
+                  -- Check argument `t2` and its usage
+                  outCtxtArg <- checkExpr t2 tyA ctxt
+                  eq2 <- contextGradeEq sigma1 (typeGradesOut outCtxtArg)
+
+                  if eq2 then do
+                    let sigma4 = subjectGradesOut outCtxtB
+                    tyB' <- substitute (absVar pi, tyA) tyB
+
+                    return (OutContext
+                       { subjectGradesOut =
+                            contextGradeAdd sigma2 (contextGradeMult s sigma4)
+                       , typeGradesOut =
+                            contextGradeAdd sigma3 (contextGradeMult r sigma4)
+                        }
+                       , tyB')
+                  else
+                    error $ "Usage in the type of argument does not match its type formation usage"
+                else
+                   error $ "Useage in the type of a function does not match its type formation usage"
+              else
+                error $ "Expected " <> pprintShow rInferred <> " type usage of "
+                    <> (pprintShow $ absVar pi)
+                    <> " but expected "
+                    <> (pprintShow r)
+
+    _ -> error $ "Expecting function type on left of application but got " <> pprintShow funTy
+
 
 inferExpr e _ = error $ "Cannot infer the type for " ++ pprintShow e
 
