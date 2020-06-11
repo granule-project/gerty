@@ -429,6 +429,15 @@ data OutContext =
 }
  deriving Eq
 
+
+-- | A zeroed OutContext that matches the shape of the InContext, for
+-- | when typing constants.
+zeroedOutContextForInContext :: InContext -> OutContext
+zeroedOutContextForInContext inCtx =
+  OutContext { subjectGradesOut = zeroesMatchingShape (types inCtx)
+             , typeGradesOut = zeroesMatchingShape (types inCtx) }
+
+
 {- lookupAllInfo :: Name -> Context -> Maybe (Type, Ctxt Grade, Grade, Grade)
 lookupAllInfo n ctxt = do
   ty    <- lookup n $ types ctxt
@@ -581,8 +590,12 @@ Declarative:
 
 inferExpr (Var x) ctxt = do
   case lookupAndCutoutIn x ctxt of
-    -- Should be impossible after scope checking
-    Nothing -> error $ "Unbound " ++ show x
+    -- this means we've hit a builtin/def, so we check for that:
+    Nothing -> do
+      -- if we aren't finding a definition at this point, then
+      -- something went horribly wrong with scope checking
+      tA <- lookupType x >>= maybe (scoperError $ SE.unknownNameErr (C.Unqualified $ nameConcrete x)) pure
+      pure $ (zeroedOutContextForInContext ctxt, tA)
     Just (ctxtL, (ty, sigma'), ctxtR) -> do
 
       -- Check that this type is indeed a Type
