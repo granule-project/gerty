@@ -466,7 +466,7 @@ lookupAndCutoutIn n context = do
 
 lookupAndCutout1 :: Name -> Ctxt a -> Maybe (Ctxt a, a, Ctxt a)
 lookupAndCutout1 _ [] = Nothing
-lookupAndCutout1 v ((v', x) : ctxt) | v == v' =
+lookupAndCutout1 v ((v', x) : ctxt) | ident v == ident v' =
   Just (mempty, x, ctxt)
 lookupAndCutout1 v ((v', x) : ctxt) | otherwise = do
   (ctxtL, y, ctxtR) <- lookupAndCutout1 v ctxt
