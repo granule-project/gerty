@@ -791,7 +791,7 @@ inferExpr e@(App t1 t2) ctxt = do
 
                     case eq2 of
                       Right() -> do
-                        let sigma4 = subjectGradesOut outCtxtB
+                        let sigma4 = subjectGradesOut outCtxtArg
                         tyB' <- substitute (absVar pi, tyA) tyB
 
                         return (OutContext
