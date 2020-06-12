@@ -352,21 +352,21 @@ getAbsFromProductTy t =
 
 -- Smart constructors for grades
 gradeZero, gradeOne :: Grade
-gradeZero = Var (mkIdent "zero")
-gradeOne  = App (Var (mkIdent "succ")) gradeZero
+gradeZero = Builtin DNZero
+gradeOne  = App (Builtin DNSucc) gradeZero
 
 gradeAdd :: Grade -> Grade -> Grade
 -- Inductive part
 gradeAdd x y | x == gradeZero = y
-gradeAdd (App (Var (ident -> "succ")) x) y =
- App (Var (mkIdent "succ")) (gradeAdd x y)
+gradeAdd (App (Builtin DNSucc) x) y =
+  App (Builtin DNSucc) (gradeAdd x y)
 -- Cannot apply induction
 gradeAdd x y =
  App (App (Var (mkIdent "+r")) x) y
 
 gradeMult :: Grade -> Grade -> Grade
 gradeMult x _ | x == gradeZero = gradeZero
-gradeMult (App (Var (ident -> "succ")) x) y =
+gradeMult (App (Builtin DNSucc) x) y =
   gradeAdd y (gradeMult x y)
 -- Cannot apply induction
 gradeMult x y =
@@ -527,6 +527,8 @@ exprIsTypeAndSubjectTypeGradesZero ctxt ty = do
   isZeroed <- allZeroes (typeGradesOut ctxt)
   case ty of
     (App (Builtin TypeTy) l) | isZeroed ->
+      return (Just l)
+    (App (Var (ident -> "Type")) l) | isZeroed ->
       return (Just l)
     _ ->
       return Nothing
