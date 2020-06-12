@@ -710,11 +710,12 @@ inferExpr (FunTy pi) ctxt = do
 
 -- Specialised inference for `Type l` style things
 -- because this cannot be treated as really an application
-inferExpr (App (Builtin TypeTy) (LitLevel l)) ctxt =
+inferExpr e@(App (Builtin TypeTy) (LitLevel l)) ctxt = do
+  debug $ "Infer for `" <> pprintShow e <> "` level literal"
   pure (zeroedOutContextForInContext ctxt, (App (Builtin TypeTy) (LitLevel (l + 1))))
 
 inferExpr e@(App (Var (ident -> "Type")) (LitLevel l)) ctxt = do
-  debug $ "Special caseee " <> pprintShow e
+  debug $ "Infer for `" <> pprintShow e <> "` level literal (var form)"
   pure (zeroedOutContextForInContext ctxt, (App (Builtin TypeTy) (LitLevel (l + 1))))
 
 ----
