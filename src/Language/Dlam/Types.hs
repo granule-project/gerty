@@ -591,7 +591,12 @@ checkExpr' e t ctxt = do
     then return ctxt'
     else tyMismatch t t'
 
+-- | Try and infer a type for the given expression.
 inferExpr :: Expr -> InContext -> CM (OutContext, Type)
+inferExpr e c = withLocalCheckingOf e $
+  debugBlock "inferExpr" ("inferring a type for expression '" <> pprintShow e <> "'")
+             (\(_, t) -> "inferred a type '" <> pprintShow t <> "'")
+             (inferExpr' e c)
 
 {-
 
@@ -603,11 +608,12 @@ Declarative:
 
 -}
 
-inferExpr (LitLevel i) ctxt = do
+inferExpr' :: Expr -> InContext -> CM (OutContext, Type)
+inferExpr' (LitLevel i) ctxt = do
   debug $ "Infer for a literal level " <> show i
   pure (zeroedOutContextForInContext ctxt, Def $ mkIdent "Level")
 
-inferExpr (Var x) ctxt = do
+inferExpr' (Var x) ctxt = do
   debug $ "Infer for var " <> pprintShow x <> " in context " <> debugContextGrades ctxt
   --
   case lookupAndCutoutIn x ctxt of
@@ -656,7 +662,7 @@ inferExpr (Var x) ctxt = do
 -}
 
 -- (x :(s, r) A -o B)
-inferExpr (FunTy pi) ctxt = do
+inferExpr' (FunTy pi) ctxt = do
   debug $ "Infer for pi type " <> pprintShow (FunTy pi)
   -- Infer type of parameter A
   debug $ "Infer for pi type (infer for param type)"
@@ -699,7 +705,7 @@ inferExpr (FunTy pi) ctxt = do
 
 -- Specialised inference for `Type l` style things
 -- because this cannot be treated as really an application
-inferExpr e@(App (Def (ident -> "Type")) (LitLevel l)) ctxt = do
+inferExpr' e@(App (Def (ident -> "Type")) (LitLevel l)) ctxt = do
   debug $ "Infer for `" <> pprintShow e <> "` level literal (var form)"
   pure (zeroedOutContextForInContext ctxt, (mkUnivTy (LitLevel (l + 1))))
 
@@ -716,7 +722,7 @@ inferExpr e@(App (Def (ident -> "Type")) (LitLevel l)) ctxt = do
 
 -}
 
-inferExpr e@(App t1 t2) ctxt = do
+inferExpr' e@(App t1 t2) ctxt = do
   debug $ "Infer for application " <> pprintShow e
 
   -- Infer left of application
@@ -799,11 +805,11 @@ inferExpr e@(App t1 t2) ctxt = do
 
     _ -> tyMismatchAt "type of app left" (FunTy (mkAbs (mkIdent "?") Hole Hole)) funTy
 
-inferExpr (Def n) ctxt = do
+inferExpr' (Def n) ctxt = do
   tA <- lookupType n >>= maybe (scoperError $ SE.unknownNameErr (C.Unqualified $ nameConcrete n)) pure
   pure (zeroedOutContextForInContext ctxt, tA)
 
-inferExpr _ _ = do
+inferExpr' _ _ = do
   cannotSynthTypeForExpr
 
 -----------------------------------------------
