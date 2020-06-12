@@ -607,10 +607,6 @@ inferExpr (LitLevel i) ctxt = do
   debug $ "Infer for a literal level " <> show i
   pure (zeroedOutContextForInContext ctxt, Def $ mkIdent "Level")
 
-inferExpr (Def n) ctxt = do
-  tA <- lookupType n >>= maybe (scoperError $ SE.unknownNameErr (C.Unqualified $ nameConcrete n)) pure
-  pure (zeroedOutContextForInContext ctxt, tA)
-
 inferExpr (Var x) ctxt = do
   debug $ "Infer for var " <> pprintShow x <> " in context " <> debugContextGrades ctxt
   --
@@ -802,6 +798,10 @@ inferExpr e@(App t1 t2) ctxt = do
                 gradeMismatchAt "function type" SubjectType (absVar pi) r rInferred
 
     _ -> tyMismatchAt "type of app left" (FunTy (mkAbs (mkIdent "?") Hole Hole)) funTy
+
+inferExpr (Def n) ctxt = do
+  tA <- lookupType n >>= maybe (scoperError $ SE.unknownNameErr (C.Unqualified $ nameConcrete n)) pure
+  pure (zeroedOutContextForInContext ctxt, tA)
 
 inferExpr e _ =
   cannotSynthExprForType e
