@@ -65,6 +65,9 @@ normalise (Def x) = do
   case val of
     Nothing -> finalNormalForm $ Def x
     Just e -> normalise e
+-- odd... surely variables could never actually have a value? I'm
+-- guessing this is something to do with the 'withExprNormalisingTo'
+-- infrastructure? (GD: 2020-06-12)
 normalise (Var x) = do
   val <- lookupValue x
   case val of
