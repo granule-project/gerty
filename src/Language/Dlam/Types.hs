@@ -432,13 +432,14 @@ data InContext =
      types           :: Ctxt Type
    , contextGradesIn :: Ctxt (Ctxt Grade)
   }
+  deriving (Eq, Show)
 
 data OutContext =
   OutContext {
     subjectGradesOut :: Ctxt Grade
   , typeGradesOut    :: Ctxt Grade
 }
- deriving Eq
+ deriving (Eq, Show)
 
 
 -- | A zeroed OutContext that matches the shape of the InContext, for
@@ -560,7 +561,8 @@ checkExpr e@(Lam lam) t ctxt = do
           -- Check body of the lambda
           let sigma1 = subjectGradesOut outCtxtParam
 
-          outctxtBody <-
+          outctxtBody <- do
+             debug $ "Check body binding `" <> pprintShow (absVar pi) <> "` in scope"
              checkExpr (absExpr lam) (absExpr pi)
                      (InContext
                         { types = extend (types ctxt) (absVar pi) (absTy pi)
