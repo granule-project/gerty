@@ -354,25 +354,35 @@ getAbsFromProductTy t =
 
 -- Smart constructors for grades
 gradeZero, gradeOne :: Grade
-gradeZero = Builtin DNZero
-gradeOne  = App (Builtin DNSucc) gradeZero
+--gradeZero = Builtin DNZero
+--gradeOne  = App (Builtin DNSucc) gradeZero
+gradeZero = Def (mkIdent "zero")
+gradeOne = App (Def (mkIdent "succ")) gradeZero
 
 gradeAdd :: Grade -> Grade -> Grade
--- Inductive part
-gradeAdd x y | x == gradeZero = y
-gradeAdd (App (Builtin DNSucc) x) y =
-  App (Builtin DNSucc) (gradeAdd x y)
+gradeAdd x y | gradeIsZero x = y
+gradeAdd (App (Def (ident -> "succ")) x) y =
+  App (Def (mkIdent "succ")) (gradeAdd x y)
+--gradeAdd (App (Builtin DNSucc) x) y =
+--  App (Builtin DNSucc) (gradeAdd x y)
 -- Cannot apply induction
 gradeAdd x y =
  App (App (Def (mkIdent "+r")) x) y
 
 gradeMult :: Grade -> Grade -> Grade
-gradeMult x _ | x == gradeZero = gradeZero
-gradeMult (App (Builtin DNSucc) x) y =
+gradeMult x _ | gradeIsZero x = gradeZero
+gradeMult (App (Def (ident -> "succ")) x) y =
   gradeAdd y (gradeMult x y)
+-- gradeMult (App (Builtin DNSucc) x) y =
+--   gradeAdd y (gradeMult x y)
 -- Cannot apply induction
 gradeMult x y =
  App (App (Def (mkIdent "*r")) x) y
+
+gradeIsZero :: Grade -> Bool
+gradeIsZero (Def (ident -> "zero")) = True
+gradeIsZero (Builtin DNZero) = True
+gradeIsZero _ = False
 
 gradeEq :: Grade -> Grade -> CM Bool
 gradeEq r1 r2 = do
@@ -478,15 +488,19 @@ instance Semigroup OutContext where
 
      hasVar v m = foldr (\(v', _) r -> v' == v || r) False m
 
-zeroGrade, oneGrade :: Expr
-zeroGrade = Builtin DNZero
-oneGrade  = App (Builtin DNSucc) zeroGrade
 
 allZeroes :: Ctxt Grade -> CM Bool
-allZeroes ctxt = mapM (normalise . snd) ctxt >>= (return . all (== zeroGrade))
+allZeroes ctxt = mapM normaliseAndCheck ctxt >>= (return . and)
+  where
+    normaliseAndCheck (id, grade) = do
+      grade' <- normalise grade
+      if gradeIsZero grade'
+        then return True
+        else
+          gradeMismatchAt "Type judgment" SubjectType id gradeZero grade'
 
 zeroesMatchingShape :: Ctxt a -> Ctxt Grade
-zeroesMatchingShape = map (\(id, _) -> (id, zeroGrade))
+zeroesMatchingShape = map (\(id, _) -> (id, gradeZero))
 
 -- Auxiliary function that exmaines an output context to check it
 -- has 0 subject type use and that its type is of the form `Type l`
@@ -638,10 +652,10 @@ inferExpr (Var x) ctxt = do
             Just _ ->
               -- Success
               return $ (OutContext
-                        { subjectGradesOut = extend (zeroesMatchingShape (types ctxtL)) x oneGrade
+                        { subjectGradesOut = extend (zeroesMatchingShape (types ctxtL)) x gradeOne
                                             <> (zeroesMatchingShape (types ctxtR))
 
-                        , typeGradesOut    = extend sigma x zeroGrade
+                        , typeGradesOut    = extend sigma x gradeZero
                                             <> (zeroesMatchingShape (types ctxtR)) }, ty)
 
             _ -> tyMismatchAt "var" (App universeType Hole) typeType
