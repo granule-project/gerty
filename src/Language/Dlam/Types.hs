@@ -692,17 +692,17 @@ inferExpr (FunTy pi) ctxt = do
       case hasLevel' of
         Just l2 -> do
 
-          let (sigma2, (_, r)) = unextend (subjectGradesOut ctxtB)
+          let (sigma2, (_, rInferred)) = unextend (subjectGradesOut ctxtB)
 
           -- (ii) Check binder grade specification matches usage `r`
-          eq <- gradeEq r (subjectTypeGrade pi)
+          eq <- gradeEq rInferred (subjectTypeGrade pi)
           if eq
             then return (OutContext { subjectGradesOut = contextGradeAdd sigma1 sigma2
                                     , typeGradesOut = zeroesMatchingShape (types ctxt) }
                         , App (Builtin TypeTy) (lmaxApp l1 l2))
-            else error $ "Binder grade " <> pprintShow (subjectGrade pi) <> " does not match actual grade " <> pprintShow r
-        _ -> error "Expecting a Type on LHS of -o"
-    _ -> error "Expecting a Type on RHS of -o"
+            else error $ "Function type binder subject grade `" <> pprintShow (subjectTypeGrade pi) <> "` does not match actual grade `" <> show rInferred <> "`"
+        _ -> error $ "Expecting a Type on LHS of -o but is " <> pprintShow typeB
+    _ -> error $ "Expecting a Type on RHS of -o but is " <> pprintShow typeA
 
 {-
 
