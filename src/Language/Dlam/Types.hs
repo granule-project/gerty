@@ -394,7 +394,7 @@ contextGradeMult r sigma =
 contextGradeEq :: Ctxt Grade -> Ctxt Grade -> CM (Either (Name, (Grade, Grade)) ())
 contextGradeEq [] [] = return $ Right ()
 
-contextGradeEq ((id, g1):ctxt) ((id', g2):ctxt') | id == id' = do
+contextGradeEq ((id, g1):ctxt) ((id', g2):ctxt') | ident id == ident id' = do
   eq <- gradeEq g1 g2
   if eq
     then contextGradeEq ctxt ctxt'

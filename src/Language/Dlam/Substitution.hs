@@ -55,7 +55,7 @@ instance {-# OVERLAPPABLE #-} (Monad m, Substitutable m n e, Foldable t) => Subs
 
 instance {-# OVERLAPS #-} Substitutable CM (Name, Expr) Expr where
   substitute (v, e) (Var x)
-    | v == x    = pure e
+    | ident v == ident x    = pure e
     | otherwise = pure (Var x)
   substitute _ (Def n) = pure (Def n)
   substitute s (FunTy abs) = FunTy <$> substAbs s abs
