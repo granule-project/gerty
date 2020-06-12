@@ -718,10 +718,10 @@ inferExpr e@(App t1 t2) ctxt = do
   -- Need to infer types for `funTy` to see how the context
   -- is used to form `A` and `B`
   case funTy of
-    -- (x :(r, s) A -o B)
+    -- (x :(s, r) A -o B)
     (FunTy pi) -> do
-      let r   = subjectGrade pi
-      let s   = subjectTypeGrade pi
+      let r   = subjectTypeGrade pi
+      let s   = subjectGrade pi
       let tyA = absTy pi
       let tyB = absExpr pi
 
@@ -752,7 +752,7 @@ inferExpr e@(App t1 t2) ctxt = do
             Nothing ->
               tyMismatchAt "kind of function app return" (App universeType Hole) typeOfB
             Just _ -> do
-              let (sigma3, (_, rInferred)) = unextend (subjectGradesOut outCtxtB)
+              let (sigma3, (_, rInferred)) = unextend (typeGradesOut outCtxtB)
 
               eq <- gradeEq rInferred r
               if eq then do
