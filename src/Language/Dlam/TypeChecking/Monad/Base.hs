@@ -414,7 +414,7 @@ instance Show TCError where
   show (NotImplemented e) = e
   show CannotSynthTypeForExpr = "I couldn't synthesise a type for the expression."
   show (CannotSynthExprForType t) =
-    "I was asked to try and synthesise a term of type '" <> pprintShow t <> "' but I wasn't able to do so."
+    "I was asked to try and synthesise a term of type '" <> pprintShow t <> "' (internal rep: " <> show t <> ") but I wasn't able to do so."
   show (TypeMismatch tyExpected tyActual) =
     "Expected type '" <> pprintShow tyExpected <> "' but got '" <> pprintShow tyActual <> "'"
   show (GradeMismatch stage var tyExpected tyActual) =
@@ -519,7 +519,7 @@ throwCMat msg e = do
 instance Show TCErr where
   show e = "The following error occurred when " <> phaseMsg
       <> (maybe "" (\msg -> " (at " <> msg <> ") ") (localeMessage e))
-      <> (maybe ": " (\expr -> " '" <> pprintShow expr <> "': ") (tcErrExpr e)) <> show (tcErrErr e)
+      <> (maybe ":\n " (\expr -> " '" <> pprintShow expr <> "':\n ") (tcErrExpr e)) <> show (tcErrErr e)
     where phaseMsg = case errPhase e of
                        PhaseParsing -> "parsing"
                        PhaseScoping -> "scope checking"

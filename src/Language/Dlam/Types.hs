@@ -412,18 +412,6 @@ unextend (x : xs) = (x : xs', end)
   where
     (xs', end) = unextend xs
 
-{-
-data Context =
-  Context
-    {
-      types         :: Ctxt Type
-    , contextGrades :: Ctxt (Ctxt Grade)
-    , subjectGrades :: Ctxt Grade
-    , typeGrades    :: Ctxt Grade
-    }
-    deriving Eq
--}
-
 emptyInContext :: InContext
 emptyInContext = InContext [] []
 
@@ -449,15 +437,6 @@ zeroedOutContextForInContext inCtx =
   OutContext { subjectGradesOut = zeroesMatchingShape (types inCtx)
              , typeGradesOut = zeroesMatchingShape (types inCtx) }
 
-
-{- lookupAllInfo :: Name -> Context -> Maybe (Type, Ctxt Grade, Grade, Grade)
-lookupAllInfo n ctxt = do
-  ty    <- lookup n $ types ctxt
-  delta <- lookup n $ contextGrades ctxt
-  s     <- lookup n $ subjectGrades ctxt
-  r     <- lookup n $ typeGrades ctxt
-  return (ty, delta, s, r) -}
-
 lookupAndCutoutIn :: Name -> InContext -> Maybe (InContext, (Type, Ctxt Grade), InContext)
 lookupAndCutoutIn n context = do
   (typesL, t, typesR)         <- lookupAndCutout1 n (types context)
@@ -471,18 +450,6 @@ lookupAndCutout1 v ((v', x) : ctxt) | ident v == ident v' =
 lookupAndCutout1 v ((v', x) : ctxt) | otherwise = do
   (ctxtL, y, ctxtR) <- lookupAndCutout1 v ctxt
   Just (ctxtL ++ [(v', x)], y, ctxtR)
-
-{-
-lookupAndCutout :: Name -> Context -> Maybe (Context, (Type, Ctxt Grade, Grade, Grade), Context)
-lookupAndCutout n context = do
-  (typesL, t, typesR)         <- lookupAndCutout1 n (types context)
-  (cGradesL, delta, cGradesR) <- lookupAndCutout1 n (contextGrades context)
-  (subjGradesL, s, subjGradesR)     <- lookupAndCutout1 n (subjectGrades context)
-  (tyGradesL,   r, tyGradesR)        <- lookupAndCutout1 n (typeGrades context)
-  return $ (Context typesL cGradesL subjGradesL tyGradesL
-         , (t, delta, s, r)
-         , Context typesR cGradesR subjGradesR tyGradesR)
--}
 
 -- Monoid of disjoint contexts
 instance Monoid OutContext where
@@ -513,14 +480,6 @@ allZeroes ctxt = mapM (normalise . snd) ctxt >>= (return . all (== zeroGrade))
 zeroesMatchingShape :: Ctxt a -> Ctxt Grade
 zeroesMatchingShape = map (\(id, _) -> (id, zeroGrade))
 
-checkOrInferTypeNew :: Type -> Expr -> CM ()
-checkOrInferTypeNew ty expr = do
-  outContext <- checkExpr expr ty emptyInContext
-  if isEmpty outContext
-    then return ()
-    else error "Binders are left!"
-
-
 -- Auxiliary function that exmaines an output context to check it
 -- has 0 subject type use and that its type is of the form `Type l`
 exprIsTypeAndSubjectTypeGradesZero :: OutContext -> Type -> CM (Maybe Expr)
@@ -534,6 +493,20 @@ exprIsTypeAndSubjectTypeGradesZero ctxt ty = do
     _ ->
       return Nothing
 
+-- Helper
+universeType :: Expr
+universeType = Def $ mkIdent "Type"
+
+levelType :: Expr
+levelType = Def $ mkIdent "Level"
+
+-- Top level
+checkOrInferTypeNew :: Type -> Expr -> CM ()
+checkOrInferTypeNew ty expr = do
+  outContext <- checkExpr expr ty emptyInContext
+  if isEmpty outContext
+    then return ()
+    else error "Binders are left!"
 
 checkExpr :: Expr -> Type -> InContext -> CM OutContext
 
