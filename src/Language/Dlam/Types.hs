@@ -289,11 +289,10 @@ doDeclarationInference (TypeSig n t) = do
     checkExprValidForSignature expr = inferUniverseLevel expr >> pure ()
 
 doDeclarationInference (FunEqn (FLHSName v) (FRHSAssign e)) = do
-  debug "FUN EQN INFERENCE"
   -- try and get a prescribed type for the equation,
   -- treating it as an implicit if no type is given
-  t <- lookupType v
-  debug $ "Decl inference for " ++ show v ++ " has type sig " ++ show t
+  t <- debugBlock "FUN EQN INFERENCE" ("finding signature for " <> pprintShow v) (\t -> maybe "no sig found" (("found sig: "<>) . pprintShow) t)
+       (lookupType v)
   exprTy <- case t of
               Nothing -> do
                 _ <- checkOrInferType mkImplicit e
@@ -528,6 +527,10 @@ checkOrInferTypeNew ty expr = do
     else error "Binders are left!"
 
 checkExpr :: Expr -> Type -> InContext -> CM OutContext
+checkExpr e t c =
+  debugBlock "checkExpr"
+    ("checking expression '" <> pprintShow e <> "' against type '" <> pprintShow t <> "'")
+    (\_ -> "checked OK for '" <> pprintShow e <> "'") (checkExpr' e t c)
 
 {-
 
@@ -538,9 +541,8 @@ checkExpr :: Expr -> Type -> InContext -> CM OutContext
 
 -}
 
-checkExpr e@(Lam lam) t ctxt = do
-  debug $ "Check for " <> pprintShow e
-  --
+checkExpr' :: Expr -> Type -> InContext -> CM OutContext
+checkExpr' (Lam lam) t ctxt = do
   case t of
     -- (x : A) -> B
     FunTy pi -> do
@@ -580,7 +582,7 @@ checkExpr e@(Lam lam) t ctxt = do
     _ -> tyMismatchAt "abs" (FunTy (mkAbs (mkIdent "?") Hole Hole)) t
 
 -- Switch over to synth case
-checkExpr e t ctxt = do
+checkExpr' e t ctxt = do
   debug $ "Check fall through for " <> pprintShow e
   --
   (ctxt', t') <- inferExpr e ctxt
