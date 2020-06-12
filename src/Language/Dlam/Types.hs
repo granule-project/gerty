@@ -515,9 +515,6 @@ exprIsTypeAndSubjectTypeGradesZero ctxt ty = do
     _ ->
       return Nothing
 
--- Helper
-levelType :: Expr
-levelType = Def $ mkIdent "Level"
 
 -- Top level
 checkOrInferTypeNew :: Type -> Expr -> CM ()
@@ -612,7 +609,7 @@ inferExpr (Def (ident -> "Level")) ctxt = do
 inferExpr (Def (ident -> "Type")) ctxt = do
   debug $ "Infer for Type"
   pure (zeroedOutContextForInContext ctxt,
-         FunTy (mkAbsGr (mkIdent "la") levelType gradeZero gradeOne
+         FunTy (mkAbsGr (mkIdent "la") levelTy' gradeZero gradeOne
                      (mkUnivTy (App (Def $ mkIdent "lsuc") (Var $ mkIdent "la")))))
 
 inferExpr (Def n) ctxt = do
