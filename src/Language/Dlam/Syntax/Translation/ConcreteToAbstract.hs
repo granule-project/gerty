@@ -119,9 +119,10 @@ instance ToAbstract OldQName A.Expr where
     -- what we want to happen, as we are trying to look up an existing
     -- name)
     rn <- resolveNameCurrentScope n
-    -- TODO: support disambiguating definitions here (so we
-    -- return a Def) (2020-03-06)
-    pure $ A.Var (nameOf rn)
+    -- TODO: add support for resolving constructors (2020-06-12)
+    pure $ case rn of
+             ResolvedVar n -> A.Var n
+             _ -> A.Def (nameOf rn)
 
 
 instance ToAbstract C.PiBindings ([A.TypedBinding], Locals) where

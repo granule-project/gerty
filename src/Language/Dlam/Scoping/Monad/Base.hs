@@ -128,8 +128,10 @@ data ScopeInfo = ScopeInfo
 
 startScopeInfo :: ScopeInfo
 startScopeInfo = ScopeInfo
-  { scopeLocals = M.fromList (fmap (\b -> (nameConcrete (builtinName b), builtinName b)) builtins)
-  , scopeCurrent = Scope { scopeNameSpace = M.empty }
+  { scopeLocals = M.empty
+  , scopeCurrent =
+    -- TODO: ensure we separate defs from constructors (e.g., Type) here (2020-06-12)
+    Scope { scopeNameSpace = M.fromList (fmap (\bin -> (nameConcrete (builtinName bin), InScopeName { howBound = [ISDef] , isnName = builtinName bin })) builtins) }
   }
 
 

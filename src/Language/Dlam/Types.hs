@@ -630,11 +630,9 @@ inferExpr (Var x) ctxt = do
   debug $ "Infer for var " <> pprintShow x
   --
   case lookupAndCutoutIn x ctxt of
-    -- this means we've hit a builtin/def, so we check for that:
-    Nothing -> do
-      -- This represents a builtin constant
-      tA <- lookupType x >>= maybe (scoperError $ SE.unknownNameErr (C.Unqualified $ nameConcrete x)) pure
-      pure $ (zeroedOutContextForInContext ctxt, tA)
+    -- this should be prevented by the scope checker (encountering a
+    -- free variable that isn't in scope)
+    Nothing -> scoperError $ SE.unknownNameErr (C.Unqualified $ nameConcrete x)
     Just (ctxtL, (ty, sigma'), ctxtR) -> do
 
       -- Check that this type is indeed a Type

@@ -32,6 +32,7 @@ instance Free A.Expr where
   freeVars (A.NatCase (x, tC) cz (w, y, cs) _n) =
     (Set.delete x (freeVars tC)) `Set.union` (freeVars cz) `Set.union` (Set.delete w $ Set.delete y $ freeVars cs)
   freeVars (A.Var var)                     = Set.singleton var
+  freeVars (A.Def _)                       = Set.empty
   freeVars (A.Sig e _)                     = freeVars e
   freeVars (A.RewriteExpr (x, y, p, tC) (z, c) a b p') =
     (Set.delete x (Set.delete y (Set.delete p (freeVars tC)))) `Set.union` (Set.delete z (freeVars c)) `Set.union` (freeVars (a, (b, p')))

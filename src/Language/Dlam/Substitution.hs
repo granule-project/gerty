@@ -57,6 +57,7 @@ instance {-# OVERLAPS #-} Substitutable CM (Name, Expr) Expr where
   substitute (v, e) (Var x)
     | v == x    = pure e
     | otherwise = pure (Var x)
+  substitute _ (Def n) = pure (Def n)
   substitute s (FunTy abs) = FunTy <$> substAbs s abs
   substitute s (Lam   abs) = Lam   <$> substAbs s abs
   substitute s (ProductTy abs) = ProductTy <$> substAbs s abs

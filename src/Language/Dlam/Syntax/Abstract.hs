@@ -227,6 +227,9 @@ data Expr
   -- | Variable.
   = Var Name
 
+  -- | Name standing for a constant.
+  | Def Name
+
   -- | Level literals.
   | LitLevel Integer
 
@@ -499,6 +502,7 @@ instance Pretty Expr where
          , pprint b
          , pprint p'])
     pprint (Var var) = pprint var
+    pprint (Def name) = pprint name
     pprint (Sig e t) = pprintParened e <+> colon <+> pprint t
     pprint Hole = char '?'
     pprint Implicit{} = char '_'
