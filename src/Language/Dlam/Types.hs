@@ -434,6 +434,9 @@ data OutContext =
 }
  deriving (Eq, Show)
 
+debugContextGrades :: InContext -> String
+debugContextGrades ctxt =
+  show (map (\(id, x) -> (ident id, map (ident . fst) x)) (contextGradesIn ctxt))
 
 -- | A zeroed OutContext that matches the shape of the InContext, for
 -- | when typing constants.
@@ -606,7 +609,7 @@ inferExpr (Def (ident -> "Type")) ctxt = do
                      (App universeType (App (Def $ mkIdent "lsuc") (Var $ mkIdent "la")))))
 
 inferExpr (Var x) ctxt = do
-  debug $ "Infer for var " <> pprintShow x
+  debug $ "Infer for var " <> pprintShow x <> " in context " <> debugContextGrades ctxt
   --
   case lookupAndCutoutIn x ctxt of
     -- this should be prevented by the scope checker (encountering a
@@ -615,26 +618,33 @@ inferExpr (Var x) ctxt = do
     Just (ctxtL, (ty, sigma'), ctxtR) -> do
 
       -- Check that this type is indeed a Type
+      debug $ "Infer for var (type) " <> debugContextGrades ctxtL
       (outCtxt, typeType) <- inferExpr ty ctxtL
 
       -- Two checks:
       --  (i) Context grades for `x` match what was calculated in typing
       let sigma = subjectGradesOut outCtxt
-      _eq <- contextGradeEq sigma' sigma
+      debug $ "Context grade eq var " <> pprintShow x <> " with " <> show sigma' <> " and " <> show sigma
+      eq <- contextGradeEq sigma' sigma
 
-      --  (ii) Subject type grades are all zero and inferred type is `Type l`
-      hasLevel <- exprIsTypeAndSubjectTypeGradesZero outCtxt typeType
-      case hasLevel of
-        Just _ ->
-          -- Success
-          return $ (OutContext
-                     { subjectGradesOut = extend (zeroesMatchingShape (types ctxtL)) x oneGrade
-                                        <> (zeroesMatchingShape (types ctxtR))
+      case eq of
+        Left (mismatchVar, (expected, actual)) ->
+          gradeMismatchAt "var" Context mismatchVar expected actual
+        Right () -> do
 
-                     , typeGradesOut    = extend sigma x zeroGrade
-                                        <> (zeroesMatchingShape (types ctxtR)) }, ty)
+          --  (ii) Subject type grades are all zero and inferred type is `Type l`
+          hasLevel <- exprIsTypeAndSubjectTypeGradesZero outCtxt typeType
+          case hasLevel of
+            Just _ ->
+              -- Success
+              return $ (OutContext
+                        { subjectGradesOut = extend (zeroesMatchingShape (types ctxtL)) x oneGrade
+                                            <> (zeroesMatchingShape (types ctxtR))
 
-        _ -> tyMismatchAt "var" (App universeType Hole) typeType
+                        , typeGradesOut    = extend sigma x zeroGrade
+                                            <> (zeroesMatchingShape (types ctxtR)) }, ty)
+
+            _ -> tyMismatchAt "var" (App universeType Hole) typeType
 
 {-
 
@@ -650,6 +660,7 @@ inferExpr (Var x) ctxt = do
 inferExpr (FunTy pi) ctxt = do
   debug $ "Infer for pi type " <> pprintShow (FunTy pi)
   -- Infer type of parameter A
+  debug $ "Infer for pi type (infer for param type)"
   (ctxtA, typeA) <- inferExpr (absTy pi) ctxt
 
   --  (i) Subject type grades are all zero inferred type is `Type l1`
@@ -660,6 +671,7 @@ inferExpr (FunTy pi) ctxt = do
       let sigma1 = subjectGradesOut ctxtA
 
       -- Infer type of function type body B
+      debug $ "Infer for pi type (infer for body type)"
       (ctxtB, typeB) <- inferExpr (absExpr pi)
                  (InContext { types = extend (types ctxt) (absVar pi) (absTy pi)
                             , contextGradesIn = extend (contextGradesIn ctxt) (absVar pi) sigma1 })
@@ -744,11 +756,13 @@ inferExpr e@(App t1 t2) ctxt = do
 
               eq <- gradeEq rInferred r
               if eq then do
+                debug "Context grade eq app 1"
                 eq' <- contextGradeEq (contextGradeAdd sigma1 sigma3) (typeGradesOut outCtxtFun)
                 case eq' of
                   Right() -> do
                     -- Check argument `t2` and its usage
                     outCtxtArg <- checkExpr t2 tyA ctxt
+                    debug "Context grade eq app 2"
                     eq2 <- contextGradeEq sigma1 (typeGradesOut outCtxtArg)
 
                     case eq2 of
