@@ -354,38 +354,6 @@ getAbsFromProductTy t =
 ----------------------------------------------------------------------------
 -- Dominic work here on a bidirectional additive-grading algorithm
 
--- Smart constructors for grades
-gradeZero, gradeOne :: Grade
---gradeZero = Builtin DNZero
---gradeOne  = App (Builtin DNSucc) gradeZero
-gradeZero = Def (mkIdent "zero")
-gradeOne = App (Def (mkIdent "succ")) gradeZero
-
-gradeAdd :: Grade -> Grade -> Grade
-gradeAdd x y | gradeIsZero x = y
-gradeAdd (App (Def (ident -> "succ")) x) y =
-  App (Def (mkIdent "succ")) (gradeAdd x y)
---gradeAdd (App (Builtin DNSucc) x) y =
---  App (Builtin DNSucc) (gradeAdd x y)
--- Cannot apply induction
-gradeAdd x y =
- App (App (Def (mkIdent "+r")) x) y
-
-gradeMult :: Grade -> Grade -> Grade
-gradeMult x _ | gradeIsZero x = gradeZero
-gradeMult (App (Def (ident -> "succ")) x) y =
-  gradeAdd y (gradeMult x y)
--- gradeMult (App (Builtin DNSucc) x) y =
---   gradeAdd y (gradeMult x y)
--- Cannot apply induction
-gradeMult x y =
- App (App (Def (mkIdent "*r")) x) y
-
-gradeIsZero :: Grade -> Bool
-gradeIsZero (Def (ident -> "zero")) = True
-gradeIsZero (Builtin DNZero) = True
-gradeIsZero _ = False
-
 gradeEq :: Grade -> Grade -> CM Bool
 gradeEq r1 r2 = do
   r1' <- normalise r1
