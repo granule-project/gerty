@@ -392,7 +392,7 @@ gradeEq r1 r2 = do
 
 contextGradeAdd :: Ctxt Grade -> Ctxt Grade -> Ctxt Grade
 contextGradeAdd sigma1 sigma2 =
-  if map fst sigma1 == map fst sigma2
+  if and (zipWith (\(id, _) (id', _) -> ident id == ident id') sigma1 sigma2)
     then zipWith (\(id, g1) (_id', g2) -> (id, gradeAdd g1 g2)) sigma1 sigma2
     else error "Internal error: context graded add on contexts of different shape"
 
