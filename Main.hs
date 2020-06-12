@@ -63,4 +63,6 @@ main = do
           printLog (verbosity opts) (tcrLog res)
           case tcrRes res of
             Left err -> putStrLn (formatError err) >> exitFailure
-            Right _ -> exitSuccess
+            Right _ -> do
+              putStrLn $ "\x1b[32m" ++ "Well typed." ++ "\x1b[0m"
+              exitSuccess
