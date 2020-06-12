@@ -803,8 +803,8 @@ inferExpr (Def n) ctxt = do
   tA <- lookupType n >>= maybe (scoperError $ SE.unknownNameErr (C.Unqualified $ nameConcrete n)) pure
   pure (zeroedOutContextForInContext ctxt, tA)
 
-inferExpr e _ =
-  cannotSynthExprForType e
+inferExpr _ _ = do
+  cannotSynthTypeForExpr
 
 -----------------------------------------------
 -- OLD STUFF FROM HERE
