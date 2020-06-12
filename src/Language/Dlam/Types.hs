@@ -60,6 +60,11 @@ finalNormalForm = pure
 -- | Normalise the expression via a series of reductions.
 normalise :: Expr -> CM Expr
 normalise Implicit = finalNormalForm Implicit
+normalise (Def x) = do
+  val <- lookupValue x
+  case val of
+    Nothing -> finalNormalForm $ Def x
+    Just e -> normalise e
 normalise (Var x) = do
   val <- lookupValue x
   case val of
@@ -359,7 +364,7 @@ gradeAdd (App (Builtin DNSucc) x) y =
   App (Builtin DNSucc) (gradeAdd x y)
 -- Cannot apply induction
 gradeAdd x y =
- App (App (Var (mkIdent "+r")) x) y
+ App (App (Def (mkIdent "+r")) x) y
 
 gradeMult :: Grade -> Grade -> Grade
 gradeMult x _ | x == gradeZero = gradeZero
@@ -367,7 +372,7 @@ gradeMult (App (Builtin DNSucc) x) y =
   gradeAdd y (gradeMult x y)
 -- Cannot apply induction
 gradeMult x y =
- App (App (Var (mkIdent "*r")) x) y
+ App (App (Def (mkIdent "*r")) x) y
 
 gradeEq :: Grade -> Grade -> CM Bool
 gradeEq r1 r2 = do
@@ -488,7 +493,7 @@ exprIsTypeAndSubjectTypeGradesZero ctxt ty = do
   case ty of
     (App (Builtin TypeTy) l) | isZeroed ->
       return (Just l)
-    (App (Var (ident -> "Type")) l) | isZeroed ->
+    (App (Def (ident -> "Type")) l) | isZeroed ->
       return (Just l)
     _ ->
       return Nothing
@@ -560,7 +565,7 @@ checkExpr e@(Lam lam) t ctxt = do
                 else if not m
                        then gradeMismatchAt "pi binder" SubjectType (absVar pi) (subjectTypeGrade pi) r
                        else error "Cannot happen"
-        _ -> tyMismatchAt "abs" (App (Builtin TypeTy) Hole) paramTy
+        _ -> tyMismatchAt "abs" (App universeType Hole) paramTy
 
     _ -> tyMismatchAt "abs" (FunTy (mkAbs (mkIdent "?") Hole Hole)) t
 
@@ -588,17 +593,17 @@ Declarative:
 
 inferExpr (LitLevel i) ctxt = do
   debug $ "Infer for a literal level " <> show i
-  pure (zeroedOutContextForInContext ctxt, Builtin LevelTy)
+  pure (zeroedOutContextForInContext ctxt, Def $ mkIdent "Level")
 
-inferExpr (Builtin LevelTy) ctxt = do
+inferExpr (Def (ident -> "Level")) ctxt = do
   debug "Infer for Level"
-  pure (zeroedOutContextForInContext ctxt, App (Builtin TypeTy) (LitLevel 0))
+  pure (zeroedOutContextForInContext ctxt, App universeType (LitLevel 0))
 
-inferExpr (Builtin TypeTy) ctxt = do
+inferExpr (Def (ident -> "Type")) ctxt = do
   debug $ "Infer for Type"
   pure (zeroedOutContextForInContext ctxt,
-         FunTy (mkAbsGr (mkIdent "la") (Builtin LevelTy) gradeZero gradeOne
-                     (App (Builtin TypeTy) (App (Builtin LSuc) (Var $ mkIdent "la")))))
+         FunTy (mkAbsGr (mkIdent "la") levelType gradeZero gradeOne
+                     (App universeType (App (Def $ mkIdent "lsuc") (Var $ mkIdent "la")))))
 
 inferExpr (Var x) ctxt = do
   debug $ "Infer for var " <> pprintShow x
@@ -629,7 +634,7 @@ inferExpr (Var x) ctxt = do
                      , typeGradesOut    = extend sigma x zeroGrade
                                         <> (zeroesMatchingShape (types ctxtR)) }, ty)
 
-        _ -> tyMismatchAt "var" (App (Builtin TypeTy) Hole) typeType
+        _ -> tyMismatchAt "var" (App universeType Hole) typeType
 
 {-
 
@@ -671,11 +676,11 @@ inferExpr (FunTy pi) ctxt = do
           if eq
             then return (OutContext { subjectGradesOut = contextGradeAdd sigma1 sigma2
                                     , typeGradesOut = zeroesMatchingShape (types ctxt) }
-                        , App (Builtin TypeTy) (lmaxApp l1 l2))
+                        , App universeType (lmaxApp l1 l2))
   -- Errors
             else gradeMismatchAt "pi type binder" Subject (absVar pi) (subjectTypeGrade pi) rInferred
-        _ -> tyMismatchAt "LHS of -o" (App (Builtin TypeTy) Hole) typeB
-    _ -> tyMismatchAt "RHS of -o" (App (Builtin TypeTy) Hole) typeA
+        _ -> tyMismatchAt "LHS of -o" (App universeType Hole) typeB
+    _ -> tyMismatchAt "RHS of -o" (App universeType Hole) typeA
 
 {-
 
@@ -683,13 +688,9 @@ inferExpr (FunTy pi) ctxt = do
 
 -- Specialised inference for `Type l` style things
 -- because this cannot be treated as really an application
-inferExpr e@(App (Builtin TypeTy) (LitLevel l)) ctxt = do
-  debug $ "Infer for `" <> pprintShow e <> "` level literal"
-  pure (zeroedOutContextForInContext ctxt, (App (Builtin TypeTy) (LitLevel (l + 1))))
-
-inferExpr e@(App (Var (ident -> "Type")) (LitLevel l)) ctxt = do
+inferExpr e@(App (Def (ident -> "Type")) (LitLevel l)) ctxt = do
   debug $ "Infer for `" <> pprintShow e <> "` level literal (var form)"
-  pure (zeroedOutContextForInContext ctxt, (App (Builtin TypeTy) (LitLevel (l + 1))))
+  pure (zeroedOutContextForInContext ctxt, (App universeType (LitLevel (l + 1))))
 
 ----
 
@@ -720,7 +721,7 @@ inferExpr e@(App t1 t2) ctxt = do
       hasLevel <- exprIsTypeAndSubjectTypeGradesZero outCtxtA typeOfA
       case hasLevel of
         Nothing ->
-          tyMismatchAt "kind of function arg" (App (Builtin TypeTy) Hole) typeOfA
+          tyMismatchAt "kind of function arg" (App universeType Hole) typeOfA
         Just _ -> do
           let sigma1 = subjectGradesOut outCtxtA
 
@@ -737,7 +738,7 @@ inferExpr e@(App t1 t2) ctxt = do
           hasLevel' <- exprIsTypeAndSubjectTypeGradesZero outCtxtB typeOfB
           case hasLevel' of
             Nothing ->
-              tyMismatchAt "kind of function app return" (App (Builtin TypeTy) Hole) typeOfB
+              tyMismatchAt "kind of function app return" (App universeType Hole) typeOfB
             Just _ -> do
               let (sigma3, (_, rInferred)) = unextend (subjectGradesOut outCtxtB)
 
@@ -773,6 +774,9 @@ inferExpr e@(App t1 t2) ctxt = do
 
 inferExpr e _ =
   cannotSynthExprForType e
+
+-----------------------------------------------
+-- OLD STUFF FROM HERE
 
 -- | 'checkOrInferType ty ex' checks that the type of 'ex' matches 'ty', or infers
 -- | it 'ty' is a wild. Evaluates to the calculated type.
