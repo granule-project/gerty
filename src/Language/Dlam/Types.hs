@@ -602,16 +602,6 @@ inferExpr (LitLevel i) ctxt = do
   debug $ "Infer for a literal level " <> show i
   pure (zeroedOutContextForInContext ctxt, Def $ mkIdent "Level")
 
-inferExpr (Def (ident -> "Level")) ctxt = do
-  debug "Infer for Level"
-  pure (zeroedOutContextForInContext ctxt, mkUnivTy (LitLevel 0))
-
-inferExpr (Def (ident -> "Type")) ctxt = do
-  debug $ "Infer for Type"
-  pure (zeroedOutContextForInContext ctxt,
-         FunTy (mkAbsGr (mkIdent "la") levelTy' gradeZero gradeOne
-                     (mkUnivTy (App (Def $ mkIdent "lsuc") (Var $ mkIdent "la")))))
-
 inferExpr (Def n) ctxt = do
   tA <- lookupType n >>= maybe (scoperError $ SE.unknownNameErr (C.Unqualified $ nameConcrete n)) pure
   pure (zeroedOutContextForInContext ctxt, tA)
