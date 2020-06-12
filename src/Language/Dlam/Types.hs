@@ -567,21 +567,17 @@ checkExpr e@(Lam lam) t ctxt = do
           let (sigma2, (_, s)) = unextend (subjectGradesOut outctxtBody)
           let (sigma3, (_, r)) = unextend (typeGradesOut outctxtBody)
           eq1 <- gradeEq s (subjectGrade pi)
-          eq2 <- gradeEq r (subjectTypeGrade pi)
-          case (eq1, eq2) of
-            (True, True) -> do
-              return $ OutContext {
-                         subjectGradesOut = sigma2
-                       , typeGradesOut    = contextGradeAdd sigma1 sigma3
-              }
+          if eq1
+            then do
+              eq2 <- gradeEq r (subjectTypeGrade pi)
+              if eq2
+                then return $ OutContext {
+                               subjectGradesOut = sigma2
+                             , typeGradesOut    = contextGradeAdd sigma1 sigma3
+                              }
+                else gradeMismatchAt "pi binder" SubjectType (absVar pi) (subjectTypeGrade pi) r
+            else gradeMismatchAt "pi binder" Subject (absVar pi) (subjectGrade pi) s
 
-            -- Error case
-            (n, m) ->
-              if not n
-                then gradeMismatchAt "pi binder" Subject (absVar pi) (subjectGrade pi) s
-                else if not m
-                       then gradeMismatchAt "pi binder" SubjectType (absVar pi) (subjectTypeGrade pi) r
-                       else error "Cannot happen"
         _ -> tyMismatchAt "abs" (App universeType Hole) paramTy
 
     _ -> tyMismatchAt "abs" (FunTy (mkAbs (mkIdent "?") Hole Hole)) t
