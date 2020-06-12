@@ -46,7 +46,7 @@ substAbs s ab = do
   t <- substitute s (absTy ab)
   CM.withTypedVariable v' t $ do
     e <- substitute (v, Var v') (absExpr ab) >>= substitute s
-    pure $ mkAbs v' t e
+    pure $ mkAbsGr v' t (subjectGrade ab) (subjectTypeGrade ab) e
 
 
 instance {-# OVERLAPPABLE #-} (Monad m, Substitutable m n e, Foldable t) => Substitutable m (t n) e where
