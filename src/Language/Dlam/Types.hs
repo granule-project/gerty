@@ -17,9 +17,6 @@ import Language.Dlam.TypeChecking.Monad
 import Language.Dlam.Util.Pretty (pprintShow)
 import qualified Language.Dlam.Scoping.Monad as SE
 
-import Control.Monad (zipWithM)
-
-
 -------------------------
 ----- Normalisation -----
 -------------------------
@@ -388,15 +385,18 @@ contextGradeMult :: Grade -> Ctxt Grade -> Ctxt Grade
 contextGradeMult r sigma =
   map (\(id, g) -> (id, gradeMult r g)) sigma
 
-contextGradeEq :: Ctxt Grade -> Ctxt Grade -> CM Bool
-contextGradeEq sigma1 sigma2 =
-  if map fst sigma2 == map fst sigma2
-    then do
-      results <- zipWithM (\(_id, g1) (_id', g2) -> gradeEq g1 g2) sigma1 sigma2
-      return $ and results
-    else error "Internal error: context graded equality on contexts of different shape"
+-- First argument is usually the expected, and second is the actual
+contextGradeEq :: Ctxt Grade -> Ctxt Grade -> CM (Either (Name, (Grade, Grade)) ())
+contextGradeEq [] [] = return $ Right ()
 
+contextGradeEq ((id, g1):ctxt) ((id', g2):ctxt') | id == id' = do
+  eq <- gradeEq g1 g2
+  if eq
+    then contextGradeEq ctxt ctxt'
+    else return $ Left (id, (g1, g2))
 
+contextGradeEq _ _ =
+  error "Internal error: context graded equality on contexts of different shape"
 
 -- DAO: may want to make this an interface so we can try
 --      different implementations. For now its just specialised
@@ -582,17 +582,14 @@ checkExpr e@(Lam lam) t ctxt = do
 
             -- Error case
             (n, m) ->
-              error $ (if not n
-                      then "Expected subject use of `" <> (show $ subjectGrade pi)
-                            <>  "` but analysed use `" <> show s <> "`n"
-                      else "")
-                    <> (if not m
-                        then "Expected type use of `" <> (show $ subjectTypeGrade pi)
-                          <>  "` but analysed use `" <> show r <> "`"
-                        else "")
-        _ -> notImplemented "case of checkExpr on a lambda"
+              if not n
+                then gradeMismatchAt "pi binder" Subject (absVar pi) (subjectGrade pi) s
+                else if not m
+                       then gradeMismatchAt "pi binder" SubjectType (absVar pi) (subjectTypeGrade pi) r
+                       else error "Cannot happen"
+        _ -> tyMismatchAt "abs" (App (Builtin TypeTy) Hole) paramTy
 
-    _ -> error "Expecting a function type in [Abs]"
+    _ -> tyMismatchAt "abs" (FunTy (mkAbs (mkIdent "?") Hole Hole)) t
 
 -- Switch over to synth case
 checkExpr e t ctxt = do
@@ -602,7 +599,7 @@ checkExpr e t ctxt = do
   eq <- equalExprs t t'
   if eq
     then return ctxt'
-    else error $ "Type error: " ++ pprintShow t ++ " expected but got " ++ pprintShow t'
+    else tyMismatch t t'
 
 inferExpr :: Expr -> InContext -> CM (OutContext, Type)
 
@@ -659,7 +656,7 @@ inferExpr (Var x) ctxt = do
                      , typeGradesOut    = extend sigma x zeroGrade
                                         <> (zeroesMatchingShape (types ctxtR)) }, ty)
 
-        _ -> error "Expecting a Type in [Var]"
+        _ -> tyMismatchAt "var" (App (Builtin TypeTy) Hole) typeType
 
 {-
 
@@ -702,9 +699,10 @@ inferExpr (FunTy pi) ctxt = do
             then return (OutContext { subjectGradesOut = contextGradeAdd sigma1 sigma2
                                     , typeGradesOut = zeroesMatchingShape (types ctxt) }
                         , App (Builtin TypeTy) (lmaxApp l1 l2))
-            else error $ "Function type binder subject grade `" <> pprintShow (subjectTypeGrade pi) <> "` does not match actual grade `" <> show rInferred <> "`"
-        _ -> error $ "Expecting a Type on LHS of -o but is " <> pprintShow typeB
-    _ -> error $ "Expecting a Type on RHS of -o but is " <> pprintShow typeA
+  -- Errors
+            else gradeMismatchAt "pi type binder" Subject (absVar pi) (subjectTypeGrade pi) rInferred
+        _ -> tyMismatchAt "LHS of -o" (App (Builtin TypeTy) Hole) typeB
+    _ -> tyMismatchAt "RHS of -o" (App (Builtin TypeTy) Hole) typeA
 
 {-
 
@@ -748,7 +746,8 @@ inferExpr e@(App t1 t2) ctxt = do
 
       hasLevel <- exprIsTypeAndSubjectTypeGradesZero outCtxtA typeOfA
       case hasLevel of
-        Nothing -> error "Expecting type when kind checking argument of function application"
+        Nothing ->
+          tyMismatchAt "kind of function arg" (App (Builtin TypeTy) Hole) typeOfA
         Just _ -> do
           let sigma1 = subjectGradesOut outCtxtA
 
@@ -764,43 +763,43 @@ inferExpr e@(App t1 t2) ctxt = do
 
           hasLevel' <- exprIsTypeAndSubjectTypeGradesZero outCtxtB typeOfB
           case hasLevel' of
-            Nothing -> error $ "Expecting type when kind checking return of function application, but got " <> pprintShow typeOfB
+            Nothing ->
+              tyMismatchAt "kind of function app return" (App (Builtin TypeTy) Hole) typeOfB
             Just _ -> do
               let (sigma3, (_, rInferred)) = unextend (subjectGradesOut outCtxtB)
 
               eq <- gradeEq rInferred r
               if eq then do
                 eq' <- contextGradeEq (contextGradeAdd sigma1 sigma3) (typeGradesOut outCtxtFun)
-                if eq' then do
-                  -- Check argument `t2` and its usage
-                  outCtxtArg <- checkExpr t2 tyA ctxt
-                  eq2 <- contextGradeEq sigma1 (typeGradesOut outCtxtArg)
+                case eq' of
+                  Right() -> do
+                    -- Check argument `t2` and its usage
+                    outCtxtArg <- checkExpr t2 tyA ctxt
+                    eq2 <- contextGradeEq sigma1 (typeGradesOut outCtxtArg)
 
-                  if eq2 then do
-                    let sigma4 = subjectGradesOut outCtxtB
-                    tyB' <- substitute (absVar pi, tyA) tyB
+                    case eq2 of
+                      Right() -> do
+                        let sigma4 = subjectGradesOut outCtxtB
+                        tyB' <- substitute (absVar pi, tyA) tyB
 
-                    return (OutContext
-                       { subjectGradesOut =
-                            contextGradeAdd sigma2 (contextGradeMult s sigma4)
-                       , typeGradesOut =
-                            contextGradeAdd sigma3 (contextGradeMult r sigma4)
-                        }
-                       , tyB')
-                  else
-                    error $ "Usage in the type of argument does not match its type formation usage"
-                else
-                   error $ "Useage in the type of a function does not match its type formation usage"
+                        return (OutContext
+                          { subjectGradesOut =
+                                contextGradeAdd sigma2 (contextGradeMult s sigma4)
+                          , typeGradesOut =
+                                contextGradeAdd sigma3 (contextGradeMult r sigma4)
+                            }
+                          , tyB')
+                      Left (mismatchVar, (expected, actual)) ->
+                        gradeMismatchAt "application argument" Context mismatchVar expected actual
+                  Left (mismatchVar, (expected, actual)) ->
+                    gradeMismatchAt "application function" Context mismatchVar expected actual
               else
-                error $ "Expected " <> pprintShow rInferred <> " type usage of "
-                    <> (pprintShow $ absVar pi)
-                    <> " but expected "
-                    <> (pprintShow r)
+                gradeMismatchAt "function type" SubjectType (absVar pi) r rInferred
 
-    _ -> error $ "Expecting function type on left of application but got " <> pprintShow funTy
+    _ -> tyMismatchAt "type of app left" (FunTy (mkAbs (mkIdent "?") Hole Hole)) funTy
 
-
-inferExpr e _ = error $ "Cannot infer the type for " ++ pprintShow e
+inferExpr e _ =
+  cannotSynthExprForType e
 
 -- | 'checkOrInferType ty ex' checks that the type of 'ex' matches 'ty', or infers
 -- | it 'ty' is a wild. Evaluates to the calculated type.

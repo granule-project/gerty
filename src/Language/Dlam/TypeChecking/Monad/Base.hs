@@ -33,6 +33,7 @@ module Language.Dlam.TypeChecking.Monad.Base
   , withValuedVariable
 
   -- ** Grading
+  , Stage(..)
   , withGradedVariable
   , lookupSubjectRemaining
   , decrementGrade
@@ -61,6 +62,7 @@ module Language.Dlam.TypeChecking.Monad.Base
 
   -- ** Type errors
   , tyMismatch
+  , tyMismatchAt
   , expectedInferredTypeForm
 
   -- ** Pattern errors
@@ -68,6 +70,7 @@ module Language.Dlam.TypeChecking.Monad.Base
 
   -- ** Grading errors
   , usedTooManyTimes
+  , gradeMismatchAt
 
   -- ** Parse errors
   , parseError
@@ -85,8 +88,7 @@ import qualified Language.Dlam.Scoping.Monad.Exception as SE
 import Language.Dlam.Syntax.Abstract
 import Language.Dlam.Syntax.Common (NameId)
 import Language.Dlam.Syntax.Parser.Monad (ParseError)
-import Language.Dlam.Util.Pretty (pprintShow)
-
+import Language.Dlam.Util.Pretty hiding ((<>))
 
 data CheckerState
   = CheckerState
@@ -266,6 +268,14 @@ withValuedVariable v t p = do
 -- Grading --
 -------------
 
+-- Different 'stages' when it comes to grading
+data Stage = Subject | SubjectType | Context
+
+instance Pretty Stage where
+  pprint Subject     = text "subject"
+  pprint SubjectType = text "type"
+  pprint Context     = text "context"
+
 
 lookupRemaining :: Name -> CM (Maybe Grading)
 lookupRemaining n = M.lookup n . provisionScope <$> get
@@ -389,6 +399,8 @@ data TCError
 
   | UsedTooManyTimes Name
 
+  | GradeMismatch Stage Name Expr Expr
+
   ------------------
   -- Parse Errors --
   ------------------
@@ -405,6 +417,8 @@ instance Show TCError where
     "I was asked to try and synthesise a term of type '" <> pprintShow t <> "' but I wasn't able to do so."
   show (TypeMismatch tyExpected tyActual) =
     "Expected type '" <> pprintShow tyExpected <> "' but got '" <> pprintShow tyActual <> "'"
+  show (GradeMismatch stage var tyExpected tyActual) =
+    "For '" <> pprintShow var <> "' expected " <> pprintShow stage <> " grade '" <> pprintShow tyExpected <> "' but got '" <> pprintShow tyActual <> "'"
   show (ExpectedInferredTypeForm descr t) =
     "I was expecting the expression to have a "
     <> descr <> " type, but instead I found its type to be '"
@@ -442,6 +456,15 @@ tyMismatch :: Expr -> Expr -> CM a
 tyMismatch tyExpected tyActual =
   throwCM (TypeMismatch tyExpected tyActual)
 
+-- | 'tyMismatch expr tyExpected tyActual' indicates that an expression
+-- | was found to have a type that differs from expected.
+tyMismatchAt :: String -> Expr -> Expr -> CM a
+tyMismatchAt locale tyExpected tyActual =
+  throwCMat locale (TypeMismatch tyExpected tyActual)
+
+gradeMismatchAt :: String -> Stage -> Name -> Expr -> Expr -> CM a
+gradeMismatchAt locale stage var grExpected grActual =
+  throwCMat locale (GradeMismatch stage var grExpected grActual)
 
 expectedInferredTypeForm :: String -> Expr -> CM a
 expectedInferredTypeForm descr t =
@@ -470,6 +493,8 @@ data TCErr = TCErr
   -- ^ The underlying error.
   , tcErrEnv :: TCEnv
   -- ^ Environment at point of the error.
+  , localeMessage :: Maybe String
+  -- ^ Additional message to localise where we are
   }
 
 
@@ -484,11 +509,17 @@ tcErrExpr = tceCurrentExpr . tcErrEnv
 throwCM :: TCError -> CM a
 throwCM e = do
   env <- ask
-  throwError $ TCErr { tcErrErr = e, tcErrEnv = env }
+  throwError $ TCErr { tcErrErr = e, tcErrEnv = env, localeMessage = Nothing }
 
+throwCMat :: String -> TCError -> CM a
+throwCMat msg e = do
+  env <- ask
+  throwError $ TCErr { tcErrErr = e, tcErrEnv = env, localeMessage = Just msg }
 
 instance Show TCErr where
-  show e = "The following error occurred when " <> phaseMsg <> (maybe ": " (\expr -> " '" <> pprintShow expr <> "': ") (tcErrExpr e)) <> show (tcErrErr e)
+  show e = "The following error occurred when " <> phaseMsg
+      <> (maybe "" (\msg -> " (at " <> msg <> ") ") (localeMessage e))
+      <> (maybe ": " (\expr -> " '" <> pprintShow expr <> "': ") (tcErrExpr e)) <> show (tcErrErr e)
     where phaseMsg = case errPhase e of
                        PhaseParsing -> "parsing"
                        PhaseScoping -> "scope checking"
