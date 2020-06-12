@@ -457,7 +457,7 @@ lookupAndCutout1 v ((v', x) : ctxt) | ident v == ident v' =
   Just (mempty, x, ctxt)
 lookupAndCutout1 v ((v', x) : ctxt) | otherwise = do
   (ctxtL, y, ctxtR) <- lookupAndCutout1 v ctxt
-  Just (ctxtL ++ [(v', x)], y, ctxtR)
+  Just ((v', x) : ctxtL, y, ctxtR)
 
 -- Monoid of disjoint contexts
 instance Monoid OutContext where
