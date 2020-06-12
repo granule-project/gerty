@@ -62,7 +62,9 @@ main = do
           let res = runNewChecker (Interpreter.runTypeChecker fname input)
           printLog (verbosity opts) (tcrLog res)
           case tcrRes res of
-            Left err -> putStrLn (formatError err) >> exitFailure
+            Left err -> do
+              putStrLn $ "\x1b[31m" ++ "Ill-typed." ++ "\x1b[0m"
+              putStrLn (formatError err) >> exitFailure
             Right _ -> do
               putStrLn $ "\x1b[32m" ++ "Well typed." ++ "\x1b[0m"
               exitSuccess
