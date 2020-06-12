@@ -706,6 +706,17 @@ inferExpr e@(App (Def (ident -> "Type")) (LitLevel l)) ctxt = do
 
 ----
 
+{-
+
+(D         | sigma1    | 0) . G        |- A : Type l1
+(D, sigma1 | sigma3, r | 0) . G, x : A |- B : Type l2
+(D | sigma2 | sigma1 + sigma3) . G |- t1 : (x :(s, r) A -o B)
+(D | sigma4 | sigma1)          . G |- t2 : A
+----------------------------------------------------------------------------- -o
+(D | sigma2 + s * sigma4 | sigma3 + r * sigma4) . G |- t1 t2 : [t2/x] B
+
+-}
+
 inferExpr e@(App t1 t2) ctxt = do
   debug $ "Infer for application " <> pprintShow e
 
@@ -752,11 +763,14 @@ inferExpr e@(App t1 t2) ctxt = do
             Nothing ->
               tyMismatchAt "kind of function app return" (App universeType Hole) typeOfB
             Just _ -> do
-              let (sigma3, (_, rInferred)) = unextend (typeGradesOut outCtxtB)
+              let (sigma3, (_, rInferred)) = unextend (subjectGradesOut outCtxtB)
 
               eq <- gradeEq rInferred r
               if eq then do
                 debug "Context grade eq app 1"
+                debug $ "sigma1 = " ++ show (map (\(id,t) -> (ident id, t)) sigma1)
+                debug $ "sigma3 = " ++ show (map (\(id,t) -> (ident id, t)) sigma3)
+                debug $ "type grades out cxtFun " ++ show ((map (\(id,t) -> (ident id, t)) $ typeGradesOut outCtxtFun))
                 eq' <- contextGradeEq (contextGradeAdd sigma1 sigma3) (typeGradesOut outCtxtFun)
                 case eq' of
                   Right() -> do
