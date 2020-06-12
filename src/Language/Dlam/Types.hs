@@ -618,6 +618,10 @@ inferExpr (Def (ident -> "Type")) ctxt = do
          FunTy (mkAbsGr (mkIdent "la") levelType gradeZero gradeOne
                      (App universeType (App (Def $ mkIdent "lsuc") (Var $ mkIdent "la")))))
 
+inferExpr (Def n) ctxt = do
+  tA <- lookupType n >>= maybe (scoperError $ SE.unknownNameErr (C.Unqualified $ nameConcrete n)) pure
+  pure (zeroedOutContextForInContext ctxt, tA)
+
 inferExpr (Var x) ctxt = do
   debug $ "Infer for var " <> pprintShow x <> " in context " <> debugContextGrades ctxt
   --
