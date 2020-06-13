@@ -73,6 +73,7 @@ import Language.Dlam.Util.Pretty
 
 type Type = Expr
 type Typed = C.Typed Expr
+type Grade = Either (C.Grade Expr) Expr
 type Grading = C.Grading Grade
 type Graded = C.Graded Grade
 type BoundName = C.BoundName Name
@@ -300,11 +301,6 @@ mkImplicit :: Expr
 mkImplicit = Implicit
 
 
--- | As we have dependent types, we should be able to treat grades
--- | as arbitrary expressions.
-type Grade = Expr
-
-
 ------------------
 -- Let bindings --
 ------------------
@@ -402,6 +398,11 @@ instance Pretty Pattern where
   pprint (PApp v args) = pprint v <+> (hsep $ fmap pprintParened args)
   pprint PUnit = char '*'
   pprint (PParens p) = parens $ pprint p
+
+
+instance Pretty Grade where
+  pprint (Left g) = pprint g
+  pprint (Right e) = pprint e
 
 
 instance Pretty Grading where

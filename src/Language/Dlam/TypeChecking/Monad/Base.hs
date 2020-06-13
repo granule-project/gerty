@@ -379,7 +379,7 @@ data TCError
 
   | UsedTooManyTimes Name
 
-  | GradeMismatch Stage Name Expr Expr
+  | GradeMismatch Stage Name Grade Grade
 
   ------------------
   -- Parse Errors --
@@ -442,7 +442,7 @@ tyMismatchAt :: String -> Expr -> Expr -> CM a
 tyMismatchAt locale tyExpected tyActual =
   throwCMat locale (TypeMismatch tyExpected tyActual)
 
-gradeMismatchAt :: String -> Stage -> Name -> Expr -> Expr -> CM a
+gradeMismatchAt :: String -> Stage -> Name -> Grade -> Grade -> CM a
 gradeMismatchAt locale stage var grExpected grActual =
   throwCMat locale (GradeMismatch stage var grExpected grActual)
 

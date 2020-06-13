@@ -73,9 +73,7 @@ import Language.Dlam.Util.Pretty
 ------------------------------
 
 
--- | As we have dependent types, we should be able to treat grades
--- | as arbitrary expressions.
-type Grade   = Expr
+type Grade = Com.Grade Expr
 type Grading = Com.Grading Grade
 type Graded = Com.Graded Grade
 type BoundName = Com.BoundName Name
@@ -101,7 +99,7 @@ subjectTypeGrade = Com.subjectTypeGrade
 
 
 implicitGrading :: Grading
-implicitGrading = mkGrading Implicit Implicit
+implicitGrading = mkGrading Com.GImplicit Com.GImplicit
 
 
 -- TODO: update this to support binding multiple names at once (see

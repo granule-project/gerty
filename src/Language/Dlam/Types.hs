@@ -10,6 +10,7 @@ import Language.Dlam.Substitution
   )
 import Language.Dlam.Syntax.Abstract
 import Language.Dlam.Syntax.Common
+import qualified Language.Dlam.Syntax.Common.Language as Com
 import qualified Language.Dlam.Syntax.Concrete as C
 import Language.Dlam.Syntax.Internal
 import Language.Dlam.TypeChecking.Monad
@@ -39,14 +40,14 @@ withAbsBindingForType ab act =
       stgrade = subjectTypeGrade g
   -- bind the subject-type grade to the subject grade since we are
   -- checking the remainder of the type (probably!?)
-  in withGradedVariable x (mkGrading stgrade Implicit) $ withTypedVariable x (absTy ab) act
+  in withGradedVariable x (mkGrading stgrade Com.GImplicit) $ withTypedVariable x (absTy ab) act
 
 
 -- | Normalise an abstraction via a series of reductions.
 normaliseAbs :: Abstraction -> CM Abstraction
 normaliseAbs ab = do
   t <- normalise (absTy ab)
-  g <- mkGrading <$> normalise (subjectGrade ab) <*> normalise (subjectTypeGrade ab)
+  g <- mkGrading <$> normaliseGrade (subjectGrade ab) <*> normaliseGrade (subjectTypeGrade ab)
   e <- withAbsBinding ab (normalise (absExpr ab))
   pure (mkAbs' (isHidden ab) (absVar ab) g t e)
 
@@ -253,8 +254,8 @@ getAbsFromProductTy t =
 
 gradeEq :: Grade -> Grade -> CM Bool
 gradeEq r1 r2 = do
-  r1' <- normalise r1
-  r2' <- normalise r2
+  r1' <- normaliseGrade r1
+  r2' <- normaliseGrade r2
   return (r1' == r2')
 
 contextGradeAdd :: Ctxt Grade -> Ctxt Grade -> Ctxt Grade
@@ -360,7 +361,7 @@ allZeroes :: Ctxt Grade -> CM Bool
 allZeroes ctxt = mapM normaliseAndCheck ctxt >>= (return . and)
   where
     normaliseAndCheck (id, grade) = do
-      grade' <- normalise grade
+      grade' <- normaliseGrade grade
       if gradeIsZero grade'
         then return True
         else
@@ -697,10 +698,10 @@ checkOrInferType' t (Var x) = do
          -- here is if it is a top-level definition, in which case we
          -- treat its usage as implicit
          -- TODO: assign implicit grades to top-level definitions (2020-03-12)
-         Nothing -> pure Implicit
+         Nothing -> pure Com.GImplicit
          Just kplus1 -> do
            -- just normalise for now, and assume it is well-typed (2020-03-11, GD)
-           kplus1 <- normalise kplus1
+           kplus1 <- normaliseGrade kplus1
            -- maybe (usedTooManyTimes x) pure =<< decrementGrade kplus1
            pure kplus1
 
@@ -1059,32 +1060,36 @@ levelMax l1 l2 = notImplemented $ "levelMax on '" <> pprintShow l1 <> "' and '" 
 gradeZero, gradeOne :: Grade
 --gradeZero = Builtin DNZero
 --gradeOne  = App (Builtin DNSucc) gradeZero
-gradeZero = Def (mkIdent "zero")
-gradeOne = App (Def (mkIdent "succ")) gradeZero
+gradeZero = Com.GZero
+gradeOne = Com.GOne
 
 
 gradeAdd :: Grade -> Grade -> Grade
-gradeAdd x y | gradeIsZero x = y
-gradeAdd (App (Def (ident -> "succ")) x) y =
-  App (Def (mkIdent "succ")) (gradeAdd x y)
---gradeAdd (App (Builtin DNSucc) x) y =
---  App (Builtin DNSucc) (gradeAdd x y)
--- Cannot apply induction
-gradeAdd x y =
- App (App (Def (mkIdent "+r")) x) y
+gradeAdd Com.GZero r = r
+gradeAdd s Com.GZero = s
+gradeAdd s r = Com.GPlus s r
 
 
+-- TODO: perhaps optimise more here (distribute addition/scaling?), or
+-- perhaps do this somewhere else in a simplification function
+-- (2020-06-13)
 gradeMult :: Grade -> Grade -> Grade
-gradeMult x _ | gradeIsZero x = gradeZero
-gradeMult (App (Def (ident -> "succ")) x) y =
-  gradeAdd y (gradeMult x y)
--- gradeMult (App (Builtin DNSucc) x) y =
---   gradeAdd y (gradeMult x y)
--- Cannot apply induction
-gradeMult x y =
- App (App (Def (mkIdent "*r")) x) y
+gradeMult Com.GZero _ = Com.GZero
+gradeMult Com.GOne  r = r
+gradeMult _ Com.GZero = Com.GZero
+gradeMult s Com.GOne  = s
+gradeMult s r = Com.GTimes s r
 
 
 gradeIsZero :: Grade -> Bool
-gradeIsZero (Def (ident -> "zero")) = True
+gradeIsZero Com.GZero = True
 gradeIsZero _ = False
+
+
+-- TODO: do normalisation according to whatever type the grade belongs
+-- to (2020-06-13)
+--
+-- TODO: perform some simplification here (distribute
+-- addition/scaling, perhaps?) (2020-06-13)
+normaliseGrade :: Grade -> CM Grade
+normaliseGrade = pure

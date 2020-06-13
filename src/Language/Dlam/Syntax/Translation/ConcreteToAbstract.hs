@@ -14,6 +14,7 @@ import Control.Monad.Except (throwError)
 import Language.Dlam.Substitution (fresh)
 import Language.Dlam.Syntax.Common
 import Language.Dlam.Syntax.Common.Language (typeOf)
+import qualified Language.Dlam.Syntax.Common.Language as Com
 import qualified Language.Dlam.Syntax.Abstract as A
 import qualified Language.Dlam.Syntax.Concrete as C
 import Language.Dlam.Scoping.Monad
@@ -157,6 +158,20 @@ instance ToAbstract C.LambdaArgs ([A.LambdaArg], Locals) where
 
 instance ToAbstract C.Grading A.Grading where
   toAbstract g = A.mkGrading <$> toAbstract (C.subjectGrade g) <*> toAbstract (C.subjectTypeGrade g)
+
+
+instance ToAbstract C.Grade A.Grade where
+  toAbstract (Left g) = toAbstract g
+  toAbstract (Right _) = throwError $ notImplemented "cannot yet compile arbitrary expressions to grades"
+
+
+instance ToAbstract (Com.Grade C.Expr) (Com.Grade A.Expr) where
+  toAbstract Com.GZero = pure Com.GZero
+  toAbstract Com.GOne = pure Com.GOne
+  toAbstract (Com.GPlus g1 g2) = Com.GPlus <$> toAbstract g1 <*> toAbstract g2
+  toAbstract (Com.GTimes g1 g2) = Com.GTimes <$> toAbstract g1 <*> toAbstract g2
+  toAbstract (Com.GLub g1 g2) = Com.GLub <$> toAbstract g1 <*> toAbstract g2
+  toAbstract Com.GImplicit = pure Com.GImplicit
 
 
 instance ToAbstract C.Expr A.Expr where

@@ -12,6 +12,7 @@ import Control.Monad.Trans.Class (lift)
 import Data.List.NonEmpty ((<|))
 
 import Language.Dlam.Syntax.Common
+import qualified Language.Dlam.Syntax.Common.Language as C
 import Language.Dlam.Syntax.Concrete
 import Language.Dlam.Syntax.Lexer
 import Language.Dlam.Syntax.Literal
@@ -202,7 +203,9 @@ TypeSig :: { (Name, Expr) }
 
 -- grades are just expressions
 Grade :: { Grade }
-  : Application { mkAppFromExprs $1 }
+  : '.' literal { Left  $ natTokenToUnaryNat $2 }
+  | Application { Right $ mkAppFromExprs $1 }
+
 
 
 MaybeBinderGrading :: { Maybe Grading }
@@ -293,7 +296,6 @@ Atom :: { ParseExpr }
   : '(' Expr ')'              { Parens $2 }
   | QId                       { Ident $1 }
   | '_'                       { mkImplicit }
-  | '.' literal               { natTokenToUnaryNat $2 }
   | Type                      { UniverseNoLevel }
   -- TODO: ensure we can only parse natural numbers here (2020-06-13)
   | Type literal              { Universe (natTokenToInt $2) }
@@ -392,10 +394,10 @@ parseProgram file = parseFromSrc defaultParseFlags [layout, normal] program (Jus
 natTokenToInt :: Literal -> Integer
 natTokenToInt (LitNat _ x) = x
 
-natTokenToUnaryNat :: Literal -> Expr
-natTokenToUnaryNat (LitNat s 0) = Ident (Unqualified (Name "zero"))
+natTokenToUnaryNat :: Literal -> C.Grade e
+natTokenToUnaryNat (LitNat s 0) = C.GZero
 natTokenToUnaryNat (LitNat s n) =
-  App (Ident (Unqualified (Name "succ"))) (natTokenToUnaryNat (LitNat s (n - 1)))
+  C.GPlus C.GOne (natTokenToUnaryNat (LitNat s (n - 1)))
 
 mkAppFromExprs :: [Expr] -> Expr
 mkAppFromExprs = foldl1 App

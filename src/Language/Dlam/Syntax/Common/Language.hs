@@ -18,6 +18,9 @@ module Language.Dlam.Syntax.Common.Language
   , gradedWith
   , mkGrading
 
+  -- * Grades
+  , Grade(..)
+
   -- * Binding
   , Binds(..)
   , BoundName
@@ -30,7 +33,7 @@ module Language.Dlam.Syntax.Common.Language
 import qualified Data.List.NonEmpty as NE
 
 import Language.Dlam.Util.Peekaboo
-import Language.Dlam.Util.Pretty (Pretty(..), (<+>), colon, hsep)
+import Language.Dlam.Util.Pretty (Pretty(..), (<+>), colon, hsep, text)
 
 
 ----------
@@ -134,6 +137,40 @@ instance IsGraded (Graded g a) g where
 
 instance (IsTyped a t) => IsTyped (Graded g a) t where
   typeOf = typeOf . un
+
+
+-----------
+-- * Grades
+-----------
+
+
+-- | We provide an algebra for grades (pre-ordered semiring).
+-- |
+-- | Anything that is a member of a pre-ordered semiring should be
+-- | able to compile to this.
+data Grade r
+  -- | 0.
+  = GZero
+  -- | 1.
+  | GOne
+  -- | s + r.
+  | GPlus (Grade r) (Grade r)
+  -- | s * r
+  | GTimes (Grade r) (Grade r)
+  -- | Least-upper bound.
+  | GLub (Grade r) (Grade r)
+  -- | Special grade when unspecified.
+  | GImplicit
+  deriving (Show, Eq, Ord)
+
+
+instance Pretty (Grade r) where
+  pprint GZero = text ".0"
+  pprint GOne  = text ".1"
+  pprint (GPlus g1 g2) = pprint g1 <+> text "+" <+> pprint g2
+  pprint (GTimes g1 g2) = pprint g1 <+> text "*" <+> pprint g2
+  pprint (GLub g1 g2) = pprint g1 <+> text "lub" <+> pprint g2
+  pprint GImplicit = text "._"
 
 
 ------------
