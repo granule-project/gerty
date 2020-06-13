@@ -54,7 +54,7 @@ instance {-# OVERLAPPABLE #-} (Monad m, Substitutable m n e, Foldable t) => Subs
 
 
 instance {-# OVERLAPS #-} Substitutable CM (Name, Level) Level where
-  substitute _ (LInfer i) = pure $ LInfer i
+  substitute _ LInfer = pure LInfer
   substitute _ (LitLevel i) = pure $ LitLevel i
   substitute (v, e) (LVar x)
     | ident v == ident x    = pure e

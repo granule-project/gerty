@@ -1315,9 +1315,7 @@ withActivePattern e intro act = do
 
 
 tyMismatchAtType :: String -> Type -> CM a
-tyMismatchAtType s t = do
-  NameId i <- getFreshNameId
-  tyMismatchAt s (mkUnivTy (LInfer $ toInteger i)) t
+tyMismatchAtType s t = tyMismatchAt s (mkUnivTy LInfer) t
 
 
 ------------------

@@ -161,9 +161,7 @@ instance ToAbstract C.Grading A.Grading where
 
 instance ToAbstract C.Expr A.Expr where
   toAbstract (C.Ident v) = toAbstract (OldQName v)
-  toAbstract C.UniverseNoLevel = do
-    NameId i <- fresh
-    pure $ A.Universe (A.LInfer $ toInteger i)
+  toAbstract C.UniverseNoLevel = pure $ A.Universe A.LInfer
   toAbstract (C.Universe l) = pure $ A.Universe (A.LitLevel l)
   toAbstract (C.LitLevel n) = pure $ A.LevelExpr (A.LitLevel n)
   toAbstract (C.Fun e1 e2) = do

@@ -226,8 +226,8 @@ mkAbs' isHid v g e1 e2 = Abst { absArg = mkArg isHid (BindName v `gradedWith` g 
 
 
 data Level
-  -- | Level to be inferred. The number is the unique identifier.
-  = LInfer Integer
+  -- | Level to be inferred.
+  = LInfer
   -- | Literal level (natural number).
   | LitLevel Integer
   -- | Level variable.
@@ -578,6 +578,6 @@ instance Pretty Grading where
 instance Pretty Level where
   isLexicallyAtomic _ = True
 
-  pprint (LInfer i) = text "?{" <> integer i <> text "}"
+  pprint LInfer = text "_"
   pprint (LitLevel i) = integer i
   pprint (LVar v) = pprint v
