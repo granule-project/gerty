@@ -77,7 +77,7 @@ normalise (FunTy ab) = finalNormalForm =<< FunTy <$> normaliseAbs ab
 normalise (Lam ab) = finalNormalForm =<< Lam <$> normaliseAbs ab
 normalise (ProductTy ab) = finalNormalForm =<< ProductTy <$> normaliseAbs ab
 -- VALUE: LitLevel
--- TODO: maybe add better normalisation for levels (e.g., vars and metas) (2020-06-13)
+-- TODO: maybe add better normalisation for levels (e.g., metas) (2020-06-13)
 normalise (LevelExpr l) = finalNormalForm $ LevelExpr l
 -- lzero ---> 0
 normalise (Builtin LZero) = finalNormalForm . LevelExpr $ LitLevel 0
@@ -146,7 +146,7 @@ normalise (Let (LetPatBound p e1) e2) = do
     -- TODO: perform the subject-type substitution only in the type (2020-03-04)
     Just (ssubst, tsubst) -> normalise =<< substitute tsubst =<< substitute ssubst e2
 normalise (Sig e t) = Sig <$> normalise e <*> normalise t
--- TODO: Improve normalisation for levels/universes (metas, variables?) (2020-06-13)
+-- TODO: Improve normalisation for levels/universes (metas?) (2020-06-13)
 normalise (Universe l) = finalNormalForm $ Universe l
 normalise e = notImplemented $ "normalise does not yet support '" <> pprintShow e <> "'"
 

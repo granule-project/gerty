@@ -231,8 +231,6 @@ data Level
   = LInfer
   -- | Literal level (natural number).
   | LitLevel Integer
-  -- | Level variable.
-  | LVar Name
   deriving (Show, Eq, Ord)
 
 
@@ -585,4 +583,3 @@ instance Pretty Level where
 
   pprint LInfer = text "_"
   pprint (LitLevel i) = integer i
-  pprint (LVar v) = pprint v

@@ -50,4 +50,3 @@ instance Free A.Expr where
 instance Free A.Level where
   freeVars A.LInfer{} = Set.empty
   freeVars A.LitLevel{} = Set.empty
-  freeVars (A.LVar v) = Set.singleton v
