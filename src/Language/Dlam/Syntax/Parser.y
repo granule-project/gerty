@@ -397,6 +397,7 @@ natTokenToInt (LitNat _ x) = x
 
 natTokenToUnaryNat :: Literal -> C.Grade e
 natTokenToUnaryNat (LitNat s 0) = C.GZero
+natTokenToUnaryNat (LitNat s 1) = C.GOne
 natTokenToUnaryNat (LitNat s n) =
   C.GPlus C.GOne (natTokenToUnaryNat (LitNat s (n - 1)))
 
