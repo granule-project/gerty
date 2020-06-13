@@ -313,7 +313,6 @@ Atom :: { ParseExpr }
   : '(' Expr ')'              { Parens $2 }
   | QId                       { Ident $1 }
   | '_'                       { mkImplicit }
-  | literal                   { LitLevel (natTokenToInt $1) }
   | '.' literal               { natTokenToUnaryNat $2 }
   | Type                      { UniverseNoLevel }
   | Type nat                  { Universe (snd $2) }

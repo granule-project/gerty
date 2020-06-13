@@ -84,9 +84,6 @@ instance {-# OVERLAPS #-} Substitutable CM (Name, Expr) Expr where
     cs' <- if v == y || v == w then pure cs else substitute s cs
     n'  <- substitute s n
     pure $ NatCase (x, tC') cz' (w, y, cs') n'
-  substitute (n, LevelExpr l1) (LevelExpr l2) = LevelExpr <$> substitute (n, l1) l2
-  substitute _ e@LevelExpr{} = pure e
-  substitute (n, LevelExpr l1) (Universe l2) = Universe <$> substitute (n, l1) l2
   substitute _ e@Universe{} = pure e
   substitute _ e@Hole{} = pure e
   substitute _ e@Implicit = pure e

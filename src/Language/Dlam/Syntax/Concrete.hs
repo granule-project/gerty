@@ -252,9 +252,6 @@ data Expr
   -- | Variable.
   = Ident QName
 
-  -- | Level literals.
-  | LitLevel Integer
-
   -- | Dependent function space.
   | Pi PiBindings Expr
 
@@ -370,7 +367,6 @@ instance (Pretty e) => Pretty (MaybeNamed e) where
 
 instance Pretty Expr where
     isLexicallyAtomic (Ident _)  = True
-    isLexicallyAtomic LitLevel{} = True
     isLexicallyAtomic Pair{}     = True
     isLexicallyAtomic Hole{}     = True
     isLexicallyAtomic Implicit{} = True
@@ -379,7 +375,6 @@ instance Pretty Expr where
     isLexicallyAtomic UniverseNoLevel = True
     isLexicallyAtomic _          = False
 
-    pprint (LitLevel n)           = integer n
     pprint UniverseNoLevel        = text "Type"
     pprint (Universe l)           = text "Type" <+> integer l
     pprint (Lam binders finE) =

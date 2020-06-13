@@ -21,13 +21,6 @@ module Language.Dlam.Builtins
   , builtinBody
   , builtinType
 
-  -- ** Levels
-  , levelTy
-  , lzero
-  , lsuc
-  , lsucApp
-  , lmax
-
   -- ** Type Universes
   , mkUnivTy
 
@@ -67,8 +60,7 @@ import Language.Dlam.Util.Pretty (pprintShow)
 -- | The list of builtins.
 builtins :: [Builtin]
 builtins =
-   [ levelTy, lzero, lsuc, lmax
-   , inlTerm, inrTerm
+   [ inlTerm, inrTerm
    , natTy, dnzero, dnsucc
    , unitTerm, unitTy
    , idTy, reflTerm
@@ -112,25 +104,18 @@ builtinType (MkBuiltin (_, _, t)) = t
 mkFunTy :: Name -> Expr -> Expr -> Expr
 mkFunTy n t e = FunTy $ mkAbs n t e
 
-typeZero, levelTy', natTy' :: Expr
+typeZero, natTy' :: Expr
 typeZero = mkUnivTy (LitLevel 0)
 
 mkApp :: Expr -> Expr -> Expr
 mkApp = App
 
-levelTy' = builtinBody levelTy
-
-levelTy, lzero, lsuc, lmax,
- inlTerm, inrTerm,
+inlTerm, inrTerm,
  unitTy, unitTerm,
  idTy, reflTerm,
  natTy, dnzero, dnsucc,
  emptyTy :: Builtin
 
-levelTy = mkBuiltin LevelTy typeZero
-lzero = mkBuiltin LZero levelTy'
-lsuc = mkBuiltin LSuc (mkFunTy ignoreVar levelTy' levelTy')
-lmax = mkBuiltin LMax (mkFunTy ignoreVar levelTy' (mkFunTy ignoreVar levelTy' levelTy'))
 inlTerm = mkBuiltin Inl inlTermTY
   where
     inlTermTY =
@@ -176,9 +161,6 @@ dnzero = mkBuiltin DNZero natTy'
 dnsucc = mkBuiltin DNSucc (mkFunTy ignoreVar natTy' natTy')
 emptyTy = mkBuiltin DEmptyTy typeZero
 
-
-lsucApp :: Expr -> Expr
-lsucApp = mkApp (builtinBody lsuc)
 
 mkUnivTy :: Level -> Expr
 mkUnivTy = Universe

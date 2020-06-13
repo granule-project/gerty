@@ -12,7 +12,6 @@ module Language.Dlam.Syntax.Abstract
     Expr(..)
   , pattern Inl'
   , pattern Inr'
-  , pattern LSuc'
   , pattern Succ'
   , pattern Zero'
   , Name(..)
@@ -241,9 +240,6 @@ data Expr
   -- | Name standing for a constant.
   | Def Name
 
-  -- | Levels.
-  | LevelExpr Level
-
   -- | Dependent function type.
   | FunTy Abstraction
 
@@ -297,10 +293,6 @@ pattern Inl' l1 l2 a b l = App (App (App (App (App (Builtin Inl) l1) l2) a) b) l
 
 pattern Inr' :: Expr -> Expr -> Expr -> Expr -> Expr -> Expr
 pattern Inr' l1 l2 a b r = App (App (App (App (App (Builtin Inr) l1) l2) a) b) r
-
-
-pattern LSuc' :: Expr -> Expr
-pattern LSuc' l = App (Builtin LSuc) l
 
 
 pattern Succ' :: Expr -> Expr
@@ -403,21 +395,9 @@ ident (Name _ (C.NoName _)) = "_"
 --------------------
 
 
-data BuiltinTerm =
-  -- | Level type.
-    LevelTy
-
-  -- | Level zero.
-  | LZero
-
-  -- | Level successor.
-  | LSuc
-
-  -- | Level maximum.
-  | LMax
-
+data BuiltinTerm
   -- | inl.
-  | Inl
+  = Inl
 
   -- | inr.
   | Inr
@@ -472,14 +452,12 @@ caset = text "case"
 
 instance Pretty Expr where
     isLexicallyAtomic (Var _) = True
-    isLexicallyAtomic (LevelExpr l) = isLexicallyAtomic l
     isLexicallyAtomic Builtin{}  = True
     isLexicallyAtomic Pair{}     = True
     isLexicallyAtomic Hole{}     = True
     isLexicallyAtomic Implicit{} = True
     isLexicallyAtomic _       = False
 
-    pprint (LevelExpr l)          = pprint l
     pprint (Universe l)           = text "Type" <+> pprint l
     pprint (Lam ab) = text "\\ " <> pprintAbs arrow ab
     pprint (FunTy ab) = pprintAbs arrow ab
@@ -542,10 +520,6 @@ instance Pretty BindName where
 
 instance Pretty BuiltinTerm where
   isLexicallyAtomic _ = True
-  pprint LZero     = text "lzero"
-  pprint LMax      = text "lmax"
-  pprint LSuc      = text "lsuc"
-  pprint LevelTy   = text "Level"
   pprint Inl       = text "inl"
   pprint Inr       = text "inr"
   pprint DNat      = text "Nat"

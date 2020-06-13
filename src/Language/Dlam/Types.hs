@@ -76,11 +76,6 @@ normalise (Var x) = do
 normalise (FunTy ab) = finalNormalForm =<< FunTy <$> normaliseAbs ab
 normalise (Lam ab) = finalNormalForm =<< Lam <$> normaliseAbs ab
 normalise (ProductTy ab) = finalNormalForm =<< ProductTy <$> normaliseAbs ab
--- VALUE: LitLevel
--- TODO: maybe add better normalisation for levels (e.g., metas) (2020-06-13)
-normalise (LevelExpr l) = finalNormalForm $ LevelExpr l
--- lzero ---> 0
-normalise (Builtin LZero) = finalNormalForm . LevelExpr $ LitLevel 0
 normalise (App e1 e2) = do
   e1' <- normalise e1
   e2' <- normalise e2
@@ -184,7 +179,6 @@ equalExprs e1 e2 = do
     (Implicit, _) -> pure True
     (_, Implicit) -> pure True
     (Builtin b1, Builtin b2) -> pure (b1 == b2)
-    (LevelExpr l1, LevelExpr l2) -> levelsAreEqual l1 l2
 
     (Let (LetPatBound p e1) e2, Let (LetPatBound p' e1') e2') -> do
       case maybeGetPatternUnificationSubst p p' of
@@ -212,12 +206,6 @@ equalExprs e1 e2 = do
           e2s <- substitute (absVar ab2, Var (absVar ab1)) (absExpr ab2)
           (&&) <$> equalExprs (absTy ab1) (absTy ab2)
                <*> withAbsBinding ab1 (equalExprs (absExpr ab1) e2s)
-
-
--- | Test whether two levels are equal.
-levelsAreEqual :: Level -> Level -> CM Bool
-levelsAreEqual (LitLevel n) (LitLevel m) = pure $ n == m
-levelsAreEqual l1 l2 = notImplemented $ "levelsAreEqual on levels '" <> pprintShow l1 <> "' and '" <> pprintShow l2 <> "'"
 
 
 -- | Try and register the name with the given type
@@ -530,10 +518,6 @@ Declarative:
 -}
 
 inferExpr' :: Expr -> InContext -> CM (OutContext, Type)
-inferExpr' (LevelExpr i) ctxt = do
-  debug $ "Infer for a literal level " <> show i
-  pure (zeroedOutContextForInContext ctxt, Def $ mkIdent "Level")
-
 inferExpr' (Var x) ctxt = do
   debug $ "Infer for var " <> pprintShow x <> " in context " <> debugContextGrades ctxt
   --
@@ -748,18 +732,6 @@ checkOrInferType' t (Builtin e) =
   -- matches the type defined for the builtin
   ensureEqualTypes t $
     case e of
-      -- lzero : Level
-      LZero -> builtinType lzero
-
-      -- lsuc : Level -> Level
-      LSuc  -> builtinType lsuc
-
-      -- Level : Type 0
-      LevelTy -> builtinType levelTy
-
-      -- lmax : Level -> Level -> Level
-      LMax -> builtinType lmax
-
       -- inl : (l1 l2 : Level) (a : Type l1) (b : Type l2) -> a -> a + b
       Inl -> builtinType inlTerm
 
@@ -789,10 +761,6 @@ checkOrInferType' t (Builtin e) =
 
       -- refl : (l : Level) (a : Type l) (x : a) -> Id l a x x
       DRefl -> builtinType reflTerm
-----------------------
--- Level expression --
-----------------------
-checkOrInferType' t LevelExpr{} = ensureEqualTypes t (builtinBody levelTy)
 -------------------------
 -- Variable expression --
 -------------------------
