@@ -52,7 +52,6 @@ import Language.Dlam.Util.Pretty (pprintShow)
     Type    { TokKeyword KwType $$ }
     VAR     { TokId $$ }
     literal { TokLiteral $$ }
-    nat     { TokNat $$ }
     absurd  { TokSymbol SymAbsurd $$ }
     '\\'    { TokSymbol SymLambda $$ }
     '->'    { TokSymbol SymArrow $$ }
@@ -315,7 +314,8 @@ Atom :: { ParseExpr }
   | '_'                       { mkImplicit }
   | '.' literal               { natTokenToUnaryNat $2 }
   | Type                      { UniverseNoLevel }
-  | Type nat                  { Universe (snd $2) }
+  -- TODO: ensure we can only parse natural numbers here (2020-06-13)
+  | Type literal              { Universe (natTokenToInt $2) }
 
   -- For later
   -- | '?' { Hole }
