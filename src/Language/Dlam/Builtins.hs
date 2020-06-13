@@ -27,7 +27,6 @@ module Language.Dlam.Builtins
   , lsuc
   , lsucApp
   , lmax
-  , lmaxApp
 
   -- ** Type Universes
   , mkUnivTy
@@ -135,27 +134,19 @@ lmax = mkBuiltin LMax (mkFunTy ignoreVar levelTy' (mkFunTy ignoreVar levelTy' le
 inlTerm = mkBuiltin Inl inlTermTY
   where
     inlTermTY =
-      let l1 = mkIdent "l1"; l1v = LVar l1
-          l2 = mkIdent "l2"; l2v = LVar l2
-          a = mkIdent "a"; av = Var a
+      let a = mkIdent "a"; av = Var a
           b = mkIdent "b"; bv = Var b
-      in mkFunTy l1 levelTy'
-          (mkFunTy l2 levelTy'
-           (mkFunTy a (mkUnivTy l1v)
-            (mkFunTy b (mkUnivTy l2v)
-             (mkFunTy ignoreVar av (Coproduct av bv)))))
+      in mkFunTy a aUniverse
+          (mkFunTy b aUniverse
+           (mkFunTy ignoreVar av (Coproduct av bv)))
 inrTerm = mkBuiltin Inr inrTermTY
   where
     inrTermTY =
-      let l1 = mkIdent "l1"; l1v = LVar l1
-          l2 = mkIdent "l2"; l2v = LVar l2
-          a = mkIdent "a"; av = Var a
+      let a = mkIdent "a"; av = Var a
           b = mkIdent "b"; bv = Var b
-      in mkFunTy l1 levelTy'
-          (mkFunTy l2 levelTy'
-           (mkFunTy a (mkUnivTy l1v)
-            (mkFunTy b (mkUnivTy l2v)
-             (mkFunTy ignoreVar bv (Coproduct av bv)))))
+      in mkFunTy a aUniverse
+          (mkFunTy b aUniverse
+           (mkFunTy ignoreVar bv (Coproduct av bv)))
 
 unitTy = mkBuiltin DUnitTy typeZero
 
@@ -165,23 +156,19 @@ idTy = mkBuiltin IdTy idTyTY
   where
     idTyTY :: Expr
     idTyTY =
-      let l = mkIdent "l"
-          lv = LVar l
-          a = mkIdent "a"
+      let a = mkIdent "a"
           av = Var a
-      in mkFunTy l levelTy' (mkFunTy a (mkUnivTy lv) (mkFunTy ignoreVar av (mkFunTy ignoreVar av (mkUnivTy lv))))
+      in mkFunTy a aUniverse (mkFunTy ignoreVar av (mkFunTy ignoreVar av aUniverse))
 
 reflTerm = mkBuiltin DRefl reflTermTY
   where
     reflTermTY :: Expr
     reflTermTY =
-      let l = mkIdent "l"
-          lv = LVar l
-          a = mkIdent "a"
+      let a = mkIdent "a"
           av = Var a
           x = mkIdent "x"
           xv = Var x
-      in mkFunTy l levelTy' (mkFunTy a (mkUnivTy lv) (mkFunTy x av (idTyApp lv av xv xv)))
+      in mkFunTy a aUniverse (mkFunTy x av (idTyApp av xv xv))
 
 natTy = mkBuiltin DNat typeZero
 natTy' = builtinBody natTy
@@ -193,23 +180,20 @@ emptyTy = mkBuiltin DEmptyTy typeZero
 lsucApp :: Expr -> Expr
 lsucApp = mkApp (builtinBody lsuc)
 
-lmaxApp :: Expr -> Expr -> Expr
-lmaxApp l1 l2 = mkApp (mkApp (builtinBody lmax) l1) l2
-
 mkUnivTy :: Level -> Expr
 mkUnivTy = Universe
 
-inlTermApp :: Expr -> Expr -> Expr -> Expr -> Expr -> Expr
-inlTermApp l1 l2 a b v = mkApp (mkApp (mkApp (mkApp (mkApp (builtinBody inlTerm) l1) l2) a) b) v
+inlTermApp :: Expr -> Expr -> Expr -> Expr
+inlTermApp a b v = mkApp (mkApp (mkApp (builtinBody inlTerm) a) b) v
 
-inrTermApp :: Expr -> Expr -> Expr -> Expr -> Expr -> Expr
-inrTermApp l1 l2 a b v = mkApp (mkApp (mkApp (mkApp (mkApp (builtinBody inrTerm) l1) l2) a) b) v
+inrTermApp :: Expr -> Expr -> Expr -> Expr
+inrTermApp a b v = mkApp (mkApp (mkApp (builtinBody inrTerm) a) b) v
 
-idTyApp :: Level -> Expr -> Expr -> Expr -> Expr
-idTyApp l t x y = mkApp (mkApp (mkApp (mkApp (builtinBody idTy) (LevelExpr l)) t) x) y
+idTyApp :: Expr -> Expr -> Expr -> Expr
+idTyApp t x y = mkApp (mkApp (mkApp (builtinBody idTy) t) x) y
 
-reflTermApp :: Expr -> Expr -> Expr -> Expr
-reflTermApp l t x = mkApp (mkApp (mkApp (builtinBody reflTerm) l) t) x
+reflTermApp :: Expr -> Expr -> Expr
+reflTermApp t x = mkApp (mkApp (builtinBody reflTerm) t) x
 
 dnsuccApp :: Expr -> Expr
 dnsuccApp = mkApp (builtinBody dnsucc)

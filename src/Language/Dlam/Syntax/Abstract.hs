@@ -31,8 +31,9 @@ module Language.Dlam.Syntax.Abstract
   , BindName(..)
   , boundTypingVars
   , boundSubjectVars
-  -- ** Levels
+  -- ** Levels and Universes
   , Level(..)
+  , aUniverse
   -- * AST
   , AST(..)
   -- ** Declarations
@@ -315,6 +316,10 @@ pattern Zero' = Builtin DNZero
 -- | Make a new, unnamed, implicit term.
 mkImplicit :: Expr
 mkImplicit = Implicit
+
+
+aUniverse :: Expr
+aUniverse = Universe LInfer
 
 
 ------------------

@@ -990,21 +990,21 @@ checkOrInferType' t (Coproduct tA tB) = do
 checkOrInferType' t (CoproductCase (z, tC) (x, c) (y, d) e) = do
   -- G |- e : A + B
   (tA, tB) <- inferCoproductTy e
-  l1 <- inferUniverseLevel tA
-  l2 <- inferUniverseLevel tB
+  _l1 <- inferUniverseLevel tA
+  _l2 <- inferUniverseLevel tB
 
   -- G, z : A + B |- C : Type l
   _l <- withTypedVariable z (Coproduct tA tB) $ inferUniverseLevel tC
 
   -- G, x : A |- c : [inl x/z]C
-  let inlX = inlTermApp (LevelExpr l1) (LevelExpr l2) tA tB (Var x)
+  let inlX = inlTermApp tA tB (Var x)
   e' <- normalise e
   inlxforzinC <- substitute (z, inlX) tC
   _ <- withTypedVariable x tA $ withActivePattern e' inlX
        $ checkOrInferType inlxforzinC c
 
   -- G, y : B |- d : [inr y/z]C
-  let inrY = inrTermApp (LevelExpr l1) (LevelExpr l2) tA tB (Var y)
+  let inrY = inrTermApp tA tB (Var y)
   inryforzinC <- substitute (z, inrY) tC
   _ <- withTypedVariable y tB $ withActivePattern e' inrY
        $ checkOrInferType inryforzinC d
@@ -1074,20 +1074,20 @@ checkOrInferType' t (RewriteExpr (x, y, p, tC) (z, c) a b p') = do
   tA <- synthType a
 
   -- G |- A : Type l1
-  l1 <- inferUniverseLevel tA
+  _l1 <- inferUniverseLevel tA
 
   -- G |- b : A
   _ <- checkOrInferType tA b
 
   -- G |- p' : Id l1 A a b
-  _ <- checkOrInferType (idTyApp l1 tA a b) p'
+  _ <- checkOrInferType (idTyApp tA a b) p'
 
   -- G, x : A, y : A, p : Id l1 A x y |- C : Type l2
-  _l2 <- withTypedVariable x tA $ withTypedVariable y tA $ withTypedVariable p (idTyApp l1 tA (Var x) (Var y)) $ inferUniverseLevel tC
+  _l2 <- withTypedVariable x tA $ withTypedVariable y tA $ withTypedVariable p (idTyApp tA (Var x) (Var y)) $ inferUniverseLevel tC
 
   -- G, z : A |- c : [z/x][z/y][refl l1 A z/p]C
   zForyinzforyinreflforpC <-
-    substitute (x, Var z) =<< substitute (y, Var z) =<< substitute (p, reflTermApp (LevelExpr l1) tA (Var z)) tC
+    substitute (x, Var z) =<< substitute (y, Var z) =<< substitute (p, reflTermApp tA (Var z)) tC
   _ <- withTypedVariable z tA $ checkOrInferType zForyinzforyinreflforpC c
 
   -- G |- rewrite(x.y.p.C, l1, A, a, b, p) : [a/x][b/y][p'/p]C
@@ -1315,7 +1315,7 @@ withActivePattern e intro act = do
 
 
 tyMismatchAtType :: String -> Type -> CM a
-tyMismatchAtType s t = tyMismatchAt s (mkUnivTy LInfer) t
+tyMismatchAtType s t = tyMismatchAt s aUniverse t
 
 
 ------------------
