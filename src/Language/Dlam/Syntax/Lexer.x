@@ -115,8 +115,6 @@ tokens :-
 <0,code> constructor    { keyword KwConstructor }
 <0,code> case           { keyword KwCase }
 <0,code> of             { keyword KwOf }
-<0,code> Zero           { keyword KwZero }
-<0,code> Succ           { keyword KwSucc }
 <0,code> Type           { keyword KwType }
 
 -- Holes

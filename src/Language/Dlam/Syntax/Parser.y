@@ -42,8 +42,6 @@ import Language.Dlam.Util.Pretty (pprintShow)
     field   { TokKeyword KwField $$ }
     '_'     { TokSymbol SymUnderscore $$ }
     case    { TokKeyword KwCase $$ }
-    zero    { TokKeyword KwZero $$ }
-    succ    { TokKeyword KwSucc $$ }
     of      { TokKeyword KwOf $$ }
     in      { TokKeyword KwIn  $$  }
     Type    { TokKeyword KwType $$ }
@@ -276,9 +274,6 @@ Expr2 :: { ParseExpr }
   : '\\' LambdaArgs '->' Expr { Lam $2 $4 }
 
   | let LetBinding in ExprOrSig { Let $2 $4 }
-
-  | case Ident '@' Expr of '(' zero '->' Expr ';' succ Ident '@' Ident '->' Expr ')' ':' Expr
-    { NatCase ($2, $19) $9 ($12, $14, $16) $4 }
 
   | Expr3 { $1 }
 

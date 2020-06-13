@@ -178,15 +178,6 @@ instance ToAbstract C.Expr A.Expr where
     pure $ foldr (\b f -> A.Lam (A.mkAbs' (isHidden b) (A.unBoundName . un. un . un . A.unTB $ b) (A.grading b) (typeOf b) f)) expr' args'
   toAbstract (C.ProductTy ab) = A.ProductTy <$> toAbstract ab
   toAbstract (C.Pair l r) = A.Pair <$> toAbstract l <*> toAbstract r
-  toAbstract (C.NatCase (x, tC) cz (w, y, cs) n) = do
-    x' <- toAbstract x
-    w' <- toAbstract w
-    y' <- toAbstract y
-    tC' <- withLocals [(x, x')] $ toAbstract tC
-    cz' <- toAbstract cz
-    cs' <- withLocals [(w, w'), (y, y')] $ toAbstract cs
-    n' <- toAbstract n
-    pure $ A.NatCase (x', tC') cz' (w', y', cs') n'
   toAbstract (C.App f e) = A.App <$> toAbstract f <*> toAbstract e
   toAbstract (C.Sig e t) = A.Sig <$> toAbstract e <*> toAbstract t
   toAbstract C.Hole = pure A.Hole

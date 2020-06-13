@@ -10,8 +10,6 @@ module Language.Dlam.Syntax.Abstract
   (
    -- * Expressions
     Expr(..)
-  , pattern Succ'
-  , pattern Zero'
   , Name(..)
   , mkIdent
   , ident
@@ -39,9 +37,6 @@ module Language.Dlam.Syntax.Abstract
   , Declaration(..)
   , Abstraction
   , mkImplicit
-
-  -- * Builtins
-  , BuiltinTerm(..)
 
   -- * Grading
   , Grade
@@ -250,9 +245,6 @@ data Expr
   -- | Pairs.
   | Pair Expr Expr
 
-  -- | Natural number eliminator.
-  | NatCase (Name, Expr) Expr (Name, Name, Expr) Expr
-
   | App Expr Expr -- e1 e2
 
   | Sig Expr Expr -- e : A
@@ -266,19 +258,8 @@ data Expr
   -- | Implicits for synthesis.
   | Implicit
 
-  -- | Builtin terms, with a unique identifying name.
-  | Builtin BuiltinTerm
-
   | Let LetBinding Expr
   deriving (Show, Eq, Ord)
-
-
-pattern Succ' :: Expr -> Expr
-pattern Succ' l = App (Builtin DNSucc) l
-
-
-pattern Zero' :: Expr
-pattern Zero' = Builtin DNZero
 
 
 -- | Make a new, unnamed, implicit term.
@@ -368,29 +349,6 @@ ident (Name _ (C.Name s)) = s
 ident (Name _ (C.NoName _)) = "_"
 
 
---------------------
------ Builtins -----
---------------------
-
-
-data BuiltinTerm
-  -- | Unit term.
-  = DUnitTerm
-
-  -- | Unit type.
-  | DUnitTy
-
-  -- | Natural number type.
-  | DNat
-
-  -- | Natural number zero.
-  | DNZero
-
-  -- | Natural number successor.
-  | DNSucc
-  deriving (Show, Eq, Ord)
-
-
 ---------------------------
 ----- Pretty printing -----
 ---------------------------
@@ -407,15 +365,13 @@ pprintAbs sep ab =
   in leftTyDoc <+> sep <+> pprint (absExpr ab)
 
 
-arrow, at, caset :: Doc
+arrow, at :: Doc
 arrow = text "->"
 at = char '@'
-caset = text "case"
 
 
 instance Pretty Expr where
     isLexicallyAtomic (Var _) = True
-    isLexicallyAtomic Builtin{}  = True
     isLexicallyAtomic Pair{}     = True
     isLexicallyAtomic Hole{}     = True
     isLexicallyAtomic Implicit{} = True
@@ -436,17 +392,11 @@ instance Pretty Expr where
       pprintParened (Sig e1 t) <+> pprintParened e2
     pprint (App e1 e2) = pprint e1 <+> pprintParened e2
     pprint (Pair e1 e2) = parens (pprint e1 <> comma <+> pprint e2)
-    pprint (NatCase (x, tC) cz (w, y, cs) n) =
-      caset <+> pprint x <> at <> pprintParened n <+> text "of" <+> parens
-              (text "Zero" <+> arrow <+> pprint cz <> semi
-              <+> text "Succ" <+> pprint w <> at <> pprint y <+> arrow <+> pprint cs)
-              <+> colon <+> pprint tC
     pprint (Var var) = pprint var
     pprint (Def name) = pprint name
     pprint (Sig e t) = pprintParened e <+> colon <+> pprint t
     pprint Hole = char '?'
     pprint Implicit{} = char '_'
-    pprint (Builtin s) = pprint s
     pprint (Let lb e) = text "let" <+> pprint lb <+> text "in" <+> pprint e
 
 instance Pretty LetBinding where
@@ -461,14 +411,6 @@ instance Pretty Pattern where
 
 instance Pretty BindName where
   pprint = pprint . unBindName
-
-instance Pretty BuiltinTerm where
-  isLexicallyAtomic _ = True
-  pprint DNat      = text "Nat"
-  pprint DNZero    = text "zero"
-  pprint DNSucc    = text "succ"
-  pprint DUnitTy   = text "Unit"
-  pprint DUnitTerm = text "unit"
 
 instance Pretty Name where
   isLexicallyAtomic _ = True

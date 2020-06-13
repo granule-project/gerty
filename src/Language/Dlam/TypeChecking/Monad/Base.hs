@@ -36,10 +36,7 @@ module Language.Dlam.TypeChecking.Monad.Base
   , Stage(..)
   , withGradedVariable
   , lookupSubjectRemaining
-  , decrementGrade
   , setSubjectRemaining
-  , grZero
-  , grOne
 
   -- * Environment
   , withLocalCheckingOf
@@ -83,7 +80,6 @@ import Control.Monad.State
 import Control.Monad.Writer
 import qualified Data.Map as M
 
-import Language.Dlam.Builtins
 import qualified Language.Dlam.Scoping.Monad.Exception as SE
 import Language.Dlam.Syntax.Abstract
 import Language.Dlam.Syntax.Common (NameId)
@@ -106,8 +102,8 @@ data CheckerState
 -- | The starting checker state.
 startCheckerState :: CheckerState
 startCheckerState =
-  CheckerState { typingScope = builtinsTypes
-               , valueScope = builtinsValues
+  CheckerState { typingScope = mempty
+               , valueScope = mempty
                , provisionScope = M.empty
                , nextNameId = 0
                , debugNesting = 0
@@ -283,22 +279,6 @@ lookupRemaining n = M.lookup n . provisionScope <$> get
 
 lookupSubjectRemaining :: Name -> CM (Maybe Grade)
 lookupSubjectRemaining n = fmap subjectGrade <$> lookupRemaining n
-
-
-decrementGrade :: Grade -> CM (Maybe Grade)
-decrementGrade e = do
-  case e of
-    Succ' n -> pure (Just n)
-    Zero' -> pure Nothing
-    -- TODO: figure out how to handle implicit grades---for now just
-    -- assuming we can do whatever we want with them (2020-03-11)
-    Implicit -> pure (Just Implicit)
-    _ -> notImplemented $ "I don't yet know how to decrement the grade '" <> pprintShow e <> "'"
-
-
-grZero, grOne :: Grade
-grOne = Succ' grZero
-grZero = Zero'
 
 
 modifyRemaining :: Name -> (Grading -> Grading) -> CM ()

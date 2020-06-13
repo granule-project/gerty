@@ -36,7 +36,6 @@ import Control.Monad.State
 import Control.Monad.Writer
 import qualified Data.Map as M
 
-import Language.Dlam.Builtins
 import Language.Dlam.Syntax.Abstract
 import qualified Language.Dlam.Syntax.Concrete as C
 import Language.Dlam.Syntax.Common (NameId)
@@ -129,9 +128,7 @@ data ScopeInfo = ScopeInfo
 startScopeInfo :: ScopeInfo
 startScopeInfo = ScopeInfo
   { scopeLocals = M.empty
-  , scopeCurrent =
-    -- TODO: ensure we separate defs from constructors (e.g., Type) here (2020-06-12)
-    Scope { scopeNameSpace = M.fromList (fmap (\bin -> (nameConcrete (builtinName bin), InScopeName { howBound = [ISDef] , isnName = builtinName bin })) builtins) }
+  , scopeCurrent = Scope { scopeNameSpace = mempty }
   }
 
 

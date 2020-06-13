@@ -71,17 +71,10 @@ instance {-# OVERLAPS #-} Substitutable CM (Name, Expr) Expr where
     e1' <- substitute s e1
     e2' <- substitute s e2
     pure (App e1' e2')
-  substitute s@(v, _) (NatCase (x, tC) cz (w, y, cs) n) = do
-    tC' <- if v == x then pure tC else substitute s tC
-    cz' <- substitute s cz
-    cs' <- if v == y || v == w then pure cs else substitute s cs
-    n'  <- substitute s n
-    pure $ NatCase (x, tC') cz' (w, y, cs') n'
   substitute _ e@Universe{} = pure e
   substitute _ e@Hole{} = pure e
   substitute _ e@Implicit = pure e
   substitute s (Sig e t) = Sig <$> substitute s e <*> substitute s t
-  substitute _ e@Builtin{} = pure e
   substitute s@(v, _) (Let (LetPatBound p e) (Sig r t)) = do
     e' <- substitute s e
     r' <- if v `Set.member` (Set.map unBindName (boundSubjectVars p)) then pure r else substitute s r

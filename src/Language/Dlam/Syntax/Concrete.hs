@@ -267,9 +267,6 @@ data Expr
   -- | Pairs.
   | Pair Expr Expr
 
-  -- | Natural number eliminator.
-  | NatCase (Name, Expr) Expr (Name, Name, Expr) Expr
-
   | App Expr Expr -- e1 e2
 
   | Sig Expr Expr -- e : A
@@ -339,10 +336,9 @@ data Pattern
 ---------------------------
 
 
-arrow, at, caset :: Doc
+arrow, at :: Doc
 arrow = text "->"
 at = char '@'
-caset = text "case"
 
 
 instance (Pretty e) => Pretty (MaybeNamed e) where
@@ -382,11 +378,6 @@ instance Pretty Expr where
       pprintParened (Sig e1 t) <+> pprintParened e2
     pprint (App e1 e2) = pprint e1 <+> pprintParened e2
     pprint (Pair e1 e2) = parens (pprint e1 <> comma <+> pprint e2)
-    pprint (NatCase (x, tC) cz (w, y, cs) n) =
-      caset <+> pprint x <> at <> pprintParened n <+> text "of" <+> parens
-              (text "Zero" <+> arrow <+> pprint cz <> semi
-              <+> text "Succ" <+> pprint w <> at <> pprint y <+> arrow <+> pprint cs)
-              <+> colon <+> pprint tC
     pprint (Ident var) = pprint var
     pprint (Sig e t) = pprintParened e <+> colon <+> pprint t
     pprint Hole = char '?'

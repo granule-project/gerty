@@ -4,7 +4,6 @@ module Language.Dlam.Types
   ( doASTInference
   ) where
 
-import Language.Dlam.Builtins
 import Language.Dlam.Substitution
   ( Substitutable(substitute)
   , freshen
@@ -92,36 +91,7 @@ normalise (App e1 e2) = do
     ------------------------
 
     _ -> finalNormalForm $ App e1' e2'
-normalise (NatCase (x, tC) cz (w, y, cs) n) = do
-  n' <- normalise n
-  case n' of
-
-    {-
-       case x@zero of (Zero -> cz; Succ w@y -> cs) : C
-       --->
-       cz : [zero/x]C
-    -}
-    Builtin DNZero -> normalise cz
-
-    {-
-       case x@(succ n) of (Zero -> cz; Succ w@y -> cs) : C
-       --->
-       [n/w][case x@n of (Zero -> cz; Succ w@y -> cs) : C/y]cs : [succ(n)/x]C
-    -}
-    (App (Builtin DNSucc) k) ->
-      -- [case x@n of (Zero -> cz; Succ w@y -> cs) : C/y]
-      substitute (y, NatCase (x, tC) cz (w, y, cs) k) cs >>=
-      -- [n/w]
-      substitute (w, k) >>= normalise
-
-    -- otherwise we can't reduce further (just reduce the components)
-    _ -> do
-      tC' <- normalise tC
-      cz' <- normalise cz
-      cs'  <- normalise cs
-      finalNormalForm $ NatCase (x, tC') cz' (w, y, cs') n'
 normalise (Pair e1 e2) = finalNormalForm =<< Pair <$> normalise e1 <*> normalise e2
-normalise e@Builtin{} = finalNormalForm e
 
 normalise (Let (LetPatBound p e1) e2) = do
   e1' <- normalise e1
@@ -151,16 +121,9 @@ equalExprs e1 e2 = do
     (FunTy ab1, FunTy ab2) -> equalAbs ab1 ab2
     (Lam ab1, Lam ab2) -> equalAbs ab1 ab2
     (ProductTy ab1, ProductTy ab2) -> equalAbs ab1 ab2
-    (NatCase (x, tC) cz (w, y, cs) n, NatCase (x', tC') cz' (w', y', cs') n') -> do
-      typesOK <- equalExprs tC' =<< substitute (x, Var x') tC
-      csOK <- equalExprs cs' =<< (substitute (w, Var w') cs >>= substitute (y, Var y'))
-      czsOK <- equalExprs cz cz'
-      nsOK <- equalExprs n n'
-      pure $ typesOK && csOK && czsOK && nsOK
     -- Implicits always match.
     (Implicit, _) -> pure True
     (_, Implicit) -> pure True
-    (Builtin b1, Builtin b2) -> pure (b1 == b2)
     (Universe l1, Universe l2) -> levelsAreEqual l1 l2
 
     (Let (LetPatBound p e1) e2, Let (LetPatBound p' e1') e2') -> do
@@ -713,28 +676,6 @@ checkOrInferType t e = withLocalCheckingOf e $ checkOrInferType' t e
 
 
 checkOrInferType' :: Type -> Expr -> CM Expr
---------------
--- Builtins --
---------------
-checkOrInferType' t (Builtin e) =
-  -- here we simply check that the expected type
-  -- matches the type defined for the builtin
-  ensureEqualTypes t $
-    case e of
-      -- Nat : Type 0
-      DNat -> builtinType natTy
-
-      -- zero : Nat
-      DNZero -> builtinType dnzero
-
-      -- succ : Nat -> Nat
-      DNSucc -> builtinType dnsucc
-
-      -- Unit : Type 0
-      DUnitTy -> builtinType unitTy
-
-      -- unit : Unit
-      DUnitTerm -> builtinType unitTerm
 -------------------------
 -- Variable expression --
 -------------------------
@@ -760,7 +701,8 @@ checkOrInferType' t (Var x) = do
          Just kplus1 -> do
            -- just normalise for now, and assume it is well-typed (2020-03-11, GD)
            kplus1 <- normalise kplus1
-           maybe (usedTooManyTimes x) pure =<< decrementGrade kplus1
+           -- maybe (usedTooManyTimes x) pure =<< decrementGrade kplus1
+           pure kplus1
 
   -- G |- A : Type l
   _l <- inferUniverseLevel tA
@@ -900,41 +842,6 @@ checkOrInferType' t (Pair e1 e2) = do
   -- G |- (t1, t2) : (x : A) * B
   ensureEqualTypes t (ProductTy (mkAbs x tA tB))
 
----------------------------
------ Natural numbers -----
----------------------------
-
-{-
-   G, x : Nat |- C : Type l
-   G |- cz : [zero/x]C
-   G, w : Nat, y : [w/x]C |- cs : [succ w/x]C
-   G |- n : Nat
-   ---------------------------------------------------------- :: NatCase
-   G |- case x@n of (Zero -> cz; Succ w@y -> cs) : C : [n/x]C
--}
-checkOrInferType' t (NatCase (x, tC) cz (w, y, cs) n) = do
-  -- G, x : Nat |- C : Type l
-  let natTy' = builtinBody natTy
-  _l <- withTypedVariable x natTy' $ inferUniverseLevel tC
-
-  -- G |- cz : [zero/x]C
-  zeroforxinC <- substitute (x, builtinBody dnzero) tC
-  _ <- checkOrInferType zeroforxinC cz
-
-  -- G, w : Nat, y : [w/x]C |- cs : [succ w/x]C
-  succwforxinC <- substitute (x, dnsuccApp (Var w)) tC
-  wforxinC <- substitute (x, Var w) tC
-  _ <-   withTypedVariable y wforxinC
-       $ withTypedVariable w natTy'
-       $ checkOrInferType succwforxinC cs
-
-  -- G |- n : Nat
-  _Nat <- checkOrInferType natTy' n
-
-  -- G |- case x@n of (Zero -> cz; Succ w@y -> cs) : C : [n/x]C
-  nforxinC <- substitute (x, n) tC
-  ensureEqualTypes t nforxinC
-
 {-
    G, tass(pat) |- C : Type l
    G, sass(pats) |- e2 : [Intro(T, sass(pat))/z]C
@@ -1006,7 +913,6 @@ checkOrInferType' t (Let (LetPatBound p e1) e2) = do
           yv <- freshen xv
           pure $ Lam (mkAbs xv (absTy ab)
                       (Lam (mkAbs yv (absExpr ab) (Pair (Var xv) (Var yv)))))
-        findConstructorForType (Builtin DUnitTy) = pure (Builtin DUnitTerm)
         findConstructorForType t = notImplemented
           $ "I don't yet know how to form a constructor of type '" <> pprintShow t <> "'"
 
@@ -1055,7 +961,6 @@ patternVarsForType (PPair pl pr) (ProductTy ab) =
 patternVarsForType (PAt n p) t =
   (([], [(unBindName n, t)]) <>) <$> patternVarsForType p t
 patternVarsForType (PVar n) t = pure ([(unBindName n, t)], [])
-patternVarsForType PUnit (Builtin DUnitTy) = pure ([], [])
 patternVarsForType p t = patternMismatch p t
 
 
@@ -1066,7 +971,6 @@ maybeGetPatternSubst (PPair p1 p2) (Pair l r) =
 -- maybeGetPatternSubst PUnit (Builtin DUnitTerm) = pure []
 maybeGetPatternSubst (PAt n p) e =
   (([], [(unBindName n, e)]) <>) <$> maybeGetPatternSubst p e
-maybeGetPatternSubst PUnit (Builtin DUnitTerm) = pure ([], [])
 maybeGetPatternSubst (PVar n) e = pure ([(unBindName n, e)], [])
 maybeGetPatternSubst _ _ = Nothing
 
@@ -1094,7 +998,6 @@ synthTypePatGuided p e = do
     patToImplTy (PAt _ p) = patToImplTy p
     patToImplTy (PPair (PVar n) r) =
       ProductTy (mkAbs (unBindName n) Implicit (patToImplTy r))
-    patToImplTy PUnit = Builtin DUnitTy
     patToImplTy _ = Implicit
 
     -- | Try and unify pattern variables with bound variables in the type.
@@ -1134,6 +1037,10 @@ tyMismatchAtType :: String -> Type -> CM a
 tyMismatchAtType s t = tyMismatchAt s aUniverse t
 
 
+mkUnivTy :: Level -> Expr
+mkUnivTy = Universe
+
+
 ------------------
 ----- Levels -----
 ------------------
@@ -1142,3 +1049,42 @@ tyMismatchAtType s t = tyMismatchAt s aUniverse t
 levelMax :: Level -> Level -> CM Level
 levelMax (LitLevel l1) (LitLevel l2) = pure $ LitLevel (max l1 l2)
 levelMax l1 l2 = notImplemented $ "levelMax on '" <> pprintShow l1 <> "' and '" <> pprintShow l2 <> "'"
+
+
+------------------
+----- Grades -----
+------------------
+
+
+gradeZero, gradeOne :: Grade
+--gradeZero = Builtin DNZero
+--gradeOne  = App (Builtin DNSucc) gradeZero
+gradeZero = Def (mkIdent "zero")
+gradeOne = App (Def (mkIdent "succ")) gradeZero
+
+
+gradeAdd :: Grade -> Grade -> Grade
+gradeAdd x y | gradeIsZero x = y
+gradeAdd (App (Def (ident -> "succ")) x) y =
+  App (Def (mkIdent "succ")) (gradeAdd x y)
+--gradeAdd (App (Builtin DNSucc) x) y =
+--  App (Builtin DNSucc) (gradeAdd x y)
+-- Cannot apply induction
+gradeAdd x y =
+ App (App (Def (mkIdent "+r")) x) y
+
+
+gradeMult :: Grade -> Grade -> Grade
+gradeMult x _ | gradeIsZero x = gradeZero
+gradeMult (App (Def (ident -> "succ")) x) y =
+  gradeAdd y (gradeMult x y)
+-- gradeMult (App (Builtin DNSucc) x) y =
+--   gradeAdd y (gradeMult x y)
+-- Cannot apply induction
+gradeMult x y =
+ App (App (Def (mkIdent "*r")) x) y
+
+
+gradeIsZero :: Grade -> Bool
+gradeIsZero (Def (ident -> "zero")) = True
+gradeIsZero _ = False
