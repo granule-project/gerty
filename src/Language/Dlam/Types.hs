@@ -4,7 +4,7 @@ module Language.Dlam.Types
   ( doASTInference
   ) where
 
-import Control.Monad (zipWithM)
+import Control.Monad (unless, zipWithM)
 import Data.List (sort)
 
 import Language.Dlam.Substitution (Substitutable(substitute))
@@ -143,6 +143,15 @@ equalExprs e1 e2 = do
           e2s <- substitute (absVar ab2, Var (absVar ab1)) (absExpr ab2)
           (&&) <$> equalExprs (absTy ab1) (absTy ab2)
                <*> withAbsBinding ab1 (equalExprs (absExpr ab1) e2s)
+
+
+-- | 'ensureEqualTypes tyExpected tyActual' checks that 'tyExpected' and 'tyActual'
+-- | represent the same type (under normalisation), and fails if they differ.
+ensureEqualTypes :: Type -> Type -> CM Type
+ensureEqualTypes tyExpected tyActual = do
+  typesEqual <- equalExprs tyActual tyExpected
+  if typesEqual then pure tyActual
+  else tyMismatch tyExpected tyActual
 
 
 -- | Try and register the name with the given type
@@ -525,95 +534,74 @@ inferExpr' (FunTy pi) ctxt = do
 
 {-
 
-(D         | sigma1    | 0) . G        |- A : Type l1
-(D, sigma1 | sigma3, r | 0) . G, x : A |- B : Type l2
-(D | sigma2 | sigma1 + sigma3) . G |- t1 : (x :(s, r) A -o B)
-(D | sigma4 | sigma1)          . G |- t2 : A
------------------------------------------------------------------------------ -o
-(D | sigma2 + s * sigma4 | sigma3 + r * sigma4) . G |- t1 t2 : [t2/x] B
+(M | g2 | g1 + g3) @ G |- t1 : (x : (s, r) A) -o B
+(M | g4 | g1) @ G |- t2 : A
+------------------------------------------------------ :: App
+(M | g2 + s * g4 | g3 + r * g4) @ G |- t1 t2 : [t2/x]B
 
 -}
 
-inferExpr' e@(App t1 t2) ctxt = do
-  debug $ "Infer for application " <> pprintShow e
-
+inferExpr' (App t1 t2) ctxt = do
   -- Infer left of application
   debug $ "App infer for t1 = " <> pprintShow t1
-  (outCtxtFun, funTy) <- inferExpr t1 ctxt
 
-  let sigma2 = subjectGradesOut outCtxtFun
+  -- (M | g2 | g1 + g3) @ G |- t1 : (x : (s, r) A) -o B
+  (outCtxtFun@(OutContext g2 g1plusG3), funTy) <- inferExpr t1 ctxt
 
   -- Need to infer types for `funTy` to see how the context
   -- is used to form `A` and `B`
   case funTy of
     -- (x :(s, r) A -o B)
     (FunTy pi) -> do
-      let r   = subjectTypeGrade pi
       let s   = subjectGrade pi
-      let tyA = absTy pi
-      let tyB = absExpr pi
+          r   = subjectTypeGrade pi
+          tA = absTy pi
+          tB = absExpr pi
 
-      -- Infer the type of the A
-      debug $ "App infer for tyA = " <> pprintShow tyA
-      (outCtxtA, typeOfA) <- inferExpr tyA ctxt
-      debug $ "ok A : " <> pprintShow typeOfA
+      -- (M | g4 | g1) @ G |- t2 : A
+      (OutContext g4 g1, tA') <- inferExpr t2 ctxt
+      tA <- ensureEqualTypes tA' tA
+      debug $ "ok A : " <> pprintShow tA
 
-      hasLevel <- exprIsTypeAndSubjectTypeGradesZero outCtxtA typeOfA
-      case hasLevel of
-        Nothing -> tyMismatchAtType "kind of function arg" typeOfA
-        Just _ -> do
-          let sigma1 = subjectGradesOut outCtxtA
+      -- (M,g1 | g3 | gZ) @ G, x : A |- B : Type l
+      debug $ "App infer for tyB = " <> pprintShow tB
+      let gammaX = extend (types ctxt) (absVar pi) tA
+          mG1 = extend (contextGradesIn ctxt) (absVar pi) g1
+      (outCtxtB@(OutContext _g3R _gZ), tBUniv) <-
+        inferExpr tB (InContext { types = gammaX, contextGradesIn = mG1 })
 
-          -- Infer the type of the B in the context with `x`
-          debug $ "App infer for tyB = " <> pprintShow tyB
-          (outCtxtB, typeOfB) <-
-             inferExpr tyB
-               InContext {
-                 types = extend (types ctxt) (absVar pi) tyA
-               , contextGradesIn = extend (contextGradesIn ctxt) (absVar pi) sigma1
-               }
-          debug $ "Ok B : " <> pprintShow typeOfB
+      debug $ "Ok B : " <> pprintShow tBUniv
 
-          hasLevel' <- exprIsTypeAndSubjectTypeGradesZero outCtxtB typeOfB
-          case hasLevel' of
-            Nothing -> tyMismatchAtType "kind of function app return" typeOfB
-            Just _ -> do
-              let (sigma3, (_, rInferred)) = unextend (subjectGradesOut outCtxtB)
+      _ <- maybe (tyMismatchAtType "kind of function app return" tBUniv) (\_ -> pure ())
+             <$> exprIsTypeAndSubjectTypeGradesZero outCtxtB tBUniv
+      let (g3, (_, rInferred)) = unextend (subjectGradesOut outCtxtB)
 
-              eq <- gradeEq rInferred r
-              if eq then do
-                debug "Context grade eq app 1"
-                debug $ "sigma1 = " ++ show (map (\(id,t) -> (ident id, t)) sigma1)
-                debug $ "sigma3 = " ++ show (map (\(id,t) -> (ident id, t)) sigma3)
-                debug $ "type grades out cxtFun " ++ show ((map (\(id,t) -> (ident id, t)) $ typeGradesOut outCtxtFun))
-                sigma1plusSigma3 <- contextGradeAdd sigma1 sigma3
-                eq' <- contextGradeEq sigma1plusSigma3 (typeGradesOut outCtxtFun)
-                case eq' of
-                  Right() -> do
-                    -- Check argument `t2` and its usage
-                    outCtxtArg <- checkExpr t2 tyA ctxt
-                    debug "Context grade eq app 2"
-                    eq2 <- contextGradeEq sigma1 (typeGradesOut outCtxtArg)
+      eq <- gradeEq rInferred r
+      unless eq (gradeMismatchAt "function type" SubjectType (absVar pi) r rInferred)
 
-                    case eq2 of
-                      Right() -> do
-                        let sigma4 = subjectGradesOut outCtxtArg
-                        tyB' <- substitute (absVar pi, tyA) tyB
+      debug "Context grade eq app 1"
+      debug $ "sigma1 = " ++ show (map (\(id,t) -> (ident id, t)) g1)
+      debug $ "sigma3 = " ++ show (map (\(id,t) -> (ident id, t)) g3)
+      debug $ "type grades out cxtFun " ++ show ((map (\(id,t) -> (ident id, t)) $ typeGradesOut outCtxtFun))
 
-                        sTimesSigma4 <- contextGradeMult s sigma4
-                        rTimesSigma4 <- contextGradeMult r sigma4
-                        sigma2plusst4 <- contextGradeAdd sigma2 sTimesSigma4
-                        sigma3plusrt4 <- contextGradeAdd sigma3 rTimesSigma4
-                        pure ( OutContext { subjectGradesOut = sigma2plusst4
-                                          , typeGradesOut = sigma3plusrt4 }
-                             , tyB')
-                      Left (mismatchVar, (expected, actual)) ->
-                        gradeMismatchAt "application argument" Context mismatchVar expected actual
-                  Left (mismatchVar, (expected, actual)) ->
-                    gradeMismatchAt "application function" Context mismatchVar expected actual
-              else
-                gradeMismatchAt "function type" SubjectType (absVar pi) r rInferred
+      g1plusG3Calculated <- contextGradeAdd g1 g3
+      eq' <- contextGradeEq g1plusG3 g1plusG3Calculated
 
+      case eq' of
+        Right() -> do
+          -- (M | g2 + s * g4 | g3 + r * g4) @ G |- t1 t2 : [t2/x]B
+          sTimesG4 <- contextGradeMult s g4
+          g2PlusSTimesG4 <- contextGradeAdd g2 sTimesG4
+          rTimesG4 <- contextGradeMult r g4
+          g3PlusRTimesG4 <- contextGradeAdd g3 rTimesG4
+
+          t2forXinB <- substitute (absVar pi, tA) tB
+
+          pure ( OutContext { subjectGradesOut = g2PlusSTimesG4
+                            , typeGradesOut = g3PlusRTimesG4 }
+               , t2forXinB)
+        Left (mismatchVar, (expected, actual)) ->
+          gradeMismatchAt "application function" Context mismatchVar expected actual
     _ -> tyMismatchAt "type of app left" (FunTy (mkAbs (mkIdent "?") Hole Hole)) funTy
 
 inferExpr' (Def n) ctxt = do
