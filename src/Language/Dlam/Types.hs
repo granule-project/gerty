@@ -4,6 +4,7 @@ module Language.Dlam.Types
   ( doASTInference
   ) where
 
+import Control.Monad (zipWithM)
 import Data.List (sort)
 
 import Language.Dlam.Substitution (Substitutable(substitute))
@@ -215,15 +216,15 @@ gradeEq r1 r2 = do
   r2' <- normaliseGrade r2
   return (r1' == r2')
 
-contextGradeAdd :: Ctxt Grade -> Ctxt Grade -> Ctxt Grade
+contextGradeAdd :: Ctxt Grade -> Ctxt Grade -> CM (Ctxt Grade)
 contextGradeAdd sigma1 sigma2 =
   if and (zipWith (\(id, _) (id', _) -> ident id == ident id') sigma1 sigma2)
-    then zipWith (\(id, g1) (_id', g2) -> (id, gradeAdd g1 g2)) sigma1 sigma2
+    then zipWithM (\(id, g1) (_id', g2) -> gradeAdd g1 g2 >>= \r -> pure (id, r)) sigma1 sigma2
     else error "Internal error: context graded add on contexts of different shape"
 
-contextGradeMult :: Grade -> Ctxt Grade -> Ctxt Grade
+contextGradeMult :: Grade -> Ctxt Grade -> CM (Ctxt Grade)
 contextGradeMult r sigma =
-  map (\(id, g) -> (id, gradeMult r g)) sigma
+  mapM (\(id, g) -> gradeMult r g >>= \s -> pure (id, s)) sigma
 
 -- First argument is usually the expected, and second is the actual
 contextGradeEq :: Ctxt Grade -> Ctxt Grade -> CM (Either (Name, (Grade, Grade)) ())
@@ -389,10 +390,9 @@ checkExpr' (Lam lam) t ctxt = do
             then do
               eq2 <- gradeEq r (subjectTypeGrade pi)
               if eq2
-                then return $ OutContext {
-                               subjectGradesOut = sigma2
-                             , typeGradesOut    = contextGradeAdd sigma1 sigma3
-                              }
+                then do
+                  tgo <- contextGradeAdd sigma1 sigma3
+                  pure $ OutContext { subjectGradesOut = sigma2, typeGradesOut = tgo }
                 else gradeMismatchAt "pi binder" SubjectType (absVar pi) (subjectTypeGrade pi) r
             else gradeMismatchAt "pi binder" Subject (absVar pi) (subjectGrade pi) s
 
@@ -508,9 +508,10 @@ inferExpr' (FunTy pi) ctxt = do
           if eq
             then do
               lmaxl1l2 <- levelMax l1 l2
-              return (OutContext { subjectGradesOut = contextGradeAdd sigma1 sigma2
-                                    , typeGradesOut = zeroesMatchingShape (types ctxt) }
-                     , mkUnivTy lmaxl1l2)
+              sgo <- contextGradeAdd sigma1 sigma2
+              pure ( OutContext { subjectGradesOut = sgo
+                                , typeGradesOut = zeroesMatchingShape (types ctxt) }
+                   , mkUnivTy lmaxl1l2)
   -- Errors
             else gradeMismatchAt "pi type binder" Subject (absVar pi) (subjectTypeGrade pi) rInferred
         _ -> tyMismatchAtType "LHS of -o" typeB
@@ -585,7 +586,8 @@ inferExpr' e@(App t1 t2) ctxt = do
                 debug $ "sigma1 = " ++ show (map (\(id,t) -> (ident id, t)) sigma1)
                 debug $ "sigma3 = " ++ show (map (\(id,t) -> (ident id, t)) sigma3)
                 debug $ "type grades out cxtFun " ++ show ((map (\(id,t) -> (ident id, t)) $ typeGradesOut outCtxtFun))
-                eq' <- contextGradeEq (contextGradeAdd sigma1 sigma3) (typeGradesOut outCtxtFun)
+                sigma1plusSigma3 <- contextGradeAdd sigma1 sigma3
+                eq' <- contextGradeEq sigma1plusSigma3 (typeGradesOut outCtxtFun)
                 case eq' of
                   Right() -> do
                     -- Check argument `t2` and its usage
@@ -598,13 +600,13 @@ inferExpr' e@(App t1 t2) ctxt = do
                         let sigma4 = subjectGradesOut outCtxtArg
                         tyB' <- substitute (absVar pi, tyA) tyB
 
-                        return (OutContext
-                          { subjectGradesOut =
-                                contextGradeAdd sigma2 (contextGradeMult s sigma4)
-                          , typeGradesOut =
-                                contextGradeAdd sigma3 (contextGradeMult r sigma4)
-                            }
-                          , tyB')
+                        sTimesSigma4 <- contextGradeMult s sigma4
+                        rTimesSigma4 <- contextGradeMult r sigma4
+                        sigma2plusst4 <- contextGradeAdd sigma2 sTimesSigma4
+                        sigma3plusrt4 <- contextGradeAdd sigma3 rTimesSigma4
+                        pure ( OutContext { subjectGradesOut = sigma2plusst4
+                                          , typeGradesOut = sigma3plusrt4 }
+                             , tyB')
                       Left (mismatchVar, (expected, actual)) ->
                         gradeMismatchAt "application argument" Context mismatchVar expected actual
                   Left (mismatchVar, (expected, actual)) ->
@@ -736,21 +738,15 @@ gradeZero = Com.GZero
 gradeOne = Com.GOne
 
 
-gradeAdd :: Grade -> Grade -> Grade
-gradeAdd Com.GZero r = r
-gradeAdd s Com.GZero = s
-gradeAdd s r = Com.GPlus s r
+gradeAdd :: Grade -> Grade -> CM Grade
+gradeAdd g1 g2 = normaliseGrade (Com.GPlus g1 g2)
 
 
 -- TODO: perhaps optimise more here (distribute addition/scaling?), or
 -- perhaps do this somewhere else in a simplification function
 -- (2020-06-13)
-gradeMult :: Grade -> Grade -> Grade
-gradeMult Com.GZero _ = Com.GZero
-gradeMult Com.GOne  r = r
-gradeMult _ Com.GZero = Com.GZero
-gradeMult s Com.GOne  = s
-gradeMult s r = Com.GTimes s r
+gradeMult :: Grade -> Grade -> CM Grade
+gradeMult g1 g2 = normaliseGrade (Com.GTimes g1 g2)
 
 
 gradeIsZero :: Grade -> Bool
