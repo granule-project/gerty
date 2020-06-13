@@ -107,7 +107,7 @@ equalExprs e1 e2 = do
   ne1 <- normalise e1
   ne2 <- normalise e2
   case (ne1, ne2) of
-    (Var v1, Var v2) -> pure (v1 == v2)
+    (Var v1, Var v2) -> pure (ident v1 == ident v2) -- TODO: because frehsneing is bork
     (App f1 v1, App f2 v2) -> (&&) <$> equalExprs f1 f2 <*> equalExprs v1 v2
     (FunTy ab1, FunTy ab2) -> equalAbs ab1 ab2
     (Lam ab1, Lam ab2) -> equalAbs ab1 ab2
