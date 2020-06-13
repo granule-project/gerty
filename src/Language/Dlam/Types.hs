@@ -764,4 +764,29 @@ gradeIsZero _ = False
 -- TODO: perform some simplification here (distribute
 -- addition/scaling, perhaps?) (2020-06-13)
 normaliseGrade :: Grade -> CM Grade
-normaliseGrade = pure
+normaliseGrade Com.GZero = pure Com.GZero
+normaliseGrade Com.GOne = pure Com.GOne
+normaliseGrade (Com.GPlus g1 g2) = do
+  g1' <- normaliseGrade g1
+  g2' <- normaliseGrade g2
+  case (g1', g2') of
+    (Com.GZero, r) -> pure r
+    (s, Com.GZero) -> pure s
+    _ -> pure (Com.GPlus g1' g2')
+normaliseGrade (Com.GTimes g1 g2) = do
+  g1' <- normaliseGrade g1
+  g2' <- normaliseGrade g2
+  case (g1', g2') of
+    (Com.GZero, _) -> pure Com.GZero
+    (_, Com.GZero) -> pure Com.GZero
+    (Com.GOne, r) -> pure r
+    (s, Com.GOne) -> pure s
+    _ -> pure (Com.GTimes g1' g2')
+-- TODO: Allow using the ordering according to whatever type the grade
+-- is of (2020-06-13)
+normaliseGrade (Com.GLub g1 g2) = do
+  g1' <- normaliseGrade g1
+  g2' <- normaliseGrade g2
+  gEq <- gradeEq g1' g2'
+  pure $ if gEq then g1' else Com.GLub g1' g2'
+normaliseGrade Com.GImplicit = pure Com.GImplicit
