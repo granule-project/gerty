@@ -34,9 +34,6 @@ module Language.Dlam.TypeChecking.Monad.Base
 
   -- ** Grading
   , Stage(..)
-  , withGradedVariable
-  , lookupSubjectRemaining
-  , setSubjectRemaining
 
   -- * Environment
   , withLocalCheckingOf
@@ -90,8 +87,6 @@ data CheckerState
   = CheckerState
     { typingScope :: M.Map Name Expr
     , valueScope :: M.Map Name Expr
-    , provisionScope :: M.Map Name Grading
-    -- ^ Scope of provisions (how can an assumption be used---grades remaining).
     , nextNameId :: NameId
     -- ^ Unique NameId for naming.
     , debugNesting :: Int
@@ -104,7 +99,6 @@ startCheckerState :: CheckerState
 startCheckerState =
   CheckerState { typingScope = mempty
                , valueScope = mempty
-               , provisionScope = M.empty
                , nextNameId = 0
                , debugNesting = 0
                }
@@ -271,41 +265,6 @@ instance Pretty Stage where
   pprint Subject     = text "subject"
   pprint SubjectType = text "type"
   pprint Context     = text "context"
-
-
-lookupRemaining :: Name -> CM (Maybe Grading)
-lookupRemaining n = M.lookup n . provisionScope <$> get
-
-
-lookupSubjectRemaining :: Name -> CM (Maybe Grade)
-lookupSubjectRemaining n = fmap subjectGrade <$> lookupRemaining n
-
-
-modifyRemaining :: Name -> (Grading -> Grading) -> CM ()
-modifyRemaining n f = do
-  prev <- lookupRemaining n
-  case prev of
-    Nothing -> pure ()
-    Just prev -> setRemaining n (f prev)
-
-
-setRemaining :: Name -> Grading -> CM ()
-setRemaining n g = modify (\s -> s { provisionScope = M.insert n g (provisionScope s) })
-
-
-setSubjectRemaining :: Name -> Grade -> CM ()
-setSubjectRemaining n g = modifyRemaining n (\gs -> mkGrading g (subjectTypeGrade gs))
-
-
--- | Execute the action with the given identifier bound with the given grading.
-withGradedVariable :: Name -> Grading -> CM a -> CM a
-withGradedVariable v gr p = do
-  st <- get
-  setRemaining v gr
-  res <- p
-  -- restore the provision scope
-  modify (\s -> s { provisionScope = provisionScope st})
-  pure res
 
 
 ------------------------------

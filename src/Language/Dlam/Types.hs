@@ -4,10 +4,7 @@ module Language.Dlam.Types
   ( doASTInference
   ) where
 
-import Language.Dlam.Substitution
-  ( Substitutable(substitute)
-  , freshen
-  )
+import Language.Dlam.Substitution (Substitutable(substitute))
 import Language.Dlam.Syntax.Abstract
 import Language.Dlam.Syntax.Common
 import qualified Language.Dlam.Syntax.Common.Language as Com
@@ -27,20 +24,10 @@ import qualified Language.Dlam.Scoping.Monad as SE
 withAbsBinding :: Abstraction -> CM a -> CM a
 withAbsBinding ab act =
   let x = absVar ab
-  in withGradedVariable x (grading ab) $ withTypedVariable x (absTy ab) act
-
-
--- | Execute the action with the binder from the abstraction active
--- | (for checking the body of the abstraction in a subject type
--- | context).
-withAbsBindingForType :: Abstraction -> CM a -> CM a
-withAbsBindingForType ab act =
-  let x = absVar ab
-      g = grading ab
-      stgrade = subjectTypeGrade g
-  -- bind the subject-type grade to the subject grade since we are
-  -- checking the remainder of the type (probably!?)
-  in withGradedVariable x (mkGrading stgrade Com.GImplicit) $ withTypedVariable x (absTy ab) act
+  -- TODO: do we need to account for the grading of the abstraction
+  -- here? if so, how (2020-06-13)
+  -- in withGradedVariable x (grading ab) $ withTypedVariable x (absTy ab) act
+  in withTypedVariable x (absTy ab) act
 
 
 -- | Normalise an abstraction via a series of reductions.
@@ -193,7 +180,7 @@ doDeclarationInference (FunEqn (FLHSName v) (FRHSAssign e)) = do
        (lookupType v)
   exprTy <- case t of
               Nothing -> do
-                _ <- checkOrInferType mkImplicit e
+                _ <- inferExpr e emptyInContext
                 return $ mkImplicit
               Just ty -> do
                 checkOrInferTypeNew ty e
@@ -222,32 +209,6 @@ inferUniverseLevel e = withLocalCheckingOf e $ do
     (Universe l) -> pure l
     _        -> expectedInferredTypeForm "universe" norm
 
-
--- | 'ensureEqualTypes tyExpected tyActual' checks that 'tyExpected' and 'tyActual'
--- | represent the same type (under normalisation), and fails if they differ.
-ensureEqualTypes :: Type -> Type -> CM Type
-ensureEqualTypes tyExpected tyActual = do
-  typesEqual <- equalExprs tyActual tyExpected
-  if typesEqual then pure tyActual
-  else tyMismatch tyExpected tyActual
-
-
--- | Retrieve an Abstraction from a function type expression, failing if the
--- | expression is not a function type.
-getAbsFromFunTy :: Type -> CM Abstraction
-getAbsFromFunTy t =
-  case t of
-    FunTy ab -> pure ab
-    t        -> expectedInferredTypeForm "function" t
-
-
--- | Retrieve an Abstraction from a product type expression, failing if the
--- | expression is not a product type.
-getAbsFromProductTy :: Type -> CM Abstraction
-getAbsFromProductTy t =
-  case t of
-    ProductTy ab -> pure ab
-    t            -> expectedInferredTypeForm "product" t
 
 ----------------------------------------------------------------------------
 -- Dominic work here on a bidirectional additive-grading algorithm
@@ -667,302 +628,10 @@ inferExpr' (Universe (LitLevel l)) ctxt =
 inferExpr' _ _ = do
   cannotSynthTypeForExpr
 
------------------------------------------------
--- OLD STUFF FROM HERE
-
--- | 'checkOrInferType ty ex' checks that the type of 'ex' matches 'ty', or infers
--- | it 'ty' is a wild. Evaluates to the calculated type.
-checkOrInferType :: Type -> Expr -> CM Expr
-checkOrInferType t e = withLocalCheckingOf e $ checkOrInferType' t e
-
-
-checkOrInferType' :: Type -> Expr -> CM Expr
--------------------------
--- Variable expression --
--------------------------
-{-
-   x @ (k+1, n) : A in G
-   G |- A : Type l
-   --------------------- :: Var
-   x @ (k, n) : A in G
-   G |- x : A
--}
-checkOrInferType' t (Var x) = do
-  -- x @ (k+1, n) : A in G
-  -- TODO: remove this possible failure---the scope checker should prevent this (2020-03-05)
-  tA <- lookupType x >>= maybe (scoperError $ SE.unknownNameErr (C.Unqualified $ nameConcrete x)) pure
-  kplus1 <- lookupSubjectRemaining x
-  k <- case kplus1 of
-         -- as the scope checker ensures that all local variables are
-         -- in scope, the only way something could not be assigned
-         -- here is if it is a top-level definition, in which case we
-         -- treat its usage as implicit
-         -- TODO: assign implicit grades to top-level definitions (2020-03-12)
-         Nothing -> pure Com.GImplicit
-         Just kplus1 -> do
-           -- just normalise for now, and assume it is well-typed (2020-03-11, GD)
-           kplus1 <- normaliseGrade kplus1
-           -- maybe (usedTooManyTimes x) pure =<< decrementGrade kplus1
-           pure kplus1
-
-  -- G |- A : Type l
-  _l <- inferUniverseLevel tA
-  tA <- normalise tA
-
-  -- x @ (k, n) : A in G
-  -- G |- x : A
-  setSubjectRemaining x k
-  ensureEqualTypes t tA
-
--------------------------------
------ Dependent Functions -----
--------------------------------
-
-{-
-   G |- A : Type l1
-   G, x : A |- B : Type l2
-   ------------------------------------- :: FunTy
-   G |- (x : A) -> B : Type (lmax l1 l2)
--}
-checkOrInferType' t (FunTy ab) = do
-  -- G |- A : Type l1
-  l1 <- inferUniverseLevel (absTy ab)
-
-  -- G, x : A |- B : Type l2
-  l2 <- withAbsBindingForType ab $ inferUniverseLevel (absExpr ab)
-
-  -- G |- (x : A) -> B : Type (lmax l1 l2)
-  lmaxl1l2 <- levelMax l1 l2
-  ensureEqualTypes t (mkUnivTy lmaxl1l2)
-
---------------------------------------------
--- Abstraction expression, with wild type --
---------------------------------------------
-checkOrInferType' Implicit expr@(Lam ab) = do
-  rTy <- withAbsBinding ab $ checkOrInferType mkImplicit (absExpr ab)
-  checkOrInferType (FunTy (mkAbs' (isHidden ab) (absVar ab) (grading ab) (absTy ab) rTy)) expr
-
-{-
-   G, x : A |- e : B
-   --------------------------------- :: Lam
-   G |- \(x : A) -> e : (x : A) -> B
--}
-checkOrInferType' t (Lam abE) = do
-  _l <- inferUniverseLevel t
-  abT <- normalise t >>= getAbsFromFunTy
-
-  let x = absVar  abE
-      e = absExpr abE
-      tA = absTy abT
-      gr = grading abT
-
-  -- G, x : A |- e : B
-
-  -- make sure that we are considering the name
-  -- coming from the abstraction, rather than the type
-  tB <- substitute (absVar abT, Var $ x) (absExpr abT)
-
-  tB <- withGradedVariable x gr $ withTypedVariable x tA (checkOrInferType tB e)
-
-  -- G |- \x -> e : (x : A) -> B
-  ensureEqualTypes t (FunTy (mkAbs x tA tB))
-
-{-
-   G |- t1 : (x : A) -> B
-   G |- t2 : A
-   ---------------------- :: App
-   G |- t1 t2 : [t2/x]B
--}
-checkOrInferType' t (App e1 e2) = do
-
-  -- G |- t1 : (x : A) -> B
-  e1Ty <- inferFunTy e1
-
-  let x  = absVar e1Ty
-      tA = absTy  e1Ty
-      tB = absExpr e1Ty
-
-  -- G |- t2 : A
-  _e2Ty <- checkOrInferType tA e2
-
-  -- G |- t1 t2 : [t2/x]B
-  t2forXinB <- substitute (x, e2) tB
-  ensureEqualTypes t t2forXinB
-
-  where inferFunTy :: Expr -> CM Abstraction
-        inferFunTy e = withLocalCheckingOf e $ do
-          t <- synthType e >>= normalise
-          getAbsFromFunTy t
-
------------------------------
------ Dependent Tensors -----
------------------------------
-
-{-
-   G |- A : Type l1
-   G, x : A |- B : Type l2
-   ------------------------------------ :: ProductTy
-   G |- (x : A) * B : Type (lmax l1 l2)
--}
-checkOrInferType' t (ProductTy ab) = do
-  -- G |- A : Type l1
-  l1 <- inferUniverseLevel (absTy ab)
-
-  -- G, x : A |- B : Type l2
-  l2 <- withAbsBindingForType ab $ inferUniverseLevel (absExpr ab)
-
-  -- G |- (x : A) * B : Type (lmax l1 l2)
-  lmaxl1l2 <- levelMax l1 l2
-  ensureEqualTypes t (mkUnivTy lmaxl1l2)
-
-{-
-   G |- t1 : A
-   G |- t2 : [t1/x]B
-   G, x : A |- B : Type l
-   --------------------------- :: Pair
-   G |- (t1, t2) : (x : A) * B
--}
-checkOrInferType' t (Pair e1 e2) = do
-  _l <- inferUniverseLevel t
-  abT <- normalise t >>= getAbsFromProductTy
-
-  let x = absVar abT
-      tB = absExpr abT
-
-  -- G |- t1 : A
-  tA <- checkOrInferType (absTy abT) e1
-
-  -- G, x : A |- B : Type l
-  _l <- withTypedVariable x tA (inferUniverseLevel tB)
-  tB <- normalise tB
-
-  -- G |- t2 : [t1/x]B
-  t1forXinB <- substitute (x, e1) tB
-  _e2Ty <- checkOrInferType t1forXinB e2
-
-  -- G |- (t1, t2) : (x : A) * B
-  ensureEqualTypes t (ProductTy (mkAbs x tA tB))
-
-{-
-   G, tass(pat) |- C : Type l
-   G, sass(pats) |- e2 : [Intro(T, sass(pat))/z]C
-   G |- e1 : T
-   ---------------------------------------------- :: Let
-   G |- let z@pat = e1 in e2 : [e1/z]C
--}
-checkOrInferType' t (Let (LetPatBound p e1) e2) = do
-
-  -- G |- e1 : T
-  -- the type we are going to try and eliminate
-  toElimTy <- synthTypePatGuided p e1
-
-  -- TODO: support cases when e2 isn't a Sig (but normalises to one,
-  -- when it is well-typed) (2020-03-04)
-  let (e2', tC) =
-        case e2 of
-          (Sig e2'' tC') -> (e2'', tC')
-          -- if we don't have an explicit type for e2, just assume it
-          -- is t for now (2020-03-04)
-          _           -> (e2, t)
-
-  -- gather some information about the constructor
-  (svars, tvars) <- patternVarsForType p toElimTy
-  con <- findConstructorForType toElimTy
-
-  -- TODO: generalise the 'z' to arbitrary type vars---make sure the
-  -- introConstructed gets substituted in for the vars
-  -- correctly(2020-03-04)
-  let z = patTyVar p
-
-  -- G, tass(pat) |- C : Type l
-  _l <- withBinders tvars $ inferUniverseLevel tC
-
-  -- G, sass(pat) |- e2 : [Intro(T, sass...)/z]C
-
-  -- build the general element
-  let introConstructed = applyCon con svars
-
-  e1 <- normalise e1
-  introForzinC <- maybe (pure tC) (\z -> substitute (z, introConstructed) tC) z
-  _ <- withBinders svars $ withActivePattern e1 introConstructed
-       $ checkOrInferType introForzinC e2'
-
-  e1forzinC <- maybe (pure tC) (\z -> substitute (z, e1) tC) z
-  ensureEqualTypes t e1forzinC
-
-  where
-        withBinders :: [(Name, Expr)] -> CM a -> CM a
-        withBinders [] m = m
-        withBinders (b:bs) m = uncurry withTypedVariable b $ withBinders bs m
-
-        -- TODO (maybe?): support arbitrarily nested typing patterns (e.g.,
-        -- (x@(y, z), a)) (2020-03-04)
-        -- | Get the typing variable of a pattern.
-        patTyVar :: Pattern -> Maybe Name
-        patTyVar (PAt b _) = Just (unBindName b)
-        patTyVar _ = Nothing
-
-        applyCon :: Expr -> [(Name, Expr)] -> Expr
-        applyCon con args = foldl App con (fmap (Var . fst) args)
-
-        findConstructorForType :: Expr -> CM Expr
-        -- constructor for (x : A) * B
-        -- is
-        -- \(x : A) -> \(y : B) -> (x, y)
-        findConstructorForType (ProductTy ab) = do
-          xv <- freshen (absVar ab)
-          yv <- freshen xv
-          pure $ Lam (mkAbs xv (absTy ab)
-                      (Lam (mkAbs yv (absExpr ab) (Pair (Var xv) (Var yv)))))
-        findConstructorForType t = notImplemented
-          $ "I don't yet know how to form a constructor of type '" <> pprintShow t <> "'"
-
-
----------
--- Sig --
----------
-
-{-
-  For a Sig, we simply check that the expression has the stated type
-  (and this matches the final expected type).
--}
-checkOrInferType' t (Sig e t') = do
-  ty <- checkOrInferType t' e
-  ensureEqualTypes t ty
--------------------------------------
--- When we don't know how to synth --
--------------------------------------
-checkOrInferType' Implicit _ = cannotSynthTypeForExpr
-checkOrInferType' t Implicit = cannotSynthExprForType t
-----------------------------------
--- Currently unsupported checks --
-----------------------------------
-checkOrInferType' t e =
-  notImplemented $ "I don't yet know how to check the type of expression '" <> pprintShow e <> "' against the type '" <> pprintShow t
-
-
--- | Attempt to synthesise a type for the given expression.
-synthType :: Expr -> CM Expr
-synthType e =
-  checkOrInferType mkImplicit e
-
 
 --------------------
 ----- Patterns -----
 --------------------
-
-
--- | Compare a pattern against a type, and attempt to build a mapping
--- | from subject binders and subject type binders to their
--- | respective types.
-patternVarsForType :: Pattern -> Type -> CM ([(Name, Type)], [(Name, Type)])
-patternVarsForType (PPair pl pr) (ProductTy ab) =
-  (<>) <$> patternVarsForType pl (absTy ab)
-       <*> patternVarsForType pr (absExpr ab)
-patternVarsForType (PAt n p) t =
-  (([], [(unBindName n, t)]) <>) <$> patternVarsForType p t
-patternVarsForType (PVar n) t = pure ([(unBindName n, t)], [])
-patternVarsForType p t = patternMismatch p t
 
 
 -- | Try and map components of a term to names in a pattern.
@@ -986,47 +655,6 @@ maybeGetPatternUnificationSubst (PVar n) (PVar m) =
 maybeGetPatternUnificationSubst (PPair l1 r1) (PPair l2 r2) =
   maybeGetPatternUnificationSubst l1 l2 <> maybeGetPatternUnificationSubst r1 r2
 maybeGetPatternUnificationSubst _ _ = Nothing
-
-
--- | Synthesise a type for a term, guided by a pattern it should match.
-synthTypePatGuided :: Pattern -> Expr -> CM Type
-synthTypePatGuided p e = do
-  ty <- checkOrInferType (patToImplTy p) e
-  patGuideTyNames p ty
-  where
-    -- | Build up a type with implicits for the expression.
-    patToImplTy :: Pattern -> Expr
-    patToImplTy (PAt _ p) = patToImplTy p
-    patToImplTy (PPair (PVar n) r) =
-      ProductTy (mkAbs (unBindName n) Implicit (patToImplTy r))
-    patToImplTy _ = Implicit
-
-    -- | Try and unify pattern variables with bound variables in the type.
-    patGuideTyNames :: Pattern -> Expr -> CM Expr
-    patGuideTyNames (PPair (PVar x) r) (ProductTy ab) = do
-      let xv = unBindName x
-      ae <- patGuideTyNames r =<< substitute (absVar ab, Var xv) (absExpr ab)
-      pure $ ProductTy (mkAbs xv (absTy ab) ae)
-    patGuideTyNames (PAt _ p) t = patGuideTyNames p t
-    -- don't know how to guide the types beyond this point, so we just give them back
-    patGuideTyNames _ t = pure t
-
-
--- | 'withActivePattern e pat act' takes an expression,
--- | an introduction form produced from a pattern match on the
--- | expression, and an action, then runs the action with variables
--- | rebound as appropriate for equality checking.
-withActivePattern :: Expr -> Expr -> CM a -> CM a
-withActivePattern e intro act = do
-  e' <- normalise e
-  case (e', intro) of
-    -- when the expression was a variable, just replace uses of it inside
-    -- the body
-    -- TODO: make sure we don't overwrite vars that are in the pattern (2020-03-10)
-    (Var v, _) -> withValuedVariable v intro act
-    -- we don't know how to refine the value-scope based on the pattern and
-    -- expression, so we just continue as-is
-    _ -> act
 
 
 -------------------
