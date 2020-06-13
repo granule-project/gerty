@@ -563,7 +563,7 @@ inferExpr' (App t1 t2) ctxt = do
       tA <- ensureEqualTypes tA' tA
       debug $ "ok A : " <> pprintShow tA
 
-      -- (M,g1 | g3 | gZ) @ G, x : A |- B : Type l
+      -- (M,g1 | g3,r | gZ) @ G, x : A |- B : Type l
       debug $ "App infer for tyB = " <> pprintShow tB
       let gammaX = extend (types ctxt) (absVar pi) tA
           mG1 = extend (contextGradesIn ctxt) (absVar pi) g1
