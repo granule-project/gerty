@@ -328,8 +328,8 @@ allZeroes ctxt = mapM normaliseAndCheck ctxt >>= (return . and)
 zeroesMatchingShape :: Ctxt a -> Ctxt Grade
 zeroesMatchingShape = map (\(id, _) -> (id, gradeZero))
 
--- Auxiliary function that exmaines an output context to check it
--- has 0 subject type use and that its type is of the form `Type l`
+-- Auxiliary function that examines an output context to check it has
+-- 0 subject type use and that its type is of the form `Type l`
 exprIsTypeAndSubjectTypeGradesZero :: OutContext -> Type -> CM (Maybe Level)
 exprIsTypeAndSubjectTypeGradesZero ctxt ty = do
   isZeroed <- allZeroes (typeGradesOut ctxt)
