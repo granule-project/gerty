@@ -53,6 +53,14 @@ instance {-# OVERLAPPABLE #-} (Monad m, Substitutable m n e, Foldable t) => Subs
   substitute n e = F.foldrM substitute e n
 
 
+instance {-# OVERLAPS #-} Substitutable CM (Name, Level) Level where
+  substitute _ (LInfer i) = pure $ LInfer i
+  substitute _ (LitLevel i) = pure $ LitLevel i
+  substitute (v, e) (LVar x)
+    | ident v == ident x    = pure e
+    | otherwise = pure (LVar x)
+
+
 instance {-# OVERLAPS #-} Substitutable CM (Name, Expr) Expr where
   substitute (v, e) (Var x)
     | ident v == ident x    = pure e
@@ -79,7 +87,10 @@ instance {-# OVERLAPS #-} Substitutable CM (Name, Expr) Expr where
     cs' <- if v == y || v == w then pure cs else substitute s cs
     n'  <- substitute s n
     pure $ NatCase (x, tC') cz' (w, y, cs') n'
-  substitute _ e@LitLevel{} = pure e
+  substitute (n, LevelExpr l1) (LevelExpr l2) = LevelExpr <$> substitute (n, l1) l2
+  substitute _ e@LevelExpr{} = pure e
+  substitute (n, LevelExpr l1) (Universe l2) = Universe <$> substitute (n, l1) l2
+  substitute _ e@Universe{} = pure e
   substitute _ e@Hole{} = pure e
   substitute _ e@Implicit = pure e
   substitute s (Sig e t) = Sig <$> substitute s e <*> substitute s t

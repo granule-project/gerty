@@ -247,6 +247,7 @@ absExpr (Abst (_, _, t)) = t
 mkAbs :: Name -> Expr -> Expr -> Abstraction
 mkAbs v e1 e2 = Abst (v, e1, e2)
 
+
 data Expr
   -- | Variable.
   = Ident QName
@@ -287,6 +288,12 @@ data Expr
   | App Expr Expr -- e1 e2
 
   | Sig Expr Expr -- e : A
+
+  -- | Typing universe without a specified level (@Type@).
+  | UniverseNoLevel
+
+  -- | Typing universe with a specified level (@Type l@).
+  | Universe Integer
 
   -- | Holes for inference.
   | Hole
@@ -369,9 +376,12 @@ instance Pretty Expr where
     isLexicallyAtomic Implicit{} = True
     isLexicallyAtomic BraceArg{} = True
     isLexicallyAtomic Parens{}   = True
+    isLexicallyAtomic UniverseNoLevel = True
     isLexicallyAtomic _          = False
 
     pprint (LitLevel n)           = integer n
+    pprint UniverseNoLevel        = text "Type"
+    pprint (Universe l)           = text "Type" <+> integer l
     pprint (Lam binders finE) =
       text "\\" <+> (hsep $ fmap pprint binders) <+> arrow <+> pprint finE
     pprint (Pi binders finTy) = pprint binders <+> arrow <+> pprint finTy

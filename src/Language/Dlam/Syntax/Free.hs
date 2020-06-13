@@ -37,10 +37,17 @@ instance Free A.Expr where
   freeVars (A.RewriteExpr (x, y, p, tC) (z, c) a b p') =
     (Set.delete x (Set.delete y (Set.delete p (freeVars tC)))) `Set.union` (Set.delete z (freeVars c)) `Set.union` (freeVars (a, (b, p')))
   freeVars (A.EmptyElim (x, tC) a)         = Set.delete x $ freeVars (tC, a)
+  freeVars (A.Universe l)                  = freeVars l
   freeVars A.Hole                          = Set.empty
   freeVars A.Implicit                      = Set.empty
-  freeVars A.LitLevel{}                    = Set.empty
+  freeVars (A.LevelExpr l)                 = freeVars l
   freeVars A.Builtin{}                     = Set.empty
   freeVars (A.Let pb e) = Set.difference (freeVars e) (boundVars pb)
     where boundVars (A.LetPatBound p _) =
             Set.map A.unBindName $ A.boundSubjectVars p <> A.boundTypingVars p
+
+
+instance Free A.Level where
+  freeVars A.LInfer{} = Set.empty
+  freeVars A.LitLevel{} = Set.empty
+  freeVars (A.LVar v) = Set.singleton v

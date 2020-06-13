@@ -77,65 +77,14 @@ normalise (FunTy ab) = finalNormalForm =<< FunTy <$> normaliseAbs ab
 normalise (Lam ab) = finalNormalForm =<< Lam <$> normaliseAbs ab
 normalise (ProductTy ab) = finalNormalForm =<< ProductTy <$> normaliseAbs ab
 -- VALUE: LitLevel
-normalise (LitLevel n) = finalNormalForm $ LitLevel n
+-- TODO: maybe add better normalisation for levels (e.g., vars and metas) (2020-06-13)
+normalise (LevelExpr l) = finalNormalForm $ LevelExpr l
 -- lzero ---> 0
-normalise (Builtin LZero) = finalNormalForm $ LitLevel 0
+normalise (Builtin LZero) = finalNormalForm . LevelExpr $ LitLevel 0
 normalise (App e1 e2) = do
   e1' <- normalise e1
   e2' <- normalise e2
   case e1' of
-
-    ------------------
-    -- Builtin lsuc --
-    ------------------
-
-    Builtin LSuc -> do
-      let l = e2'
-      case l of
-
-        -- lsuc n ---> SUCC n
-        (LitLevel n) -> finalNormalForm (LitLevel (succ n))
-
-        -- otherwise we can't reduce further
-        _ ->
-          finalNormalForm $ lsucApp l
-
-    ------------------
-    -- Builtin lmax --
-    ------------------
-
-    (App (Builtin LMax) l1) -> do
-      let l2 = e2'
-      case (l1, l2) of
-
-        -- lmax 0 l2 ---> l2
-        (LitLevel 0, l2) ->
-          finalNormalForm $ l2
-
-        -- lmax l1 0 ---> l1
-        (l1, LitLevel 0) ->
-          finalNormalForm $ l1
-
-        -- lmax m n ---> MAX m n
-        (LitLevel m, LitLevel n) ->
-          finalNormalForm $ LitLevel (max m n)
-
-        -- lmax (lsuc l1) (lsuc l2) ---> lsuc (lmax l1 l2)
-        (LSuc' l1, LSuc' l2) ->
-          normalise $ lsucApp (lmaxApp l1 l2)
-
-        -- lmax (m + 1) (lsuc l2) ---> lsuc (lmax m l2)
-        (LitLevel m, LSuc' l2') | m > 0 ->
-          normalise $ lsucApp (lmaxApp (LitLevel (pred m)) l2')
-
-        -- lmax (lsuc l1) (n + 1) ---> lsuc (lmax l1 n)
-        (LSuc' l1', LitLevel n) | n > 0 ->
-          normalise $ lsucApp (lmaxApp l1' (LitLevel (pred n)))
-
-        -- otherwise we can't reduce further
-        _ ->
-          finalNormalForm $ lmaxApp l1 l2
-
     ------------------------
     -- Lambda abstraction --
     ------------------------
@@ -197,6 +146,8 @@ normalise (Let (LetPatBound p e1) e2) = do
     -- TODO: perform the subject-type substitution only in the type (2020-03-04)
     Just (ssubst, tsubst) -> normalise =<< substitute tsubst =<< substitute ssubst e2
 normalise (Sig e t) = Sig <$> normalise e <*> normalise t
+-- TODO: Improve normalisation for levels/universes (metas, variables?) (2020-06-13)
+normalise (Universe l) = finalNormalForm $ Universe l
 normalise e = notImplemented $ "normalise does not yet support '" <> pprintShow e <> "'"
 
 
@@ -233,7 +184,7 @@ equalExprs e1 e2 = do
     (Implicit, _) -> pure True
     (_, Implicit) -> pure True
     (Builtin b1, Builtin b2) -> pure (b1 == b2)
-    (LitLevel n, LitLevel m) -> pure (n == m)
+    (LevelExpr l1, LevelExpr l2) -> levelsAreEqual l1 l2
 
     (Let (LetPatBound p e1) e2, Let (LetPatBound p' e1') e2') -> do
       case maybeGetPatternUnificationSubst p p' of
@@ -261,6 +212,12 @@ equalExprs e1 e2 = do
           e2s <- substitute (absVar ab2, Var (absVar ab1)) (absExpr ab2)
           (&&) <$> equalExprs (absTy ab1) (absTy ab2)
                <*> withAbsBinding ab1 (equalExprs (absExpr ab1) e2s)
+
+
+-- | Test whether two levels are equal.
+levelsAreEqual :: Level -> Level -> CM Bool
+levelsAreEqual (LitLevel n) (LitLevel m) = pure $ n == m
+levelsAreEqual l1 l2 = notImplemented $ "levelsAreEqual on levels '" <> pprintShow l1 <> "' and '" <> pprintShow l2 <> "'"
 
 
 -- | Try and register the name with the given type
@@ -321,7 +278,7 @@ inferUniverseLevel e = withLocalCheckingOf e $ do
   (_, u) <- inferExpr e emptyInContext
   norm <- normalise u
   case norm of
-    (App (Builtin TypeTy) l) -> pure l
+    (Universe l) -> pure l
     _        -> expectedInferredTypeForm "universe" norm
 
 
@@ -474,16 +431,12 @@ zeroesMatchingShape = map (\(id, _) -> (id, gradeZero))
 
 -- Auxiliary function that exmaines an output context to check it
 -- has 0 subject type use and that its type is of the form `Type l`
-exprIsTypeAndSubjectTypeGradesZero :: OutContext -> Type -> CM (Maybe Expr)
+exprIsTypeAndSubjectTypeGradesZero :: OutContext -> Type -> CM (Maybe Level)
 exprIsTypeAndSubjectTypeGradesZero ctxt ty = do
   isZeroed <- allZeroes (typeGradesOut ctxt)
   case ty of
-    (App (Builtin TypeTy) l) | isZeroed ->
-      return (Just l)
-    (App (Def (ident -> "Type")) l) | isZeroed ->
-      return (Just l)
-    _ ->
-      return Nothing
+    (Universe l) | isZeroed -> pure (Just l)
+    _ -> pure Nothing
 
 
 -- Top level
@@ -545,7 +498,7 @@ checkExpr' (Lam lam) t ctxt = do
                 else gradeMismatchAt "pi binder" SubjectType (absVar pi) (subjectTypeGrade pi) r
             else gradeMismatchAt "pi binder" Subject (absVar pi) (subjectGrade pi) s
 
-        _ -> tyMismatchAt "abs" (mkUnivTy Hole) paramTy
+        _ -> tyMismatchAtType "abs" paramTy
 
     _ -> tyMismatchAt "abs" (FunTy (mkAbs (mkIdent "?") Hole Hole)) t
 
@@ -577,7 +530,7 @@ Declarative:
 -}
 
 inferExpr' :: Expr -> InContext -> CM (OutContext, Type)
-inferExpr' (LitLevel i) ctxt = do
+inferExpr' (LevelExpr i) ctxt = do
   debug $ "Infer for a literal level " <> show i
   pure (zeroedOutContextForInContext ctxt, Def $ mkIdent "Level")
 
@@ -617,7 +570,7 @@ inferExpr' (Var x) ctxt = do
                         , typeGradesOut    = extend sigma x gradeZero
                                             <> (zeroesMatchingShape (types ctxtR)) }, ty)
 
-            _ -> tyMismatchAt "var" (mkUnivTy Hole) typeType
+            _ -> tyMismatchAtType "var" typeType
 
 {-
 
@@ -659,23 +612,19 @@ inferExpr' (FunTy pi) ctxt = do
           -- (ii) Check binder grade specification matches usage `r`
           eq <- gradeEq rInferred (subjectTypeGrade pi)
           if eq
-            then return (OutContext { subjectGradesOut = contextGradeAdd sigma1 sigma2
+            then do
+              lmaxl1l2 <- levelMax l1 l2
+              return (OutContext { subjectGradesOut = contextGradeAdd sigma1 sigma2
                                     , typeGradesOut = zeroesMatchingShape (types ctxt) }
-                        , mkUnivTy (lmaxApp l1 l2))
+                     , mkUnivTy lmaxl1l2)
   -- Errors
             else gradeMismatchAt "pi type binder" Subject (absVar pi) (subjectTypeGrade pi) rInferred
-        _ -> tyMismatchAt "LHS of -o" (mkUnivTy Hole) typeB
-    _ -> tyMismatchAt "RHS of -o" (mkUnivTy Hole) typeA
+        _ -> tyMismatchAtType "LHS of -o" typeB
+    _ -> tyMismatchAtType "RHS of -o" typeA
 
 {-
 
 -}
-
--- Specialised inference for `Type l` style things
--- because this cannot be treated as really an application
-inferExpr' e@(App (Def (ident -> "Type")) (LitLevel l)) ctxt = do
-  debug $ "Infer for `" <> pprintShow e <> "` level literal (var form)"
-  pure (zeroedOutContextForInContext ctxt, (mkUnivTy (LitLevel (l + 1))))
 
 ----
 
@@ -716,8 +665,7 @@ inferExpr' e@(App t1 t2) ctxt = do
 
       hasLevel <- exprIsTypeAndSubjectTypeGradesZero outCtxtA typeOfA
       case hasLevel of
-        Nothing ->
-          tyMismatchAt "kind of function arg" (mkUnivTy Hole) typeOfA
+        Nothing -> tyMismatchAtType "kind of function arg" typeOfA
         Just _ -> do
           let sigma1 = subjectGradesOut outCtxtA
 
@@ -733,8 +681,7 @@ inferExpr' e@(App t1 t2) ctxt = do
 
           hasLevel' <- exprIsTypeAndSubjectTypeGradesZero outCtxtB typeOfB
           case hasLevel' of
-            Nothing ->
-              tyMismatchAt "kind of function app return" (mkUnivTy Hole) typeOfB
+            Nothing -> tyMismatchAtType "kind of function app return" typeOfB
             Just _ -> do
               let (sigma3, (_, rInferred)) = unextend (subjectGradesOut outCtxtB)
 
@@ -777,6 +724,9 @@ inferExpr' (Def n) ctxt = do
   tA <- lookupType n >>= maybe (scoperError $ SE.unknownNameErr (C.Unqualified $ nameConcrete n)) pure
   pure (zeroedOutContextForInContext ctxt, tA)
 
+inferExpr' (Universe (LitLevel l)) ctxt =
+  pure (zeroedOutContextForInContext ctxt, mkUnivTy (LitLevel (l + 1)))
+
 inferExpr' _ _ = do
   cannotSynthTypeForExpr
 
@@ -803,9 +753,6 @@ checkOrInferType' t (Builtin e) =
 
       -- lsuc : Level -> Level
       LSuc  -> builtinType lsuc
-
-      -- Type : (l : Level) -> Type (lsuc l)
-      TypeTy -> builtinType typeTy
 
       -- Level : Type 0
       LevelTy -> builtinType levelTy
@@ -845,7 +792,7 @@ checkOrInferType' t (Builtin e) =
 ----------------------
 -- Level expression --
 ----------------------
-checkOrInferType' t LitLevel{} = ensureEqualTypes t (builtinBody levelTy)
+checkOrInferType' t LevelExpr{} = ensureEqualTypes t (builtinBody levelTy)
 -------------------------
 -- Variable expression --
 -------------------------
@@ -900,7 +847,7 @@ checkOrInferType' t (FunTy ab) = do
   l2 <- withAbsBindingForType ab $ inferUniverseLevel (absExpr ab)
 
   -- G |- (x : A) -> B : Type (lmax l1 l2)
-  lmaxl1l2 <- normalise (lmaxApp l1 l2)
+  lmaxl1l2 <- levelMax l1 l2
   ensureEqualTypes t (mkUnivTy lmaxl1l2)
 
 --------------------------------------------
@@ -980,7 +927,7 @@ checkOrInferType' t (ProductTy ab) = do
   l2 <- withAbsBindingForType ab $ inferUniverseLevel (absExpr ab)
 
   -- G |- (x : A) * B : Type (lmax l1 l2)
-  lmaxl1l2 <- normalise (lmaxApp l1 l2)
+  lmaxl1l2 <- levelMax l1 l2
   ensureEqualTypes t (mkUnivTy lmaxl1l2)
 
 {-
@@ -1029,7 +976,7 @@ checkOrInferType' t (Coproduct tA tB) = do
   l2 <- inferUniverseLevel tB
 
   -- G |- (x : A) -> B : Type (lmax l1 l2)
-  lmaxl1l2 <- normalise (lmaxApp l1 l2)
+  lmaxl1l2 <- levelMax l1 l2
   ensureEqualTypes t (mkUnivTy lmaxl1l2)
 
 {-
@@ -1050,14 +997,14 @@ checkOrInferType' t (CoproductCase (z, tC) (x, c) (y, d) e) = do
   _l <- withTypedVariable z (Coproduct tA tB) $ inferUniverseLevel tC
 
   -- G, x : A |- c : [inl x/z]C
-  let inlX = inlTermApp l1 l2 tA tB (Var x)
+  let inlX = inlTermApp (LevelExpr l1) (LevelExpr l2) tA tB (Var x)
   e' <- normalise e
   inlxforzinC <- substitute (z, inlX) tC
   _ <- withTypedVariable x tA $ withActivePattern e' inlX
        $ checkOrInferType inlxforzinC c
 
   -- G, y : B |- d : [inr y/z]C
-  let inrY = inrTermApp l1 l2 tA tB (Var y)
+  let inrY = inrTermApp (LevelExpr l1) (LevelExpr l2) tA tB (Var y)
   inryforzinC <- substitute (z, inrY) tC
   _ <- withTypedVariable y tB $ withActivePattern e' inrY
        $ checkOrInferType inryforzinC d
@@ -1140,7 +1087,7 @@ checkOrInferType' t (RewriteExpr (x, y, p, tC) (z, c) a b p') = do
 
   -- G, z : A |- c : [z/x][z/y][refl l1 A z/p]C
   zForyinzforyinreflforpC <-
-    substitute (x, Var z) =<< substitute (y, Var z) =<< substitute (p, reflTermApp l1 tA (Var z)) tC
+    substitute (x, Var z) =<< substitute (y, Var z) =<< substitute (p, reflTermApp (LevelExpr l1) tA (Var z)) tC
   _ <- withTypedVariable z tA $ checkOrInferType zForyinzforyinreflforpC c
 
   -- G |- rewrite(x.y.p.C, l1, A, a, b, p) : [a/x][b/y][p'/p]C
@@ -1360,3 +1307,24 @@ withActivePattern e intro act = do
     -- we don't know how to refine the value-scope based on the pattern and
     -- expression, so we just continue as-is
     _ -> act
+
+
+-------------------
+----- Helpers -----
+-------------------
+
+
+tyMismatchAtType :: String -> Type -> CM a
+tyMismatchAtType s t = do
+  NameId i <- getFreshNameId
+  tyMismatchAt s (mkUnivTy (LInfer $ toInteger i)) t
+
+
+------------------
+----- Levels -----
+------------------
+
+
+levelMax :: Level -> Level -> CM Level
+levelMax (LitLevel l1) (LitLevel l2) = pure $ LitLevel (max l1 l2)
+levelMax l1 l2 = notImplemented $ "levelMax on '" <> pprintShow l1 <> "' and '" <> pprintShow l2 <> "'"

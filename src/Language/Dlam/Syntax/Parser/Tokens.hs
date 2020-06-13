@@ -14,6 +14,7 @@ data Keyword
         | KwRewrite
         | KwCase | KwOf | KwInl | KwInr
         | KwZero | KwSucc
+        | KwType
     deriving (Eq, Show)
 
 layoutKeywords :: [Keyword]
@@ -42,6 +43,7 @@ data Token
                         -- "A.B.x" correspond to "A.", "B." and "x".
           -- Literals
         | TokLiteral    Literal
+        | TokNat        (Range, Integer)
           -- Special symbols
         | TokSymbol Symbol Interval
           -- Other tokens
@@ -61,6 +63,7 @@ instance HasRange Token where
   getRange (TokId (i, _))      = getRange i
   getRange (TokQId iss)        = getRange (map fst iss)
   getRange (TokLiteral lit)    = getRange lit
+  getRange (TokNat (i, _))     = getRange i
   getRange (TokSymbol _ i)     = getRange i
   getRange (TokString (i, _))  = getRange i
   getRange (TokSetN (i, _))    = getRange i

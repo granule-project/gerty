@@ -31,6 +31,8 @@ module Language.Dlam.Syntax.Abstract
   , BindName(..)
   , boundTypingVars
   , boundSubjectVars
+  -- ** Levels
+  , Level(..)
   -- * AST
   , AST(..)
   -- ** Declarations
@@ -223,6 +225,16 @@ mkAbs' :: IsHiddenOrNot -> Name -> Grading -> Expr -> Expr -> Abstraction
 mkAbs' isHid v g e1 e2 = Abst { absArg = mkArg isHid (BindName v `gradedWith` g `typedWith` e1), absExpr = e2 }
 
 
+data Level
+  -- | Level to be inferred. The number is the unique identifier.
+  = LInfer Integer
+  -- | Literal level (natural number).
+  | LitLevel Integer
+  -- | Level variable.
+  | LVar Name
+  deriving (Show, Eq, Ord)
+
+
 data Expr
   -- | Variable.
   = Var Name
@@ -230,8 +242,8 @@ data Expr
   -- | Name standing for a constant.
   | Def Name
 
-  -- | Level literals.
-  | LitLevel Integer
+  -- | Levels.
+  | LevelExpr Level
 
   -- | Dependent function type.
   | FunTy Abstraction
@@ -263,6 +275,9 @@ data Expr
   | App Expr Expr -- e1 e2
 
   | Sig Expr Expr -- e : A
+
+  -- | Typing universe.
+  | Universe Level
 
   -- | Holes for inference.
   | Hole
@@ -398,9 +413,6 @@ data BuiltinTerm =
   -- | Level maximum.
   | LMax
 
-  -- | Universe type.
-  | TypeTy
-
   -- | inl.
   | Inl
 
@@ -457,14 +469,15 @@ caset = text "case"
 
 instance Pretty Expr where
     isLexicallyAtomic (Var _) = True
-    isLexicallyAtomic LitLevel{} = True
+    isLexicallyAtomic (LevelExpr l) = isLexicallyAtomic l
     isLexicallyAtomic Builtin{}  = True
     isLexicallyAtomic Pair{}     = True
     isLexicallyAtomic Hole{}     = True
     isLexicallyAtomic Implicit{} = True
     isLexicallyAtomic _       = False
 
-    pprint (LitLevel n)           = integer n
+    pprint (LevelExpr l)          = pprint l
+    pprint (Universe l)           = text "Type" <+> pprint l
     pprint (Lam ab) = text "\\ " <> pprintAbs arrow ab
     pprint (FunTy ab) = pprintAbs arrow ab
     pprint (ProductTy ab) =
@@ -530,7 +543,6 @@ instance Pretty BuiltinTerm where
   pprint LMax      = text "lmax"
   pprint LSuc      = text "lsuc"
   pprint LevelTy   = text "Level"
-  pprint TypeTy    = text "Type"
   pprint Inl       = text "inl"
   pprint Inr       = text "inr"
   pprint DNat      = text "Nat"
@@ -562,3 +574,10 @@ instance Pretty Declaration where
 instance Pretty Grading where
   pprint g = char '[' <>
              pprint (subjectGrade g) <> comma <+> pprint (subjectTypeGrade g) <> char ']'
+
+instance Pretty Level where
+  isLexicallyAtomic _ = True
+
+  pprint (LInfer i) = text "?{" <> integer i <> text "}"
+  pprint (LitLevel i) = integer i
+  pprint (LVar v) = pprint v

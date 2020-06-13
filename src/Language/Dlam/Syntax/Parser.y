@@ -49,8 +49,10 @@ import Language.Dlam.Util.Pretty (pprintShow)
     succ    { TokKeyword KwSucc $$ }
     of      { TokKeyword KwOf $$ }
     in      { TokKeyword KwIn  $$  }
+    Type    { TokKeyword KwType $$ }
     VAR     { TokId $$ }
     literal { TokLiteral $$ }
+    nat     { TokNat $$ }
     absurd  { TokSymbol SymAbsurd $$ }
     '\\'    { TokSymbol SymLambda $$ }
     '->'    { TokSymbol SymArrow $$ }
@@ -313,6 +315,8 @@ Atom :: { ParseExpr }
   | '_'                       { mkImplicit }
   | literal                   { LitLevel (natTokenToInt $1) }
   | '.' literal               { natTokenToUnaryNat $2 }
+  | Type                      { UniverseNoLevel }
+  | Type nat                  { Universe (snd $2) }
 
   -- For later
   -- | '?' { Hole }

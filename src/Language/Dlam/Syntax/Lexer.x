@@ -120,6 +120,7 @@ tokens :-
 <0,code> Inr            { keyword KwInr }
 <0,code> Zero           { keyword KwZero }
 <0,code> Succ           { keyword KwSucc }
+<0,code> Type           { keyword KwType }
 
 -- Holes
 <0,code> "{!"           { hole }
