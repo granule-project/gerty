@@ -33,7 +33,7 @@ module Language.Dlam.Syntax.Common.Language
 import qualified Data.List.NonEmpty as NE
 
 import Language.Dlam.Util.Peekaboo
-import Language.Dlam.Util.Pretty (Pretty(..), (<+>), colon, hsep, text)
+import Language.Dlam.Util.Pretty (Pretty(..), (<+>), char, colon, hsep, integer, text)
 
 
 ----------
@@ -167,7 +167,17 @@ data Grade r
 instance Pretty (Grade r) where
   pprint GZero = text ".0"
   pprint GOne  = text ".1"
-  pprint (GPlus g1 g2) = pprint g1 <+> text "+" <+> pprint g2
+  pprint (GPlus g1 g2) = pprintSquishy 0 (g1, g2)
+    where pprintSquishy n (GZero, GZero) = char '.' <> integer n
+          pprintSquishy n (GOne,  r) = pprintSquishy (n+1) (GZero, r)
+          pprintSquishy n (s, GOne) = pprintSquishy (n+1) (s, GZero)
+          pprintSquishy n (GPlus GOne s, r) = pprintSquishy (n+1) (s, r)
+          pprintSquishy n (GPlus s GOne, r) = pprintSquishy (n+1) (s, r)
+          pprintSquishy n (s, GPlus GOne r) = pprintSquishy (n+1) (s, r)
+          pprintSquishy n (s, GPlus r GOne) = pprintSquishy (n+1) (s, r)
+          pprintSquishy n (GZero, r) = (char '.' <> integer n) <+> char '+' <+> pprint r
+          pprintSquishy n (s, GZero) = (char '.' <> integer n) <+> char '+' <+> pprint s
+          pprintSquishy n (s, r) = (char '.' <> integer n) <+> char '+' <+> pprint s <+> char '+' <+> pprint r
   pprint (GTimes g1 g2) = pprint g1 <+> text "*" <+> pprint g2
   pprint (GLub g1 g2) = pprint g1 <+> text "lub" <+> pprint g2
   pprint GImplicit = text "._"
