@@ -393,7 +393,7 @@ instance Pretty Expr where
     isLexicallyAtomic Implicit{} = True
     isLexicallyAtomic _       = False
 
-    pprint (Universe l)           = text "Type" <+> pprint l
+    pprint (Universe l)           = text "Type" <+> pprintParened l
     pprint (Lam ab) = text "\\ " <> pprintAbs arrow ab
     pprint (FunTy ab) = pprintAbs arrow ab
     pprint (ProductTy ab) =
@@ -458,7 +458,7 @@ instance Pretty Level where
     case ls of
       []  -> pprint (LitLevel 0)
       [l] -> pprint l
-      _   -> foldr1 (\a b -> text "lub" <+> a <+> b) $ map pprint ls
+      _   -> foldr1 (\a b -> text "lub" <+> a <+> b) $ map pprintParened ls
 
 instance Pretty PlusLevel where
   isLexicallyAtomic LitLevel{} = True
