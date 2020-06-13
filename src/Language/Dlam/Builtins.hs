@@ -24,12 +24,6 @@ module Language.Dlam.Builtins
   -- ** Type Universes
   , mkUnivTy
 
-  -- ** Coproducts
-  , inlTerm
-  , inlTermApp
-  , inrTerm
-  , inrTermApp
-
   -- ** Natural numbers
   , natTy
   , dnzero
@@ -42,12 +36,6 @@ module Language.Dlam.Builtins
 
   -- ** Empty type
   , emptyTy
-
-  -- ** Identity
-  , idTy
-  , idTyApp
-  , reflTerm
-  , reflTermApp
   ) where
 
 
@@ -60,10 +48,8 @@ import Language.Dlam.Util.Pretty (pprintShow)
 -- | The list of builtins.
 builtins :: [Builtin]
 builtins =
-   [ inlTerm, inrTerm
-   , natTy, dnzero, dnsucc
+   [ natTy, dnzero, dnsucc
    , unitTerm, unitTy
-   , idTy, reflTerm
    , emptyTy
    ]
 
@@ -110,50 +96,13 @@ typeZero = mkUnivTy (LitLevel 0)
 mkApp :: Expr -> Expr -> Expr
 mkApp = App
 
-inlTerm, inrTerm,
- unitTy, unitTerm,
- idTy, reflTerm,
+unitTy, unitTerm,
  natTy, dnzero, dnsucc,
  emptyTy :: Builtin
-
-inlTerm = mkBuiltin Inl inlTermTY
-  where
-    inlTermTY =
-      let a = mkIdent "a"; av = Var a
-          b = mkIdent "b"; bv = Var b
-      in mkFunTy a aUniverse
-          (mkFunTy b aUniverse
-           (mkFunTy ignoreVar av (Coproduct av bv)))
-inrTerm = mkBuiltin Inr inrTermTY
-  where
-    inrTermTY =
-      let a = mkIdent "a"; av = Var a
-          b = mkIdent "b"; bv = Var b
-      in mkFunTy a aUniverse
-          (mkFunTy b aUniverse
-           (mkFunTy ignoreVar bv (Coproduct av bv)))
 
 unitTy = mkBuiltin DUnitTy typeZero
 
 unitTerm = mkBuiltin DUnitTerm (builtinBody unitTy)
-
-idTy = mkBuiltin IdTy idTyTY
-  where
-    idTyTY :: Expr
-    idTyTY =
-      let a = mkIdent "a"
-          av = Var a
-      in mkFunTy a aUniverse (mkFunTy ignoreVar av (mkFunTy ignoreVar av aUniverse))
-
-reflTerm = mkBuiltin DRefl reflTermTY
-  where
-    reflTermTY :: Expr
-    reflTermTY =
-      let a = mkIdent "a"
-          av = Var a
-          x = mkIdent "x"
-          xv = Var x
-      in mkFunTy a aUniverse (mkFunTy x av (idTyApp av xv xv))
 
 natTy = mkBuiltin DNat typeZero
 natTy' = builtinBody natTy
@@ -164,18 +113,6 @@ emptyTy = mkBuiltin DEmptyTy typeZero
 
 mkUnivTy :: Level -> Expr
 mkUnivTy = Universe
-
-inlTermApp :: Expr -> Expr -> Expr -> Expr
-inlTermApp a b v = mkApp (mkApp (mkApp (builtinBody inlTerm) a) b) v
-
-inrTermApp :: Expr -> Expr -> Expr -> Expr
-inrTermApp a b v = mkApp (mkApp (mkApp (builtinBody inrTerm) a) b) v
-
-idTyApp :: Expr -> Expr -> Expr -> Expr
-idTyApp t x y = mkApp (mkApp (mkApp (builtinBody idTy) t) x) y
-
-reflTermApp :: Expr -> Expr -> Expr
-reflTermApp t x = mkApp (mkApp (builtinBody reflTerm) t) x
 
 dnsuccApp :: Expr -> Expr
 dnsuccApp = mkApp (builtinBody dnsucc)

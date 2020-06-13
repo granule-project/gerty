@@ -178,16 +178,6 @@ instance ToAbstract C.Expr A.Expr where
     pure $ foldr (\b f -> A.Lam (A.mkAbs' (isHidden b) (A.unBoundName . un. un . un . A.unTB $ b) (A.grading b) (typeOf b) f)) expr' args'
   toAbstract (C.ProductTy ab) = A.ProductTy <$> toAbstract ab
   toAbstract (C.Pair l r) = A.Pair <$> toAbstract l <*> toAbstract r
-  toAbstract (C.Coproduct t1 t2) = A.Coproduct <$> toAbstract t1 <*> toAbstract t2
-  toAbstract (C.CoproductCase (z, tC) (x, c) (y, d) p) = do
-    z' <- toAbstract z
-    x' <- toAbstract x
-    y' <- toAbstract y
-    tC' <- withLocals [(z, z')] $ toAbstract tC
-    p' <- toAbstract p
-    c' <- withLocals [(x, x')] $ toAbstract c
-    d' <- withLocals [(y, y')] $ toAbstract d
-    pure $ A.CoproductCase (z', tC') (x', c') (y', d') p'
   toAbstract (C.NatCase (x, tC) cz (w, y, cs) n) = do
     x' <- toAbstract x
     w' <- toAbstract w
@@ -197,17 +187,6 @@ instance ToAbstract C.Expr A.Expr where
     cs' <- withLocals [(w, w'), (y, y')] $ toAbstract cs
     n' <- toAbstract n
     pure $ A.NatCase (x', tC') cz' (w', y', cs') n'
-  toAbstract (C.RewriteExpr (x, y, p, tC) (z, c) a b e) = do
-    x' <- toAbstract x
-    y' <- toAbstract y
-    p' <- toAbstract p
-    z' <- toAbstract z
-    tC' <- withLocals [(x, x'), (y, y'), (p, p')] $ toAbstract tC
-    c' <- withLocals [(z, z')] $ toAbstract c
-    a' <- toAbstract a
-    b' <- toAbstract b
-    e' <- toAbstract e
-    pure $ A.RewriteExpr (x', y', p', tC') (z', c') a' b' e'
   toAbstract (C.EmptyElim (x, tC) a) = do
     x' <- toAbstract x
     tC' <- withLocals [(x, x')] $ toAbstract tC

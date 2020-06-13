@@ -267,17 +267,8 @@ data Expr
   -- | Pairs.
   | Pair Expr Expr
 
-  -- | Coproduct type.
-  | Coproduct Expr Expr
-
-  -- | Coproduct eliminator.
-  | CoproductCase (Name, Expr) (Name, Expr) (Name, Expr) Expr
-
   -- | Natural number eliminator.
   | NatCase (Name, Expr) Expr (Name, Name, Expr) Expr
-
-  -- | Identity eliminator.
-  | RewriteExpr (Name, Name, Name, Expr) (Name, Expr) Expr Expr Expr
 
   -- | Empty eliminator.
   | EmptyElim (Name, Expr) Expr
@@ -394,28 +385,11 @@ instance Pretty Expr where
       pprintParened (Sig e1 t) <+> pprintParened e2
     pprint (App e1 e2) = pprint e1 <+> pprintParened e2
     pprint (Pair e1 e2) = parens (pprint e1 <> comma <+> pprint e2)
-    pprint (Coproduct e1 e2) = pprint e1 <+> char '+' <+> pprint e2
-    pprint (CoproductCase (NoName{}, Implicit) (x, c) (y, d) e) =
-      caset <+> pprint e <+> text "of"
-              <+> text "Inl" <+> pprint x <+> arrow <+> pprint c <> semi
-              <+> text "Inr" <+> pprint y <+> arrow <+> pprint d
-    pprint (CoproductCase (z, tC) (x, c) (y, d) e) =
-      caset <+> pprint z <> at <> pprintParened e <+> text "of" <> parens
-              (text "Inl" <+> pprint x <+> arrow <+> pprint c <> semi
-              <+> text "Inr" <+> pprint y <+> arrow <+> pprint d) <+> colon <+> pprint tC
     pprint (NatCase (x, tC) cz (w, y, cs) n) =
       caset <+> pprint x <> at <> pprintParened n <+> text "of" <+> parens
               (text "Zero" <+> arrow <+> pprint cz <> semi
               <+> text "Succ" <+> pprint w <> at <> pprint y <+> arrow <+> pprint cs)
               <+> colon <+> pprint tC
-    pprint (RewriteExpr (x, y, p, tC) (z, c) a b p') =
-      text "rewrite" <> parens
-        (hcat $ punctuate (space <> char '|' <> space)
-         [ char '\\' <> hsep [pprint x, pprint y, pprint p, arrow, pprint tC]
-         , char '\\' <> pprint z <+> arrow <+> pprint c
-         , pprint a
-         , pprint b
-         , pprint p'])
     pprint (Ident var) = pprint var
     pprint (Sig e t) = pprintParened e <+> colon <+> pprint t
     pprint Hole = char '?'

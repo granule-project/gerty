@@ -92,16 +92,6 @@ normalise (App e1 e2) = do
     ------------------------
 
     _ -> finalNormalForm $ App e1' e2'
-normalise (CoproductCase (z, tC) (x, c) (y, d) e) = do
-  e' <- normalise e
-  case e' of
-    Inl' _l1 _l2 _a _b l -> normalise =<< substitute (x, l) c
-    Inr' _l1 _l2 _a _b r -> normalise =<< substitute (y, r) d
-    _ -> do
-      tC' <- normalise tC
-      c' <- normalise c
-      d' <- normalise d
-      finalNormalForm $ CoproductCase (z, tC') (x, c') (y, d') e'
 normalise (NatCase (x, tC) cz (w, y, cs) n) = do
   n' <- normalise n
   case n' of
@@ -130,7 +120,6 @@ normalise (NatCase (x, tC) cz (w, y, cs) n) = do
       cz' <- normalise cz
       cs'  <- normalise cs
       finalNormalForm $ NatCase (x, tC') cz' (w, y, cs') n'
-normalise (Coproduct e1 e2) = finalNormalForm =<< Coproduct <$> normalise e1 <*> normalise e2
 normalise (Pair e1 e2) = finalNormalForm =<< Pair <$> normalise e1 <*> normalise e2
 normalise e@Builtin{} = finalNormalForm e
 
@@ -162,13 +151,6 @@ equalExprs e1 e2 = do
     (FunTy ab1, FunTy ab2) -> equalAbs ab1 ab2
     (Lam ab1, Lam ab2) -> equalAbs ab1 ab2
     (ProductTy ab1, ProductTy ab2) -> equalAbs ab1 ab2
-    (Coproduct t1 t2, Coproduct t1' t2') -> (&&) <$> equalExprs t1 t1' <*> equalExprs t2 t2'
-    (CoproductCase (z, tC) (x, c) (y, d) e, CoproductCase (z', tC') (x', c') (y', d') e') -> do
-      typesOK <- equalExprs tC' =<< substitute (z, Var z') tC
-      csOK <- equalExprs c' =<< substitute (x, Var x') c
-      dsOK <- equalExprs d' =<< substitute (y, Var y') d
-      esOK <- equalExprs e e'
-      pure $ typesOK && csOK && dsOK && esOK
     (NatCase (x, tC) cz (w, y, cs) n, NatCase (x', tC') cz' (w', y', cs') n') -> do
       typesOK <- equalExprs tC' =<< substitute (x, Var x') tC
       csOK <- equalExprs cs' =<< (substitute (w, Var w') cs >>= substitute (y, Var y'))
@@ -739,12 +721,6 @@ checkOrInferType' t (Builtin e) =
   -- matches the type defined for the builtin
   ensureEqualTypes t $
     case e of
-      -- inl : (l1 l2 : Level) (a : Type l1) (b : Type l2) -> a -> a + b
-      Inl -> builtinType inlTerm
-
-      -- inr : (l1 l2 : Level) (a : Type l1) (b : Type l2) -> b -> a + b
-      Inr -> builtinType inrTerm
-
       -- Nat : Type 0
       DNat -> builtinType natTy
 
@@ -762,12 +738,6 @@ checkOrInferType' t (Builtin e) =
 
       -- Empty : Type 0
       DEmptyTy -> builtinType emptyTy
-
-      -- Id : (l : Level) (a : Type l) -> a -> a -> Type l
-      IdTy -> builtinType idTy
-
-      -- refl : (l : Level) (a : Type l) (x : a) -> Id l a x x
-      DRefl -> builtinType reflTerm
 -------------------------
 -- Variable expression --
 -------------------------
@@ -933,68 +903,6 @@ checkOrInferType' t (Pair e1 e2) = do
   -- G |- (t1, t2) : (x : A) * B
   ensureEqualTypes t (ProductTy (mkAbs x tA tB))
 
-----------------
--- Coproducts --
-----------------
-
-{-
-   G |- A : Type l1
-   G |- B : Type l2
-   ------------------------------ :: Coproduct
-   G |- A + B : Type (lmax l1 l2)
--}
-checkOrInferType' t (Coproduct tA tB) = do
-  -- G |- A : Type l1
-  l1 <- inferUniverseLevel tA
-
-  -- G |- B : Type l2
-  l2 <- inferUniverseLevel tB
-
-  -- G |- (x : A) -> B : Type (lmax l1 l2)
-  lmaxl1l2 <- levelMax l1 l2
-  ensureEqualTypes t (mkUnivTy lmaxl1l2)
-
-{-
-   G, z : A + B |- C : Type l
-   G, x : A |- c : [inl x/z]C
-   G, y : B |- d : [inr y/z]C
-   G |- e : A + B
-   ------------------------------------------------------ :: CoproductCase
-   G |- case z@e of (Inl x -> c; Inr y -> d) : C : [e/z]C
--}
-checkOrInferType' t (CoproductCase (z, tC) (x, c) (y, d) e) = do
-  -- G |- e : A + B
-  (tA, tB) <- inferCoproductTy e
-  _l1 <- inferUniverseLevel tA
-  _l2 <- inferUniverseLevel tB
-
-  -- G, z : A + B |- C : Type l
-  _l <- withTypedVariable z (Coproduct tA tB) $ inferUniverseLevel tC
-
-  -- G, x : A |- c : [inl x/z]C
-  let inlX = inlTermApp tA tB (Var x)
-  e' <- normalise e
-  inlxforzinC <- substitute (z, inlX) tC
-  _ <- withTypedVariable x tA $ withActivePattern e' inlX
-       $ checkOrInferType inlxforzinC c
-
-  -- G, y : B |- d : [inr y/z]C
-  let inrY = inrTermApp tA tB (Var y)
-  inryforzinC <- substitute (z, inrY) tC
-  _ <- withTypedVariable y tB $ withActivePattern e' inrY
-       $ checkOrInferType inryforzinC d
-
-  -- G |- case z@e of (Inl x -> c; Inr y -> d) : C : [e/z]C
-  eforzinC <- substitute (z, e) tC
-  ensureEqualTypes t eforzinC
-
-  where inferCoproductTy :: Expr -> CM (Expr, Expr)
-        inferCoproductTy e = withLocalCheckingOf e $ do
-          t <- synthType e >>= normalise
-          case t of
-            (Coproduct tA tB) -> pure (tA, tB)
-            t -> expectedInferredTypeForm "coproduct" t
-
 ---------------------------
 ----- Natural numbers -----
 ---------------------------
@@ -1029,46 +937,6 @@ checkOrInferType' t (NatCase (x, tC) cz (w, y, cs) n) = do
   -- G |- case x@n of (Zero -> cz; Succ w@y -> cs) : C : [n/x]C
   nforxinC <- substitute (x, n) tC
   ensureEqualTypes t nforxinC
-
---------------------
------ Identity -----
---------------------
-
-{-
-   G |- A : Type l1
-   G, x : A, y : A, p : Id l1 A x y |- C : Type l2
-   G, z : A |- c : [z/x][z/y][refl l1 A z/p]C
-   G |- a : A
-   G |- b : A
-   G |- p' : Id l1 A a b
-   --------------------------------------------------------- :: RewriteExpr
-   G |- rewrite(x.y.p.C, l1, A, a, b, p) : [a/x][b/y][p'/p]C
--}
-checkOrInferType' t (RewriteExpr (x, y, p, tC) (z, c) a b p') = do
-  -- G |- a : A
-  tA <- synthType a
-
-  -- G |- A : Type l1
-  _l1 <- inferUniverseLevel tA
-
-  -- G |- b : A
-  _ <- checkOrInferType tA b
-
-  -- G |- p' : Id l1 A a b
-  _ <- checkOrInferType (idTyApp tA a b) p'
-
-  -- G, x : A, y : A, p : Id l1 A x y |- C : Type l2
-  _l2 <- withTypedVariable x tA $ withTypedVariable y tA $ withTypedVariable p (idTyApp tA (Var x) (Var y)) $ inferUniverseLevel tC
-
-  -- G, z : A |- c : [z/x][z/y][refl l1 A z/p]C
-  zForyinzforyinreflforpC <-
-    substitute (x, Var z) =<< substitute (y, Var z) =<< substitute (p, reflTermApp tA (Var z)) tC
-  _ <- withTypedVariable z tA $ checkOrInferType zForyinzforyinreflforpC c
-
-  -- G |- rewrite(x.y.p.C, l1, A, a, b, p) : [a/x][b/y][p'/p]C
-  aforxbforypforpinC <-
-    substitute (x, a) tC >>= substitute (y, b) >>= substitute (p, p')
-  ensureEqualTypes t aforxbforypforpinC
 
 -----------
 -- Empty --

@@ -10,8 +10,6 @@ module Language.Dlam.Syntax.Abstract
   (
    -- * Expressions
     Expr(..)
-  , pattern Inl'
-  , pattern Inr'
   , pattern Succ'
   , pattern Zero'
   , Name(..)
@@ -252,17 +250,8 @@ data Expr
   -- | Pairs.
   | Pair Expr Expr
 
-  -- | Coproduct type.
-  | Coproduct Expr Expr
-
-  -- | Coproduct eliminator.
-  | CoproductCase (Name, Expr) (Name, Expr) (Name, Expr) Expr
-
   -- | Natural number eliminator.
   | NatCase (Name, Expr) Expr (Name, Name, Expr) Expr
-
-  -- | Identity eliminator.
-  | RewriteExpr (Name, Name, Name, Expr) (Name, Expr) Expr Expr Expr
 
   -- | Empty eliminator.
   | EmptyElim (Name, Expr) Expr
@@ -285,14 +274,6 @@ data Expr
 
   | Let LetBinding Expr
   deriving (Show, Eq, Ord)
-
-
-pattern Inl' :: Expr -> Expr -> Expr -> Expr -> Expr -> Expr
-pattern Inl' l1 l2 a b l = App (App (App (App (App (Builtin Inl) l1) l2) a) b) l
-
-
-pattern Inr' :: Expr -> Expr -> Expr -> Expr -> Expr -> Expr
-pattern Inr' l1 l2 a b r = App (App (App (App (App (Builtin Inr) l1) l2) a) b) r
 
 
 pattern Succ' :: Expr -> Expr
@@ -396,23 +377,11 @@ ident (Name _ (C.NoName _)) = "_"
 
 
 data BuiltinTerm
-  -- | inl.
-  = Inl
-
-  -- | inr.
-  | Inr
-
   -- | Unit term.
-  | DUnitTerm
+  = DUnitTerm
 
   -- | Unit type.
   | DUnitTy
-
-  -- | Identity type.
-  | IdTy
-
-  -- | Reflexivity.
-  | DRefl
 
   -- | Natural number type.
   | DNat
@@ -473,28 +442,11 @@ instance Pretty Expr where
       pprintParened (Sig e1 t) <+> pprintParened e2
     pprint (App e1 e2) = pprint e1 <+> pprintParened e2
     pprint (Pair e1 e2) = parens (pprint e1 <> comma <+> pprint e2)
-    pprint (Coproduct e1 e2) = pprint e1 <+> char '+' <+> pprint e2
-    pprint (CoproductCase (Name _ C.NoName{}, Implicit) (x, c) (y, d) e) =
-      caset <+> pprint e <+> text "of"
-              <+> text "Inl" <+> pprint x <+> arrow <+> pprint c <> semi
-              <+> text "Inr" <+> pprint y <+> arrow <+> pprint d
-    pprint (CoproductCase (z, tC) (x, c) (y, d) e) =
-      caset <+> pprint z <> at <> pprintParened e <+> text "of" <> parens
-              (text "Inl" <+> pprint x <+> arrow <+> pprint c <> semi
-              <+> text "Inr" <+> pprint y <+> arrow <+> pprint d) <+> colon <+> pprint tC
     pprint (NatCase (x, tC) cz (w, y, cs) n) =
       caset <+> pprint x <> at <> pprintParened n <+> text "of" <+> parens
               (text "Zero" <+> arrow <+> pprint cz <> semi
               <+> text "Succ" <+> pprint w <> at <> pprint y <+> arrow <+> pprint cs)
               <+> colon <+> pprint tC
-    pprint (RewriteExpr (x, y, p, tC) (z, c) a b p') =
-      text "rewrite" <> parens
-        (hcat $ punctuate (space <> char '|' <> space)
-         [ char '\\' <> hsep [pprint x, pprint y, pprint p, arrow, pprint tC]
-         , char '\\' <> pprint z <+> arrow <+> pprint c
-         , pprint a
-         , pprint b
-         , pprint p'])
     pprint (Var var) = pprint var
     pprint (Def name) = pprint name
     pprint (Sig e t) = pprintParened e <+> colon <+> pprint t
@@ -520,15 +472,11 @@ instance Pretty BindName where
 
 instance Pretty BuiltinTerm where
   isLexicallyAtomic _ = True
-  pprint Inl       = text "inl"
-  pprint Inr       = text "inr"
   pprint DNat      = text "Nat"
   pprint DNZero    = text "zero"
   pprint DNSucc    = text "succ"
   pprint DUnitTy   = text "Unit"
   pprint DUnitTerm = text "unit"
-  pprint IdTy      = text "Id"
-  pprint DRefl     = text "refl"
   pprint DEmptyTy  = text "Empty"
 
 instance Pretty Name where

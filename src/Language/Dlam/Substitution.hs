@@ -71,13 +71,6 @@ instance {-# OVERLAPS #-} Substitutable CM (Name, Expr) Expr where
     e1' <- substitute s e1
     e2' <- substitute s e2
     pure (App e1' e2')
-  substitute s (Coproduct e1 e2) = Coproduct <$> substitute s e1 <*> substitute s e2
-  substitute s@(v, _) (CoproductCase (z, tC) (x, c) (y, d) e) = do
-    e' <- substitute s e
-    tC' <- if v == z then pure tC else substitute s tC
-    c'  <- if v == x then pure c else substitute s c
-    d'  <- if v == y then pure d else substitute s d
-    pure $ CoproductCase (z, tC') (x, c') (y, d') e'
   substitute s@(v, _) (NatCase (x, tC) cz (w, y, cs) n) = do
     tC' <- if v == x then pure tC else substitute s tC
     cz' <- substitute s cz
@@ -88,13 +81,6 @@ instance {-# OVERLAPS #-} Substitutable CM (Name, Expr) Expr where
   substitute _ e@Hole{} = pure e
   substitute _ e@Implicit = pure e
   substitute s (Sig e t) = Sig <$> substitute s e <*> substitute s t
-  substitute s@(v, _) (RewriteExpr (x, y, pv, tC) (z, c) a b pe) = do
-    tC' <- if v `elem` [x, y, pv] then pure tC else substitute s tC
-    c' <- if v == z then pure c else substitute s c
-    a' <- substitute s a
-    b' <- substitute s b
-    pe' <- substitute s pe
-    pure $ RewriteExpr (x, y, pv, tC') (z, c') a' b' pe'
   substitute s@(v, _) (EmptyElim (x, tC) a) = do
     tC' <- if v == x then pure tC else substitute s tC
     a' <- substitute s a

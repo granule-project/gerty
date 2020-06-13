@@ -38,13 +38,10 @@ import Language.Dlam.Util.Pretty (pprintShow)
     let     { TokKeyword KwLet $$ }
     record  { TokKeyword KwRecord $$ }
     where   { TokKeyword KwWhere $$ }
-    rewrite { TokKeyword KwRewrite $$ }
     constructor { TokKeyword KwConstructor $$ }
     field   { TokKeyword KwField $$ }
     '_'     { TokSymbol SymUnderscore $$ }
     case    { TokKeyword KwCase $$ }
-    inl     { TokKeyword KwInl $$ }
-    inr     { TokKeyword KwInr $$ }
     zero    { TokKeyword KwZero $$ }
     succ    { TokKeyword KwSucc $$ }
     of      { TokKeyword KwOf $$ }
@@ -262,7 +259,6 @@ Expr1 :: { Expr }
   : Application { mkAppFromExprs $1 }
   | Expr1 '*' Expr1   { ProductTy (mkAbs ignoreVar $1 $3) }
   | Ident '::' Expr1 '*' Expr1 { ProductTy (mkAbs $1 $3 $5) }
-  | Expr1 '+' Expr1   { Coproduct $1 $3 }
   | Expr1 ',' Expr1 { Pair $1 $3 }
 
 Application :: { [Expr] }
@@ -282,14 +278,6 @@ Expr2 :: { ParseExpr }
   | let LetBinding in ExprOrSig { Let $2 $4 }
 
   | let Ident '@' absurd '=' Expr ':' Expr { EmptyElim ($2, $8) $6 }
-
-  | rewrite '(' '\\' Ident Ident Ident '->' Expr '|' '\\' Ident '->' Expr '|' Expr '|' Expr '|' Expr ')' { RewriteExpr ($4, $5, $6, $8) ($11, $13) $15 $17 $19 }
-
-  | case Ident '@' Expr of '(' inl Ident '->' Expr ';' inr Ident '->' Expr ')' ':' Expr
-    { CoproductCase ($2, $18) ($8, $10) ($13, $15) $4 }
-
-  | case Expr of inl Ident '->' Expr ';' inr Ident '->' Expr
-    { CoproductCase (ignoreVar, mkImplicit) ($5, $7) ($10, $12) $2 }
 
   | case Ident '@' Expr of '(' zero '->' Expr ';' succ Ident '@' Ident '->' Expr ')' ':' Expr
     { NatCase ($2, $19) $9 ($12, $14, $16) $4 }
