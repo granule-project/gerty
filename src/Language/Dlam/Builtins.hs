@@ -33,9 +33,6 @@ module Language.Dlam.Builtins
   -- ** Unit
   , unitTy
   , unitTerm
-
-  -- ** Empty type
-  , emptyTy
   ) where
 
 
@@ -50,7 +47,6 @@ builtins :: [Builtin]
 builtins =
    [ natTy, dnzero, dnsucc
    , unitTerm, unitTy
-   , emptyTy
    ]
 
 
@@ -97,8 +93,7 @@ mkApp :: Expr -> Expr -> Expr
 mkApp = App
 
 unitTy, unitTerm,
- natTy, dnzero, dnsucc,
- emptyTy :: Builtin
+ natTy, dnzero, dnsucc :: Builtin
 
 unitTy = mkBuiltin DUnitTy typeZero
 
@@ -108,7 +103,6 @@ natTy = mkBuiltin DNat typeZero
 natTy' = builtinBody natTy
 dnzero = mkBuiltin DNZero natTy'
 dnsucc = mkBuiltin DNSucc (mkFunTy ignoreVar natTy' natTy')
-emptyTy = mkBuiltin DEmptyTy typeZero
 
 
 mkUnivTy :: Level -> Expr

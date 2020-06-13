@@ -253,9 +253,6 @@ data Expr
   -- | Natural number eliminator.
   | NatCase (Name, Expr) Expr (Name, Name, Expr) Expr
 
-  -- | Empty eliminator.
-  | EmptyElim (Name, Expr) Expr
-
   | App Expr Expr -- e1 e2
 
   | Sig Expr Expr -- e : A
@@ -391,9 +388,6 @@ data BuiltinTerm
 
   -- | Natural number successor.
   | DNSucc
-
-  -- | Empty type.
-  | DEmptyTy
   deriving (Show, Eq, Ord)
 
 
@@ -453,8 +447,6 @@ instance Pretty Expr where
     pprint Hole = char '?'
     pprint Implicit{} = char '_'
     pprint (Builtin s) = pprint s
-    pprint (EmptyElim (x, tC) a) =
-      text "let" <+> pprint x <> at <> text "()" <+> equals <+> pprint a <+> colon <+> pprint tC
     pprint (Let lb e) = text "let" <+> pprint lb <+> text "in" <+> pprint e
 
 instance Pretty LetBinding where
@@ -477,7 +469,6 @@ instance Pretty BuiltinTerm where
   pprint DNSucc    = text "succ"
   pprint DUnitTy   = text "Unit"
   pprint DUnitTerm = text "unit"
-  pprint DEmptyTy  = text "Empty"
 
 instance Pretty Name where
   isLexicallyAtomic _ = True

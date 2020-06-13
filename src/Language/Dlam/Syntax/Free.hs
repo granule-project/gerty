@@ -31,7 +31,6 @@ instance Free A.Expr where
   freeVars (A.Var var)                     = Set.singleton var
   freeVars (A.Def _)                       = Set.empty
   freeVars (A.Sig e _)                     = freeVars e
-  freeVars (A.EmptyElim (x, tC) a)         = Set.delete x $ freeVars (tC, a)
   freeVars (A.Universe l)                  = freeVars l
   freeVars A.Hole                          = Set.empty
   freeVars A.Implicit                      = Set.empty

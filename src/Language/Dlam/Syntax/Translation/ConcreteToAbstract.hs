@@ -187,11 +187,6 @@ instance ToAbstract C.Expr A.Expr where
     cs' <- withLocals [(w, w'), (y, y')] $ toAbstract cs
     n' <- toAbstract n
     pure $ A.NatCase (x', tC') cz' (w', y', cs') n'
-  toAbstract (C.EmptyElim (x, tC) a) = do
-    x' <- toAbstract x
-    tC' <- withLocals [(x, x')] $ toAbstract tC
-    a' <- toAbstract a
-    pure $ A.EmptyElim (x', tC') a'
   toAbstract (C.App f e) = A.App <$> toAbstract f <*> toAbstract e
   toAbstract (C.Sig e t) = A.Sig <$> toAbstract e <*> toAbstract t
   toAbstract C.Hole = pure A.Hole

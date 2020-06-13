@@ -81,10 +81,6 @@ instance {-# OVERLAPS #-} Substitutable CM (Name, Expr) Expr where
   substitute _ e@Hole{} = pure e
   substitute _ e@Implicit = pure e
   substitute s (Sig e t) = Sig <$> substitute s e <*> substitute s t
-  substitute s@(v, _) (EmptyElim (x, tC) a) = do
-    tC' <- if v == x then pure tC else substitute s tC
-    a' <- substitute s a
-    pure $ EmptyElim (x, tC') a'
   substitute _ e@Builtin{} = pure e
   substitute s@(v, _) (Let (LetPatBound p e) (Sig r t)) = do
     e' <- substitute s e

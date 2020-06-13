@@ -277,8 +277,6 @@ Expr2 :: { ParseExpr }
 
   | let LetBinding in ExprOrSig { Let $2 $4 }
 
-  | let Ident '@' absurd '=' Expr ':' Expr { EmptyElim ($2, $8) $6 }
-
   | case Ident '@' Expr of '(' zero '->' Expr ';' succ Ident '@' Ident '->' Expr ')' ':' Expr
     { NatCase ($2, $19) $9 ($12, $14, $16) $4 }
 

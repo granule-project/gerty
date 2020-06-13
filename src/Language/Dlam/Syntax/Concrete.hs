@@ -270,9 +270,6 @@ data Expr
   -- | Natural number eliminator.
   | NatCase (Name, Expr) Expr (Name, Name, Expr) Expr
 
-  -- | Empty eliminator.
-  | EmptyElim (Name, Expr) Expr
-
   | App Expr Expr -- e1 e2
 
   | Sig Expr Expr -- e : A
@@ -394,8 +391,6 @@ instance Pretty Expr where
     pprint (Sig e t) = pprintParened e <+> colon <+> pprint t
     pprint Hole = char '?'
     pprint Implicit{} = char '_'
-    pprint (EmptyElim (x, tC) a) =
-      text "let" <+> pprint x <> at <> text "()" <+> equals <+> pprint a <+> colon <+> pprint tC
     pprint (Let lb e) = text "let" <+> pprint lb <+> text "in" <+> pprint e
     pprint (BraceArg e) = braces $ pprint e
     pprint (Parens e)   = parens $ pprint e

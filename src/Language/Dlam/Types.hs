@@ -735,9 +735,6 @@ checkOrInferType' t (Builtin e) =
 
       -- unit : Unit
       DUnitTerm -> builtinType unitTerm
-
-      -- Empty : Type 0
-      DEmptyTy -> builtinType emptyTy
 -------------------------
 -- Variable expression --
 -------------------------
@@ -937,30 +934,6 @@ checkOrInferType' t (NatCase (x, tC) cz (w, y, cs) n) = do
   -- G |- case x@n of (Zero -> cz; Succ w@y -> cs) : C : [n/x]C
   nforxinC <- substitute (x, n) tC
   ensureEqualTypes t nforxinC
-
------------
--- Empty --
------------
-
-{-
-   G, x : Empty |- C : Type l
-   G |- a : Empty
-   ------------------------------ :: EmptyElim
-   G |- let x@() = a : C : [a/x]C
--}
-checkOrInferType' t (EmptyElim (x, tC) a) = do
-  let emptyTy' = builtinBody emptyTy
-
-  -- G, x : Empty |- C : Type l
-  _l <- withTypedVariable x emptyTy' $ inferUniverseLevel tC
-
-  -- G |- a : Empty
-  _ <- checkOrInferType emptyTy' a
-
-
-  -- G |- let x@() = a : C : [a/x]C
-  aforxinC <- substitute (x, a) tC
-  ensureEqualTypes t aforxinC
 
 {-
    G, tass(pat) |- C : Type l
