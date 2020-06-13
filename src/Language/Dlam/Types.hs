@@ -151,7 +151,9 @@ ensureEqualTypes :: Type -> Type -> CM Type
 ensureEqualTypes tyExpected tyActual = do
   typesEqual <- equalExprs tyActual tyExpected
   if typesEqual then pure tyActual
-  else tyMismatch tyExpected tyActual
+  else do
+    debug $ "Ensuring equal types. Representation: " ++ show (tyExpected, tyActual)
+    tyMismatchAt "ensure" tyExpected tyActual
 
 
 -- | Try and register the name with the given type
@@ -417,7 +419,7 @@ checkExpr' e t ctxt = do
   eq <- equalExprs t t'
   if eq
     then return ctxt'
-    else tyMismatch t t'
+    else tyMismatchAt "synth/check" t t'
 
 -- | Try and infer a type for the given expression.
 inferExpr :: Expr -> InContext -> CM (OutContext, Type)
