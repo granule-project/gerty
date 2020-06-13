@@ -179,6 +179,7 @@ equalExprs e1 e2 = do
     (Implicit, _) -> pure True
     (_, Implicit) -> pure True
     (Builtin b1, Builtin b2) -> pure (b1 == b2)
+    (Universe l1, Universe l2) -> levelsAreEqual l1 l2
 
     (Let (LetPatBound p e1) e2, Let (LetPatBound p' e1') e2') -> do
       case maybeGetPatternUnificationSubst p p' of
@@ -206,6 +207,12 @@ equalExprs e1 e2 = do
           e2s <- substitute (absVar ab2, Var (absVar ab1)) (absExpr ab2)
           (&&) <$> equalExprs (absTy ab1) (absTy ab2)
                <*> withAbsBinding ab1 (equalExprs (absExpr ab1) e2s)
+
+
+-- | Test whether two levels are equal.
+levelsAreEqual :: Level -> Level -> CM Bool
+levelsAreEqual (LitLevel n) (LitLevel m) = pure $ n == m
+levelsAreEqual l1 l2 = notImplemented $ "levelsAreEqual on levels '" <> pprintShow l1 <> "' and '" <> pprintShow l2 <> "'"
 
 
 -- | Try and register the name with the given type
