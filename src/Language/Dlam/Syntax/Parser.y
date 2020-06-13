@@ -204,6 +204,7 @@ TypeSig :: { (Name, Expr) }
 -- grades are just expressions
 Grade :: { Grade }
   : '.' literal { Left  $ natTokenToUnaryNat $2 }
+  | '.' '_'     { Left  $ C.GImplicit }
   | Application { Right $ mkAppFromExprs $1 }
 
 
