@@ -595,7 +595,7 @@ inferExpr' (App t1 t2) ctxt = do
           rTimesG4 <- contextGradeMult r g4
           g3PlusRTimesG4 <- contextGradeAdd g3 rTimesG4
 
-          t2forXinB <- substitute (absVar pi, tA) tB
+          t2forXinB <- substitute (absVar pi, t2) tB
 
           pure ( OutContext { subjectGradesOut = g2PlusSTimesG4
                             , typeGradesOut = g3PlusRTimesG4 }
