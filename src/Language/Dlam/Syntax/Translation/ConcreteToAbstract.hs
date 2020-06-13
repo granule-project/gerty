@@ -176,8 +176,8 @@ instance ToAbstract (Com.Grade C.Expr) (Com.Grade A.Expr) where
 
 instance ToAbstract C.Expr A.Expr where
   toAbstract (C.Ident v) = toAbstract (OldQName v)
-  toAbstract C.UniverseNoLevel = pure $ A.Universe A.LInfer
-  toAbstract (C.Universe l) = pure $ A.Universe (A.LitLevel l)
+  toAbstract C.UniverseNoLevel = A.univMeta <$> freshMeta
+  toAbstract (C.Universe l) = pure $ A.Universe (A.LMax [A.LitLevel l])
   toAbstract (C.Fun e1 e2) = do
     name <- newIgnoredName
     e1' <- toAbstract e1
@@ -265,3 +265,7 @@ instance ToAbstract C.Abstraction A.Abstraction where
     t <- toAbstract (C.absTy ab)
     e <- withLocals [(C.absVar ab, v)] $ toAbstract (C.absExpr ab)
     pure $ A.mkAbs v t e
+
+
+freshMeta :: SM A.MetaId
+freshMeta = A.MetaId . (\(NameId k) -> toInteger k) <$> getFreshNameId

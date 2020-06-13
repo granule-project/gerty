@@ -38,5 +38,5 @@ instance Free A.Expr where
 
 
 instance Free A.Level where
-  freeVars A.LInfer{} = Set.empty
-  freeVars A.LitLevel{} = Set.empty
+  -- NOTE: if we add support for level variables, this will need updating (2020-06-13)
+  freeVars _ = Set.empty

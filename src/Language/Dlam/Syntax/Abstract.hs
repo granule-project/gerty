@@ -28,7 +28,9 @@ module Language.Dlam.Syntax.Abstract
   , boundSubjectVars
   -- ** Levels and Universes
   , Level(..)
-  , aUniverse
+  , levelZero
+  , univMeta
+  , PlusLevel(..)
   -- * AST
   , AST(..)
   -- ** Declarations
@@ -37,6 +39,9 @@ module Language.Dlam.Syntax.Abstract
   , Declaration(..)
   , Abstraction
   , mkImplicit
+
+  -- * Metas
+  , MetaId(..)
 
   -- * Grading
   , Grade
@@ -216,12 +221,29 @@ mkAbs' :: IsHiddenOrNot -> Name -> Grading -> Expr -> Expr -> Abstraction
 mkAbs' isHid v g e1 e2 = Abst { absArg = mkArg isHid (BindName v `gradedWith` g `typedWith` e1), absExpr = e2 }
 
 
-data Level
-  -- | Level to be inferred.
-  = LInfer
-  -- | Literal level (natural number).
-  | LitLevel Integer
+newtype MetaId = MetaId { getMetaId :: Integer }
   deriving (Show, Eq, Ord)
+
+
+-- | Levels, in the style of Agda: https://hackage.haskell.org/package/Agda-2.6.0.1/docs/Agda-Syntax-Internal.html#t:Level
+data Level
+  -- | The maximum of some number of levels, with the empty maximum representing level 0.
+  = LMax [PlusLevel]
+  deriving (Show, Eq, Ord)
+
+
+data PlusLevel
+  = LitLevel Integer
+  | LPlus Integer MetaId
+  deriving (Show, Eq, Ord)
+
+
+levelZero :: Level
+levelZero = LMax []
+
+
+univMeta :: MetaId -> Expr
+univMeta i = Universe (LMax [LPlus 0 i])
 
 
 data Expr
@@ -263,10 +285,6 @@ data Expr
 -- | Make a new, unnamed, implicit term.
 mkImplicit :: Expr
 mkImplicit = Implicit
-
-
-aUniverse :: Expr
-aUniverse = Universe LInfer
 
 
 ------------------
@@ -432,7 +450,27 @@ instance Pretty Grading where
              pprint (subjectGrade g) <> comma <+> pprint (subjectTypeGrade g) <> char ']'
 
 instance Pretty Level where
+  isLexicallyAtomic (LMax []) = True
+  isLexicallyAtomic (LMax [x]) = isLexicallyAtomic x
+  isLexicallyAtomic (LMax (_:_)) = False
+
+  pprint (LMax ls) =
+    case ls of
+      []  -> pprint (LitLevel 0)
+      [l] -> pprint l
+      _   -> foldr1 (\a b -> text "lub" <+> a <+> b) $ map pprint ls
+
+instance Pretty PlusLevel where
+  isLexicallyAtomic LitLevel{} = True
+  isLexicallyAtomic (LPlus 0 l) = isLexicallyAtomic l
+  isLexicallyAtomic LPlus{} = False
+
+  pprint (LitLevel n) = integer n
+  pprint (LPlus 0 l) = pprint l
+  pprint (LPlus n l) = integer n <+> text "+" <+> pprint l
+
+
+instance Pretty MetaId where
   isLexicallyAtomic _ = True
 
-  pprint LInfer = text "_"
-  pprint (LitLevel i) = integer i
+  pprint (MetaId n) = text "?{" <> integer n <> text "}"

@@ -4,6 +4,8 @@ module Language.Dlam.Types
   ( doASTInference
   ) where
 
+import Data.List (sort)
+
 import Language.Dlam.Substitution (Substitutable(substitute))
 import Language.Dlam.Syntax.Abstract
 import Language.Dlam.Syntax.Common
@@ -140,12 +142,6 @@ equalExprs e1 e2 = do
           e2s <- substitute (absVar ab2, Var (absVar ab1)) (absExpr ab2)
           (&&) <$> equalExprs (absTy ab1) (absTy ab2)
                <*> withAbsBinding ab1 (equalExprs (absExpr ab1) e2s)
-
-
--- | Test whether two levels are equal.
-levelsAreEqual :: Level -> Level -> CM Bool
-levelsAreEqual (LitLevel n) (LitLevel m) = pure $ n == m
-levelsAreEqual l1 l2 = notImplemented $ "levelsAreEqual on levels '" <> pprintShow l1 <> "' and '" <> pprintShow l2 <> "'"
 
 
 -- | Try and register the name with the given type
@@ -622,8 +618,8 @@ inferExpr' (Def n) ctxt = do
   tA <- lookupType n >>= maybe (scoperError $ SE.unknownNameErr (C.Unqualified $ nameConcrete n)) pure
   pure (zeroedOutContextForInContext ctxt, tA)
 
-inferExpr' (Universe (LitLevel l)) ctxt =
-  pure (zeroedOutContextForInContext ctxt, mkUnivTy (LitLevel (l + 1)))
+inferExpr' (Universe l) ctxt =
+  pure (zeroedOutContextForInContext ctxt, mkUnivTy (levelSucc l))
 
 inferExpr' _ _ = do
   cannotSynthTypeForExpr
@@ -663,7 +659,7 @@ maybeGetPatternUnificationSubst _ _ = Nothing
 
 
 tyMismatchAtType :: String -> Type -> CM a
-tyMismatchAtType s t = tyMismatchAt s aUniverse t
+tyMismatchAtType s t = tyMismatchAt s (univMeta (MetaId (-1)))  t
 
 
 mkUnivTy :: Level -> Expr
@@ -676,8 +672,56 @@ mkUnivTy = Universe
 
 
 levelMax :: Level -> Level -> CM Level
-levelMax (LitLevel l1) (LitLevel l2) = pure $ LitLevel (max l1 l2)
-levelMax l1 l2 = notImplemented $ "levelMax on '" <> pprintShow l1 <> "' and '" <> pprintShow l2 <> "'"
+levelMax (LMax ls) (LMax ls') = pure $ levelMax' (ls ++ ls')
+
+
+levelSucc :: Level -> Level
+levelSucc (LMax xs) = LMax $ fmap lsucc xs
+  where lsucc (LitLevel n) = LitLevel (succ n)
+        lsucc (LPlus n  m) = LPlus (succ n) m
+
+
+-- mostly from https://hackage.haskell.org/package/Agda-2.6.0.1/docs/src/Agda.TypeChecking.Substitute.html#levelMax
+levelMax' :: [PlusLevel] -> Level
+levelMax' as0 = LMax $ ns ++ sort bs
+  where
+    as = Prelude.concatMap expand as0
+    -- ns is empty or a singleton
+    ns = case [ n | LitLevel n <- as, n > 0 ] of
+      []  -> []
+      ns  -> [ LitLevel n | let n = Prelude.maximum ns, n > greatestB ]
+    bs = subsume [ b | b@LPlus{} <- as ]
+    greatestB | null bs   = 0
+              | otherwise = Prelude.maximum [ n | LPlus n _ <- bs ]
+
+    expand l@LitLevel{} = [l]
+    expand (LPlus n l) = map (plus n) $ expand0 $ [LPlus 0 l]
+
+    expand0 [] = [LitLevel 0]
+    expand0 as = as
+
+    plus n (LitLevel m) = LitLevel (n + m)
+    plus n (LPlus m l)      = LPlus (n + m) l
+
+    subsume (LitLevel{} : _) = error "Impossible"
+    subsume [] = []
+    subsume (LPlus n a : bs)
+      | not $ null ns = subsume bs
+      | otherwise     = LPlus n a : subsume [ b | b@(LPlus _ a') <- bs, a /= a' ]
+      where
+        ns = [ m | LPlus m a'  <- bs, a == a', m > n ]
+
+
+-- | Test whether two levels are equal.
+levelsAreEqual :: Level -> Level -> CM Bool
+levelsAreEqual (LMax l1) (LMax l2) = lEqual (levelMax' l1) (levelMax' l2)
+  where lEqual (LMax []) (LMax []) = pure True
+        lEqual (LMax (x:xs)) (LMax (y:ys)) = (&&) <$> lEqual' x y <*> lEqual (LMax xs) (LMax ys)
+        lEqual _ _ = pure False
+        -- TODO: support checking against meta solutions/instantiations (2020-06-13)
+        lEqual' (LitLevel n) (LitLevel m) = pure (n == m)
+        lEqual' (LPlus m1 l1) (LPlus m2 l2) = pure $ (m1 == m2) && (l1 == l2)
+        lEqual' _ _ = pure False
 
 
 ------------------

@@ -54,8 +54,8 @@ instance {-# OVERLAPPABLE #-} (Monad m, Substitutable m n e, Foldable t) => Subs
 
 
 instance {-# OVERLAPS #-} Substitutable CM (Name, Level) Level where
-  substitute _ LInfer = pure LInfer
-  substitute _ (LitLevel i) = pure $ LitLevel i
+  -- TODO: add support for full substitutions if we add variables to levels (2020-06-13)
+  substitute _ l = pure l
 
 
 instance {-# OVERLAPS #-} Substitutable CM (Name, Expr) Expr where
