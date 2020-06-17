@@ -196,7 +196,7 @@ doDeclarationInference (FunEqn (FLHSName v) (FRHSAssign e)) = do
 
   -- assign the appopriate equation and normalised/inferred type for the name
   setValue v e
-  setType v exprTy
+  registerTypeForName v exprTy
   pure (FunEqn (FLHSName v) (FRHSAssign e))
 
 
