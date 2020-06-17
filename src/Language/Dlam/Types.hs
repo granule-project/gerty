@@ -187,9 +187,7 @@ doDeclarationInference (FunEqn (FLHSName v) (FRHSAssign e)) = do
   t <- debugBlock "FUN EQN INFERENCE" ("finding signature for " <> pprintShow v) (\t -> maybe "no sig found" (("found sig: "<>) . pprintShow) t)
        (lookupType v)
   exprTy <- case t of
-              Nothing -> do
-                _ <- inferExpr e emptyInContext
-                return $ mkImplicit
+              Nothing -> inferExpr e emptyInContext >>= normalise . snd
               Just ty -> do
                 checkOrInferTypeNew ty e
                 return ty
