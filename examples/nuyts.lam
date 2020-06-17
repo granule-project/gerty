@@ -35,3 +35,8 @@ i = \D C r y z -> r y
 --
 -- j : (D : [.0, .2] Type 2) -> RI ((E : [.0, .0] Type 2) -> D) D
 -- j = \D -> \C -> \r -> \y -> r y C
+
+-- 'k' example appears to be broken due to broken freshening
+--
+-- k : (D E F : [.0, .2] Type 2) -> (de : [.1, .0] RI D E) -> (ef : [.1, .0] RI E F) -> RI D F
+-- k = \D E F de ef C r y -> ef C (de C r) y
