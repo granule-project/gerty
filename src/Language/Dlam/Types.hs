@@ -107,7 +107,7 @@ equalExprs e1 e2 = do
   ne1 <- normalise e1
   ne2 <- normalise e2
   case (ne1, ne2) of
-    (Var v1, Var v2) -> pure (ident v1 == ident v2) -- TODO: because frehsneing is bork
+    (Var v1, Var v2) -> pure (v1 == v2)
     (App f1 v1, App f2 v2) -> (&&) <$> equalExprs f1 f2 <*> equalExprs v1 v2
     (FunTy ab1, FunTy ab2) -> equalAbs ab1 ab2
     (Lam ab1, Lam ab2) -> equalAbs ab1 ab2
@@ -227,7 +227,7 @@ gradeEq r1 r2 = do
 
 contextGradeAdd :: Ctxt Grade -> Ctxt Grade -> CM (Ctxt Grade)
 contextGradeAdd sigma1 sigma2 =
-  if and (zipWith (\(id, _) (id', _) -> ident id == ident id') sigma1 sigma2)
+  if and (zipWith (\(id, _) (id', _) -> id == id') sigma1 sigma2)
     then zipWithM (\(id, g1) (_id', g2) -> gradeAdd g1 g2 >>= \r -> pure (id, r)) sigma1 sigma2
     else error "Internal error: context graded add on contexts of different shape"
 
@@ -239,7 +239,7 @@ contextGradeMult r sigma =
 contextGradeEq :: Ctxt Grade -> Ctxt Grade -> CM (Either (Name, (Grade, Grade)) ())
 contextGradeEq [] [] = return $ Right ()
 
-contextGradeEq ((id, g1):ctxt) ((id', g2):ctxt') | ident id == ident id' = do
+contextGradeEq ((id, g1):ctxt) ((id', g2):ctxt') | id == id' = do
   eq <- gradeEq g1 g2
   if eq
     then contextGradeEq ctxt ctxt'
@@ -298,7 +298,7 @@ lookupAndCutoutIn n context = do
 
 lookupAndCutout1 :: Name -> Ctxt a -> Maybe (Ctxt a, a, Ctxt a)
 lookupAndCutout1 _ [] = Nothing
-lookupAndCutout1 v ((v', x) : ctxt) | ident v == ident v' =
+lookupAndCutout1 v ((v', x) : ctxt) | v == v' =
   Just (mempty, x, ctxt)
 lookupAndCutout1 v ((v', x) : ctxt) | otherwise = do
   (ctxtL, y, ctxtR) <- lookupAndCutout1 v ctxt
@@ -386,7 +386,11 @@ checkExpr' (Lam lam) t ctxt = do
 
           outctxtBody <- do
              debug $ "Check body binding `" <> pprintShow (absVar pi) <> "` in scope"
-             checkExpr (absExpr lam) (absExpr pi)
+             -- substitute the Pi var for the Lam var in the Lam body,
+             -- to make sure that variable lookups try and find the
+             -- right variable
+             lamBody <- substitute (absVar lam, Var (absVar pi)) (absExpr lam)
+             checkExpr lamBody (absExpr pi)
                      (InContext
                         { types = extend (types ctxt) (absVar pi) (absTy pi)
                         , contextGradesIn = extend (contextGradesIn ctxt) (absVar pi) sigma1 })
