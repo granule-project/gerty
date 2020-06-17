@@ -1,6 +1,45 @@
 -- examples from 'Parametric Quantifiers for Dependent Type Theory'
 -- (by Andreas Nuyts, Andrea Vezzosi, Dominique Devriese)
 
+
+-------------------
+----- Example -----
+-------------------
+
+
+-- this version of RI does not guarantee independence, as you can leak
+-- the implementation type C
+RI' : (A : [.1, .0] Type 2) -> (B : [.1, .0] Type 2) -> Type 2
+RI' = \A -> \B
+       -> (C : [.1, .2] Type 1)
+       -> (r : [.0, .0] (x : [._, .0] C) -> A)
+       -> (y : [.0, .0] C) -> B
+
+leak : (A : [.0, .1] Type 2) -> RI' A (Type 1)
+leak = \A C r c -> C
+
+-- but by specifying a subject grade of '0' (exact usage) for 'C', we
+-- can guarantee that the implementation type is never leaked
+
+RI'' : (A : [.1, .0] Type 2) -> (B : [.1, .0] Type 2) -> Type 2
+RI'' = \A -> \B
+        -> (C : [.0, .2] Type 1)
+        -> (r : [.1, .0] (x : [._, .0] C) -> A)
+        -> (y : [.0, .0] C) -> B
+
+-- the example of leak won't work for this refined RI''. Uncomment
+-- leakBad to see that the type-checker sees that C is being used,
+-- when it shouldn't be.
+--
+-- leakBad : (A : [.0, .1] Type 2) -> RI'' A (Type 1)
+-- leakBad = \A C r c -> C
+
+
+-----------------
+----- Other -----
+-----------------
+
+
 -- I've left the subject grade for 'x' and 'y' as '._', as I'm not
 -- sure what these would be (they vary based on the type). I think a
 -- goal here would be to allow RI to take in the grades for the use of
