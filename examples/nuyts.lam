@@ -74,3 +74,38 @@ i = \D C r y z -> r y
 
 k : (D E F : [.0, .2] Type 2) -> (de : [.1, .0] RI D E) -> (ef : [.1, .0] RI E F) -> RI D F
 k = \D E F de ef C r y -> ef C (de C r) y
+
+
+------------------------------------
+----- Church encoding of lists -----
+------------------------------------
+
+
+-- ChList B = ∀(X : Type).¶X → ¶(B → X → X) → X
+ChList : (B : [.1, .0] Type 2) -> Type 3
+ChList = \B -> (X : [.0, .4] Type 2)
+  -> (x : [.1, .0] X) -> (f : [.inf, .0] (b : [.1, .0] B) -> (x2 : [.1, .0] X) -> X) -> X
+
+
+nil : (B : [.0, .1] Type 2) -> ChList B
+nil = \B X x f -> x
+
+
+cons : (B : [.0, .3] Type 2) -> (b : [.1, .0] B) -> (xs : [.1, .0] ChList B) -> ChList B
+cons = \B b xs X x f -> f b (xs X x f)
+
+
+-- not sure whether these representations for Nats are correct, just
+-- making stuff up at this point (GD: (2020-06-17))
+
+
+Nat : Type 3
+Nat = ChList (Type 1)
+
+
+Z : Nat
+Z = nil (Type 1)
+
+
+S : (k : [.1, .0] Nat) -> Nat
+S = \k -> cons (Type 1) (Type 0) k
