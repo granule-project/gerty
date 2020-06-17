@@ -172,10 +172,12 @@ instance ToAbstract (Com.Grade C.Expr) (Com.Grade A.Expr) where
   toAbstract (Com.GTimes g1 g2) = Com.GTimes <$> toAbstract g1 <*> toAbstract g2
   toAbstract (Com.GLub g1 g2) = Com.GLub <$> toAbstract g1 <*> toAbstract g2
   toAbstract Com.GImplicit = pure Com.GImplicit
+  toAbstract (Com.GOther g) = Com.GOther <$> toAbstract g
 
 
 instance ToAbstract C.Expr A.Expr where
   toAbstract (C.Ident v) = toAbstract (OldQName v)
+  toAbstract C.GInf      = pure A.GInf
   toAbstract C.UniverseNoLevel = A.univMeta <$> freshMeta
   toAbstract (C.Universe l) = pure $ A.Universe (A.LMax [A.LitLevel l])
   toAbstract (C.Fun e1 e2) = do

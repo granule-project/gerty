@@ -284,7 +284,6 @@ data Expr
   -- | Implicits for synthesis.
   | Implicit
 
-
   | Let LetBinding Expr
   -- ^ Let binding (@let x in y@).
 
@@ -293,6 +292,9 @@ data Expr
 
   -- | An expression in parentheses.
   | Parens Expr
+
+  -- | Arbitrary use grade.
+  | GInf
   deriving (Show, Eq, Ord)
 
 
@@ -356,6 +358,7 @@ instance Pretty Expr where
     isLexicallyAtomic _          = False
 
     pprint UniverseNoLevel        = text "Type"
+    pprint GInf                   = text "inf"
     pprint (Universe l)           = text "Type" <+> integer l
     pprint (Lam binders finE) =
       text "\\" <+> (hsep $ fmap pprint binders) <+> arrow <+> pprint finE

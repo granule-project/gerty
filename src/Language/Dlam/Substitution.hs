@@ -74,6 +74,7 @@ instance {-# OVERLAPS #-} Substitutable CM (Name, Expr) Expr where
   substitute _ e@Universe{} = pure e
   substitute _ e@Hole{} = pure e
   substitute _ e@Implicit = pure e
+  substitute _ e@GInf     = pure e
   substitute s (Sig e t) = Sig <$> substitute s e <*> substitute s t
   substitute s@(v, _) (Let (LetPatBound p e) (Sig r t)) = do
     e' <- substitute s e

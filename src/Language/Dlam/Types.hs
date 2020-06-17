@@ -50,6 +50,7 @@ finalNormalForm = pure
 -- | Normalise the expression via a series of reductions.
 normalise :: Expr -> CM Expr
 normalise Implicit = finalNormalForm Implicit
+normalise GInf     = finalNormalForm GInf
 normalise (Def x) = do
   val <- lookupValue x
   case val of
@@ -219,11 +220,18 @@ inferUniverseLevel e = withLocalCheckingOf e $ do
 ----------------------------------------------------------------------------
 -- Dominic work here on a bidirectional additive-grading algorithm
 
+-- NOTE: this is treating the Inf grade as equal to every other grade
+-- as a form of approximation, please change this if that would be
+-- incorrect (we probably want a better notion of approximation) (GD:
+-- 2020-06-17)
 gradeEq :: Grade -> Grade -> CM Bool
 gradeEq r1 r2 = do
   r1' <- normaliseGrade r1
   r2' <- normaliseGrade r2
-  return (r1' == r2')
+  case (r1', r2') of
+    (Com.GOther GInf, _) -> pure True
+    (_, Com.GOther GInf) -> pure True
+    (_, _) -> pure (r1' == r2')
 
 contextGradeAdd :: Ctxt Grade -> Ctxt Grade -> CM (Ctxt Grade)
 contextGradeAdd sigma1 sigma2 =
@@ -778,4 +786,5 @@ normaliseGrade (Com.GLub g1 g2) = do
   g2' <- normaliseGrade g2
   gEq <- gradeEq g1' g2'
   pure $ if gEq then g1' else Com.GLub g1' g2'
+normaliseGrade (Com.GOther g) = Com.GOther <$> normalise g
 normaliseGrade Com.GImplicit = pure Com.GImplicit

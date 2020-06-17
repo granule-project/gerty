@@ -161,6 +161,8 @@ data Grade r
   | GLub (Grade r) (Grade r)
   -- | Special grade when unspecified.
   | GImplicit
+  -- | Representation for other grade elements.
+  | GOther r
   deriving (Show, Eq, Ord)
 
 
@@ -181,6 +183,7 @@ instance Pretty (Grade r) where
   pprint (GTimes g1 g2) = pprint g1 <+> text "*" <+> pprint g2
   pprint (GLub g1 g2) = pprint g1 <+> text "lub" <+> pprint g2
   pprint GImplicit = text "._"
+  pprint (GOther g) = pprint g
 
 
 ------------

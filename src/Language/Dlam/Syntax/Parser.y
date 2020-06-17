@@ -49,6 +49,7 @@ import Language.Dlam.Util.Pretty (pprintShow)
     VAR     { TokId $$ }
     literal { TokLiteral $$ }
     absurd  { TokSymbol SymAbsurd $$ }
+    inf     { TokSymbol SymInf $$ }
     '\\'    { TokSymbol SymLambda $$ }
     '->'    { TokSymbol SymArrow $$ }
     '*'     { TokSymbol SymStar $$ }
@@ -205,6 +206,7 @@ TypeSig :: { (Name, Expr) }
 Grade :: { Grade }
   : '.' literal { Left  $ natTokenToUnaryNat $2 }
   | '.' '_'     { Left  $ C.GImplicit }
+  | '.' inf     { Left  $ C.GOther GInf }
   | Application { Right $ mkAppFromExprs $1 }
 
 

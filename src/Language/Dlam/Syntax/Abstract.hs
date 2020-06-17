@@ -279,6 +279,9 @@ data Expr
   | Implicit
 
   | Let LetBinding Expr
+
+  -- | Special arbitrary use grade.
+  | GInf
   deriving (Show, Eq, Ord)
 
 
@@ -414,6 +417,7 @@ instance Pretty Expr where
     pprint Hole = char '?'
     pprint Implicit{} = char '_'
     pprint (Let lb e) = text "let" <+> pprint lb <+> text "in" <+> pprint e
+    pprint GInf = text "inf"
 
 instance Pretty LetBinding where
   pprint (LetPatBound p e) = pprint p <+> equals <+> pprint e
