@@ -40,22 +40,19 @@ RI'' = \A -> \B
 -----------------
 
 
--- I've left the subject grade for 'x' and 'y' as '._', as I'm not
--- sure what these would be (they vary based on the type). I think a
--- goal here would be to allow RI to take in the grades for the use of
--- 'C', 'r', 'x', and 'y' as parameters. (GD: (2020-06-17))
+-- I've left the subject grades for 'r', 'x', and 'y' as '.inf'. I
+-- think a goal here would be to allow RI to take in the grades for
+-- the use of 'r', 'x', and 'y' as parameters. (GD: (2020-06-17))
 --
 -- RI A B :≡ Π(C : Type).(C → A) → (C → B)
 RI : (A : [.1, .0] Type 2) -> (B : [.1, .0] Type 2) -> Type 3
 RI = \A -> \B
       -> (C : [.0, .2] Type 2)
-      -> (r : [.1, .0] (x : [._, .0] C) -> A)
-      -> (y : [._, .0] C) -> B
+      -> (r : [.inf, .0] (x : [.inf, .0] C) -> A)
+      -> (y : [.inf, .0] C) -> B
 
--- this 'f' example would need 'y' and 'r' to have subject grade '0'
---
--- f : RI (Type 1) (Type 1)
--- f = \C -> \r -> \y -> Type 0
+f : RI (Type 1) (Type 1)
+f = \C -> \r -> \y -> Type 0
 
 -- if we can go from 'C -> D', then we trivially have 'C -> D'
 g : (D : [.0, .2] Type 2) -> RI D D
