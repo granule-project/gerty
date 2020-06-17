@@ -20,15 +20,15 @@ RI = \A -> \B
 
 -- if we can go from 'C -> D', then we trivially have 'C -> D'
 g : (D : [.0, .2] Type 2) -> RI D D
-g = \D -> \C -> \r -> \y -> r y
+g = \D c r y -> r y
 
 -- given that we have 'D -> E', then whenever we have 'C -> D', we
 -- have 'C -> E'
 h : (D : [.0, .2] Type 2) (E : [.0, .2] Type 2) (dToE : [.1, .0] (z : [.1, .0] D) -> E) -> RI D E
-h = \D -> \E -> \dToE -> \C -> \r -> \y -> dToE (r y)
+h = \D E dToE C r y -> dToE (r y)
 
 i : (D : [.0, .2] Type 2) -> RI D ((E : [.0, .0] Type 1) -> D)
-i = \D -> \C -> \r -> \y -> \z -> r y
+i = \D C r y z -> r y
 
 -- currently not working due to hardcoded levels (otherwise is fine)
 -- (GD: 2020-06-17)
