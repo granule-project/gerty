@@ -760,7 +760,7 @@ normaliseGrade (Com.GPlus g1 g2) = do
   case (g1', g2') of
     (Com.GZero, r) -> pure r
     (s, Com.GZero) -> pure s
-    (g3, Com.GPlus g4 g5) -> pure $ Com.GPlus (Com.GPlus g3 g4) g5
+    (g3, Com.GPlus g4 g5) -> normaliseGrade $ Com.GPlus (Com.GPlus g3 g4) g5
     _ -> pure (Com.GPlus g1' g2')
 normaliseGrade (Com.GTimes g1 g2) = do
   g1' <- normaliseGrade g1
