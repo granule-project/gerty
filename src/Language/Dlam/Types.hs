@@ -170,7 +170,7 @@ doDeclarationInference (TypeSig n t) = do
   -- make sure that the type is actually a type
   checkExprValidForSignature t
 
-  registerTypeForName n t
+  registerTypeForName n =<< normalise t
   pure (TypeSig n t)
   where
     -- | Check that the given expression is valid as a type signature.
