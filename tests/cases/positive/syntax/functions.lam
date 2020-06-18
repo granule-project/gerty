@@ -1,0 +1,38 @@
+-- non-dependent arrow
+f : A -> B
+
+-- dependent arrow
+f : (x : A) -> B
+
+-- graded dependent arrow
+f : (x : [.0, .0] A) -> B
+
+-- lambda
+f = \x -> t
+
+-- lambda with argument type
+f = \(x : A) -> t
+
+-- lambda with argument type and grading
+f = \(x : [.0, .0] A) -> t
+
+-- lambda with multiple arguments
+f = \x y -> t
+
+-- lambda with multiple complex arguments
+f = \(x : A) y (z : [.0, .0] B) -> t
+
+
+-- application
+f = t1 t2
+
+-- multiple arguments (= (t1 t2) t3)
+f = t1 t2 t3
+
+-- TODO: currently can't parse the above with explicit parens
+-- (2020-06-18)
+--
+-- f = (t1 t2) t3
+
+-- application to an application
+f = t1 (t2 t3)
