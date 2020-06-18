@@ -35,9 +35,9 @@ RI'' = \A -> \B
 -- leakBad = \A C r c -> C
 
 
------------------
------ Other -----
------------------
+----------------------
+----- General RI -----
+----------------------
 
 
 -- I've left the subject grades for 'r', 'x', and 'y' as '.inf'. I
@@ -50,6 +50,33 @@ RI = \A -> \B
       -> (C : [.0, .2] Type 2)
       -> (r : [.inf, .0] (x : [.inf, .0] C) -> A)
       -> (y : [.inf, .0] C) -> B
+
+
+---------------------------------------
+-- (RI A B) and (A -> B) isomorphism --
+---------------------------------------
+
+
+-- According to Nuyts et al., the types 'RI A B' and 'A -> B' are in
+-- one-to-one correspondence
+
+-- Nuyts would let you do the following implementation:
+--
+-- RIisoExampleLeft : (A B : [.0, .2] Type 2) (ri : [.1, .0] RI A B) (a : [.2, .0] A) -> B
+-- RIisoExampleLeft = \A B ri a -> ri A (\(x : [.0, .0] A) -> a) a
+
+
+RIisoExampleLeft : (A B : [.0, .2] Type 2) (ri : [.1, .0] RI A B) (a : [.1, .0] A) -> B
+RIisoExampleLeft = \A B ri a -> ri A (\(x : [.1, .0] A) -> x) a
+
+RIisoExampleRight : (A B : [.0, .2] Type 2) (f : [.1, .0] ((x : [.1, .0] A) -> B)) -> RI A B
+RIisoExampleRight = \A B f C r y -> f (r y)
+
+
+-----------------
+----- Other -----
+-----------------
+
 
 f : RI (Type 1) (Type 1)
 f = \C -> \r -> \y -> Type 0
