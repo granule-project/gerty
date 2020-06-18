@@ -1,0 +1,14 @@
+-- non-dependent tensor
+t : A * B
+
+-- tensor with bound variable
+t : x :: A * B
+
+-- tensor with graded binder
+t : x :: [.0] A * B
+
+-- pair
+t = (x, y)
+
+-- tensor eliminator
+t = let (x, y) = p in t

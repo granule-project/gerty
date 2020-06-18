@@ -193,7 +193,14 @@ instance ToAbstract C.Expr A.Expr where
     (args' :: [A.LambdaArg], mySpace) <- toAbstract args
     expr' <- withLocals mySpace $ toAbstract expr
     pure $ foldr (\b f -> A.Lam (A.mkAbs' (isHidden b) (A.unBoundName . un. un . un . A.unTB $ b) (A.grading b) (typeOf b) f)) expr' args'
-  toAbstract (C.ProductTy ab) = A.ProductTy <$> toAbstract ab
+  toAbstract (C.NondepProductTy tA tB) = do
+    name <- newIgnoredName
+    (tA, tB) <- toAbstract (tA, tB)
+    pure $ A.ProductTy (A.mkAbsGr name tA Com.GZero Com.GZero tB)
+  toAbstract (C.ProductTy (x, r, tA) tB) = do
+    (v, r, tA) <- toAbstract (x, r, tA)
+    tB <- withLocals [(x, v)] $ toAbstract tB
+    pure $ A.ProductTy $ A.mkAbsGr v tA Com.GZero r tB
   toAbstract (C.Pair l r) = A.Pair <$> toAbstract l <*> toAbstract r
   toAbstract (C.App f e) = A.App <$> toAbstract f <*> toAbstract e
   toAbstract (C.Sig e t) = A.Sig <$> toAbstract e <*> toAbstract t
@@ -271,3 +278,21 @@ instance ToAbstract C.Abstraction A.Abstraction where
 
 freshMeta :: SM A.MetaId
 freshMeta = A.MetaId . (\(NameId k) -> toInteger k) <$> getFreshNameId
+
+
+----------------------------
+----- Helper Instances -----
+----------------------------
+
+
+instance (ToAbstract a a', ToAbstract b b') => ToAbstract (a, b) (a', b') where
+  toAbstract (x, y) = do
+    x <- toAbstract x
+    y <- toAbstract y
+    pure (x, y)
+
+
+instance (ToAbstract a a', ToAbstract b b', ToAbstract c c') => ToAbstract (a, b, c) (a', b', c') where
+  toAbstract (x, y, z) = do
+    (x, (y, z)) <- toAbstract (x, (y, z))
+    pure (x, y, z)

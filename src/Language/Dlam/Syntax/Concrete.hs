@@ -23,6 +23,7 @@ module Language.Dlam.Syntax.Concrete
   , grading
   , subjectGrade
   , subjectTypeGrade
+  , implicitGrade
 
   -- ** Naming
   , MaybeNamed(..)
@@ -74,6 +75,8 @@ import Language.Dlam.Util.Pretty
 type Type = Expr
 type Typed = C.Typed Expr
 type Grade = Either (C.Grade Expr) Expr
+implicitGrade :: Grade
+implicitGrade = Left C.GImplicit
 type Grading = C.Grading Grade
 type Graded = C.Graded Grade
 type BoundName = C.BoundName Name
@@ -262,8 +265,11 @@ data Expr
   -- | Lambda abstraction.
   | Lam LambdaArgs Expr
 
+  -- | Non-dependent tensor type.
+  | NondepProductTy Expr Expr
+
   -- | Dependent tensor type.
-  | ProductTy Abstraction
+  | ProductTy (Name, Grade, Expr) Expr
 
   -- | Pairs.
   | Pair Expr Expr
@@ -365,12 +371,10 @@ instance Pretty Expr where
     pprint (Pi binders finTy) = pprint binders <+> arrow <+> pprint finTy
     pprint (Fun i@Fun{} o) = pprintParened i <+> arrow <+> pprint o
     pprint (Fun i o) = pprint i <+> arrow <+> pprint o
-    pprint (ProductTy ab) =
-      let leftTyDoc =
-            case absVar ab of
-              NoName{} -> pprint (absTy ab)
-              _        -> pprint (absVar ab) <+> colon <> colon <+> pprint (absTy ab)
-      in leftTyDoc <+> char '*' <+> pprint (absExpr ab)
+    pprint (NondepProductTy t1 t2) = pprintParened t1 <+> char '*' <+> pprintParened t2
+    pprint (ProductTy (n, r, t1) t2) =
+      pprint n <+> colon <> colon <+> pprintParened r <+> pprint t1
+        <+> char '*' <+> pprint t2
     pprint (App lam@Lam{} e2) =
       pprintParened lam <+> pprintParened e2
     pprint (App (Sig e1 t) e2) =

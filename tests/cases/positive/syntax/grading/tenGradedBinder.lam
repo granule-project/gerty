@@ -1,0 +1,2 @@
+-- you can grade tensor binders
+test : x :: [.0] A * B
