@@ -345,16 +345,6 @@ allZeroes ctxt = mapM normaliseAndCheck ctxt >>= (return . and)
 zeroesMatchingShape :: Ctxt a -> Ctxt Grade
 zeroesMatchingShape = map (\(id, _) -> (id, gradeZero))
 
--- Auxiliary function that examines an output context to check it has
--- 0 subject type use and that its type is of the form `Type l`
-exprIsTypeAndSubjectTypeGradesZero :: OutContext -> Type -> CM (Maybe Level)
-exprIsTypeAndSubjectTypeGradesZero ctxt ty = do
-  isZeroed <- allZeroes (typeGradesOut ctxt)
-  case ty of
-    (Universe l) | isZeroed -> pure (Just l)
-    _ -> pure Nothing
-
-
 -- Top level
 checkOrInferTypeNew :: Type -> Expr -> CM ()
 checkOrInferTypeNew ty expr = do
@@ -383,41 +373,32 @@ checkExpr' (Lam lam) t ctxt = do
   case t of
     -- (x : A) -> B
     FunTy pi -> do
-      (outCtxtParam, paramTy) <- inferExpr (absTy pi) ctxt
+      (sigma1, _) <- checkExprIsType (absTy pi) ctxt
 
-      -- (i) Subject type grades are all zero and inferred type is `Type l`
-      hasLevel <- exprIsTypeAndSubjectTypeGradesZero outCtxtParam paramTy
-      case hasLevel of
-        Just _ -> do
-          -- Check body of the lambda
-          let sigma1 = subjectGradesOut outCtxtParam
+      outctxtBody <- do
+         debug $ "Check body binding `" <> pprintShow (absVar pi) <> "` in scope"
+         -- substitute the Pi var for the Lam var in the Lam body,
+         -- to make sure that variable lookups try and find the
+         -- right variable
+         lamBody <- substitute (absVar lam, Var (absVar pi)) (absExpr lam)
+         checkExpr lamBody (absExpr pi)
+                 (InContext
+                    { types = extend (types ctxt) (absVar pi) (absTy pi)
+                    , contextGradesIn = extend (contextGradesIn ctxt) (absVar pi) sigma1 })
 
-          outctxtBody <- do
-             debug $ "Check body binding `" <> pprintShow (absVar pi) <> "` in scope"
-             -- substitute the Pi var for the Lam var in the Lam body,
-             -- to make sure that variable lookups try and find the
-             -- right variable
-             lamBody <- substitute (absVar lam, Var (absVar pi)) (absExpr lam)
-             checkExpr lamBody (absExpr pi)
-                     (InContext
-                        { types = extend (types ctxt) (absVar pi) (absTy pi)
-                        , contextGradesIn = extend (contextGradesIn ctxt) (absVar pi) sigma1 })
-
-          -- Check calculated grades against binder
-          let (sigma2, (_, s)) = unextend (subjectGradesOut outctxtBody)
-          let (sigma3, (_, r)) = unextend (typeGradesOut outctxtBody)
-          eq1 <- gradeEq s (subjectGrade pi)
-          if eq1
+      -- Check calculated grades against binder
+      let (sigma2, (_, s)) = unextend (subjectGradesOut outctxtBody)
+      let (sigma3, (_, r)) = unextend (typeGradesOut outctxtBody)
+      eq1 <- gradeEq s (subjectGrade pi)
+      if eq1
+        then do
+          eq2 <- gradeEq r (subjectTypeGrade pi)
+          if eq2
             then do
-              eq2 <- gradeEq r (subjectTypeGrade pi)
-              if eq2
-                then do
-                  tgo <- contextGradeAdd sigma1 sigma3
-                  pure $ OutContext { subjectGradesOut = sigma2, typeGradesOut = tgo }
-                else gradeMismatchAt "pi binder" SubjectType (absVar pi) (subjectTypeGrade pi) r
-            else gradeMismatchAt "pi binder" Subject (absVar pi) (subjectGrade pi) s
-
-        _ -> tyMismatchAtType "abs" paramTy
+              tgo <- contextGradeAdd sigma1 sigma3
+              pure $ OutContext { subjectGradesOut = sigma2, typeGradesOut = tgo }
+            else gradeMismatchAt "pi binder" SubjectType (absVar pi) (subjectTypeGrade pi) r
+        else gradeMismatchAt "pi binder" Subject (absVar pi) (subjectGrade pi) s
 
     _ -> tyMismatchAt "abs" (FunTy (mkAbs (mkIdent "?") Hole Hole)) t
 
@@ -460,32 +441,22 @@ inferExpr' (Var x) ctxt = do
 
       -- Check that this type is indeed a Type
       debug $ "Infer for var (type) " <> debugContextGrades ctxtL
-      (outCtxt, typeType) <- inferExpr ty ctxtL
+      (sigma, _) <- checkExprIsType ty ctxtL
 
-      -- Two checks:
-      --  (i) Context grades for `x` match what was calculated in typing
-      let sigma = subjectGradesOut outCtxt
       debug $ "Context grade eq var " <> pprintShow x <> " with " <> show sigma' <> " and " <> show sigma
+      --  Check context grades for `x` match what was calculated in typing
       eq <- contextGradeEq sigma' sigma
 
       case eq of
         Left (mismatchVar, (expected, actual)) ->
           gradeMismatchAt "var" Context mismatchVar expected actual
         Right () -> do
+          return $ (OutContext
+                    { subjectGradesOut = extend (zeroesMatchingShape (types ctxtL)) x gradeOne
+                                        <> (zeroesMatchingShape (types ctxtR))
 
-          --  (ii) Subject type grades are all zero and inferred type is `Type l`
-          hasLevel <- exprIsTypeAndSubjectTypeGradesZero outCtxt typeType
-          case hasLevel of
-            Just _ ->
-              -- Success
-              return $ (OutContext
-                        { subjectGradesOut = extend (zeroesMatchingShape (types ctxtL)) x gradeOne
-                                            <> (zeroesMatchingShape (types ctxtR))
-
-                        , typeGradesOut    = extend sigma x gradeZero
-                                            <> (zeroesMatchingShape (types ctxtR)) }, ty)
-
-            _ -> tyMismatchAtType "var" typeType
+                    , typeGradesOut    = extend sigma x gradeZero
+                                        <> (zeroesMatchingShape (types ctxtR)) }, ty)
 
 {-
 
@@ -500,43 +471,29 @@ inferExpr' (Var x) ctxt = do
 -- (x :(s, r) A -o B)
 inferExpr' (FunTy pi) ctxt = do
   debug $ "Infer for pi type " <> pprintShow (FunTy pi)
+
   -- Infer type of parameter A
   debug $ "Infer for pi type (infer for param type)"
-  (ctxtA, typeA) <- inferExpr (absTy pi) ctxt
+  (sigma1, l1) <- checkExprIsType (absTy pi) ctxt
 
-  --  (i) Subject type grades are all zero inferred type is `Type l1`
-  hasLevel <- exprIsTypeAndSubjectTypeGradesZero ctxtA typeA
-  case hasLevel of
-    Just l1 -> do
+  -- Infer type of function type body B
+  debug $ "Infer for pi type (infer for body type)"
+  (sigma2r, l2) <- checkExprIsType (absExpr pi)
+    (InContext { types = extend (types ctxt) (absVar pi) (absTy pi)
+               , contextGradesIn = extend (contextGradesIn ctxt) (absVar pi) sigma1 })
 
-      let sigma1 = subjectGradesOut ctxtA
+  let (sigma2, (_, rInferred)) = unextend sigma2r
 
-      -- Infer type of function type body B
-      debug $ "Infer for pi type (infer for body type)"
-      (ctxtB, typeB) <- inferExpr (absExpr pi)
-                 (InContext { types = extend (types ctxt) (absVar pi) (absTy pi)
-                            , contextGradesIn = extend (contextGradesIn ctxt) (absVar pi) sigma1 })
-
-      -- (i) Subject type grades are all zero and inferred type is `Type l2`
-      hasLevel' <- exprIsTypeAndSubjectTypeGradesZero ctxtB typeB
-      case hasLevel' of
-        Just l2 -> do
-
-          let (sigma2, (_, rInferred)) = unextend (subjectGradesOut ctxtB)
-
-          -- (ii) Check binder grade specification matches usage `r`
-          eq <- gradeEq rInferred (subjectTypeGrade pi)
-          if eq
-            then do
-              lmaxl1l2 <- levelMax l1 l2
-              sgo <- contextGradeAdd sigma1 sigma2
-              pure ( OutContext { subjectGradesOut = sgo
-                                , typeGradesOut = zeroesMatchingShape (types ctxt) }
-                   , mkUnivTy lmaxl1l2)
-  -- Errors
-            else gradeMismatchAt "pi type binder" Subject (absVar pi) (subjectTypeGrade pi) rInferred
-        _ -> tyMismatchAtType "LHS of -o" typeB
-    _ -> tyMismatchAtType "RHS of -o" typeA
+  -- (ii) Check binder grade specification matches usage `r`
+  eq <- gradeEq rInferred (subjectTypeGrade pi)
+  if eq
+    then do
+      lmaxl1l2 <- levelMax l1 l2
+      sgo <- contextGradeAdd sigma1 sigma2
+      pure ( OutContext { subjectGradesOut = sgo
+                        , typeGradesOut = zeroesMatchingShape (types ctxt) }
+           , mkUnivTy lmaxl1l2)
+    else gradeMismatchAt "pi type binder" Subject (absVar pi) (subjectTypeGrade pi) rInferred
 
 {-
 
@@ -579,14 +536,8 @@ inferExpr' (App t1 t2) ctxt = do
       debug $ "App infer for tyB = " <> pprintShow tB
       let gammaX = extend (types ctxt) (absVar pi) tA
           mG1 = extend (contextGradesIn ctxt) (absVar pi) g1
-      (outCtxtB@(OutContext _g3R _gZ), tBUniv) <-
-        inferExpr tB (InContext { types = gammaX, contextGradesIn = mG1 })
-
-      debug $ "Ok B : " <> pprintShow tBUniv
-
-      _ <- maybe (tyMismatchAtType "kind of function app return" tBUniv) (\_ -> pure ())
-             <$> exprIsTypeAndSubjectTypeGradesZero outCtxtB tBUniv
-      let (g3, (_, rInferred)) = unextend (subjectGradesOut outCtxtB)
+      (g3r, _) <- checkExprIsType tB (InContext { types = gammaX, contextGradesIn = mG1 })
+      let (g3, (_, rInferred)) = unextend g3r
 
       eq <- gradeEq rInferred r
       unless eq (gradeMismatchAt "function type" SubjectType (absVar pi) r rInferred)
@@ -629,36 +580,29 @@ inferExpr' (Lam lam) ctxt = do
       slam = subjectGrade lam
       rlam = subjectTypeGrade lam
 
-  (outCtxtParam, paramTy) <- inferExpr tA ctxt
+  (sigma1, _) <- checkExprIsType tA ctxt
 
-  -- (i) Subject type grades are all zero and inferred type is `Type l`
-  hasLevel <- exprIsTypeAndSubjectTypeGradesZero outCtxtParam paramTy
-  case hasLevel of
-    Just _ -> do
-      -- Check body of the lambda
-      let sigma1 = subjectGradesOut outCtxtParam
+  -- Check body of the lambda
+  (outctxtBody, bodyTy) <- do
+     inferExpr (absExpr lam)
+             (InContext
+                { types = extend (types ctxt) x tA
+                , contextGradesIn = extend (contextGradesIn ctxt) x sigma1 })
 
-      (outctxtBody, bodyTy) <- do
-         inferExpr (absExpr lam)
-                 (InContext
-                    { types = extend (types ctxt) x tA
-                    , contextGradesIn = extend (contextGradesIn ctxt) x sigma1 })
-
-      -- Check calculated grades against binder
-      let (sigma2, (_, s)) = unextend (subjectGradesOut outctxtBody)
-      let (sigma3, (_, r)) = unextend (typeGradesOut outctxtBody)
-      eq1 <- gradeEq s slam
-      if eq1
+  -- Check calculated grades against binder
+  let (sigma2, (_, s)) = unextend (subjectGradesOut outctxtBody)
+  let (sigma3, (_, r)) = unextend (typeGradesOut outctxtBody)
+  eq1 <- gradeEq s slam
+  if eq1
+    then do
+      eq2 <- gradeEq r rlam
+      if eq2
         then do
-          eq2 <- gradeEq r rlam
-          if eq2
-            then do
-              tgo <- contextGradeAdd sigma1 sigma3
-              pure ( OutContext { subjectGradesOut = sigma2, typeGradesOut = tgo }
-                   , FunTy (mkAbsGr x tA s r bodyTy))
-            else gradeMismatchAt "pi binder" SubjectType x rlam r
-        else gradeMismatchAt "pi binder" Subject x slam s
-    Nothing -> tyMismatchAtType "abs" tA
+          tgo <- contextGradeAdd sigma1 sigma3
+          pure ( OutContext { subjectGradesOut = sigma2, typeGradesOut = tgo }
+               , FunTy (mkAbsGr x tA s r bodyTy))
+        else gradeMismatchAt "pi binder" SubjectType x rlam r
+    else gradeMismatchAt "pi binder" Subject x slam s
 
 inferExpr' _ _ = do
   cannotSynthTypeForExpr
@@ -697,12 +641,32 @@ maybeGetPatternUnificationSubst _ _ = Nothing
 -------------------
 
 
-tyMismatchAtType :: String -> Type -> CM a
-tyMismatchAtType s t = tyMismatchAt s (univMeta (MetaId (-1)))  t
-
-
 mkUnivTy :: Level -> Expr
 mkUnivTy = Universe
+
+
+-- | Check that an expression is a type, and return the subject grades
+-- | and level it was formed as.
+--
+-- TODO: perhaps allow specifying which level to infer the type at (2020-06-18)
+--
+-- TODO: perhaps allow grades in the subject type where r <= 0 (2020-06-18)
+checkExprIsType :: Expr -> InContext -> CM (Ctxt Grade, Level)
+checkExprIsType e ctxt = do
+  (cOut@OutContext { subjectGradesOut = g }, typel) <- inferExpr e ctxt
+  l <- exprIsTypeAndSubjectTypeGradesZero cOut typel
+  case l of
+    Just l -> pure (g, l)
+    _ -> expectedInferredTypeForm "type" typel
+  where
+    -- Auxiliary function that examines an output context to check it has
+    -- 0 subject type use and that its type is of the form `Type l`
+    exprIsTypeAndSubjectTypeGradesZero :: OutContext -> Type -> CM (Maybe Level)
+    exprIsTypeAndSubjectTypeGradesZero ctxt ty = do
+      isZeroed <- allZeroes (typeGradesOut ctxt)
+      case ty of
+        (Universe l) | isZeroed -> pure (Just l)
+        _ -> pure Nothing
 
 
 ------------------
