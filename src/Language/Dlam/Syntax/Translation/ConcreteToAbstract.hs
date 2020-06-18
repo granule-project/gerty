@@ -180,11 +180,10 @@ instance ToAbstract C.Expr A.Expr where
   toAbstract C.GInf      = pure A.GInf
   toAbstract C.UniverseNoLevel = A.univMeta <$> freshMeta
   toAbstract (C.Universe l) = pure $ A.Universe (A.LMax [A.LitLevel l])
-  toAbstract (C.Fun e1 e2) = do
+  toAbstract (C.Fun tA tB) = do
     name <- newIgnoredName
-    e1' <- toAbstract e1
-    e2' <- toAbstract e2
-    pure $ A.FunTy (A.mkAbs name e1' e2')
+    (tA, tB) <- toAbstract (tA, tB)
+    pure . A.FunTy $ A.mkAbsGr name tA Com.GImplicit Com.GZero tB
   toAbstract (C.Pi piBinds expr) = do
     (piBinds' :: [A.TypedBinding], mySpace) <- toAbstract piBinds
     expr' <- withLocals mySpace $ toAbstract expr
