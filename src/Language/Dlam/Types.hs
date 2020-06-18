@@ -623,6 +623,43 @@ inferExpr' (Def n) ctxt = do
 inferExpr' (Universe l) ctxt =
   pure (zeroedOutContextForInContext ctxt, mkUnivTy (levelSucc l))
 
+inferExpr' (Lam lam) ctxt = do
+  let x = absVar lam
+      tA = absTy lam
+      slam = subjectGrade lam
+      rlam = subjectTypeGrade lam
+
+  (outCtxtParam, paramTy) <- inferExpr tA ctxt
+
+  -- (i) Subject type grades are all zero and inferred type is `Type l`
+  hasLevel <- exprIsTypeAndSubjectTypeGradesZero outCtxtParam paramTy
+  case hasLevel of
+    Just _ -> do
+      -- Check body of the lambda
+      let sigma1 = subjectGradesOut outCtxtParam
+
+      (outctxtBody, bodyTy) <- do
+         inferExpr (absExpr lam)
+                 (InContext
+                    { types = extend (types ctxt) x tA
+                    , contextGradesIn = extend (contextGradesIn ctxt) x sigma1 })
+
+      -- Check calculated grades against binder
+      let (sigma2, (_, s)) = unextend (subjectGradesOut outctxtBody)
+      let (sigma3, (_, r)) = unextend (typeGradesOut outctxtBody)
+      eq1 <- gradeEq s slam
+      if eq1
+        then do
+          eq2 <- gradeEq r rlam
+          if eq2
+            then do
+              tgo <- contextGradeAdd sigma1 sigma3
+              pure ( OutContext { subjectGradesOut = sigma2, typeGradesOut = tgo }
+                   , FunTy (mkAbsGr x tA s r bodyTy))
+            else gradeMismatchAt "pi binder" SubjectType x rlam r
+        else gradeMismatchAt "pi binder" Subject x slam s
+    Nothing -> tyMismatchAtType "abs" tA
+
 inferExpr' _ _ = do
   cannotSynthTypeForExpr
 
