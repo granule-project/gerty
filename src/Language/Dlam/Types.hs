@@ -575,8 +575,7 @@ inferExpr' (App t1 t2) ctxt = do
           tB = absExpr pi
 
       -- (M | g4 | g1) @ G |- t2 : A
-      (OutContext g4 g1, tA') <- inferExpr t2 ctxt
-      tA <- ensureEqualTypes tA' tA
+      OutContext g4 g1 <- checkExpr t2 tA ctxt
       debug $ "ok A : " <> pprintShow tA
 
       -- (M,g1 | g3,r | gZ) @ G, x : A |- B : Type l
