@@ -1,0 +1,39 @@
+-- Example converting a 2-arity function to a function on pairs
+uncurry : (a b c : [.0, .2] Type 0) (f : [.1, .0] ((x : [._, .0] a) (y : [._, .0] b) -> c)) (p : [._, .0] (a * b)) -> c
+uncurry = \a b c f p -> let (x, y) = p in f x y
+
+-- Example converting a function from pairs to a 2-arity function
+curry : (a b c : [.0, .2] Type 0) -> (f : [.1, .0] (p : [._, .0] a * b) -> c) -> (x : [._, .0] a) -> (y : [._, .0] b) -> c
+curry = \a b c f x y -> f (x, y)
+
+-- pairId : (a b : [.0, .2] Type 0) (p : [.1, .0] (a * b)) -> (a * b)
+-- pairId = \a b p -> let (x, y) = p in (x, y)
+--
+-- Example showing the dependent tensor type
+pairTy : (a : [.1, .1] Type 0) -> (b : [.1, .0] (x : [._, .0] a) -> Type 0) -> Type 0
+pairTy = \a b -> x :: a * b x
+
+-- Example showing pair construction
+mkPair : (a : [.0, .3] Type 0) -> (b : [.0, .2] (x : [.1, .0] a) -> Type 0) -> (x : [.1, .1] a) -> (y : [.1, .0] b x) -> z :: [.1] a * b z
+mkPair = \a b x y -> (x, y)
+
+-- The first projection
+-- TODO: this needs modalities to work (GD: 2020-06-18)
+-- fst : (a : [.0, .3] Type 0) (b : [.0, .1] (x : [.1, .0] a) -> Type 0) -> (p : [.1, .0] x :: [.1] a * b x) -> a
+-- fst = \a b p -> let (x, y) = p in x
+
+-- -- First projection on non-dependent pairs
+-- fst' : (a : Type 0) (b : Type 0) -> a * b -> a
+-- fst' = \a b p -> fst a (\x -> b) p
+--
+-- -- The second projection
+-- snd : (a : Type 0) (b : a -> Type 0) (p : x :: a * b x) -> b (fst a b p)
+-- snd = \a b p -> let z@(x, y) = p in y : b (fst a b z)
+--
+-- -- Second projection on non-dependent pairs
+-- snd' : (a : Type 0) (b : Type 0) -> a * b -> b
+-- snd' = \a b p -> snd a (\x -> b) p
+--
+-- -- Pair eliminator
+-- letTen : (a : Type 0) (b : a -> Type 0) (c : Type 0) -> ((x : a) -> b x -> c) -> x :: a * b x -> c
+-- letTen = \a b c f p -> let (x, y) = p in f x y
