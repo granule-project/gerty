@@ -827,6 +827,7 @@ normaliseGrade (Com.GTimes g1 g2) = do
     -- inf * (r/=0) = inf
     (s@(Com.GOther GInf), _) -> pure s
 
+    (s1, Com.GTimes s2 s3) -> pure $ Com.GTimes (Com.GTimes s1 s2) s3
     _ -> pure (Com.GTimes g1' g2')
 -- TODO: Allow using the ordering according to whatever type the grade
 -- is of (2020-06-13)
