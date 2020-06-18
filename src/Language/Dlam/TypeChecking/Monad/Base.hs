@@ -23,6 +23,7 @@ module Language.Dlam.TypeChecking.Monad.Base
   , tcrRes
 
   , getFreshNameId
+  , getFreshName
 
   -- ** Scope
   , lookupType
@@ -80,6 +81,7 @@ import qualified Data.Map as M
 import qualified Language.Dlam.Scoping.Monad.Exception as SE
 import Language.Dlam.Syntax.Abstract
 import Language.Dlam.Syntax.Common (NameId)
+import qualified Language.Dlam.Syntax.Concrete as C
 import Language.Dlam.Syntax.Parser.Monad (ParseError)
 import Language.Dlam.Util.Pretty hiding ((<>))
 
@@ -214,6 +216,13 @@ runNewChecker = runChecker startEnv startCheckerState
 -- | Get a unique NameId.
 getFreshNameId :: CM NameId
 getFreshNameId = get >>= \s -> let c = nextNameId s in put s { nextNameId = succ c } >> pure c
+
+
+-- | Generate a fresh name, based on the given base name.
+getFreshName :: String -> CM Name
+getFreshName s = do
+  n <- getFreshNameId
+  pure (Name n (C.Name s))
 
 
 lookupType :: Name -> CM (Maybe Expr)
