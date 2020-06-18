@@ -166,7 +166,7 @@ data Grade r
   deriving (Show, Eq, Ord)
 
 
-instance Pretty (Grade r) where
+instance (Pretty r) => Pretty (Grade r) where
   pprint GZero = text ".0"
   pprint GOne  = text ".1"
   pprint (GPlus g1 g2) = pprintSquishy 0 (g1, g2)
