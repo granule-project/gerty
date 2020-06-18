@@ -403,7 +403,7 @@ instance Pretty Expr where
       let leftTyDoc =
             case absVar ab of
               Name _ C.NoName{} -> pprint (absTy ab)
-              _        -> pprint (absVar ab) <+> colon <> colon <+> pprint (absTy ab)
+              _        -> pprint (absVar ab) <+> colon <> colon <+> char '[' <> pprint (subjectTypeGrade ab) <> char ']' <+> pprint (absTy ab)
       in leftTyDoc <+> char '*' <+> pprint (absExpr ab)
     pprint (App lam@Lam{} e2) =
       pprintParened lam <+> pprintParened e2
