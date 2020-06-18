@@ -768,6 +768,12 @@ normaliseGrade (Com.GPlus g1 g2) = do
   case (g1', g2') of
     (Com.GZero, r) -> pure r
     (s, Com.GZero) -> pure s
+
+    -- inf + r = inf
+    (s@(Com.GOther GInf), _) -> pure s
+    -- s + inf = inf
+    (_, r@(Com.GOther GInf)) -> pure r
+
     (g3, Com.GPlus g4 g5) -> normaliseGrade $ Com.GPlus (Com.GPlus g3 g4) g5
     _ -> pure (Com.GPlus g1' g2')
 normaliseGrade (Com.GTimes g1 g2) = do
@@ -778,13 +784,24 @@ normaliseGrade (Com.GTimes g1 g2) = do
     (_, Com.GZero) -> pure Com.GZero
     (Com.GOne, r) -> pure r
     (s, Com.GOne) -> pure s
+
+    -- (s/=0) * inf = inf
+    (_, r@(Com.GOther GInf)) -> pure r
+    -- inf * (r/=0) = inf
+    (s@(Com.GOther GInf), _) -> pure s
+
     _ -> pure (Com.GTimes g1' g2')
 -- TODO: Allow using the ordering according to whatever type the grade
 -- is of (2020-06-13)
 normaliseGrade (Com.GLub g1 g2) = do
   g1' <- normaliseGrade g1
   g2' <- normaliseGrade g2
-  gEq <- gradeEq g1' g2'
-  pure $ if gEq then g1' else Com.GLub g1' g2'
+  case (g1', g2') of
+    -- forall r. r <= inf
+    (s@(Com.GOther GInf), _) -> pure s
+    (_, r@(Com.GOther GInf)) -> pure r
+    _ -> do
+      gEq <- gradeEq g1' g2'
+      pure $ if gEq then g1' else Com.GLub g1' g2'
 normaliseGrade (Com.GOther g) = Com.GOther <$> normalise g
 normaliseGrade Com.GImplicit = pure Com.GImplicit
