@@ -1,0 +1,17 @@
+{-
+  Simple tests for meta variables and implicits.
+-}
+
+-- should be able to infer this is 'Type 0'
+t1 : _
+t1 = Nat
+
+
+t2h : (l : Level) -> Type l -> Type l
+t2h = \l x -> x
+
+
+-- should be able to infer that the signature is 'Type 0'
+-- and the first argument to t2h is '0'
+t2 : _
+t2 = t2h _ Nat

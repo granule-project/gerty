@@ -1,0 +1,2 @@
+test : (l : Level) -> Type l -> Type l
+test = \l x -> x

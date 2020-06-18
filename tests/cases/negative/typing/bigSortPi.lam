@@ -1,0 +1,3 @@
+-- Agda complains with this, saying "Set Omega != Set _", so I think we should too.
+test : Type _
+test = (l : Level) -> Type l -> Type l

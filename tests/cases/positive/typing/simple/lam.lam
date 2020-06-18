@@ -1,0 +1,4 @@
+-- tests for lambda abstractions
+
+test1 : Level -> Level
+test1 = \(x : Level) -> lzero

@@ -1,0 +1,20 @@
+test0 : Type 2
+test0 = Type 1
+
+
+test1 : Type 1
+test1 = Type 0
+
+
+-- reference to Type definition in both subject and subject-type
+test2 : test0
+test2 = test1
+
+
+test3 : Type 0 -> Type 0
+test3 = \x -> x
+
+
+-- reference to lambda definition
+test4 : Type 0 -> Type 0
+test4 = test3
