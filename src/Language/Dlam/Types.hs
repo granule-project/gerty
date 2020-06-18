@@ -265,10 +265,7 @@ extend ctxt n t = ctxt ++ [(n, t)]
 
 unextend :: Ctxt a -> (Ctxt a, (Name, a))
 unextend [] = error "bad call to unextend with empty context"
-unextend [(n, t)] = ([], (n, t))
-unextend (x : xs) = (x : xs', end)
-  where
-    (xs', end) = unextend xs
+unextend xs = (init xs, last xs)
 
 emptyInContext :: InContext
 emptyInContext = InContext [] []
