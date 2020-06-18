@@ -402,6 +402,53 @@ checkExpr' (Lam lam) t ctxt = do
 
     _ -> tyMismatchAt "abs" (FunTy (mkAbs (mkIdent "?") Hole Hole)) t
 
+{-
+  (M,g1 | g3,r | gZ) @ G, x : A |- B : Type l
+  (M | g2 | g1) @ G |- t1 : A
+  (M | g4 | g3 + r * g2) @ G |- t2 : [t1/x]B
+  ----------------------------------------------------------- :: Pair
+  (M | g2 + g4 | g1 + g3) @ G |- (t1, t2) : (x : (0,r) A) * B
+-}
+checkExpr' (Pair t1 t2) ty ctxt = do
+  case ty of
+    (ProductTy prod) -> do
+      let x  = absVar prod
+          tA = absTy prod
+          r  = subjectTypeGrade prod
+          tB = absExpr prod
+
+      -- (M | g2 | g1) @ G |- t1 : A
+      (OutContext { subjectGradesOut = g2, typeGradesOut = g1 }, tA')
+        <- inferExpr t1 ctxt
+
+      tA <- ensureEqualTypes tA tA'
+
+      -- (M | g4 | g3 + r * g2) @ G |- t2 : [t1/x]B
+      (OutContext { subjectGradesOut = g4, typeGradesOut = g3plusRtimesG2 }, t1forXinB)
+        <- inferExpr t2 ctxt
+
+      t1forXinB' <- substitute (x, t1) tB
+      _ <- ensureEqualTypes t1forXinB t1forXinB'
+
+      -- (M,g1 | g3,r | gZ) @ G, x : A |- B : Type l
+
+      (g3r, _) <- checkExprIsType tB (extendInputContext ctxt x tA g1)
+
+      let (g3, (_, r')) = unextend g3r
+
+      rtimesG2 <- contextGradeMult r g2
+      g3plusRtimesG2Calc <- contextGradeAdd g3 rtimesG2
+
+      _ <- verifyGradeVecEq "?" g3plusRtimesG2 g3plusRtimesG2Calc
+      _ <- verifyGradesEq "pair type" Subject x r r'
+
+      g2plusG4 <- contextGradeAdd g2 g4
+      g1plusG3 <- contextGradeAdd g1 g3
+
+      -- (M | g2 + g4 | g1 + g3) @ G |- (t1, t2) : (x : (0,r) A) * B
+      pure (OutContext { subjectGradesOut = g2plusG4, typeGradesOut = g1plusG3 })
+    _ -> expectedInferredTypeForm "product" ty
+
 -- Switch over to synth case
 checkExpr' e t ctxt = do
   debug $ "Check fall through for " <> pprintShow e
@@ -567,6 +614,114 @@ inferExpr' (App t1 t2) ctxt = do
           gradeMismatchAt "application function" Context mismatchVar expected actual
     _ -> tyMismatchAt "type of app left" (FunTy (mkAbs (mkIdent "?") Hole Hole)) funTy
 
+-----------------
+----- Pairs -----
+-----------------
+
+{-
+  (M | g1 | gZ) @ G |- A : Type l1
+  (M,g1 | g2,r | gZ) @ G, x : A |- B : Type l2
+  ---------------------------------------------------------- :: Ten
+  (M | g1 + g2 | gZ) @ G |- (x : r A) * B : Type (lmax l1 l2)
+-}
+inferExpr' (ProductTy ten) ctxt = do
+  let x = absVar ten
+      tA = absTy ten
+      tB = absExpr ten
+      r = subjectTypeGrade ten
+
+  -- (M | g1 | gZ) @ G |- A : Type l1
+  (g1, l1) <- checkExprIsType tA ctxt
+
+  -- (M,g1 | g2,r | gZ) @ G, x : A |- B : Type l2
+  (g2r, l2) <- checkExprIsType tB (extendInputContext ctxt x tA g1)
+
+  let (g2, (_, rInferred)) = unextend g2r
+
+  -- (ii) Check binder grade specification matches usage `r`
+  _ <- verifyGradesEq "ten type binder" Subject x r rInferred
+
+  lmaxl1l2 <- levelMax l1 l2
+  g1plusG2 <- contextGradeAdd g1 g2
+
+  pure ( OutContext { subjectGradesOut = g1plusG2
+                    , typeGradesOut = zeroesMatchingShape (types ctxt) }
+       , mkUnivTy lmaxl1l2)
+
+
+{-
+  (M | g1 | gZ) @ G |- A : Type l1
+  (M | g2,r | gZ) @ G, x : A |- B : Type l2
+  (M | g3 | g1 + g2) @ G |- t1 : (x : (0,r) A) * B
+  (M,(g1 + g2) | g5,q | gZ) @ G, z : (x : (0,r) A) * B |- C : Type l3
+  (M,g1,(g2,r) | g4,s,s | g5,q,q) @ G, x : A, y : B |- t2 : [(x,y)/z]C
+  ---------------------------------------------------------------------- :: TenCut
+  (M | g4 + s * g3 | g5 + q * g3) @ G |- let (x, y) = t1 in t2 : [t1/z]C
+-}
+inferExpr' (Let (LetPatBound p@(PPair (PVar x) (PVar y)) t1) t2) ctxt = do
+  -- TODO: I'm currently having to have extra premises for 'A' and
+  -- 'B', as I can't see how to get g1 or g2 from the typing premise
+  -- for t2 (but I feel we ought to be able to, as we can unambigously
+  -- match on it in the rules) (GD: 2020-06-18)
+
+  -- (M | g3 | g1 + g2) @ G |- t1 : (x : (0,r) A) * B
+  (OutContext { subjectGradesOut = g3, typeGradesOut = g1plusG2 }, pairTy)
+    <- inferExpr t1 ctxt
+  case pairTy of
+    ProductTy ten -> do
+      let -- x' = absVar ten
+          tA = absTy ten
+          r  = subjectTypeGrade ten
+          tB = absExpr ten
+
+      -- (M | g1 | gZ) @ G |- A : Type l1
+      (g1, _) <- checkExprIsType tA ctxt
+
+      -- (M | g2,r | gZ) @ G, x : A |- B : Type l2
+      (g2r, _) <- checkExprIsType tB (extendInputContext ctxt (unBindName x) tA g1)
+
+      let (g2Comp, (_, rComp)) = unextend g2r
+
+      _ <- verifyGradesEq "typing of second component of pair" Subject (unBindName x) r rComp
+
+      g1plusG2Comp <- contextGradeAdd g1 g2Comp
+      g1plusG2 <- verifyGradeVecEq "todo" g1plusG2 g1plusG2Comp
+
+      -- (M,g1,(g2,r) | g4,s,s | g5,q,q) @ G, x : A, y : B |- t2 : [(x,y)/z]C
+      (OutContext { subjectGradesOut = g4ss, typeGradesOut = g5qq }, xyForZinC)
+        <- inferExpr t2 (extendInputContext (extendInputContext ctxt (unBindName x) tA g1) (unBindName y) tB g2r)
+
+      -- (M,(g1 + g2) | g5,q | gZ) @ G, z : (x : (0,r) A) * B |- C : Type l
+      z <- getFreshName "z"
+      tC <- replacePat (p, Var z) xyForZinC
+      (g5q, _) <- checkExprIsType tC
+        (InContext { types = extend (types ctxt) z pairTy
+                   , contextGradesIn = extend (contextGradesIn ctxt) z g1plusG2 })
+
+      let (g4s, (_, sV1)) = unextend g4ss
+          (g4, (_, sV2))  = unextend g4s
+          (g5, (_, qV1))   = unextend g5q
+          (g5qV2, (_, qV2)) = unextend g5qq
+          (g5', (_, qV3)) = unextend g5qV2
+
+      -- check that things that should be equal are equal
+      s <- verifyGradesEq "usage of components of a pair must be the same" Subject (unBindName x) sV1 sV2
+      q <- verifyGradesEq "formation of product elim type (C)" Subject (unBindName x) qV1 qV2
+      q <- verifyGradesEq "formation of product elim type (C)" Subject (unBindName x) q qV3
+      g5 <- verifyGradeVecEq "pair elim" g5 g5'
+
+      sTimesG3 <- contextGradeMult s g3
+      g4plusStimesG3 <- contextGradeAdd g4 sTimesG3
+      qTimesG3 <- contextGradeMult q g3
+      g5plusQtimesG3 <- contextGradeAdd g5 qTimesG3
+
+      t1forZinC <- substitute [(z, t1)] tC
+
+      -- (M | g4 + s * g3 | g5 + r' * g3) @ G |- let (x, y) = t1 in t2 : [t1/z]C
+      pure ( OutContext { subjectGradesOut = g4plusStimesG3, typeGradesOut = g5plusQtimesG3 }
+           , t1forZinC )
+    _ -> expectedInferredTypeForm "tensor" pairTy
+
 inferExpr' (Def n) ctxt = do
   tA <- lookupType n >>= maybe (scoperError $ SE.unknownNameErr (C.Unqualified $ nameConcrete n)) pure
   pure (zeroedOutContextForInContext ctxt, tA)
@@ -645,6 +800,34 @@ mkUnivTy :: Level -> Expr
 mkUnivTy = Universe
 
 
+-- | Used to replace known introduction forms in terms, handle with
+-- | great care. You should ensure that any names in the pattern are
+-- | unique.
+--
+-- TODO: add support for more patterns (2020-06-18)
+replacePat :: (Pattern, Expr) -> Expr -> CM Expr
+replacePat (PPair (PVar x) (PVar y), e) (Pair (Var a) (Var b))
+  | a == unBindName x && b == unBindName y = pure e
+replacePat p (Pair l r) = Pair <$> replacePat p l <*> replacePat p r
+replacePat _ v@Var{} = pure v
+replacePat _ d@Def{} = pure d
+replacePat p (FunTy abs) = FunTy <$> replacePatAbs p abs
+replacePat p (Lam abs) = Lam <$> replacePatAbs p abs
+replacePat p (ProductTy abs) = ProductTy <$> replacePatAbs p abs
+replacePat p (App t1 t2) = App <$> replacePat p t1 <*> replacePat p t2
+replacePat p (Sig t1 t2) = Sig <$> replacePat p t1 <*> replacePat p t2
+replacePat _ u@Universe{} = pure u
+replacePat _ h@Hole = pure h
+replacePat _ i@Implicit = pure i
+replacePat _ i@GInf = pure i
+replacePat p (Let (LetPatBound p' t1) t2) = Let <$> (LetPatBound p' <$> replacePat p t1) <*> replacePat p t2
+
+
+-- TODO: if we add support for first-class grades, ensure those get updated here (2020-06-18)
+replacePatAbs :: (Pattern, Expr) -> Abstraction -> CM Abstraction
+replacePatAbs p a = mkAbsGr (absVar a) <$> replacePat p (absTy a) <*> pure (subjectGrade a) <*> pure (subjectTypeGrade a) <*> replacePat p (absExpr a)
+
+
 -- | Check that an expression is a type, and return the subject grades
 -- | and level it was formed as.
 --
@@ -667,6 +850,30 @@ checkExprIsType e ctxt = do
       case ty of
         (Universe l) | isZeroed -> pure (Just l)
         _ -> pure Nothing
+
+
+extendInputContext :: InContext -> Name -> Type -> Ctxt Grade -> InContext
+extendInputContext ctxt x tA m =
+  InContext { types = extend (types ctxt) x tA
+            , contextGradesIn = extend (contextGradesIn ctxt) x m }
+
+
+-- | Verify that two grades are equal, and return a suitably equivalent grade.
+verifyGradesEq :: String -> Stage -> Name -> Grade -> Grade -> CM Grade
+verifyGradesEq desc st n s r = do
+  gEq <- gradeEq s r
+  if gEq then pure s else gradeMismatchAt desc st n s r
+
+
+-- | Verify that two grade vectors are equal, and return a suitably
+-- | equivalent grade vector.
+verifyGradeVecEq :: String -> Ctxt Grade -> Ctxt Grade -> CM (Ctxt Grade)
+verifyGradeVecEq desc g1 g2 =
+  contextGradeEq g1 g2 >>= \t ->
+    case t of
+      Right() -> pure g1
+      Left (mismatchVar, (expected, actual)) ->
+        gradeMismatchAt desc Context mismatchVar expected actual
 
 
 ------------------
