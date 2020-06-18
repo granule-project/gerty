@@ -665,7 +665,7 @@ inferExpr' (Let (LetPatBound p@(PPair (PVar x) (PVar y)) t1) t2) ctxt = do
     <- inferExpr t1 ctxt
   case pairTy of
     ProductTy ten -> do
-      let -- x' = absVar ten
+      let x' = absVar ten
           tA = absTy ten
           r  = subjectTypeGrade ten
           tB = absExpr ten
@@ -674,6 +674,7 @@ inferExpr' (Let (LetPatBound p@(PPair (PVar x) (PVar y)) t1) t2) ctxt = do
       (g1, _) <- checkExprIsType tA ctxt
 
       -- (M | g2,r | gZ) @ G, x : A |- B : Type l2
+      tB <- substitute [(x', Var (unBindName x))] tB
       (g2r, _) <- checkExprIsType tB (extendInputContext ctxt (unBindName x) tA g1)
 
       let (g2Comp, (_, rComp)) = unextend g2r
