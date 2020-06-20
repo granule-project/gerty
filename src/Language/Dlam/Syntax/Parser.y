@@ -12,7 +12,6 @@ import Control.Monad.Trans.Class (lift)
 import Data.List.NonEmpty ((<|))
 
 import Language.Dlam.Syntax.Common
-import qualified Language.Dlam.Syntax.Common.Language as C
 import Language.Dlam.Syntax.Concrete
 import Language.Dlam.Syntax.Lexer
 import Language.Dlam.Syntax.Literal
@@ -49,7 +48,6 @@ import Language.Dlam.Util.Pretty (pprintShow)
     VAR     { TokId $$ }
     literal { TokLiteral $$ }
     absurd  { TokSymbol SymAbsurd $$ }
-    inf     { TokSymbol SymInf $$ }
     '\\'    { TokSymbol SymLambda $$ }
     '->'    { TokSymbol SymArrow $$ }
     '*'     { TokSymbol SymStar $$ }
@@ -67,6 +65,11 @@ import Language.Dlam.Util.Pretty (pprintShow)
     ';'     { TokSymbol SymSemi $$ }
     '@'     { TokSymbol SymAt $$ }
     '|'     { TokSymbol SymBar $$ }
+    -- grade operations
+    '.inf'  { TokSymbol SymDotInf $$ }
+    '.+'    { TokSymbol SymDotPlus $$ }
+    '.*'    { TokSymbol SymDotStar $$ }
+    '.lub'  { TokSymbol SymDotLub $$ }
     -- temporary tokens until we can parse mixfix names
     '::'    { TokSymbol SymDoubleColon _ }
     vopen   { TokSymbol SymOpenVirtualBrace $$ }
@@ -197,18 +200,47 @@ TypeSig :: { (Name, Expr) }
   : Ident ':' Expr { ($1, $3) }
 
 
+------------------
+----- Grades -----
+------------------
+
+
+{-
+
+  Grades can take the form of arbitrary expressions, but they
+  also support some disambiguators to indicate compiled forms of grades.
+
+  For example, '.3' would stand for '.1 + .1 + .1', whereas '3' could stand
+  for e.g., a natural number specific to the current types in scope.
+
+-}
+
+
+Grade :: { Grade }
+  : Grade1 { $1 }
+  | Grade1 ':' Expr { GSig $1 $3 }
+
+
+Grade1 :: { Grade }
+  : Application { GExpr (mkAppFromExprs $1) }
+  | GradeAtom   { $1 }
+  -- TODO: ensure we sensibly parse precedence of + and * (and lub) (2020-06-20)
+  | Grade1 '.*'   Grade1 { GTimes $1 $3 }
+  | Grade1 '.+'   Grade1 { GPlus  $1 $3 }
+  | Grade1 '.lub' Grade1 { GLub   $1 $3 }
+
+
+GradeAtom :: { Grade }
+  : '(' Grade ')'      { GParens $2 }
+  -- TODO: ensure we can only parse natural numbers here (2020-06-20)
+  | '.' literal        { natTokenToUnaryNat $2 }
+  | '.' '_'            { GImplicit }
+  | '.inf'             { GInf }
+
+
 -------------------
 ----- Binders -----
 -------------------
-
-
--- grades are just expressions
-Grade :: { Grade }
-  : '.' literal { Left  $ natTokenToUnaryNat $2 }
-  | '.' '_'     { Left  $ C.GImplicit }
-  | '.' inf     { Left  $ C.GOther GInf }
-  | Application { Right $ mkAppFromExprs $1 }
-
 
 
 MaybeBinderGrading :: { Maybe Grading }
@@ -398,11 +430,11 @@ parseProgram file = parseFromSrc defaultParseFlags [layout, normal] program (Jus
 natTokenToInt :: Literal -> Integer
 natTokenToInt (LitNat _ x) = x
 
-natTokenToUnaryNat :: Literal -> C.Grade e
-natTokenToUnaryNat (LitNat s 0) = C.GZero
-natTokenToUnaryNat (LitNat s 1) = C.GOne
+natTokenToUnaryNat :: Literal -> Grade
+natTokenToUnaryNat (LitNat s 0) = GZero
+natTokenToUnaryNat (LitNat s 1) = GOne
 natTokenToUnaryNat (LitNat s n) =
-  C.GPlus C.GOne (natTokenToUnaryNat (LitNat s (n - 1)))
+  GPlus GOne (natTokenToUnaryNat (LitNat s (n - 1)))
 
 mkAppFromExprs :: [Expr] -> Expr
 mkAppFromExprs = foldl1 App

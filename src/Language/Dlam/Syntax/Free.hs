@@ -16,6 +16,8 @@ instance (Free a, Free b) => Free (a, b) where
   freeVars (x, y) = freeVars x `Set.union` freeVars y
 
 
+-- TODO: when support for first-class grades is added, ensure we check
+-- grades for free variables (2020-06-20)
 freeVarsAbs :: A.Abstraction -> Set.Set A.Name
 freeVarsAbs ab = Set.delete (A.absVar ab) (freeVars (A.absExpr ab))
 
@@ -32,7 +34,6 @@ instance Free A.Expr where
   freeVars (A.Universe l)                  = freeVars l
   freeVars A.Hole                          = Set.empty
   freeVars A.Implicit                      = Set.empty
-  freeVars A.GInf                          = Set.empty
   freeVars (A.Let pb e) = Set.difference (freeVars e) (boundVars pb)
     where boundVars (A.LetPatBound p _) =
             Set.map A.unBindName $ A.boundSubjectVars p <> A.boundTypingVars p

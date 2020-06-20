@@ -17,7 +17,7 @@ module Language.Dlam.Syntax.Concrete
   , absExpr
 
   -- ** Grading
-  , Grade
+  , Grade(..)
   , Grading
   , mkGrading
   , grading
@@ -74,9 +74,6 @@ import Language.Dlam.Util.Pretty
 
 type Type = Expr
 type Typed = C.Typed Expr
-type Grade = Either (C.Grade Expr) Expr
-implicitGrade :: Grade
-implicitGrade = Left C.GImplicit
 type Grading = C.Grading Grade
 type Graded = C.Graded Grade
 type BoundName = C.BoundName Name
@@ -298,9 +295,6 @@ data Expr
 
   -- | An expression in parentheses.
   | Parens Expr
-
-  -- | Arbitrary use grade.
-  | GInf
   deriving (Show, Eq, Ord)
 
 
@@ -335,6 +329,50 @@ data Pattern
   deriving (Show, Eq, Ord)
 
 
+------------------
+----- Grades -----
+------------------
+
+
+-- | Syntactic form of grades.
+data Grade
+
+  -- | Zero grade @0@.
+  = GZero
+
+  -- | One grade @1@.
+  | GOne
+
+  -- | Arbitrary use grade @.inf@.
+  | GInf
+
+  -- | Grade addition @s .+ r@.
+  | GPlus Grade Grade
+
+  -- | Grade multiplication @s .* r@.
+  | GTimes Grade Grade
+
+  -- | Least-upper bound @s .lub r@.
+  | GLub Grade Grade
+
+  -- | Special grade when unspecified.
+  | GImplicit
+
+  -- | Representation for other grade elements.
+  | GExpr Expr
+
+  -- | Grade with signature @s : t@.
+  | GSig Grade Expr
+
+  -- | Grade in parentheses @( s )@.
+  | GParens Grade
+  deriving (Show, Eq, Ord)
+
+
+implicitGrade :: Grade
+implicitGrade = GImplicit
+
+
 ---------------------------
 ----- Pretty printing -----
 ---------------------------
@@ -364,7 +402,6 @@ instance Pretty Expr where
     isLexicallyAtomic _          = False
 
     pprint UniverseNoLevel        = text "Type"
-    pprint GInf                   = text "inf"
     pprint (Universe l)           = text "Type" <+> integer l
     pprint (Lam binders finE) =
       text "\\" <+> (hsep $ fmap pprint binders) <+> arrow <+> pprint finE
@@ -406,11 +443,34 @@ instance Pretty Pattern where
   pprint PUnit = char '*'
   pprint (PParens p) = parens $ pprint p
 
-
 instance Pretty Grade where
-  pprint (Left g) = pprint g
-  pprint (Right e) = pprint e
+  isLexicallyAtomic GZero = True
+  isLexicallyAtomic GOne = True
+  isLexicallyAtomic GInf = True
+  isLexicallyAtomic GImplicit = True
+  isLexicallyAtomic (GExpr g) = isLexicallyAtomic g
+  isLexicallyAtomic _ = False
 
+  pprint GZero = text ".0"
+  pprint GOne  = text ".1"
+  pprint GInf = text ".inf"
+  pprint (GPlus g1 g2) = pprintSquishy 0 (g1, g2)
+    where pprintSquishy n (GZero, GZero) = char '.' <> integer n
+          pprintSquishy n (GOne,  r) = pprintSquishy (n+1) (GZero, r)
+          pprintSquishy n (s, GOne) = pprintSquishy (n+1) (s, GZero)
+          pprintSquishy n (GPlus GOne s, r) = pprintSquishy (n+1) (s, r)
+          pprintSquishy n (GPlus s GOne, r) = pprintSquishy (n+1) (s, r)
+          pprintSquishy n (s, GPlus GOne r) = pprintSquishy (n+1) (s, r)
+          pprintSquishy n (s, GPlus r GOne) = pprintSquishy (n+1) (s, r)
+          pprintSquishy n (GZero, r) = (char '.' <> integer n) <+> char '+' <+> pprintParened r
+          pprintSquishy n (s, GZero) = (char '.' <> integer n) <+> char '+' <+> pprintParened s
+          pprintSquishy n (s, r) = (char '.' <> integer n) <+> char '+' <+> pprintParened s <+> char '+' <+> pprint r
+  pprint (GTimes g1 g2) = pprintParened g1 <+> text "*" <+> pprintParened g2
+  pprint (GLub g1 g2) = pprintParened g1 <+> text "lub" <+> pprintParened g2
+  pprint GImplicit = text "._"
+  pprint (GExpr g) = pprint g
+  pprint (GSig g s) = pprintParened g <+> char ':' <+> pprintParened s
+  pprint (GParens g) = parens (pprint g)
 
 instance Pretty Grading where
   pprint g = char '[' <>

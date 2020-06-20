@@ -142,7 +142,10 @@ tokens :-
 <0,code> "\"            { symbol SymLambda } -- "
 <0,code> "{"            { symbol SymOpenBrace }     -- you can't use braces for layout
 <0,code> "}"            { symbol SymCloseBrace }
-<0,code> "inf"          { symbol SymInf }
+<0,code> ".inf"         { symbol SymDotInf }
+<0,code> ".+"           { symbol SymDotPlus }
+<0,code> ".*"           { symbol SymDotStar }
+<0,code> ".lub"         { symbol SymDotLub }
 
 -- Literals
 <0,code> @integer       { literal' integer LitNat }

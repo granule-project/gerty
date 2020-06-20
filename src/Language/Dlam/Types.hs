@@ -10,7 +10,6 @@ import Data.List (sort)
 import Language.Dlam.Substitution (Substitutable(substitute))
 import Language.Dlam.Syntax.Abstract
 import Language.Dlam.Syntax.Common
-import qualified Language.Dlam.Syntax.Common.Language as Com
 import qualified Language.Dlam.Syntax.Concrete as C
 import Language.Dlam.Syntax.Internal
 import Language.Dlam.TypeChecking.Monad
@@ -50,7 +49,6 @@ finalNormalForm = pure
 -- | Normalise the expression via a series of reductions.
 normalise :: Expr -> CM Expr
 normalise Implicit = finalNormalForm Implicit
-normalise GInf     = finalNormalForm GInf
 normalise (Def x) = do
   val <- lookupValue x
   case val of
@@ -229,8 +227,8 @@ gradeEq r1 r2 = do
   r1' <- normaliseGrade r1
   r2' <- normaliseGrade r2
   case (r1', r2') of
-    (Com.GOther GInf, _) -> pure True
-    (_, Com.GOther GInf) -> pure True
+    (GInf, _) -> pure True
+    (_, GInf) -> pure True
     (_, _) -> pure (r1' == r2')
 
 contextGradeAdd :: Ctxt Grade -> Ctxt Grade -> CM (Ctxt Grade)
@@ -816,7 +814,6 @@ replacePat p (Sig t1 t2) = Sig <$> replacePat p t1 <*> replacePat p t2
 replacePat _ u@Universe{} = pure u
 replacePat _ h@Hole = pure h
 replacePat _ i@Implicit = pure i
-replacePat _ i@GInf = pure i
 replacePat p (Let (LetPatBound p' t1) t2) = Let <$> (LetPatBound p' <$> replacePat p t1) <*> replacePat p t2
 
 
@@ -939,23 +936,23 @@ levelsAreEqual (LMax l1) (LMax l2) = lEqual (levelMax' l1) (levelMax' l2)
 gradeZero, gradeOne :: Grade
 --gradeZero = Builtin DNZero
 --gradeOne  = App (Builtin DNSucc) gradeZero
-gradeZero = Com.GZero
-gradeOne = Com.GOne
+gradeZero = GZero
+gradeOne = GOne
 
 
 gradeAdd :: Grade -> Grade -> CM Grade
-gradeAdd g1 g2 = normaliseGrade (Com.GPlus g1 g2)
+gradeAdd g1 g2 = normaliseGrade (GPlus g1 g2)
 
 
 -- TODO: perhaps optimise more here (distribute addition/scaling?), or
 -- perhaps do this somewhere else in a simplification function
 -- (2020-06-13)
 gradeMult :: Grade -> Grade -> CM Grade
-gradeMult g1 g2 = normaliseGrade (Com.GTimes g1 g2)
+gradeMult g1 g2 = normaliseGrade (GTimes g1 g2)
 
 
 gradeIsZero :: Grade -> Bool
-gradeIsZero Com.GZero = True
+gradeIsZero GZero = True
 gradeIsZero _ = False
 
 
@@ -965,49 +962,51 @@ gradeIsZero _ = False
 -- TODO: perform some simplification here (distribute
 -- addition/scaling, perhaps?) (2020-06-13)
 normaliseGrade :: Grade -> CM Grade
-normaliseGrade Com.GZero = pure Com.GZero
-normaliseGrade Com.GOne = pure Com.GOne
-normaliseGrade (Com.GPlus g1 g2) = do
+normaliseGrade GZero = pure GZero
+normaliseGrade GOne = pure GOne
+normaliseGrade GInf = pure GInf
+normaliseGrade (GSig g s) = GSig <$> normaliseGrade g <*> normalise s
+normaliseGrade (GPlus g1 g2) = do
   g1' <- normaliseGrade g1
   g2' <- normaliseGrade g2
   case (g1', g2') of
-    (Com.GZero, r) -> pure r
-    (s, Com.GZero) -> pure s
+    (GZero, r) -> pure r
+    (s, GZero) -> pure s
 
     -- inf + r = inf
-    (s@(Com.GOther GInf), _) -> pure s
+    (s@GInf, _) -> pure s
     -- s + inf = inf
-    (_, r@(Com.GOther GInf)) -> pure r
+    (_, r@GInf) -> pure r
 
-    (g3, Com.GPlus g4 g5) -> normaliseGrade $ Com.GPlus (Com.GPlus g3 g4) g5
-    _ -> pure (Com.GPlus g1' g2')
-normaliseGrade (Com.GTimes g1 g2) = do
+    (g3, GPlus g4 g5) -> normaliseGrade $ GPlus (GPlus g3 g4) g5
+    _ -> pure (GPlus g1' g2')
+normaliseGrade (GTimes g1 g2) = do
   g1' <- normaliseGrade g1
   g2' <- normaliseGrade g2
   case (g1', g2') of
-    (Com.GZero, _) -> pure Com.GZero
-    (_, Com.GZero) -> pure Com.GZero
-    (Com.GOne, r) -> pure r
-    (s, Com.GOne) -> pure s
+    (GZero, _) -> pure GZero
+    (_, GZero) -> pure GZero
+    (GOne, r) -> pure r
+    (s, GOne) -> pure s
 
     -- (s/=0) * inf = inf
-    (_, r@(Com.GOther GInf)) -> pure r
+    (_, r@GInf) -> pure r
     -- inf * (r/=0) = inf
-    (s@(Com.GOther GInf), _) -> pure s
+    (s@GInf, _) -> pure s
 
-    (s1, Com.GTimes s2 s3) -> pure $ Com.GTimes (Com.GTimes s1 s2) s3
-    _ -> pure (Com.GTimes g1' g2')
+    (s1, GTimes s2 s3) -> pure $ GTimes (GTimes s1 s2) s3
+    _ -> pure (GTimes g1' g2')
 -- TODO: Allow using the ordering according to whatever type the grade
 -- is of (2020-06-13)
-normaliseGrade (Com.GLub g1 g2) = do
+normaliseGrade (GLub g1 g2) = do
   g1' <- normaliseGrade g1
   g2' <- normaliseGrade g2
   case (g1', g2') of
     -- forall r. r <= inf
-    (s@(Com.GOther GInf), _) -> pure s
-    (_, r@(Com.GOther GInf)) -> pure r
+    (s@GInf, _) -> pure s
+    (_, r@GInf) -> pure r
     _ -> do
       gEq <- gradeEq g1' g2'
-      pure $ if gEq then g1' else Com.GLub g1' g2'
-normaliseGrade (Com.GOther g) = Com.GOther <$> normalise g
-normaliseGrade Com.GImplicit = pure Com.GImplicit
+      pure $ if gEq then g1' else GLub g1' g2'
+normaliseGrade (GExpr g) = GExpr <$> normalise g
+normaliseGrade GImplicit = pure GImplicit

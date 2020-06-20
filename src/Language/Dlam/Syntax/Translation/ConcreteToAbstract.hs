@@ -14,7 +14,6 @@ import Control.Monad.Except (throwError)
 import Language.Dlam.Substitution (fresh)
 import Language.Dlam.Syntax.Common
 import Language.Dlam.Syntax.Common.Language (typeOf)
-import qualified Language.Dlam.Syntax.Common.Language as Com
 import qualified Language.Dlam.Syntax.Abstract as A
 import qualified Language.Dlam.Syntax.Concrete as C
 import Language.Dlam.Scoping.Monad
@@ -161,29 +160,26 @@ instance ToAbstract C.Grading A.Grading where
 
 
 instance ToAbstract C.Grade A.Grade where
-  toAbstract (Left g) = toAbstract g
-  toAbstract (Right _) = throwError $ notImplemented "cannot yet compile arbitrary expressions to grades"
-
-
-instance ToAbstract (Com.Grade C.Expr) (Com.Grade A.Expr) where
-  toAbstract Com.GZero = pure Com.GZero
-  toAbstract Com.GOne = pure Com.GOne
-  toAbstract (Com.GPlus g1 g2) = Com.GPlus <$> toAbstract g1 <*> toAbstract g2
-  toAbstract (Com.GTimes g1 g2) = Com.GTimes <$> toAbstract g1 <*> toAbstract g2
-  toAbstract (Com.GLub g1 g2) = Com.GLub <$> toAbstract g1 <*> toAbstract g2
-  toAbstract Com.GImplicit = pure Com.GImplicit
-  toAbstract (Com.GOther g) = Com.GOther <$> toAbstract g
+  toAbstract C.GZero = pure A.GZero
+  toAbstract C.GOne = pure A.GOne
+  toAbstract C.GInf = pure A.GInf
+  toAbstract (C.GPlus g1 g2) = A.GPlus <$> toAbstract g1 <*> toAbstract g2
+  toAbstract (C.GTimes g1 g2) = A.GTimes <$> toAbstract g1 <*> toAbstract g2
+  toAbstract (C.GLub g1 g2) = A.GLub <$> toAbstract g1 <*> toAbstract g2
+  toAbstract C.GImplicit = pure A.GImplicit
+  toAbstract (C.GExpr g) = A.GExpr <$> toAbstract g
+  toAbstract (C.GSig g s) = A.GSig <$> toAbstract g <*> toAbstract s
+  toAbstract (C.GParens g) = toAbstract g
 
 
 instance ToAbstract C.Expr A.Expr where
   toAbstract (C.Ident v) = toAbstract (OldQName v)
-  toAbstract C.GInf      = pure A.GInf
   toAbstract C.UniverseNoLevel = A.univMeta <$> freshMeta
   toAbstract (C.Universe l) = pure $ A.Universe (A.LMax [A.LitLevel l])
   toAbstract (C.Fun tA tB) = do
     name <- newIgnoredName
     (tA, tB) <- toAbstract (tA, tB)
-    pure . A.FunTy $ A.mkAbsGr name tA Com.GImplicit Com.GZero tB
+    pure . A.FunTy $ A.mkAbsGr name tA A.GImplicit A.GZero tB
   toAbstract (C.Pi piBinds expr) = do
     (piBinds' :: [A.TypedBinding], mySpace) <- toAbstract piBinds
     expr' <- withLocals mySpace $ toAbstract expr
@@ -195,11 +191,11 @@ instance ToAbstract C.Expr A.Expr where
   toAbstract (C.NondepProductTy tA tB) = do
     name <- newIgnoredName
     (tA, tB) <- toAbstract (tA, tB)
-    pure $ A.ProductTy (A.mkAbsGr name tA Com.GZero Com.GZero tB)
+    pure $ A.ProductTy (A.mkAbsGr name tA A.GZero A.GZero tB)
   toAbstract (C.ProductTy (x, r, tA) tB) = do
     (v, r, tA) <- toAbstract (x, r, tA)
     tB <- withLocals [(x, v)] $ toAbstract tB
-    pure $ A.ProductTy $ A.mkAbsGr v tA Com.GZero r tB
+    pure $ A.ProductTy $ A.mkAbsGr v tA A.GZero r tB
   toAbstract (C.Pair l r) = A.Pair <$> toAbstract l <*> toAbstract r
   toAbstract (C.App f e) = A.App <$> toAbstract f <*> toAbstract e
   toAbstract (C.Sig e t) = A.Sig <$> toAbstract e <*> toAbstract t

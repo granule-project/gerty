@@ -31,7 +31,7 @@ data Symbol
         | SymPlus | SymStar | SymAbsurd | SymComma | SymDoubleColon
         | SymOpenBracket | SymCloseBracket
         | SymEndComment -- ^ A misplaced end-comment "-}".
-        | SymInf
+        | SymDotInf | SymDotPlus | SymDotStar | SymDotLub
     deriving (Eq, Show)
 
 data Token

@@ -18,9 +18,6 @@ module Language.Dlam.Syntax.Common.Language
   , gradedWith
   , mkGrading
 
-  -- * Grades
-  , Grade(..)
-
   -- * Binding
   , Binds(..)
   , BoundName
@@ -33,7 +30,7 @@ module Language.Dlam.Syntax.Common.Language
 import qualified Data.List.NonEmpty as NE
 
 import Language.Dlam.Util.Peekaboo
-import Language.Dlam.Util.Pretty (Pretty(..), (<+>), char, colon, hsep, integer, text)
+import Language.Dlam.Util.Pretty (Pretty(..), (<+>), colon, hsep)
 
 
 ----------
@@ -137,53 +134,6 @@ instance IsGraded (Graded g a) g where
 
 instance (IsTyped a t) => IsTyped (Graded g a) t where
   typeOf = typeOf . un
-
-
------------
--- * Grades
------------
-
-
--- | We provide an algebra for grades (pre-ordered semiring).
--- |
--- | Anything that is a member of a pre-ordered semiring should be
--- | able to compile to this.
-data Grade r
-  -- | 0.
-  = GZero
-  -- | 1.
-  | GOne
-  -- | s + r.
-  | GPlus (Grade r) (Grade r)
-  -- | s * r
-  | GTimes (Grade r) (Grade r)
-  -- | Least-upper bound.
-  | GLub (Grade r) (Grade r)
-  -- | Special grade when unspecified.
-  | GImplicit
-  -- | Representation for other grade elements.
-  | GOther r
-  deriving (Show, Eq, Ord)
-
-
-instance (Pretty r) => Pretty (Grade r) where
-  pprint GZero = text ".0"
-  pprint GOne  = text ".1"
-  pprint (GPlus g1 g2) = pprintSquishy 0 (g1, g2)
-    where pprintSquishy n (GZero, GZero) = char '.' <> integer n
-          pprintSquishy n (GOne,  r) = pprintSquishy (n+1) (GZero, r)
-          pprintSquishy n (s, GOne) = pprintSquishy (n+1) (s, GZero)
-          pprintSquishy n (GPlus GOne s, r) = pprintSquishy (n+1) (s, r)
-          pprintSquishy n (GPlus s GOne, r) = pprintSquishy (n+1) (s, r)
-          pprintSquishy n (s, GPlus GOne r) = pprintSquishy (n+1) (s, r)
-          pprintSquishy n (s, GPlus r GOne) = pprintSquishy (n+1) (s, r)
-          pprintSquishy n (GZero, r) = (char '.' <> integer n) <+> char '+' <+> pprint r
-          pprintSquishy n (s, GZero) = (char '.' <> integer n) <+> char '+' <+> pprint s
-          pprintSquishy n (s, r) = (char '.' <> integer n) <+> char '+' <+> pprint s <+> char '+' <+> pprint r
-  pprint (GTimes g1 g2) = pprint g1 <+> text "*" <+> pprint g2
-  pprint (GLub g1 g2) = pprint g1 <+> text "lub" <+> pprint g2
-  pprint GImplicit = text "._"
-  pprint (GOther g) = pprint g
 
 
 ------------

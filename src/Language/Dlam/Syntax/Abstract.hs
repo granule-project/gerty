@@ -44,7 +44,7 @@ module Language.Dlam.Syntax.Abstract
   , MetaId(..)
 
   -- * Grading
-  , Grade
+  , Grade(..)
   , Grading
   , implicitGrading
   , mkGrading
@@ -78,7 +78,6 @@ import Language.Dlam.Util.Pretty
 ------------------------------
 
 
-type Grade = Com.Grade Expr
 type Grading = Com.Grading Grade
 type Graded = Com.Graded Grade
 type BoundName = Com.BoundName Name
@@ -101,10 +100,6 @@ grading = Com.grading
 subjectGrade, subjectTypeGrade :: (Com.IsGraded a Grade) => a -> Grade
 subjectGrade = Com.subjectGrade
 subjectTypeGrade = Com.subjectTypeGrade
-
-
-implicitGrading :: Grading
-implicitGrading = mkGrading Com.GImplicit Com.GImplicit
 
 
 -- TODO: update this to support binding multiple names at once (see
@@ -279,9 +274,6 @@ data Expr
   | Implicit
 
   | Let LetBinding Expr
-
-  -- | Special arbitrary use grade.
-  | GInf
   deriving (Show, Eq, Ord)
 
 
@@ -368,6 +360,50 @@ ident (Name _ (C.Name s)) = s
 ident (Name _ (C.NoName _)) = "_"
 
 
+------------------
+----- Grades -----
+------------------
+
+
+-- | We provide an algebra for grades (pre-ordered semiring).
+-- |
+-- | Anything that is a member of a pre-ordered semiring should be
+-- | able to compile to this.
+data Grade
+
+  -- | Zero grade.
+  = GZero
+
+  -- | One grade.
+  | GOne
+
+  -- | Arbitrary use grade.
+  | GInf
+
+  -- | Grade addition.
+  | GPlus Grade Grade
+
+  -- | Grade multiplication.
+  | GTimes Grade Grade
+
+  -- | Least-upper bound.
+  | GLub Grade Grade
+
+  -- | Special grade when unspecified.
+  | GImplicit
+
+  -- | Representation for other grade elements.
+  | GExpr Expr
+
+  -- | Grade with signature.
+  | GSig Grade Expr
+  deriving (Show, Eq, Ord)
+
+
+implicitGrading :: Grading
+implicitGrading = mkGrading GImplicit GImplicit
+
+
 ---------------------------
 ----- Pretty printing -----
 ---------------------------
@@ -417,7 +453,6 @@ instance Pretty Expr where
     pprint Hole = char '?'
     pprint Implicit{} = char '_'
     pprint (Let lb e) = text "let" <+> pprint lb <+> text "in" <+> pprint e
-    pprint GInf = text "inf"
 
 instance Pretty LetBinding where
   pprint (LetPatBound p e) = pprint p <+> equals <+> pprint e
@@ -448,6 +483,34 @@ instance Pretty FRHS where
 instance Pretty Declaration where
   pprint (TypeSig n t) = pprint n <+> colon <+> pprint t
   pprint (FunEqn lhs rhs) = pprint lhs <+> pprint rhs
+
+instance Pretty Grade where
+  isLexicallyAtomic GZero = True
+  isLexicallyAtomic GOne = True
+  isLexicallyAtomic GInf = True
+  isLexicallyAtomic GImplicit = True
+  isLexicallyAtomic (GExpr g) = isLexicallyAtomic g
+  isLexicallyAtomic _ = False
+
+  pprint GZero = text ".0"
+  pprint GOne  = text ".1"
+  pprint GInf = text ".inf"
+  pprint (GPlus g1 g2) = pprintSquishy 0 (g1, g2)
+    where pprintSquishy n (GZero, GZero) = char '.' <> integer n
+          pprintSquishy n (GOne,  r) = pprintSquishy (n+1) (GZero, r)
+          pprintSquishy n (s, GOne) = pprintSquishy (n+1) (s, GZero)
+          pprintSquishy n (GPlus GOne s, r) = pprintSquishy (n+1) (s, r)
+          pprintSquishy n (GPlus s GOne, r) = pprintSquishy (n+1) (s, r)
+          pprintSquishy n (s, GPlus GOne r) = pprintSquishy (n+1) (s, r)
+          pprintSquishy n (s, GPlus r GOne) = pprintSquishy (n+1) (s, r)
+          pprintSquishy n (GZero, r) = (char '.' <> integer n) <+> char '+' <+> pprintParened r
+          pprintSquishy n (s, GZero) = (char '.' <> integer n) <+> char '+' <+> pprintParened s
+          pprintSquishy n (s, r) = (char '.' <> integer n) <+> char '+' <+> pprintParened s <+> char '+' <+> pprint r
+  pprint (GTimes g1 g2) = pprintParened g1 <+> text "*" <+> pprintParened g2
+  pprint (GLub g1 g2) = pprintParened g1 <+> text "lub" <+> pprintParened g2
+  pprint GImplicit = text "._"
+  pprint (GExpr g) = pprint g
+  pprint (GSig g s) = pprintParened g <+> char ':' <+> pprintParened s
 
 instance Pretty Grading where
   pprint g = char '[' <>
