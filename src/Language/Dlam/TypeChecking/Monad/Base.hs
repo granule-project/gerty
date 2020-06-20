@@ -475,8 +475,8 @@ throwCMat msg e = do
 
 instance Pretty TCErr where
   pprint e = ("The following error occurred when" <+> text phaseMsg)
-      <> (maybe "" (\msg -> " (at " <> msg <> ") ") (localeMessage e))
-      <> (maybe ":\n " (\expr -> " " <> quoted expr <> ":\n ") (tcErrExpr e)) <> pprint (tcErrErr e)
+      <> (maybe "" (\msg -> " (at " <> msg <> ")") (localeMessage e))
+      <> (maybe ":" (\expr -> " " <> quoted expr <> ":") (tcErrExpr e)) $+$ pprint (tcErrErr e)
     where phaseMsg = case errPhase e of
                        PhaseParsing -> "parsing"
                        PhaseScoping -> "scope checking"
