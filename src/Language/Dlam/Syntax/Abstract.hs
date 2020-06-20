@@ -469,7 +469,7 @@ instance Pretty BindName where
 
 instance Pretty Name where
   isLexicallyAtomic _ = True
-  pprint = pprint . nameConcrete
+  pprint n = identifier (toInteger $ nameId n) (nameConcrete n)
 
 instance Pretty AST where
   pprint (AST decls) = vcat $ fmap pprint decls

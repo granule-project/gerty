@@ -43,7 +43,7 @@ import Language.Dlam.Util.Pretty (Pretty(..), braces, parens)
 -- Agda uses !Word64, but I'm not sure what the advantage of that over
 -- Int64 would be. (2020-03-05, GD)
 newtype NameId = NameId Int64
-  deriving (Show, Eq, Ord, Num, Enum)
+  deriving (Show, Eq, Ord, Num, Enum, Real, Integral)
 
 
 -----------

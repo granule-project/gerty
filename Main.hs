@@ -13,6 +13,11 @@ import Language.Dlam.TypeChecking.Monad
   , formatLog
   )
 import qualified Language.Dlam.Interpreter as Interpreter
+import Language.Dlam.Util.Pretty
+  ( RenderOptions(..)
+  , defaultRenderOptions
+  , pprintShowWithOpts
+  )
 
 import Data.List (isPrefixOf, partition)
 import System.Directory   (doesPathExist)
@@ -20,15 +25,17 @@ import System.Environment (getArgs)
 import System.Exit
 
 
-data Options = Options { verbosity :: Verbosity }
+data Options = Options { verbosity :: Verbosity
+                       , renderOpts :: RenderOptions
+                       }
 
 
 defaultOptions :: Options
-defaultOptions = Options { verbosity = verbosityInfo }
+defaultOptions = Options { verbosity = verbosityInfo, renderOpts = defaultRenderOptions }
 
 
-printLog :: Verbosity -> TCLog -> IO ()
-printLog v l = putStr (formatLog v l)
+printLog :: RenderOptions -> Verbosity -> TCLog -> IO ()
+printLog ro v l = putStrLn $ pprintShowWithOpts ro (formatLog v l)
 
 
 parseArgs :: [String] -> IO (Options, [String])
@@ -42,7 +49,7 @@ parseArgs args = do
         parseArgsWithDefaults opts ("--info":xs) =
           parseArgsWithDefaults (opts { verbosity = verbosityInfo }) xs
         parseArgsWithDefaults opts ("--debug":xs) =
-          parseArgsWithDefaults (opts { verbosity = verbosityDebug }) xs
+          parseArgsWithDefaults (opts { verbosity = verbosityDebug, renderOpts = (renderOpts opts) { showIdentNumbers = True } }) xs
         parseArgsWithDefaults _ (x:_) = do
           putStrLn $ "unknown option: " <> x
           exitFailure
@@ -60,11 +67,11 @@ main = do
         else do
           input <- readFile fname
           let res = runNewChecker (Interpreter.runTypeChecker fname input)
-          printLog (verbosity opts) (tcrLog res)
+          printLog (renderOpts opts) (verbosity opts) (tcrLog res)
           case tcrRes res of
             Left err -> do
               putStrLn $ "\x1b[31m" ++ "Ill-typed." ++ "\x1b[0m"
-              putStrLn (formatError err) >> exitFailure
+              putStrLn (formatError (renderOpts opts) err) >> exitFailure
             Right _ -> do
               putStrLn $ "\x1b[32m" ++ "Well typed." ++ "\x1b[0m"
               exitSuccess

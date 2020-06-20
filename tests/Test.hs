@@ -7,7 +7,7 @@ import Test.Tasty.HUnit (testCase, assertFailure, assertBool)
 import Test.Tasty (defaultMain, TestTree, testGroup)
 import Test.Tasty.Golden (findByExtension)
 
-import Language.Dlam.Interpreter (formatError)
+import Language.Dlam.Interpreter (formatErrorDefault)
 import Language.Dlam.TypeChecking.Monad
   ( CM
   , TCErr, isSyntaxErr, isScopingErr, isTypingErr
@@ -57,7 +57,7 @@ fileTestsPositiveGen groupName desc phase = testGroup groupName .
                    case res of
                      Right _ -> pure ()
                      Left err -> assertFailure
-                       ("Expected file to " <> desc <> ", but got: " <> formatError err))
+                       ("Expected file to " <> desc <> ", but got: " <> formatErrorDefault err))
 
 
 -- | The collection of positive syntax tests (i.e., those that should parse).
@@ -94,7 +94,7 @@ fileTestsNegativeGen groupName desc phase isErrGood = testGroup groupName .
                          either (\err ->
                            if isErrGood err
                            then (True, "")
-                           else (False, "gave the following undesired error: " <> formatError err))
+                           else (False, "gave the following undesired error: " <> formatErrorDefault err))
                                   (const (False, "did.")) res
                    assertBool ("Expected file not to " <> desc <> ", but it " <> phaseMsg) didErrOK)
 

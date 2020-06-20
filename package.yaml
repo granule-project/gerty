@@ -36,6 +36,7 @@ library:
    - Language.Dlam.Syntax.Parser
    - Language.Dlam.Types
    - Language.Dlam.TypeChecking.Monad
+   - Language.Dlam.Util.Pretty
   other-modules:
    - Language.Dlam.Syntax.Abstract
    - Language.Dlam.Syntax.Common
@@ -61,7 +62,6 @@ library:
    - Language.Dlam.TypeChecking.Monad.Base
    - Language.Dlam.Util.Lens
    - Language.Dlam.Util.Peekaboo
-   - Language.Dlam.Util.Pretty
 
 executables:
   dlam:

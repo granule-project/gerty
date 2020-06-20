@@ -1,4 +1,5 @@
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Language.Dlam.Scoping.Monad.Exception
   (
   -- * Exceptions and error handling
@@ -16,11 +17,8 @@ module Language.Dlam.Scoping.Monad.Exception
   , nonConstructorInPattern
   ) where
 
-import Control.Exception (Exception)
-
 import qualified Language.Dlam.Syntax.Concrete as C
-import Language.Dlam.Util.Pretty (pprintShow)
-
+import Language.Dlam.Util.Pretty hiding ((<>))
 
 -----------------------------------------
 ----- Exceptions and error handling -----
@@ -51,17 +49,13 @@ data SCError
   | NonConstructorInPattern C.QName
 
 
-instance Show SCError where
-  show (NotImplemented e) = e
-  show (NotInScope n) = "Unknown identifier '" <> pprintShow n <> "'"
-  show (NameClash n) = "Already defined '" <> pprintShow n <> "'"
-  show (NotAValidPattern p) =
-    "'" <> pprintShow p <> "' is not a valid pattern"
-  show (NonConstructorInPattern n) =
-    "Cannot use non-constructor '" <> pprintShow n <> "' in pattern"
-
-
-instance Exception SCError
+instance Pretty SCError where
+  pprint (NotImplemented e) = text e
+  pprint (NotInScope n) = "Unknown identifier" <+> quoted n
+  pprint (NameClash n) = "Already defined" <+> quoted n
+  pprint (NotAValidPattern p) = quoted p <+> "is not a valid pattern"
+  pprint (NonConstructorInPattern n) =
+    "Cannot use non-constructor" <+> quoted n <+> "in pattern"
 
 
 notImplemented :: String -> SCError

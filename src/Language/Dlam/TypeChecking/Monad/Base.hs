@@ -1,4 +1,5 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Language.Dlam.TypeChecking.Monad.Base
   (
    -- * Type checker monad
@@ -47,6 +48,7 @@ module Language.Dlam.TypeChecking.Monad.Base
 
   -- ** Implementation errors
   , notImplemented
+  , internalBug
 
   -- ** Scope errors
   , scoperError
@@ -66,12 +68,12 @@ module Language.Dlam.TypeChecking.Monad.Base
   -- ** Grading errors
   , usedTooManyTimes
   , gradeMismatchAt
+  , gradeMismatchAt'
 
   -- ** Parse errors
   , parseError
   ) where
 
-import Control.Exception (Exception)
 import Control.Monad.Except
 import Control.Monad.Reader
 import Control.Monad.State
@@ -124,12 +126,12 @@ newtype CM a =
 type TCLog = [LogMessage]
 
 
-data LogMessage = InfoMessage String | DebugMessage String
+data LogMessage = InfoMessage Doc | DebugMessage Doc
 
 
-instance Show LogMessage where
-  show (InfoMessage s) = "INFO: " <> s
-  show (DebugMessage s) = "DEBUG: " <> s
+instance Pretty LogMessage where
+  pprint (InfoMessage s) = "INFO:" <+> s
+  pprint (DebugMessage s) = "DEBUG:" <+> s
 
 
 messageLevel :: LogMessage -> Verbosity
@@ -148,14 +150,14 @@ verbosityDebug = Debug
 
 
 -- | Write some debugging information.
-debug :: String -> CM ()
+debug :: Doc -> CM ()
 debug msg = do
   debugNest <- fmap debugNesting get
-  let formattedMessage = if debugNest == 0 then msg else unwords [replicate debugNest '>', msg]
+  let formattedMessage = if debugNest == 0 then msg else hsep [text $ replicate debugNest '>', msg]
   tell . pure . DebugMessage $ formattedMessage
 
 
-info :: String -> CM ()
+info :: Doc -> CM ()
 info = tell . pure . InfoMessage
 
 
@@ -171,7 +173,7 @@ debugClose = modify (\s -> s { debugNesting = pred (debugNesting s) })
 
 -- | Wrap the action in some debugging messages. The final message can
 -- | use the result of the action.
-debugBlock :: String -> String -> (a -> String) -> CM a -> CM a
+debugBlock :: Doc -> Doc -> (a -> Doc) -> CM a -> CM a
 debugBlock blockDesc' open close action = do
   let blockDesc = if blockDesc' /= "" then blockDesc' <> ": " else ""
   debug (blockDesc <> open)
@@ -186,8 +188,9 @@ filterLog :: Verbosity -> TCLog -> TCLog
 filterLog l = filter ((<= l) . messageLevel)
 
 
-formatLog :: Verbosity -> TCLog -> String
-formatLog v = unlines . fmap show . filterLog v
+formatLog :: Verbosity -> TCLog -> Doc
+-- TODO: check whether this should be 'vcat' here (should be equiv to unlines) (2020-06-20)
+formatLog v = foldr (\p q -> p $+$ q) empty . fmap pprint . filterLog v
 
 
 --------------------
@@ -311,7 +314,9 @@ data TCError
   -- Implementation Errors --
   ---------------------------
 
-  = NotImplemented String
+  = NotImplemented Doc
+
+  | InternalBug Doc
 
   ------------------
   -- Scope Errors --
@@ -333,7 +338,7 @@ data TCError
 
   | TypeMismatch Expr Expr
 
-  | ExpectedInferredTypeForm String Expr
+  | ExpectedInferredTypeForm Doc Expr
 
   --------------------
   -- Pattern Errors --
@@ -347,7 +352,7 @@ data TCError
 
   | UsedTooManyTimes Name
 
-  | GradeMismatch Stage Name Grade Grade
+  | GradeMismatch Stage [(Name, (Grade, Grade))]
 
   ------------------
   -- Parse Errors --
@@ -358,31 +363,34 @@ data TCError
 
 
 
-instance Show TCError where
-  show (NotImplemented e) = e
-  show CannotSynthTypeForExpr = "I couldn't synthesise a type for the expression."
-  show (CannotSynthExprForType t) =
-    "I was asked to try and synthesise a term of type '" <> pprintShow t <> "' (internal rep: " <> show t <> ") but I wasn't able to do so."
-  show (TypeMismatch tyExpected tyActual) =
-    "Expected type '" <> pprintShow tyExpected <> "' but got '" <> pprintShow tyActual <> "'"
-  show (GradeMismatch stage var tyExpected tyActual) =
-    "For '" <> pprintShow var <> "' expected " <> pprintShow stage <> " grade '" <> pprintShow tyExpected <> "' but got '" <> pprintShow tyActual <> "'"
-  show (ExpectedInferredTypeForm descr t) =
-    "I was expecting the expression to have a "
-    <> descr <> " type, but instead I found its type to be '"
-    <> pprintShow t <> "'"
-  show (PatternMismatch p t) =
-    "The pattern '" <> pprintShow p <> "' is not valid for type '" <> pprintShow t <> "'"
-  show (UsedTooManyTimes n) =
-    "'" <> pprintShow n <> "' is used too many times."
-  show (ParseError e) = show e
-  show (ScoperError e) = show e
+instance Pretty TCError where
+  pprint (NotImplemented e) = e
+  pprint CannotSynthTypeForExpr = "I couldn't synthesise a type for the expression."
+  pprint (CannotSynthExprForType t) =
+    "I was asked to try and synthesise a term of type" <+> quoted t <+> parens ("internal rep:" <+> pprint t) <+> "but I wasn't able to do so."
+  pprint (TypeMismatch tyExpected tyActual) =
+    "Expected type" <+> quoted tyExpected <+> "but got" <+> quoted tyActual
+  pprint (GradeMismatch stage mismatches) =
+    hang ("At stage" <+> pprint stage <+> "got the following mismatched grades:") 1
+    (vcat $ fmap (\(v, (e, a)) -> "For" <+> quoted v <+> "expected" <+> pprint e <+> "but got" <+> pprint a) mismatches)
+  pprint (ExpectedInferredTypeForm descr t) =
+    "I was expecting the expression to have a" <+> descr <+>
+                        "type, but instead I found its type to be" <+> quoted t
+  pprint (PatternMismatch p t) =
+    "The pattern" <+> quoted p <+> "is not valid for type" <+> quoted t
 
-instance Exception TCError
+  pprint (UsedTooManyTimes n) = quoted n <> "is used too many times."
+  pprint (ParseError e) = pprint e
+  pprint (ScoperError e) = pprint e
+  pprint (InternalBug e) = "Internal error:" <+> e
 
 
-notImplemented :: String -> CM a
+notImplemented :: Doc -> CM a
 notImplemented descr = throwCM (NotImplemented descr)
+
+
+internalBug :: Doc -> CM a
+internalBug descr = throwCM (InternalBug descr)
 
 
 -- | Indicate that an issue occurred when performing a scope analysis.
@@ -406,15 +414,19 @@ tyMismatch tyExpected tyActual =
 
 -- | 'tyMismatch expr tyExpected tyActual' indicates that an expression
 -- | was found to have a type that differs from expected.
-tyMismatchAt :: String -> Expr -> Expr -> CM a
+tyMismatchAt :: Doc -> Expr -> Expr -> CM a
 tyMismatchAt locale tyExpected tyActual =
   throwCMat locale (TypeMismatch tyExpected tyActual)
 
-gradeMismatchAt :: String -> Stage -> Name -> Grade -> Grade -> CM a
-gradeMismatchAt locale stage var grExpected grActual =
-  throwCMat locale (GradeMismatch stage var grExpected grActual)
+gradeMismatchAt :: Doc -> Stage -> [(Name, (Grade, Grade))] -> CM a
+gradeMismatchAt locale stage mismatches =
+  throwCMat locale (GradeMismatch stage mismatches)
 
-expectedInferredTypeForm :: String -> Expr -> CM a
+gradeMismatchAt' :: Doc -> Stage -> Name -> Grade -> Grade -> CM a
+gradeMismatchAt' locale stage var gExpected gActual =
+  throwCMat locale (GradeMismatch stage [(var, (gExpected, gActual))])
+
+expectedInferredTypeForm :: Doc -> Expr -> CM a
 expectedInferredTypeForm descr t =
   throwCM (ExpectedInferredTypeForm descr t)
 
@@ -441,12 +453,9 @@ data TCErr = TCErr
   -- ^ The underlying error.
   , tcErrEnv :: TCEnv
   -- ^ Environment at point of the error.
-  , localeMessage :: Maybe String
+  , localeMessage :: Maybe Doc
   -- ^ Additional message to localise where we are
   }
-
-
-instance Exception TCErr
 
 
 -- | Expression being checked when failure occurred.
@@ -459,15 +468,15 @@ throwCM e = do
   env <- ask
   throwError $ TCErr { tcErrErr = e, tcErrEnv = env, localeMessage = Nothing }
 
-throwCMat :: String -> TCError -> CM a
+throwCMat :: Doc -> TCError -> CM a
 throwCMat msg e = do
   env <- ask
   throwError $ TCErr { tcErrErr = e, tcErrEnv = env, localeMessage = Just msg }
 
-instance Show TCErr where
-  show e = "The following error occurred when " <> phaseMsg
+instance Pretty TCErr where
+  pprint e = ("The following error occurred when" <+> text phaseMsg)
       <> (maybe "" (\msg -> " (at " <> msg <> ") ") (localeMessage e))
-      <> (maybe ":\n " (\expr -> " '" <> pprintShow expr <> "':\n ") (tcErrExpr e)) <> show (tcErrErr e)
+      <> (maybe ":\n " (\expr -> " " <> quoted expr <> ":\n ") (tcErrExpr e)) <> pprint (tcErrErr e)
     where phaseMsg = case errPhase e of
                        PhaseParsing -> "parsing"
                        PhaseScoping -> "scope checking"

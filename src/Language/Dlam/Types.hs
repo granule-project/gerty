@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ViewPatterns #-}
 
 module Language.Dlam.Types
@@ -13,7 +14,7 @@ import Language.Dlam.Syntax.Common
 import qualified Language.Dlam.Syntax.Concrete as C
 import Language.Dlam.Syntax.Internal
 import Language.Dlam.TypeChecking.Monad
-import Language.Dlam.Util.Pretty (pprintShow)
+import Language.Dlam.Util.Pretty hiding ((<>), isEmpty)
 import qualified Language.Dlam.Scoping.Monad as SE
 
 -------------------------
@@ -92,7 +93,7 @@ normalise (Let (LetPatBound p e1) e2) = do
 normalise (Sig e t) = Sig <$> normalise e <*> normalise t
 -- TODO: Improve normalisation for levels/universes (metas?) (2020-06-13)
 normalise (Universe l) = finalNormalForm $ Universe l
-normalise e = notImplemented $ "normalise does not yet support '" <> pprintShow e <> "'"
+normalise e = notImplemented $ "normalise does not yet support '" <> pprint e <> "'"
 
 
 ------------------------------
@@ -151,7 +152,7 @@ ensureEqualTypes tyExpected tyActual = do
   typesEqual <- equalExprs tyActual tyExpected
   if typesEqual then pure tyActual
   else do
-    debug $ "Ensuring equal types. Representation: " ++ show (tyExpected, tyActual)
+    debug $ "Checking that expected type" <+> quoted tyExpected <+> "is equal to actual type" <+> quoted tyActual
     tyMismatchAt "ensure" tyExpected tyActual
 
 
@@ -165,7 +166,7 @@ registerTypeForName n t = do
 -- | type, if any.
 doDeclarationInference :: Declaration -> CM Declaration
 doDeclarationInference (TypeSig n t) = do
-  debug $ "here is a signature for " ++ show n
+  debug $ "here is a signature for" <+> pprint n
   -- make sure that the type is actually a type
   checkExprValidForSignature t
 
@@ -183,7 +184,7 @@ doDeclarationInference (TypeSig n t) = do
 doDeclarationInference (FunEqn (FLHSName v) (FRHSAssign e)) = do
   -- try and get a prescribed type for the equation,
   -- treating it as an implicit if no type is given
-  t <- debugBlock "FUN EQN INFERENCE" ("finding signature for " <> pprintShow v) (\t -> maybe "no sig found" (("found sig: "<>) . pprintShow) t)
+  t <- debugBlock "FUN EQN INFERENCE" ("finding signature for " <> pprint v) (\t -> maybe "no sig found" (("found sig: "<>) . pprint) t)
        (lookupType v)
   exprTy <- case t of
               Nothing -> inferExpr e emptyInContext >>= normalise . snd
@@ -201,7 +202,7 @@ doDeclarationInference (FunEqn (FLHSName v) (FRHSAssign e)) = do
 -- | mismatch is found.
 doASTInference :: AST -> CM AST
 doASTInference (AST ds) = do
-  debug $ "LENGTH " ++ (show $ length ds)
+  debug $ "LENGTH" <+> (pprint $ length ds)
   fmap AST $ mapM doDeclarationInference ds
 
 
@@ -232,41 +233,39 @@ gradeEq r1 r2 = do
     (_, _) -> pure (r1' == r2')
 
 contextGradeAdd :: Ctxt Grade -> Ctxt Grade -> CM (Ctxt Grade)
-contextGradeAdd sigma1 sigma2 =
-  if and (zipWith (\(id, _) (id', _) -> id == id') sigma1 sigma2)
-    then zipWithM (\(id, g1) (_id', g2) -> gradeAdd g1 g2 >>= \r -> pure (id, r)) sigma1 sigma2
-    else error "Internal error: context graded add on contexts of different shape"
+contextGradeAdd = cZipWithM gradeAdd
 
 contextGradeMult :: Grade -> Ctxt Grade -> CM (Ctxt Grade)
-contextGradeMult r sigma =
-  mapM (\(id, g) -> gradeMult r g >>= \s -> pure (id, s)) sigma
+contextGradeMult = cMapM . gradeMult
 
 -- First argument is usually the expected, and second is the actual
-contextGradeEq :: Ctxt Grade -> Ctxt Grade -> CM (Either (Name, (Grade, Grade)) ())
-contextGradeEq [] [] = return $ Right ()
-
-contextGradeEq ((id, g1):ctxt) ((id', g2):ctxt') | id == id' = do
-  eq <- gradeEq g1 g2
-  if eq
-    then contextGradeEq ctxt ctxt'
-    else return $ Left (id, (g1, g2))
-
-contextGradeEq _ _ =
-  error "Internal error: context graded equality on contexts of different shape"
+contextGradeEq :: Ctxt Grade -> Ctxt Grade -> CM (Either [(Name, (Grade, Grade))] ())
+contextGradeEq c d = do
+  eqs <- cZipWithM (\g1 g2 -> gradeEq g1 g2 >>= \t -> pure $ if t then Right () else Left (g1, g2)) c d
+  pure $ foldr (\(n, g) x -> either (\gs -> x <> (Left [(n, gs)])) (const x) g) (Right ()) $ contextToList eqs
 
 -- DAO: may want to make this an interface so we can try
 --      different implementations. For now its just specialised
-type Ctxt a = [(Name, a)] -- M.Map Name a
+newtype Ctxt a = Ctxt { unContext :: [(Name, a)] } -- M.Map Name a
+  deriving (Eq, Show)
+
+
+emptyContext :: Ctxt a
+emptyContext = Ctxt []
+
 
 extend :: Ctxt a -> Name -> a -> Ctxt a
-extend ctxt n t = ctxt ++ [(n, t)]
+extend (Ctxt ctxt) n t = Ctxt (ctxt ++ [(n, t)])
+
 
 unextend :: Ctxt a -> (Ctxt a, (Name, a))
-unextend [] = error "bad call to unextend with empty context"
-unextend xs = (init xs, last xs)
+unextend (Ctxt []) = error "bad call to unextend with empty context"
+unextend (Ctxt xs) = (Ctxt (init xs), last xs)
+
 
 emptyInContext :: InContext
-emptyInContext = InContext [] []
+emptyInContext = InContext emptyContext emptyContext
+
 
 data InContext =
   InContext {
@@ -282,9 +281,59 @@ data OutContext =
 }
  deriving (Eq, Show)
 
-debugContextGrades :: InContext -> String
-debugContextGrades ctxt =
-  show (map (\(id, x) -> (ident id, map (ident . fst) x)) (contextGradesIn ctxt))
+
+-- | Zip over two contexts.
+--
+-- TODO: ensure that contexts of different sizes are rejected (2020-06-20)
+cZipWithM :: (a -> b -> CM c) -> Ctxt a -> Ctxt b -> CM (Ctxt c)
+cZipWithM f (Ctxt c) (Ctxt d) =
+  Ctxt <$> zipWithM (\(n1, v1) (n2, v2) ->
+    if n1 == n2 then f v1 v2 >>= \v -> pure (n1, v)
+    else internalBug "context grade addition on contexts of different shapes")
+    c d
+
+
+-- | Map a function over a context.
+cMap :: (a -> b) -> Ctxt a -> Ctxt b
+cMap f (Ctxt c) = Ctxt $ map (\(n, v) -> (n, f v)) c
+
+
+-- | Map a function over a context.
+cMapM :: (a -> CM b) -> Ctxt a -> CM (Ctxt b)
+cMapM f (Ctxt c) = Ctxt <$> mapM (\(n, v) -> f v >>= \r -> pure (n, r)) c
+
+
+-- | Map a function over a context.
+cMapMWithKey :: (Name -> a -> CM b) -> Ctxt a -> CM (Ctxt b)
+cMapMWithKey f (Ctxt c) = Ctxt <$> mapM (\(n, v) -> f n v >>= \r -> pure (n, r)) c
+
+
+cAnyWithKey :: ((Name, v) -> Bool) -> Ctxt v -> Bool
+cAnyWithKey f = any f . contextToList
+
+
+contextToList :: Ctxt a -> [(Name, a)]
+contextToList = unContext
+
+
+contextValues :: Ctxt a -> [a]
+contextValues = fmap snd . contextToList
+
+
+-- TODO: ensure this doesn't allow repeated names (2020-06-20)
+cappend :: Ctxt a -> Ctxt a -> Ctxt a
+cappend (Ctxt c) (Ctxt d) = Ctxt (c <> d)
+
+
+instance (Pretty a) => Pretty (Ctxt a) where
+  pprint = pprintList . fmap pprintPair . unContext
+
+
+instance Pretty InContext where
+  -- TODO: print types too (2020-06-20)
+  pprint (InContext { types = _tys, contextGradesIn = (Ctxt gs) }) =
+    pprintList (fmap (\(id, x) -> pprintPair (pprint id, pprint x)) gs)
+
 
 -- | A zeroed OutContext that matches the shape of the InContext, for
 -- | when typing constants.
@@ -300,16 +349,16 @@ lookupAndCutoutIn n context = do
   return $ (InContext typesL cGradesL, (t, delta), InContext typesR cGradesR)
 
 lookupAndCutout1 :: Name -> Ctxt a -> Maybe (Ctxt a, a, Ctxt a)
-lookupAndCutout1 _ [] = Nothing
-lookupAndCutout1 v ((v', x) : ctxt) | v == v' =
-  Just (mempty, x, ctxt)
-lookupAndCutout1 v ((v', x) : ctxt) | otherwise = do
-  (ctxtL, y, ctxtR) <- lookupAndCutout1 v ctxt
-  Just ((v', x) : ctxtL, y, ctxtR)
+lookupAndCutout1 _ (Ctxt []) = Nothing
+lookupAndCutout1 v (Ctxt ((v', x) : ctxt))
+  | v == v' = Just (emptyContext, x, Ctxt ctxt)
+  | otherwise = do
+    (Ctxt ctxtL, y, ctxtR) <- lookupAndCutout1 v (Ctxt ctxt)
+    Just (Ctxt ((v', x) : ctxtL), y, ctxtR)
 
 -- Monoid of disjoint contexts
 instance Monoid OutContext where
-  mempty = OutContext [] []
+  mempty = OutContext emptyContext emptyContext
 
 isEmpty :: OutContext -> Bool
 isEmpty ctxt = ctxt == mempty
@@ -319,26 +368,26 @@ instance Semigroup OutContext where
       OutContext (subjectGradesOut c1 `disjUnion` subjectGradesOut c2)
                  (typeGradesOut c1 `disjUnion` typeGradesOut c2)
    where
-     disjUnion m1 m2 | disjoint m1 m2 = m1 ++ m2
+     disjUnion c@(Ctxt m1) d@(Ctxt m2) | disjoint c d = Ctxt (m1 <> m2)
      disjUnion _  _  | otherwise = error $ "Non disjoint contexts"
 
-     disjoint m1 m2 = not $ any (\(v, _) -> hasVar v m2) m1
+     disjoint m1 m2 = not $ cAnyWithKey (\(v, _) -> hasVar v m2) m1
 
-     hasVar v m = foldr (\(v', _) r -> v' == v || r) False m
+     hasVar v m = cAnyWithKey (\(v', _) -> v' == v) m
 
 
 allZeroes :: Ctxt Grade -> CM Bool
-allZeroes ctxt = mapM normaliseAndCheck ctxt >>= (return . and)
+allZeroes ctxt = cMapMWithKey normaliseAndCheck ctxt >>= (pure . and . contextValues)
   where
-    normaliseAndCheck (id, grade) = do
+    normaliseAndCheck n grade = do
       grade' <- normaliseGrade grade
       if gradeIsZero grade'
         then return True
         else
-          gradeMismatchAt "Type judgment" SubjectType id gradeZero grade'
+          gradeMismatchAt' "Type judgment" SubjectType n gradeZero grade'
 
 zeroesMatchingShape :: Ctxt a -> Ctxt Grade
-zeroesMatchingShape = map (\(id, _) -> (id, gradeZero))
+zeroesMatchingShape = cMap (const gradeZero)
 
 -- Top level
 checkOrInferTypeNew :: Type -> Expr -> CM ()
@@ -351,8 +400,8 @@ checkOrInferTypeNew ty expr = do
 checkExpr :: Expr -> Type -> InContext -> CM OutContext
 checkExpr e t c =
   debugBlock "checkExpr"
-    ("checking expression '" <> pprintShow e <> "' against type '" <> pprintShow t <> "'")
-    (\_ -> "checked OK for '" <> pprintShow e <> "'") (checkExpr' e t c)
+    ("checking expression '" <> pprint e <> "' against type '" <> pprint t <> "'")
+    (\_ -> "checked OK for '" <> pprint e <> "'") (checkExpr' e t c)
 
 {-
 
@@ -371,7 +420,7 @@ checkExpr' (Lam lam) t ctxt = do
       (sigma1, _) <- checkExprIsType (absTy pi) ctxt
 
       outctxtBody <- do
-         debug $ "Check body binding `" <> pprintShow (absVar pi) <> "` in scope"
+         debug $ "Check body binding `" <> pprint (absVar pi) <> "` in scope"
          -- substitute the Pi var for the Lam var in the Lam body,
          -- to make sure that variable lookups try and find the
          -- right variable
@@ -392,8 +441,8 @@ checkExpr' (Lam lam) t ctxt = do
             then do
               tgo <- contextGradeAdd sigma1 sigma3
               pure $ OutContext { subjectGradesOut = sigma2, typeGradesOut = tgo }
-            else gradeMismatchAt "pi binder" SubjectType (absVar pi) (subjectTypeGrade pi) r
-        else gradeMismatchAt "pi binder" Subject (absVar pi) (subjectGrade pi) s
+            else gradeMismatchAt' "pi binder" SubjectType (absVar pi) (subjectTypeGrade pi) r
+        else gradeMismatchAt' "pi binder" Subject (absVar pi) (subjectGrade pi) s
 
     _ -> tyMismatchAt "abs" (FunTy (mkAbs (mkIdent "?") Hole Hole)) t
 
@@ -446,7 +495,7 @@ checkExpr' (Pair t1 t2) ty ctxt = do
 
 -- Switch over to synth case
 checkExpr' e t ctxt = do
-  debug $ "Check fall through for " <> pprintShow e
+  debug $ "Check fall through for " <> pprint e
   --
   (ctxt', t') <- inferExpr e ctxt
   eq <- equalExprs t t'
@@ -457,8 +506,8 @@ checkExpr' e t ctxt = do
 -- | Try and infer a type for the given expression.
 inferExpr :: Expr -> InContext -> CM (OutContext, Type)
 inferExpr e c = withLocalCheckingOf e $
-  debugBlock "inferExpr" ("inferring a type for expression '" <> pprintShow e <> "'")
-             (\(_, t) -> "inferred a type '" <> pprintShow t <> "'")
+  debugBlock "inferExpr" ("inferring a type for expression '" <> pprint e <> "'")
+             (\(_, t) -> "inferred a type '" <> pprint t <> "'")
              (inferExpr' e c)
 
 {-
@@ -473,7 +522,7 @@ Declarative:
 
 inferExpr' :: Expr -> InContext -> CM (OutContext, Type)
 inferExpr' (Var x) ctxt = do
-  debug $ "Infer for var " <> pprintShow x <> " in context " <> debugContextGrades ctxt
+  debug $ "Infer for var" <+> pprint x <+> "in context" <+> pprint ctxt
   --
   case lookupAndCutoutIn x ctxt of
     -- this should be prevented by the scope checker (encountering a
@@ -482,23 +531,23 @@ inferExpr' (Var x) ctxt = do
     Just (ctxtL, (ty, sigma'), ctxtR) -> do
 
       -- Check that this type is indeed a Type
-      debug $ "Infer for var (type) " <> debugContextGrades ctxtL
+      debug $ "Infer for var (type)" <+> pprint ctxtL
       (sigma, _) <- checkExprIsType ty ctxtL
 
-      debug $ "Context grade eq var " <> pprintShow x <> " with " <> show sigma' <> " and " <> show sigma
+      debug $ "Context grade eq var" <+> pprint x <+> "with" <+> pprint sigma' <+> "and" <+> pprint sigma
       --  Check context grades for `x` match what was calculated in typing
       eq <- contextGradeEq sigma' sigma
 
       case eq of
-        Left (mismatchVar, (expected, actual)) ->
-          gradeMismatchAt "var" Context mismatchVar expected actual
+        Left mismatches ->
+          gradeMismatchAt "var" Context mismatches
         Right () -> do
           return $ (OutContext
                     { subjectGradesOut = extend (zeroesMatchingShape (types ctxtL)) x gradeOne
-                                        <> (zeroesMatchingShape (types ctxtR))
+                                        `cappend` (zeroesMatchingShape (types ctxtR))
 
                     , typeGradesOut    = extend sigma x gradeZero
-                                        <> (zeroesMatchingShape (types ctxtR)) }, ty)
+                                        `cappend` (zeroesMatchingShape (types ctxtR)) }, ty)
 
 {-
 
@@ -512,7 +561,7 @@ inferExpr' (Var x) ctxt = do
 
 -- (x :(s, r) A -o B)
 inferExpr' (FunTy pi) ctxt = do
-  debug $ "Infer for pi type " <> pprintShow (FunTy pi)
+  debug $ "Infer for pi type " <> pprint (FunTy pi)
 
   -- Infer type of parameter A
   debug $ "Infer for pi type (infer for param type)"
@@ -535,7 +584,7 @@ inferExpr' (FunTy pi) ctxt = do
       pure ( OutContext { subjectGradesOut = sgo
                         , typeGradesOut = zeroesMatchingShape (types ctxt) }
            , mkUnivTy lmaxl1l2)
-    else gradeMismatchAt "pi type binder" Subject (absVar pi) (subjectTypeGrade pi) rInferred
+    else gradeMismatchAt' "pi type binder" Subject (absVar pi) (subjectTypeGrade pi) rInferred
 
 {-
 
@@ -554,7 +603,7 @@ inferExpr' (FunTy pi) ctxt = do
 
 inferExpr' (App t1 t2) ctxt = do
   -- Infer left of application
-  debug $ "App infer for t1 = " <> pprintShow t1
+  debug $ "App infer for t1 = " <> pprint t1
 
   -- (M | g2 | g1 + g3) @ G |- t1 : (x : (s, r) A) -o B
   (outCtxtFun@(OutContext g2 g1plusG3), funTy) <- inferExpr t1 ctxt
@@ -571,22 +620,22 @@ inferExpr' (App t1 t2) ctxt = do
 
       -- (M | g4 | g1) @ G |- t2 : A
       OutContext g4 g1 <- checkExpr t2 tA ctxt
-      debug $ "ok A : " <> pprintShow tA
+      debug $ "ok A : " <> pprint tA
 
       -- (M,g1 | g3,r | gZ) @ G, x : A |- B : Type l
-      debug $ "App infer for tyB = " <> pprintShow tB
+      debug $ "App infer for tyB = " <> pprint tB
       let gammaX = extend (types ctxt) (absVar pi) tA
           mG1 = extend (contextGradesIn ctxt) (absVar pi) g1
       (g3r, _) <- checkExprIsType tB (InContext { types = gammaX, contextGradesIn = mG1 })
       let (g3, (_, rInferred)) = unextend g3r
 
       eq <- gradeEq rInferred r
-      unless eq (gradeMismatchAt "function type" SubjectType (absVar pi) r rInferred)
+      unless eq (gradeMismatchAt' "function type" SubjectType (absVar pi) r rInferred)
 
       debug "Context grade eq app 1"
-      debug $ "sigma1 = " ++ show (map (\(id,t) -> (ident id, t)) g1)
-      debug $ "sigma3 = " ++ show (map (\(id,t) -> (ident id, t)) g3)
-      debug $ "type grades out cxtFun " ++ show ((map (\(id,t) -> (ident id, t)) $ typeGradesOut outCtxtFun))
+      debug $ "sigma1 =" <+> pprint g1
+      debug $ "sigma3 =" <+> pprint g3
+      debug $ "type grades out cxtFun" <+> pprint (typeGradesOut outCtxtFun)
 
       g1plusG3Calculated <- contextGradeAdd g1 g3
       eq' <- contextGradeEq g1plusG3 g1plusG3Calculated
@@ -604,8 +653,8 @@ inferExpr' (App t1 t2) ctxt = do
           pure ( OutContext { subjectGradesOut = g2PlusSTimesG4
                             , typeGradesOut = g3PlusRTimesG4 }
                , t2forXinB)
-        Left (mismatchVar, (expected, actual)) ->
-          gradeMismatchAt "application function" Context mismatchVar expected actual
+        Left mismatches ->
+          gradeMismatchAt "application function" Context mismatches
     _ -> tyMismatchAt "type of app left" (FunTy (mkAbs (mkIdent "?") Hole Hole)) funTy
 
 -----------------
@@ -751,8 +800,8 @@ inferExpr' (Lam lam) ctxt = do
           tgo <- contextGradeAdd sigma1 sigma3
           pure ( OutContext { subjectGradesOut = sigma2, typeGradesOut = tgo }
                , FunTy (mkAbsGr x tA s r bodyTy))
-        else gradeMismatchAt "pi binder" SubjectType x rlam r
-    else gradeMismatchAt "pi binder" Subject x slam s
+        else gradeMismatchAt' "pi binder" SubjectType x rlam r
+    else gradeMismatchAt' "pi binder" Subject x slam s
 
 inferExpr' _ _ = do
   cannotSynthTypeForExpr
@@ -853,21 +902,21 @@ extendInputContext ctxt x tA m =
 
 
 -- | Verify that two grades are equal, and return a suitably equivalent grade.
-verifyGradesEq :: String -> Stage -> Name -> Grade -> Grade -> CM Grade
+verifyGradesEq :: Doc -> Stage -> Name -> Grade -> Grade -> CM Grade
 verifyGradesEq desc st n s r = do
   gEq <- gradeEq s r
-  if gEq then pure s else gradeMismatchAt desc st n s r
+  if gEq then pure s else gradeMismatchAt' desc st n s r
 
 
 -- | Verify that two grade vectors are equal, and return a suitably
 -- | equivalent grade vector.
-verifyGradeVecEq :: String -> Ctxt Grade -> Ctxt Grade -> CM (Ctxt Grade)
+verifyGradeVecEq :: Doc -> Ctxt Grade -> Ctxt Grade -> CM (Ctxt Grade)
 verifyGradeVecEq desc g1 g2 =
   contextGradeEq g1 g2 >>= \t ->
     case t of
       Right() -> pure g1
-      Left (mismatchVar, (expected, actual)) ->
-        gradeMismatchAt desc Context mismatchVar expected actual
+      Left mismatches ->
+        gradeMismatchAt desc Context mismatches
 
 
 ------------------

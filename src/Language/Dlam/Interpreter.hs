@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 module Language.Dlam.Interpreter
   ( runParser
   , runScoper
@@ -5,9 +6,8 @@ module Language.Dlam.Interpreter
   , InterpreterError
   , InterpreterResult
   , formatError
+  , formatErrorDefault
   ) where
-
-import Control.Exception (displayException)
 
 import qualified Language.Dlam.Scoping.Monad as SC
 import Language.Dlam.Syntax.Abstract
@@ -17,13 +17,18 @@ import Language.Dlam.Syntax.Parser.Monad (ParseResult(..))
 import Language.Dlam.Syntax.Translation.ConcreteToAbstract (toAbstract)
 import Language.Dlam.Types
 import Language.Dlam.TypeChecking.Monad
-import Language.Dlam.Util.Pretty (pprintShow)
+import Language.Dlam.Util.Pretty hiding ((<>))
 
 type InterpreterError = TCErr
 type InterpreterResult = AST
 
-formatError :: InterpreterError -> String
-formatError = displayException
+
+formatError :: RenderOptions -> InterpreterError -> String
+formatError = pprintShowWithOpts
+
+
+formatErrorDefault :: InterpreterError -> String
+formatErrorDefault = pprintShow
 
 
 scopeAnalyseCST :: C.AST -> CM AST
@@ -45,16 +50,13 @@ runScoper :: FilePath -> String -> CM AST
 runScoper fname input = do
   cst <- runParser fname input
 
-  -- Show CST
-  info $ ansi_bold <> "CST: " <> ansi_reset <> show cst
-
   -- Pretty print CST
-  info $ ansi_bold <> "Pretty CST:\n" <> ansi_reset <> pprintShow cst
+  info $ (ansi_bold <> "Pretty CST:" <> ansi_reset) $$ pprint cst
 
   ast <- scopeAnalyseCST cst
 
   -- Pretty print AST
-  info $ ansi_bold <> "Pretty AST:\n" <> ansi_reset <> pprintShow ast
+  info $ (ansi_bold <> "Pretty AST:" <> ansi_reset) $$ pprint ast
 
   pure ast
 
@@ -67,6 +69,6 @@ runTypeChecker fname input = do
   doASTInference ast
 
 
-ansi_reset, ansi_bold :: String
+ansi_reset, ansi_bold :: Doc
 ansi_reset = "\ESC[0m"
 ansi_bold  = "\ESC[1m"
