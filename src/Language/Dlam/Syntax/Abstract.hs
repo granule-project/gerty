@@ -546,9 +546,7 @@ instance Pretty Declaration where
   pprint (FunEqn lhs rhs) = pprint lhs <+> pprint rhs
 
 instance Pretty Grade' where
-  isLexicallyAtomic GZero = True
-  isLexicallyAtomic GOne = True
-  isLexicallyAtomic GInf = True
+  isLexicallyAtomic GEnc{} = True
   isLexicallyAtomic GImplicit = True
   isLexicallyAtomic (GExpr g) = isLexicallyAtomic g
   isLexicallyAtomic _ = False
@@ -596,6 +594,9 @@ instance Pretty GradeSpec where
 instance Pretty Grade where
   isLexicallyAtomic (Grade { grade = g }) = isLexicallyAtomic g
   -- TODO: provide an annotation to indicate the type (2020-06-21)
+  pprint (Grade { grade = GZero, gradeTy = PrivacyLevel }) = text "Irrelevant"
+  pprint (Grade { grade = GOne, gradeTy = PrivacyLevel }) = text "Private"
+  pprint (Grade { grade = GEnc 2, gradeTy = PrivacyLevel }) = text "Public"
   pprint (Grade { grade = g }) = pprint g
 
 instance Pretty Grading where
