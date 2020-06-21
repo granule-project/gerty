@@ -293,6 +293,12 @@ data Expr
   -- | Argument wrapped in braces.
   | BraceArg (MaybeNamed Expr)
 
+  -- | Graded modal type @A [s, r]@.
+  | BoxTy (Grade, Grade) Expr
+
+  -- | Graded modal intro @[t]@.
+  | Box Expr
+
   -- | An expression in parentheses.
   | Parens Expr
   deriving (Show, Eq, Ord)
@@ -402,6 +408,9 @@ instance Pretty Expr where
     isLexicallyAtomic _          = False
 
     pprint UniverseNoLevel        = text "Type"
+    pprint (BoxTy (g1, g2) e) =
+      pprintParened e <+> brackets ((pprint g1 <> char ',') <+> pprint g2)
+    pprint (Box e) = brackets (pprint e)
     pprint (Universe l)           = text "Type" <+> integer l
     pprint (Lam binders finE) =
       text "\\" <+> (hsep $ fmap pprint binders) <+> arrow <+> pprint finE

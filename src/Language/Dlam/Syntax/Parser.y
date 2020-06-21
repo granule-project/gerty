@@ -297,6 +297,7 @@ Expr1 :: { Expr }
   | Ident '::' Expr1 '*' Expr1 { ProductTy ($1, implicitGrade, $3) $5 }
   | Ident '::' '[' Grade ']' Expr1 '*' Expr1 { ProductTy ($1, $4, $6) $8 }
   | Expr1 ',' Expr1 { Pair $1 $3 }
+  | Expr1 '[' Grade ',' Grade ']' { BoxTy ($3, $5) $1 }
 
 Application :: { [Expr] }
   : Expr2 { [$1] }
@@ -335,6 +336,7 @@ Atom :: { ParseExpr }
   | Type                      { UniverseNoLevel }
   -- TODO: ensure we can only parse natural numbers here (2020-06-13)
   | Type literal              { Universe (natTokenToInt $2) }
+  | '[' Expr ']'              { Box $2 }
 
   -- For later
   -- | '?' { Hole }

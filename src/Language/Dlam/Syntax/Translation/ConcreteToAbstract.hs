@@ -213,6 +213,8 @@ instance ToAbstract C.Grade A.Grade where
 instance ToAbstract C.Expr A.Expr where
   toAbstract (C.Ident v) = toAbstract (OldQName v)
   toAbstract C.UniverseNoLevel = A.univMeta <$> freshMeta
+  toAbstract (C.BoxTy g t) = A.BoxTy <$> toAbstract g <*> toAbstract t
+  toAbstract (C.Box t) = A.Box <$> toAbstract t
   toAbstract (C.Universe l) = pure $ A.Universe (A.LMax [A.LitLevel l])
   toAbstract (C.Fun tA tB) = do
     name <- newIgnoredName

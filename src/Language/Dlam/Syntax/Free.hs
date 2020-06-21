@@ -24,6 +24,10 @@ freeVarsAbs ab = Set.delete (A.absVar ab) (freeVars (A.absExpr ab))
 
 instance Free A.Expr where
   freeVars (A.FunTy ab)                    = freeVarsAbs ab
+  -- TODO: when suporting first-class grades, ensure we check the
+  -- grading here for free variables (2020-06-21)
+  freeVars (A.BoxTy _ e)                   = freeVars e
+  freeVars (A.Box e)                       = freeVars e
   freeVars (A.Lam ab)                      = freeVarsAbs ab
   freeVars (A.ProductTy ab)                = freeVarsAbs ab
   freeVars (A.App e1 e2)                   = freeVars (e1, e2)

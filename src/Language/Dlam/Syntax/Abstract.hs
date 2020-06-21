@@ -281,6 +281,12 @@ data Expr
   -- | Typing universe.
   | Universe Level
 
+  -- | Graded modal types.
+  | BoxTy (Grade, Grade) Expr
+
+  -- | Box value.
+  | Box Expr
+
   -- | Holes for inference.
   | Hole
 
@@ -494,6 +500,9 @@ instance Pretty Expr where
     isLexicallyAtomic _       = False
 
     pprint (Universe l)           = text "Type" <+> pprintParened l
+    pprint (BoxTy (g1, g2) e) =
+      pprintParened e <+> brackets ((pprint g1 <> char ',') <+> pprint g2)
+    pprint (Box e) = brackets (pprint e)
     pprint (Lam ab) = text "\\ " <> pprintAbs arrow ab
     pprint (FunTy ab) = pprintAbs arrow ab
     pprint (ProductTy ab) =

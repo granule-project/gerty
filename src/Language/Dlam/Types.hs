@@ -874,6 +874,7 @@ replacePat _ u@Universe{} = pure u
 replacePat _ h@Hole = pure h
 replacePat _ i@Implicit = pure i
 replacePat p (Let (LetPatBound p' t1) t2) = Let <$> (LetPatBound p' <$> replacePat p t1) <*> replacePat p t2
+replacePat (p, e1) e2 = notImplemented $ "replacePat for pattern" <+> quoted p <+> "with replacement" <+> quoted e1 <+> "in expr" <+> quoted e2
 
 
 -- TODO: if we add support for first-class grades, ensure those get updated here (2020-06-18)
