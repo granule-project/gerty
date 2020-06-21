@@ -66,7 +66,6 @@ module Language.Dlam.TypeChecking.Monad.Base
   , patternMismatch
 
   -- ** Grading errors
-  , usedTooManyTimes
   , gradeMismatchAt
   , gradeMismatchAt'
 
@@ -350,8 +349,6 @@ data TCError
   -- Grading Errors --
   --------------------
 
-  | UsedTooManyTimes Name
-
   | GradeMismatch Stage [(Name, (Grade, Grade))]
 
   ------------------
@@ -379,7 +376,6 @@ instance Pretty TCError where
   pprint (PatternMismatch p t) =
     "The pattern" <+> quoted p <+> "is not valid for type" <+> quoted t
 
-  pprint (UsedTooManyTimes n) = quoted n <> "is used too many times."
   pprint (ParseError e) = pprint e
   pprint (ScoperError e) = pprint e
   pprint (InternalBug e) = "Internal error:" <+> e
@@ -433,10 +429,6 @@ expectedInferredTypeForm descr t =
 
 patternMismatch :: Pattern -> Expr -> CM a
 patternMismatch p t = throwCM (PatternMismatch p t)
-
-
-usedTooManyTimes :: Name -> CM a
-usedTooManyTimes = throwCM . UsedTooManyTimes
 
 
 parseError :: ParseError -> CM a
