@@ -18,6 +18,7 @@ import qualified Language.Dlam.Syntax.Abstract as A
 import qualified Language.Dlam.Syntax.Concrete as C
 import Language.Dlam.Scoping.Monad
 import Language.Dlam.Scoping.Scope
+import Language.Dlam.Util.Pretty (pprintShow)
 
 
 class ToAbstract c a where
@@ -160,15 +161,52 @@ instance ToAbstract C.Grading A.Grading where
 
 
 instance ToAbstract C.Grade A.Grade where
-  toAbstract C.GZero = pure A.GZero
-  toAbstract C.GOne = pure A.GOne
-  toAbstract C.GInf = pure A.GInf
-  toAbstract (C.GPlus g1 g2) = A.GPlus <$> toAbstract g1 <*> toAbstract g2
-  toAbstract (C.GTimes g1 g2) = A.GTimes <$> toAbstract g1 <*> toAbstract g2
-  toAbstract (C.GLub g1 g2) = A.GLub <$> toAbstract g1 <*> toAbstract g2
-  toAbstract C.GImplicit = pure A.GImplicit
-  toAbstract (C.GExpr g) = A.GExpr <$> toAbstract g
-  toAbstract (C.GSig g s) = A.GSig <$> toAbstract g <*> toAbstract s
+  toAbstract C.GZero = pure A.gradeZero
+  toAbstract C.GOne = pure A.gradeOne
+  toAbstract C.GInf = pure A.gradeInf
+  toAbstract (C.GPlus g1 g2) = A.mkGradePlus <$> toAbstract g1 <*> toAbstract g2
+  toAbstract (C.GTimes g1 g2) = A.mkGradeTimes <$> toAbstract g1 <*> toAbstract g2
+  toAbstract (C.GLub g1 g2) = A.mkGradeLub <$> toAbstract g1 <*> toAbstract g2
+  toAbstract C.GImplicit = pure A.gradeImplicit
+  toAbstract (C.GExpr e@(C.Ident v))
+    -- TODO: make this more robust, it's really hacky at the moment... (2020-06-21)
+    | pprintShow v `elem` ["Irrelevant", "Private", "Public"] = do
+    -- we are treating privacy levels as a form of builtin for now, so
+    -- we check whether they are bound in scope already, in which case
+    -- we need to just treat them as non builtin expressions
+    rn <- maybeResolveNameCurrentScope v
+    case rn of
+      Nothing -> case pprintShow v of
+                   "Irrelevant" -> pure A.gradeZero{A.gradeTy=A.PrivacyLevel}
+                   "Private" -> pure A.gradeOne{A.gradeTy=A.PrivacyLevel}
+                   -- public is encoded as '2'
+                   "Public" -> pure A.Grade{A.grade=A.GEnc 2, A.gradeTy=A.PrivacyLevel}
+                   _ -> error "impossible at toAbstract C.Grade A.Grade"
+      Just _  -> do
+        e' <- toAbstract e
+        pure A.Grade{A.grade=A.GExpr e', A.gradeTy=A.GSImplicit}
+  toAbstract (C.GExpr e) = do
+    e' <- toAbstract e
+    pure A.Grade{A.grade=A.GExpr e', A.gradeTy=A.GSImplicit}
+  toAbstract (C.GSig g e@(C.Ident v))
+    -- TODO: make this more robust, it's really hacky at the moment... (2020-06-21)
+    | pprintShow v `elem` ["Privacy"] = do
+    -- we are treating privacy levels as a form of builtin for now, so
+    -- we check whether they are bound in scope already, in which case
+    -- we need to just treat them as non builtin expressions
+    rn <- maybeResolveNameCurrentScope v
+    g <- toAbstract g
+    case rn of
+      Nothing -> case pprintShow v of
+                   "Privacy" -> pure A.Grade{A.grade=A.GSig g A.PrivacyLevel,A.gradeTy=A.PrivacyLevel}
+                   _ -> error "impossible at toAbstract (type) C.Grade A.Grade"
+      Just _  -> do
+        e' <- toAbstract e
+        pure A.Grade{A.grade=A.GExpr e', A.gradeTy=A.GSImplicit}
+  toAbstract (C.GSig g t) = do
+    g <- toAbstract g
+    t <- toAbstract t
+    pure A.Grade{A.grade=A.GSig g (A.GSExpr t), A.gradeTy=A.GSImplicit}
   toAbstract (C.GParens g) = toAbstract g
 
 
@@ -179,7 +217,7 @@ instance ToAbstract C.Expr A.Expr where
   toAbstract (C.Fun tA tB) = do
     name <- newIgnoredName
     (tA, tB) <- toAbstract (tA, tB)
-    pure . A.FunTy $ A.mkAbsGr name tA A.GImplicit A.GZero tB
+    pure . A.FunTy $ A.mkAbsGr name tA A.gradeImplicit A.gradeZero tB
   toAbstract (C.Pi piBinds expr) = do
     (piBinds' :: [A.TypedBinding], mySpace) <- toAbstract piBinds
     expr' <- withLocals mySpace $ toAbstract expr
@@ -191,11 +229,11 @@ instance ToAbstract C.Expr A.Expr where
   toAbstract (C.NondepProductTy tA tB) = do
     name <- newIgnoredName
     (tA, tB) <- toAbstract (tA, tB)
-    pure $ A.ProductTy (A.mkAbsGr name tA A.GZero A.GZero tB)
+    pure $ A.ProductTy (A.mkAbsGr name tA A.gradeImplicit A.gradeZero tB)
   toAbstract (C.ProductTy (x, r, tA) tB) = do
     (v, r, tA) <- toAbstract (x, r, tA)
     tB <- withLocals [(x, v)] $ toAbstract tB
-    pure $ A.ProductTy $ A.mkAbsGr v tA A.GZero r tB
+    pure $ A.ProductTy $ A.mkAbsGr v tA A.gradeZero r tB
   toAbstract (C.Pair l r) = A.Pair <$> toAbstract l <*> toAbstract r
   toAbstract (C.App f e) = A.App <$> toAbstract f <*> toAbstract e
   toAbstract (C.Sig e t) = A.Sig <$> toAbstract e <*> toAbstract t

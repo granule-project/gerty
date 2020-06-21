@@ -68,6 +68,7 @@ module Language.Dlam.TypeChecking.Monad.Base
   -- ** Grading errors
   , gradeMismatchAt
   , gradeMismatchAt'
+  , gradeTyMismatch
 
   -- ** Parse errors
   , parseError
@@ -351,6 +352,8 @@ data TCError
 
   | GradeMismatch Stage [(Name, (Grade, Grade))]
 
+  | GradeTypeMismatch GradeSpec GradeSpec
+
   ------------------
   -- Parse Errors --
   ------------------
@@ -367,6 +370,8 @@ instance Pretty TCError where
     "I was asked to try and synthesise a term of type" <+> quoted t <+> parens ("internal rep:" <+> pprint t) <+> "but I wasn't able to do so."
   pprint (TypeMismatch tyExpected tyActual) =
     "Expected type" <+> quoted tyExpected <+> "but got" <+> quoted tyActual
+  pprint (GradeTypeMismatch tyExpected tyActual) =
+    "Expected (grade) type" <+> quoted tyExpected <+> "but got" <+> quoted tyActual
   pprint (GradeMismatch stage mismatches) =
     hang ("At stage" <+> pprint stage <+> "got the following mismatched grades:") 1
     (vcat $ fmap (\(v, (e, a)) -> "For" <+> quoted v <+> "expected" <+> pprint e <+> "but got" <+> pprint a) mismatches)
@@ -417,6 +422,10 @@ tyMismatchAt locale tyExpected tyActual =
 gradeMismatchAt :: Doc -> Stage -> [(Name, (Grade, Grade))] -> CM a
 gradeMismatchAt locale stage mismatches =
   throwCMat locale (GradeMismatch stage mismatches)
+
+gradeTyMismatch :: GradeSpec -> GradeSpec -> CM a
+gradeTyMismatch ty1 ty2 =
+  throwCM (GradeTypeMismatch ty1 ty2)
 
 gradeMismatchAt' :: Doc -> Stage -> Name -> Grade -> Grade -> CM a
 gradeMismatchAt' locale stage var gExpected gActual =

@@ -223,14 +223,24 @@ inferUniverseLevel e = withLocalCheckingOf e $ do
 -- as a form of approximation, please change this if that would be
 -- incorrect (we probably want a better notion of approximation) (GD:
 -- 2020-06-17)
+--
+-- NOTE: this expects that 'normaliseGrade' is rendering e.g.,
+-- additions in a canonical form.
 gradeEq :: Grade -> Grade -> CM Bool
 gradeEq r1 r2 = do
   r1' <- normaliseGrade r1
   r2' <- normaliseGrade r2
-  case (r1', r2') of
+  _ <- requireSameTypedGrades r1 r2
+  case (grade r1', grade r2') of
     (GInf, _) -> pure True
     (_, GInf) -> pure True
-    (_, _) -> pure (r1' == r2')
+    (GEnc n, GEnc n') -> pure (n == n')
+    (GPlus s1 s2, GPlus s3 s4) -> (&&) <$> gradeEq s1 s3 <*> gradeEq s2 s4
+    -- TODO: have implicits unify (need to solve constraints),
+    -- currently just rejecting implicits outright (2020-06-21)
+    (GImplicit, _) -> pure False
+    (_, GImplicit) -> pure False
+    (_, _) -> notImplemented $ "grade equality on" <+> quoted r1' <+> "and" <+> quoted r2'
 
 contextGradeAdd :: Ctxt Grade -> Ctxt Grade -> CM (Ctxt Grade)
 contextGradeAdd = cZipWithM gradeAdd
@@ -982,26 +992,23 @@ levelsAreEqual (LMax l1) (LMax l2) = lEqual (levelMax' l1) (levelMax' l2)
 ------------------
 
 
-gradeZero, gradeOne :: Grade
---gradeZero = Builtin DNZero
---gradeOne  = App (Builtin DNSucc) gradeZero
-gradeZero = GZero
-gradeOne = GOne
-
-
 gradeAdd :: Grade -> Grade -> CM Grade
-gradeAdd g1 g2 = normaliseGrade (GPlus g1 g2)
+gradeAdd g1 g2 = do
+  ty <- requireSameTypedGrades g1 g2
+  normaliseGrade (Grade { grade = GPlus g1 g2, gradeTy = ty })
 
 
 -- TODO: perhaps optimise more here (distribute addition/scaling?), or
 -- perhaps do this somewhere else in a simplification function
 -- (2020-06-13)
 gradeMult :: Grade -> Grade -> CM Grade
-gradeMult g1 g2 = normaliseGrade (GTimes g1 g2)
+gradeMult g1 g2 = do
+  ty <- requireSameTypedGrades g1 g2
+  normaliseGrade (Grade { grade = GTimes g1 g2, gradeTy = ty })
 
 
 gradeIsZero :: Grade -> Bool
-gradeIsZero GZero = True
+gradeIsZero Grade{grade=GZero} = True
 gradeIsZero _ = False
 
 
@@ -1010,52 +1017,91 @@ gradeIsZero _ = False
 --
 -- TODO: perform some simplification here (distribute
 -- addition/scaling, perhaps?) (2020-06-13)
+--
+-- TODO: require that the grade type is actually a grade specification
+-- (semiring) (2020-06-21)
 normaliseGrade :: Grade -> CM Grade
-normaliseGrade GZero = pure GZero
-normaliseGrade GOne = pure GOne
-normaliseGrade GInf = pure GInf
-normaliseGrade (GSig g s) = GSig <$> normaliseGrade g <*> normalise s
-normaliseGrade (GPlus g1 g2) = do
+normaliseGrade g@Grade{grade=GEnc{}} = pure g
+normaliseGrade Grade{grade=GSig g s, gradeTy=s'} = do
+  -- TODO: have ensureEqualTypes (and friends) return a normalised
+  -- type to use (2020-06-21)
+  eqTys <- gradeTypesAreEqual s s'
+  unless eqTys (gradeTyMismatch s s')
+  normaliseGrade g
+normaliseGrade Grade{grade=GPlus g1 g2, gradeTy=ty} = do
   g1' <- normaliseGrade g1
   g2' <- normaliseGrade g2
+  _ <- requireSameTypedGrades g1' g2'
   case (g1', g2') of
-    (GZero, r) -> pure r
-    (s, GZero) -> pure s
+    (Grade{grade=GZero}, r) -> pure r
+    (s, Grade{grade=GZero}) -> pure s
 
     -- inf + r = inf
-    (s@GInf, _) -> pure s
+    (s@Grade{grade=GInf}, _) -> pure s
     -- s + inf = inf
-    (_, r@GInf) -> pure r
+    (_, r@Grade{grade=GInf}) -> pure r
 
-    (g3, GPlus g4 g5) -> normaliseGrade $ GPlus (GPlus g3 g4) g5
-    _ -> pure (GPlus g1' g2')
-normaliseGrade (GTimes g1 g2) = do
+    (g3, Grade{grade=GPlus g4 g5}) -> do
+      l <- gradeAdd g3 g4
+      gradeAdd l g5
+    _ -> pure Grade{grade=GPlus g1' g2', gradeTy=ty}
+normaliseGrade Grade{grade=GTimes g1 g2, gradeTy=ty} = do
   g1' <- normaliseGrade g1
   g2' <- normaliseGrade g2
+  _ <- requireSameTypedGrades g1' g2'
   case (g1', g2') of
-    (GZero, _) -> pure GZero
-    (_, GZero) -> pure GZero
-    (GOne, r) -> pure r
-    (s, GOne) -> pure s
+    (s@Grade{grade=GZero}, _) -> pure s
+    (_, r@Grade{grade=GZero}) -> pure r
+    (Grade{grade=GOne}, r) -> pure r
+    (s, Grade{grade=GOne}) -> pure s
 
     -- (s/=0) * inf = inf
-    (_, r@GInf) -> pure r
+    (_, r@Grade{grade=GInf}) -> pure r
     -- inf * (r/=0) = inf
-    (s@GInf, _) -> pure s
+    (s@Grade{grade=GInf}, _) -> pure s
 
-    (s1, GTimes s2 s3) -> pure $ GTimes (GTimes s1 s2) s3
-    _ -> pure (GTimes g1' g2')
+    (s1, Grade{grade=GTimes s2 s3}) -> do
+      l <- gradeMult s1 s2
+      gradeMult l s3
+    _ -> pure Grade{grade=GTimes g1' g2', gradeTy=ty}
 -- TODO: Allow using the ordering according to whatever type the grade
 -- is of (2020-06-13)
-normaliseGrade (GLub g1 g2) = do
+normaliseGrade Grade{grade=GLub g1 g2} = do
   g1' <- normaliseGrade g1
   g2' <- normaliseGrade g2
-  case (g1', g2') of
+  ty <- requireSameTypedGrades g1' g2'
+  case (grade g1', grade g2', ty) of
     -- forall r. r <= inf
-    (s@GInf, _) -> pure s
-    (_, r@GInf) -> pure r
+    (GInf, _, _) -> pure gradeInf { gradeTy = ty }
+    (_, GInf, _) -> pure gradeInf { gradeTy = ty }
+    -- Irrelevant <= Private
+    (GEnc 0, GEnc 1, PrivacyLevel) -> pure $ mkGrade (GEnc 1) PrivacyLevel
+    -- Private <= Public
+    (GEnc 1, GEnc 2, PrivacyLevel) -> pure $ mkGrade (GEnc 2) PrivacyLevel
+    -- Irrelevant <= Public
+    (GEnc 0, GEnc 2, PrivacyLevel) -> pure $ mkGrade (GEnc 2) PrivacyLevel
     _ -> do
       gEq <- gradeEq g1' g2'
-      pure $ if gEq then g1' else GLub g1' g2'
-normaliseGrade (GExpr g) = GExpr <$> normalise g
-normaliseGrade GImplicit = pure GImplicit
+      pure $ if gEq then g1' else Grade{grade=GLub g1' g2', gradeTy=ty}
+normaliseGrade Grade{grade=GExpr g,gradeTy=ty} =
+  normalise g >>= \g -> pure Grade{grade=GExpr g, gradeTy=ty}
+normaliseGrade g@Grade{grade=GImplicit} = pure g
+
+
+gradeTypesAreEqual :: GradeSpec -> GradeSpec -> CM Bool
+gradeTypesAreEqual PrivacyLevel PrivacyLevel = pure True
+-- for now, just treating implicits as equal to any grade types (GD: 2020-06-20)
+--
+-- TODO: implement unification of implicits (2020-06-21)
+gradeTypesAreEqual GSImplicit _ = pure True
+gradeTypesAreEqual _ GSImplicit = pure True
+gradeTypesAreEqual e1@PrivacyLevel e2 =
+  notImplemented $ "Equality of grade types on" <+> quoted e1 <+> "and" <+> quoted e2
+gradeTypesAreEqual e1@GSExpr{} e2 =
+  notImplemented $ "Equality of grade types on" <+> quoted e1 <+> "and" <+> quoted e2
+
+
+requireSameTypedGrades :: Grade -> Grade -> CM GradeSpec
+requireSameTypedGrades Grade{gradeTy=s1} Grade{gradeTy=s2} = do
+  eqTys <- gradeTypesAreEqual s1 s2
+  if eqTys then pure s1 else gradeTyMismatch s1 s2

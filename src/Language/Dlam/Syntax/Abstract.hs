@@ -3,6 +3,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE StandaloneDeriving #-}
 
@@ -45,6 +46,19 @@ module Language.Dlam.Syntax.Abstract
 
   -- * Grading
   , Grade(..)
+  , gradeZero
+  , gradeOne
+  , gradeInf
+  , pattern GZero
+  , pattern GOne
+  , pattern GInf
+  , gradeImplicit
+  , mkGrade
+  , mkGradePlus
+  , mkGradeTimes
+  , mkGradeLub
+  , GradeSpec(..)
+  , Grade'(..)
   , Grading
   , implicitGrading
   , mkGrading
@@ -369,16 +383,15 @@ ident (Name _ (C.NoName _)) = "_"
 -- |
 -- | Anything that is a member of a pre-ordered semiring should be
 -- | able to compile to this.
-data Grade
-
-  -- | Zero grade.
-  = GZero
-
-  -- | One grade.
-  | GOne
-
-  -- | Arbitrary use grade.
-  | GInf
+data Grade'
+  -- | Allows grades to be compiled down to integers.
+  -- |
+  -- | Reserved values are as follows:
+  -- |
+  -- | 0 = zero grade
+  -- | 1 = one  grade
+  -- | -1 = infinity grade
+  = GEnc Integer
 
   -- | Grade addition.
   | GPlus Grade Grade
@@ -396,12 +409,60 @@ data Grade
   | GExpr Expr
 
   -- | Grade with signature.
-  | GSig Grade Expr
+  | GSig Grade GradeSpec
   deriving (Show, Eq, Ord)
 
 
+pattern GZero :: Grade'
+pattern GZero = GEnc 0
+
+pattern GOne :: Grade'
+pattern GOne = GEnc 1
+
+pattern GInf :: Grade'
+pattern GInf = GEnc (-1)
+
+
+-- | Grade specification, i.e., the pre-ordered semiring.
+data GradeSpec
+
+  -- | Privacy levels.
+  = PrivacyLevel
+
+  -- | Unspecified, to resolve.
+  | GSImplicit
+
+  -- | Arbitrary expression.
+  | GSExpr Expr
+  deriving (Show, Eq, Ord)
+
+
+-- | A grade with the type of resource algebra it belongs to.
+data Grade = Grade { grade :: Grade', gradeTy :: GradeSpec }
+  deriving (Show, Eq, Ord)
+
+
+mkGrade :: Grade' -> GradeSpec -> Grade
+mkGrade = Grade
+
+
+gradeZero, gradeOne, gradeInf, gradeImplicit :: Grade
+gradeZero     = mkGrade GZero     GSImplicit
+gradeOne      = mkGrade GOne      GSImplicit
+gradeInf      = mkGrade GInf      GSImplicit
+gradeImplicit = mkGrade GImplicit GSImplicit
+
+
+-- NOTE: these should only be used in ConcreteToAbstract, and they are
+-- very hacky (they just assume the grades are well-typed)
+mkGradePlus, mkGradeTimes, mkGradeLub :: Grade -> Grade -> Grade
+mkGradePlus  g1 g2 = mkGrade (GPlus  g1 g2) (gradeTy g1)
+mkGradeTimes g1 g2 = mkGrade (GTimes g1 g2) (gradeTy g1)
+mkGradeLub   g1 g2 = mkGrade (GLub   g1 g2) (gradeTy g1)
+
+
 implicitGrading :: Grading
-implicitGrading = mkGrading GImplicit GImplicit
+implicitGrading = mkGrading gradeImplicit gradeImplicit
 
 
 ---------------------------
@@ -484,7 +545,7 @@ instance Pretty Declaration where
   pprint (TypeSig n t) = pprint n <+> colon <+> pprint t
   pprint (FunEqn lhs rhs) = pprint lhs <+> pprint rhs
 
-instance Pretty Grade where
+instance Pretty Grade' where
   isLexicallyAtomic GZero = True
   isLexicallyAtomic GOne = True
   isLexicallyAtomic GInf = True
@@ -495,22 +556,47 @@ instance Pretty Grade where
   pprint GZero = text ".0"
   pprint GOne  = text ".1"
   pprint GInf = text ".inf"
-  pprint (GPlus g1 g2) = pprintSquishy 0 (g1, g2)
+  pprint (GPlus Grade{grade=g1} Grade{grade=g2}) = pprintSquishy 0 (g1, g2)
     where pprintSquishy n (GZero, GZero) = char '.' <> integer n
           pprintSquishy n (GOne,  r) = pprintSquishy (n+1) (GZero, r)
           pprintSquishy n (s, GOne) = pprintSquishy (n+1) (s, GZero)
-          pprintSquishy n (GPlus GOne s, r) = pprintSquishy (n+1) (s, r)
-          pprintSquishy n (GPlus s GOne, r) = pprintSquishy (n+1) (s, r)
-          pprintSquishy n (s, GPlus GOne r) = pprintSquishy (n+1) (s, r)
-          pprintSquishy n (s, GPlus r GOne) = pprintSquishy (n+1) (s, r)
-          pprintSquishy n (GZero, r) = (char '.' <> integer n) <+> char '+' <+> pprintParened r
-          pprintSquishy n (s, GZero) = (char '.' <> integer n) <+> char '+' <+> pprintParened s
-          pprintSquishy n (s, r) = (char '.' <> integer n) <+> char '+' <+> pprintParened s <+> char '+' <+> pprint r
+          pprintSquishy n (GPlus Grade{grade=GOne} Grade{grade=s}, r) =
+            pprintSquishy (n+1) (s, r)
+          pprintSquishy n (GPlus Grade{grade=s} Grade{grade=GOne}, r) =
+            pprintSquishy (n+1) (s, r)
+          pprintSquishy n (s, GPlus (Grade{grade=GOne}) Grade{grade=r}) =
+            pprintSquishy (n+1) (s, r)
+          pprintSquishy n (s, GPlus Grade{grade=r} Grade{grade=GOne}) =
+            pprintSquishy (n+1) (s, r)
+          pprintSquishy n (GZero, r) =
+            (char '.' <> integer n) <+> char '+' <+> pprintParened r
+          pprintSquishy n (s, GZero) =
+            (char '.' <> integer n) <+> char '+' <+> pprintParened s
+          pprintSquishy n (s, r) =
+            (char '.' <> integer n) <+> char '+' <+> pprintParened s <+> char '+' <+> pprint r
+  -- TODO: have this display correct value based on semiring (will
+  -- need to be done in "Grade" rather than "Grade'", as only that has
+  -- access to the type (2020-06-21)
+  pprint (GEnc n) = integer n
   pprint (GTimes g1 g2) = pprintParened g1 <+> text "*" <+> pprintParened g2
   pprint (GLub g1 g2) = pprintParened g1 <+> text "lub" <+> pprintParened g2
   pprint GImplicit = text "._"
   pprint (GExpr g) = pprint g
   pprint (GSig g s) = pprintParened g <+> char ':' <+> pprintParened s
+
+instance Pretty GradeSpec where
+  isLexicallyAtomic PrivacyLevel = True
+  isLexicallyAtomic GSImplicit = True
+  isLexicallyAtomic (GSExpr e) = isLexicallyAtomic e
+
+  pprint PrivacyLevel = "Privacy"
+  pprint GSImplicit = "_"
+  pprint (GSExpr e) = pprint e
+
+instance Pretty Grade where
+  isLexicallyAtomic (Grade { grade = g }) = isLexicallyAtomic g
+  -- TODO: provide an annotation to indicate the type (2020-06-21)
+  pprint (Grade { grade = g }) = pprint g
 
 instance Pretty Grading where
   pprint g = char '[' <>
