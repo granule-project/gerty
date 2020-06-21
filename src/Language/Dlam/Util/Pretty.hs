@@ -1,4 +1,5 @@
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 module Language.Dlam.Util.Pretty
   ( module Text.PrettyPrint.Annotated
@@ -15,6 +16,9 @@ module Language.Dlam.Util.Pretty
   , pprintList
   , pprintPair
   , quoted
+  , bold
+  , red
+  , green
   ) where
 
 
@@ -125,3 +129,20 @@ pprintList = brackets . hsep . punctuate comma . fmap pprint
 
 pprintPair :: (Pretty a, Pretty b) => (a, b) -> Doc
 pprintPair (x, y) = parens ((pprint x <> comma) <+> pprint y)
+
+
+withAnsi :: Doc -> Doc -> Doc
+withAnsi ansiCode doc = ansiCode <> doc <> ansiReset
+
+
+bold, red, green :: Doc -> Doc
+bold  = withAnsi ansiBold
+red   = withAnsi ansiRed
+green = withAnsi ansiGreen
+
+
+ansiReset, ansiBold, ansiRed, ansiGreen :: Doc
+ansiReset = "\x1b[0m"
+ansiBold  = "\x1b[1m"
+ansiRed   = "\x1b[31m"
+ansiGreen = "\x1b[32m"

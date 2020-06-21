@@ -23,8 +23,8 @@ type InterpreterError = TCErr
 type InterpreterResult = AST
 
 
-formatError :: RenderOptions -> InterpreterError -> String
-formatError = pprintShowWithOpts
+formatError :: InterpreterError -> Doc
+formatError = pprint
 
 
 formatErrorDefault :: InterpreterError -> String
@@ -51,12 +51,12 @@ runScoper fname input = do
   cst <- runParser fname input
 
   -- Pretty print CST
-  info $ (ansi_bold <> "Pretty CST:" <> ansi_reset) $$ pprint cst
+  info $ (bold "Pretty CST:") $$ pprint cst
 
   ast <- scopeAnalyseCST cst
 
   -- Pretty print AST
-  info $ (ansi_bold <> "Pretty AST:" <> ansi_reset) $$ pprint ast
+  info $ (bold "Pretty AST:") $$ pprint ast
 
   pure ast
 
@@ -67,8 +67,3 @@ runTypeChecker fname input = do
 
   -- Typing
   doASTInference ast
-
-
-ansi_reset, ansi_bold :: Doc
-ansi_reset = "\ESC[0m"
-ansi_bold  = "\ESC[1m"

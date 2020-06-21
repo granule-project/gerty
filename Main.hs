@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 module Dlam (main) where
 
 import Language.Dlam.Interpreter (formatError)
@@ -17,6 +18,7 @@ import Language.Dlam.Util.Pretty
   ( RenderOptions(..)
   , defaultRenderOptions
   , pprintShowWithOpts
+  , green, red
   )
 
 import Data.List (isPrefixOf, partition)
@@ -58,6 +60,8 @@ parseArgs args = do
 main :: IO ()
 main = do
   (opts, args) <- parseArgs =<< getArgs
+  let rOpts   = renderOpts opts
+      printLn = putStrLn . pprintShowWithOpts rOpts
   case args of
     [] -> putStrLn "Please supply a filename as a command line argument"
     (fname:_) -> do
@@ -70,8 +74,8 @@ main = do
           printLog (renderOpts opts) (verbosity opts) (tcrLog res)
           case tcrRes res of
             Left err -> do
-              putStrLn $ "\x1b[31m" ++ "Ill-typed." ++ "\x1b[0m"
-              putStrLn (formatError (renderOpts opts) err) >> exitFailure
+              printLn $ red "Ill-typed."
+              printLn (formatError err) >> exitFailure
             Right _ -> do
-              putStrLn $ "\x1b[32m" ++ "Well typed." ++ "\x1b[0m"
+              printLn $ green "Well typed."
               exitSuccess
