@@ -1,0 +1,2 @@
+badBox : (a : [.0, .2] Type 0) (x : [.4, .0] a) -> a [.3, .0]
+badBox = \a x -> [x]

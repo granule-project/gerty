@@ -1,0 +1,10 @@
+-- Example showing the modal type
+boxTy : (a : [.1, .0] Type 0) -> Type 0
+boxTy = \a -> a [.3, .4]
+
+mkBoxSimple : (a : [.0, .2] Type) (x : [.3, .0] a) -> a [.3, .0]
+mkBoxSimple = \a x -> [x]
+
+-- Example showing box construction
+mkBox : (a : [.0, .2] Type) (x : [.3, .4] a) -> a [.3, .4]
+mkBox = \a x -> [x]

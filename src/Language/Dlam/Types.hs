@@ -66,6 +66,11 @@ normalise (Var x) = do
 normalise (FunTy ab) = finalNormalForm =<< FunTy <$> normaliseAbs ab
 normalise (Lam ab) = finalNormalForm =<< Lam <$> normaliseAbs ab
 normalise (ProductTy ab) = finalNormalForm =<< ProductTy <$> normaliseAbs ab
+normalise (BoxTy (g1, g2) e) = do
+  g1 <- normaliseGrade g1
+  g2 <- normaliseGrade g2
+  e <- normalise e
+  finalNormalForm $ BoxTy (g1, g2) e
 normalise (App e1 e2) = do
   e1' <- normalise e1
   e2' <- normalise e2
@@ -166,20 +171,11 @@ registerTypeForName n t = do
 -- | type, if any.
 doDeclarationInference :: Declaration -> CM Declaration
 doDeclarationInference (TypeSig n t) = do
-  debug $ "here is a signature for" <+> pprint n
-  -- make sure that the type is actually a type
-  checkExprValidForSignature t
-
+  -- this just assumes the type is okay, as we need the definition
+  -- available to resolve e.g., type-level usage from boxes. Hopefully
+  -- equation inference checks that the type is actually okay.
   registerTypeForName n =<< normalise t
   pure (TypeSig n t)
-  where
-    -- | Check that the given expression is valid as a type signature.
-    -- |
-    -- | This usually means that the expression is a type, but allows
-    -- | for the possibility of holes that haven't yet been resolved.
-    checkExprValidForSignature :: Expr -> CM ()
-    checkExprValidForSignature Implicit = pure ()
-    checkExprValidForSignature expr = inferUniverseLevel expr >> pure ()
 
 doDeclarationInference (FunEqn (FLHSName v) (FRHSAssign e)) = do
   -- try and get a prescribed type for the equation,
@@ -206,16 +202,6 @@ doASTInference (AST ds) = do
   fmap AST $ mapM doDeclarationInference ds
 
 
--- | Infer a level for the given type.
-inferUniverseLevel :: Type -> CM Level
-inferUniverseLevel e = withLocalCheckingOf e $ do
-  (_, u) <- inferExpr e emptyInContext
-  norm <- normalise u
-  case norm of
-    (Universe l) -> pure l
-    _        -> expectedInferredTypeForm "universe" norm
-
-
 ----------------------------------------------------------------------------
 -- Dominic work here on a bidirectional additive-grading algorithm
 
@@ -240,7 +226,7 @@ gradeEq r1 r2 = do
     -- currently just rejecting implicits outright (2020-06-21)
     (GImplicit, _) -> pure False
     (_, GImplicit) -> pure False
-    (_, _) -> notImplemented $ "grade equality on" <+> quoted r1' <+> "and" <+> quoted r2'
+    (_, _) -> pure False
 
 contextGradeAdd :: Ctxt Grade -> Ctxt Grade -> CM (Ctxt Grade)
 contextGradeAdd = cZipWithM gradeAdd
@@ -502,6 +488,27 @@ checkExpr' (Pair t1 t2) ty ctxt = do
       -- (M | g2 + g4 | g1 + g3) @ G |- (t1, t2) : (x : (0,r) A) * B
       pure (OutContext { subjectGradesOut = g2plusG4, typeGradesOut = g1plusG3 })
     _ -> expectedInferredTypeForm "product" ty
+
+{-
+  (M | g1 | g2) @ G |- t : A
+  ---------------------------------------------------- :: BoxI
+  (M | s * g1 | g2 + r * g1) @ G |- [t] : Box (s, r) A
+-}
+checkExpr' (Box t) ty ctxt = do
+  case ty of
+    (BoxTy (s, r) tA) -> do
+      -- (M | g1 | g2) @ G |- t : A
+      (OutContext { subjectGradesOut = g1, typeGradesOut = g2 }, tA') <- inferExpr t ctxt
+
+      _ <- ensureEqualTypes tA tA'
+
+      sTimesG1 <- contextGradeMult s g1
+      rTimesG1 <- contextGradeMult r g1
+      g2PlusRTimesG1 <- contextGradeAdd g2 rTimesG1
+
+      -- (M | s * g1 | g2 + r * g1) @ G |- [t] : Box (s, r) A
+      pure $ OutContext { subjectGradesOut = sTimesG1, typeGradesOut = g2PlusRTimesG1 }
+    _ -> expectedInferredTypeForm "graded modal" ty
 
 -- Switch over to synth case
 checkExpr' e t ctxt = do
@@ -775,6 +782,22 @@ inferExpr' (Let (LetPatBound p@(PPair (PVar x) (PVar y)) t1) t2) ctxt = do
       pure ( OutContext { subjectGradesOut = g4plusStimesG3, typeGradesOut = g5plusQtimesG3 }
            , t1forZinC )
     _ -> expectedInferredTypeForm "tensor" pairTy
+
+
+-----------------------------
+----- Graded Modalities -----
+-----------------------------
+
+{-
+  (M, g, gZ) @ G |- A : Type l
+  --------------------------------------- :: Box
+  (M, g, gZ) @ G |- Box (s, r) A : Type l
+-}
+inferExpr' (BoxTy _ t) ctxt = do
+  -- (M, g, gZ) @ G |- A : Type l
+  (g, l) <- checkExprIsType t ctxt
+  -- (M, g, gZ) @ G |- Box (s, r) A : Type l
+  pure (OutContext { subjectGradesOut = g, typeGradesOut = zeroesMatchingShape (types ctxt) }, mkUnivTy l)
 
 inferExpr' (Def n) ctxt = do
   tA <- lookupType n >>= maybe (scoperError $ SE.unknownNameErr (C.Unqualified $ nameConcrete n)) pure
