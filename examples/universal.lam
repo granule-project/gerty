@@ -1,0 +1,5 @@
+forallLin : (a : [.1 , .1] Type 0) -> (b : [.1, .0] ((x : [.2, .0] a) -> Type 0)) -> Type 0
+forallLin = \a -> \b -> (x : [.0, .2] a) -> b x
+
+id : forallLin (Type 0) (\A -> (x : [.1, .0] A) -> A)
+id = \A -> \x -> x
