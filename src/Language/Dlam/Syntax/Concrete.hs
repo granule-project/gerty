@@ -332,6 +332,8 @@ data Pattern
   -- ^ Constructor application.
   | PParens Pattern
   -- ^ Pattern in parentheses.
+  | PBox Pattern
+  -- ^ Pattern in box.
   deriving (Show, Eq, Ord)
 
 
@@ -451,6 +453,7 @@ instance Pretty Pattern where
   pprint (PApp v args) = pprint v <+> (hsep $ fmap pprintParened args)
   pprint PUnit = char '*'
   pprint (PParens p) = parens $ pprint p
+  pprint (PBox p) = brackets $ pprint p
 
 instance Pretty Grade where
   isLexicallyAtomic GZero = True

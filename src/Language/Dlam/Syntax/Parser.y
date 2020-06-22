@@ -297,7 +297,7 @@ Expr1 :: { Expr }
   | Ident '::' Expr1 '*' Expr1 { ProductTy ($1, implicitGrade, $3) $5 }
   | Ident '::' '[' Grade ']' Expr1 '*' Expr1 { ProductTy ($1, $4, $6) $8 }
   | Expr1 ',' Expr1 { Pair $1 $3 }
-  | Expr1 '[' Grade ',' Grade ']' { BoxTy ($3, $5) $1 }
+  | Expr3 '[' Grade ',' Grade ']' { BoxTy ($3, $5) $1 }
 
 Application :: { [Expr] }
   : Expr2 { [$1] }
@@ -367,6 +367,7 @@ PatternAtomic :: { Pattern }
   -- we will bind it as a new name
   | QId             { PIdent $1 }
   | '*'             { PUnit }
+  | '[' Pattern ']' { PBox $2 }
   | Ident '@' PatternAtomic { PAt $1 $3 }
 
 

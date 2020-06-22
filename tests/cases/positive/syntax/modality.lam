@@ -1,0 +1,12 @@
+-- type
+f : A [.0, .0]
+
+-- intro
+f = [x]
+
+-- elim
+f = let [x] = y in z
+
+-- elim in type
+f : let [x] = y in z
+f = let [x] = a in p

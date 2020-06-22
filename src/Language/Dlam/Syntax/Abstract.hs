@@ -333,6 +333,8 @@ data Pattern
   -- ^ unit (*).
   | PCon ConName [Pattern]
   -- ^ Constructor application.
+  | PBox Pattern
+  -- ^ Box pattern.
   deriving (Show, Eq, Ord)
 
 
@@ -342,6 +344,7 @@ boundTypingVars (PVar _) = mempty
 boundTypingVars (PAt n p) = Set.singleton n `Set.union` boundTypingVars p
 boundTypingVars PUnit = mempty
 boundTypingVars (PCon _ args) = Set.unions $ fmap boundTypingVars args
+boundTypingVars (PBox p) = boundTypingVars p
 
 
 boundSubjectVars :: Pattern -> Set.Set BindName
@@ -350,6 +353,7 @@ boundSubjectVars (PVar n) = Set.singleton n
 boundSubjectVars (PAt _ p) = boundSubjectVars p
 boundSubjectVars PUnit = mempty
 boundSubjectVars (PCon _ args) = Set.unions $ fmap boundSubjectVars args
+boundSubjectVars (PBox p) = boundTypingVars p
 
 
 ---------
@@ -533,6 +537,7 @@ instance Pretty Pattern where
   pprint (PAt v p) = pprint v <> at <> pprint p
   pprint PUnit = char '*'
   pprint (PCon c args) = pprint c <+> (hsep $ fmap pprintParened args)
+  pprint (PBox p) = brackets $ pprint p
 
 instance Pretty BindName where
   pprint = pprint . unBindName

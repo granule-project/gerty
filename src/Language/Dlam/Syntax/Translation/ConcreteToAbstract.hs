@@ -6,7 +6,7 @@ module Language.Dlam.Syntax.Translation.ConcreteToAbstract
   ) where
 
 
-import Control.Arrow (second)
+import Control.Arrow (first, second)
 import Control.Monad (join)
 import Control.Monad.Except (throwError)
 
@@ -286,6 +286,7 @@ instance ToAbstract C.Pattern (A.Pattern, Locals) where
     (args', binds) <- fmap (second concat) $ fmap unzip $ mapM toAbstract args
     pure $ (A.PCon c' args', binds)
   toAbstract (C.PParens p) = toAbstract p
+  toAbstract (C.PBox p) = first A.PBox <$> toAbstract p
 
 
 -- | Try and resolve the name as a constructor.
