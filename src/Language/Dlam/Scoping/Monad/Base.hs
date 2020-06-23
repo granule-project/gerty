@@ -42,7 +42,6 @@ import Language.Dlam.Syntax.Common (NameId)
 import Language.Dlam.Scoping.Monad.Exception
 import Language.Dlam.Scoping.Scope
 
-
 data ScoperState
   = ScoperState
     { nextNameId :: NameId

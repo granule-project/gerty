@@ -5,7 +5,6 @@ module Language.Dlam.Syntax.Translation.ConcreteToAbstract
   ( ToAbstract(..)
   ) where
 
-
 import Control.Arrow (first, second)
 import Control.Monad (join)
 import Control.Monad.Except (throwError)
@@ -19,7 +18,6 @@ import qualified Language.Dlam.Syntax.Concrete as C
 import Language.Dlam.Scoping.Monad
 import Language.Dlam.Scoping.Scope
 import Language.Dlam.Util.Pretty (pprintShow)
-
 
 class ToAbstract c a where
   toAbstract :: c -> SM a
@@ -114,16 +112,27 @@ instance ToAbstract MaybeOldName A.Name where
 
 newtype OldQName = OldQName C.QName
 
+-- Rudimentary support for constant type constructors
+isConstructor :: C.Name -> Bool
+isConstructor n = pprintShow n `elem` ["unit"]
+
 instance ToAbstract OldQName A.Expr where
   toAbstract (OldQName n) = do
     -- this will fail if the name isn't in scope (which is exactly
     -- what we want to happen, as we are trying to look up an existing
     -- name)
-    rn <- resolveNameCurrentScope n
-    -- TODO: add support for resolving constructors (2020-06-12)
-    pure $ case rn of
-             ResolvedVar n -> A.Var n
-             _ -> A.Def (nameOf rn)
+    rn <- maybeResolveNameCurrentScope n
+    case rn of
+        Just (ResolvedVar n) -> pure $ A.Var n
+        _ ->
+          case n of
+            -- Is a constructor
+            C.Unqualified n
+              | isConstructor n -> do
+                  n' <- toAbstract n
+                  pure $ A.Def n'
+
+            _ -> throwError $ unknownNameErr n
 
 
 instance ToAbstract C.PiBindings ([A.TypedBinding], Locals) where
