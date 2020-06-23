@@ -193,6 +193,7 @@ instance ToAbstract C.Grade A.Grade where
       Just _  -> do
         e' <- toAbstract e
         pure A.Grade{A.grade=A.GExpr e', A.gradeTy=A.GSImplicit}
+
   toAbstract (C.GExpr e) = do
     e' <- toAbstract e
     pure A.Grade{A.grade=A.GExpr e', A.gradeTy=A.GSImplicit}

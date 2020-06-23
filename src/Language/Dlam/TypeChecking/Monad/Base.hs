@@ -101,7 +101,9 @@ data CheckerState
 -- | The starting checker state.
 startCheckerState :: CheckerState
 startCheckerState =
-  CheckerState { typingScope = mempty
+  CheckerState { typingScope =
+                    -- Type constants
+                    M.fromList [(mkIdent "unit", Universe  (LMax []))]
                , valueScope = mempty
                , nextNameId = 0
                , debugNesting = 0
