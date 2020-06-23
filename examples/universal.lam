@@ -1,3 +1,9 @@
+--forall : (n : [.1, .1] nat) -> ((a : [.1 , .1] Type 0) -> (b : [.1, .0] ((x : [n, .0] a) -> Type 0)) -> Type 0)
+--forall = \n -> \a -> \b -> (x : [.0, n] a) -> b x
+
+--id : forall (Type 0) (\A -> (x : [.1, .0] A) -> A)
+--id = \A -> \x -> x
+
 forallLin : (a : [.1 , .1] Type 0) -> (b : [.1, .0] ((x : [.2, .0] a) -> Type 0)) -> Type 0
 forallLin = \a -> \b -> (x : [.0, .2] a) -> b x
 
