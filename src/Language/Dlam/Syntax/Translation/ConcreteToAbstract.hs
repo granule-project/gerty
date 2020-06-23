@@ -127,10 +127,9 @@ instance ToAbstract OldQName A.Expr where
         _ ->
           case n of
             -- Is a constructor
-            C.Unqualified n
-              | isConstructor n -> do
-                  n' <- toAbstract n
-                  pure $ A.Def n'
+            C.Unqualified n@(C.Name id)
+              | isConstructor n ->
+                  pure $ A.Def (A.mkIdent id)
 
             _ -> throwError $ unknownNameErr n
 
