@@ -5,6 +5,7 @@ module Language.Dlam.Syntax.Translation.ConcreteToAbstract
   ( ToAbstract(..)
   ) where
 
+
 import Control.Arrow (first, second)
 import Control.Monad (join)
 import Control.Monad.Except (throwError)
@@ -18,6 +19,7 @@ import qualified Language.Dlam.Syntax.Concrete as C
 import Language.Dlam.Scoping.Monad
 import Language.Dlam.Scoping.Scope
 import Language.Dlam.Util.Pretty (pprintShow)
+
 
 class ToAbstract c a where
   toAbstract :: c -> SM a
@@ -112,26 +114,16 @@ instance ToAbstract MaybeOldName A.Name where
 
 newtype OldQName = OldQName C.QName
 
--- Rudimentary support for constant type constructors
-isConstructor :: C.Name -> Bool
-isConstructor n = pprintShow n `elem` ["unit"]
-
 instance ToAbstract OldQName A.Expr where
   toAbstract (OldQName n) = do
     -- this will fail if the name isn't in scope (which is exactly
     -- what we want to happen, as we are trying to look up an existing
     -- name)
-    rn <- maybeResolveNameCurrentScope n
-    case rn of
-        Just (ResolvedVar n) -> pure $ A.Var n
-        _ ->
-          case n of
-            -- Is a constructor
-            C.Unqualified n@(C.Name id)
-              | isConstructor n ->
-                  pure $ A.Def (A.mkIdent id)
-
-            _ -> throwError $ unknownNameErr n
+    rn <- resolveNameCurrentScope n
+    -- TODO: add support for resolving constructors (2020-06-12)
+    pure $ case rn of
+             ResolvedVar n -> A.Var n
+             _ -> A.Def (nameOf rn)
 
 
 instance ToAbstract C.PiBindings ([A.TypedBinding], Locals) where
@@ -193,7 +185,6 @@ instance ToAbstract C.Grade A.Grade where
       Just _  -> do
         e' <- toAbstract e
         pure A.Grade{A.grade=A.GExpr e', A.gradeTy=A.GSImplicit}
-
   toAbstract (C.GExpr e) = do
     e' <- toAbstract e
     pure A.Grade{A.grade=A.GExpr e', A.gradeTy=A.GSImplicit}

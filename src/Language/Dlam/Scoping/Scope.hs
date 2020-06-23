@@ -51,7 +51,6 @@ data ResolvedName
   | ResolvedCon A.Name
   -- | An associated type signature.
   | ResolvedSig A.Name
-  deriving Show
 
 
 -- | The associated name.
