@@ -70,6 +70,8 @@ import Language.Dlam.Util.Pretty (pprintShow)
     '.+'    { TokSymbol SymDotPlus $$ }
     '.*'    { TokSymbol SymDotStar $$ }
     '.lub'  { TokSymbol SymDotLub $$ }
+    -- builtin names
+    'Unit'  { TokKeyword KwUnitTy $$ }
     -- temporary tokens until we can parse mixfix names
     '::'    { TokSymbol SymDoubleColon _ }
     vopen   { TokSymbol SymOpenVirtualBrace $$ }
@@ -337,6 +339,8 @@ Atom :: { ParseExpr }
   -- TODO: ensure we can only parse natural numbers here (2020-06-13)
   | Type literal              { Universe (natTokenToInt $2) }
   | '[' Expr ']'              { Box $2 }
+  | '*'                       { Unit }
+  | 'Unit'                    { UnitTy }
 
   -- For later
   -- | '?' { Hole }

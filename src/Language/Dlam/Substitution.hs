@@ -64,6 +64,8 @@ instance {-# OVERLAPS #-} Substitutable CM (Name, Expr) Expr where
     | ident v == ident x    = pure e
     | otherwise = pure (Var x)
   substitute _ (Def n) = pure (Def n)
+  substitute _ UnitTy = pure UnitTy
+  substitute _ Unit = pure Unit
   substitute s (FunTy abs) = FunTy <$> substAbs s abs
   -- TODO: when support for grades is added, substitute into the grades here (2020-06-21)
   substitute s (BoxTy (g1, g2) e) = BoxTy (g1, g2) <$> substitute s e

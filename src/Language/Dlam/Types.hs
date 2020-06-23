@@ -50,6 +50,8 @@ finalNormalForm = pure
 -- | Normalise the expression via a series of reductions.
 normalise :: Expr -> CM Expr
 normalise Implicit = finalNormalForm Implicit
+normalise UnitTy = finalNormalForm UnitTy
+normalise Unit = finalNormalForm Unit
 normalise (Def x) = do
   val <- lookupValue x
   case val of
@@ -121,6 +123,8 @@ equalExprs e1 e2 = do
     (Implicit, _) -> pure True
     (_, Implicit) -> pure True
     (Universe l1, Universe l2) -> levelsAreEqual l1 l2
+    (UnitTy, UnitTy) -> pure True
+    (Unit, Unit) -> pure True
 
     (Let (LetPatBound p e1) e2, Let (LetPatBound p' e1') e2') -> do
       case maybeGetPatternUnificationSubst p p' of
@@ -835,6 +839,16 @@ inferExpr' (Lam lam) ctxt = do
                , FunTy (mkAbsGr x tA s r bodyTy))
         else gradeMismatchAt' "pi binder" SubjectType x rlam r
     else gradeMismatchAt' "pi binder" Subject x slam s
+
+----------------
+----- Unit -----
+----------------
+
+inferExpr' Unit ctxt =
+  pure (zeroedOutContextForInContext ctxt, UnitTy)
+
+inferExpr' UnitTy ctxt =
+  pure (zeroedOutContextForInContext ctxt, mkUnivTy levelZero)
 
 inferExpr' _ _ = do
   cannotSynthTypeForExpr

@@ -287,6 +287,12 @@ data Expr
   -- | Box value.
   | Box Expr
 
+  -- | Unit type.
+  | UnitTy
+
+  -- | Unit value.
+  | Unit
+
   -- | Holes for inference.
   | Hole
 
@@ -501,9 +507,13 @@ instance Pretty Expr where
     isLexicallyAtomic Pair{}     = True
     isLexicallyAtomic Hole{}     = True
     isLexicallyAtomic Implicit{} = True
+    isLexicallyAtomic UnitTy = True
+    isLexicallyAtomic Unit = True
     isLexicallyAtomic _       = False
 
     pprint (Universe l)           = text "Type" <+> pprintParened l
+    pprint UnitTy = text "Unit"
+    pprint Unit = char '*'
     pprint (BoxTy (g1, g2) e) =
       pprintParened e <+> brackets ((pprint g1 <> char ',') <+> pprint g2)
     pprint (Box e) = brackets (pprint e)

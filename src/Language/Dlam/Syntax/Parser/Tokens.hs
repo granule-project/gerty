@@ -15,6 +15,7 @@ data Keyword
         | KwCase | KwOf | KwInl | KwInr
         | KwZero | KwSucc
         | KwType
+        | KwUnitTy
     deriving (Eq, Show)
 
 layoutKeywords :: [Keyword]

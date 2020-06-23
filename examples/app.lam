@@ -1,2 +1,2 @@
-app : (f : [.1, .0] ((x : [.2, .3] unit) -> unit)) -> ((y : [.2, .3] unit) -> unit)
+app : (f : [.1, .0] ((x : [.2, .3] Unit) -> Unit)) -> ((y : [.2, .3] Unit) -> Unit)
 app = \f -> \x -> f x

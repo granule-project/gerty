@@ -38,6 +38,8 @@ instance Free A.Expr where
   freeVars (A.Universe l)                  = freeVars l
   freeVars A.Hole                          = Set.empty
   freeVars A.Implicit                      = Set.empty
+  freeVars A.UnitTy                        = Set.empty
+  freeVars A.Unit                          = Set.empty
   freeVars (A.Let pb e) = Set.difference (freeVars e) (boundVars pb)
     where boundVars (A.LetPatBound p _) =
             Set.map A.unBindName $ A.boundSubjectVars p <> A.boundTypingVars p

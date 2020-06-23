@@ -299,6 +299,12 @@ data Expr
   -- | Graded modal intro @[t]@.
   | Box Expr
 
+  -- | Unit type @Unit@.
+  | UnitTy
+
+  -- | Unit value @*@.
+  | Unit
+
   -- | An expression in parentheses.
   | Parens Expr
   deriving (Show, Eq, Ord)
@@ -410,6 +416,8 @@ instance Pretty Expr where
     isLexicallyAtomic _          = False
 
     pprint UniverseNoLevel        = text "Type"
+    pprint UnitTy                 = text "Unit"
+    pprint Unit                   = char '*'
     pprint (BoxTy (g1, g2) e) =
       pprintParened e <+> brackets ((pprint g1 <> char ',') <+> pprint g2)
     pprint (Box e) = brackets (pprint e)

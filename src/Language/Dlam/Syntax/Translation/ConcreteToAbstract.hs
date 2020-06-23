@@ -212,6 +212,8 @@ instance ToAbstract C.Grade A.Grade where
 
 instance ToAbstract C.Expr A.Expr where
   toAbstract (C.Ident v) = toAbstract (OldQName v)
+  toAbstract C.UnitTy = pure A.UnitTy
+  toAbstract C.Unit = pure A.Unit
   toAbstract C.UniverseNoLevel = A.univMeta <$> freshMeta
   toAbstract (C.BoxTy g t) = A.BoxTy <$> toAbstract g <*> toAbstract t
   toAbstract (C.Box t) = A.Box <$> toAbstract t
