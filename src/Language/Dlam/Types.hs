@@ -923,6 +923,47 @@ inferExpr' Unit ctxt =
 inferExpr' UnitTy ctxt =
   pure (zeroedOutContextForInContext ctxt, mkUnivTy levelZero)
 
+{-
+  (M | g1 | gZ) @ G |- t1 : Unit
+  (M,gZ | g3,s | gZ) @ G, z : Unit |- C : Type l
+  (M | g2 | g3) @ G |- t2 : [*/z]C
+  ----------------------------------------------------------------------- :: UnitE
+  (M | g1 + g2 | g3 + s * g1) G |- case t1 as z in C of * -> t2 : [t1/z]C
+-}
+inferExpr' (Case t1 (Just (PVar z', tC)) [CasePatBound PUnit t2]) ctxt = do
+  let z = unBindName z'
+
+  -- (M | g1 | gZ) @ G |- t1 : Unit
+  (OutContext { subjectGradesOut = g1, typeGradesOut = gZ' }, unitTy)
+    <- inferExpr t1 ctxt
+  gZ <- verifyGradeVecEq "unit elim" gZ' (zeroesMatchingShape (types ctxt))
+  case unitTy of
+    UnitTy -> do
+      -- (M | g2 | g3) @ G |- t2 : [*/x]C
+      (OutContext { subjectGradesOut = g2, typeGradesOut = g3 }, starForZinC)
+        <- inferExpr' t2 ctxt
+
+      starForZinCCalc <- substitute (z, Unit) tC
+      _ <- ensureEqualTypes starForZinCCalc starForZinC
+
+      -- (M,gZ | g3,s | gZ) @ G, z : Unit |- C : Type l
+      (g3s, _) <- checkExprIsType tC (extendInputContext ctxt z UnitTy gZ)
+
+      let (g3Comp, (_, sComp)) = unextend g3s
+
+      g3 <- verifyGradeVecEq "unit elim" g3 g3Comp
+
+      sTimesG1 <- contextGradeMult sComp g1
+      g1plusG2 <- contextGradeAdd g1 g2
+      g3plusStimesG1 <- contextGradeAdd g3 sTimesG1
+
+      t1forZinC <- substitute (z, t1) tC
+
+      -- (M | g1 + g2 | g3 + s * g1) G |- case t1 as z in C of * -> t2 : [t1/x]C
+      pure ( OutContext { subjectGradesOut = g1plusG2, typeGradesOut = g3plusStimesG1 }
+           , t1forZinC)
+    _ -> expectedInferredTypeForm "Unit" unitTy
+
 inferExpr' _ _ = do
   cannotSynthTypeForExpr
 

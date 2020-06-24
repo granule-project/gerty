@@ -11,5 +11,5 @@ unit' : unitTy
 unit' = unit
 
 
-unitElim : (C : [.0, .2] (x : [.1, .0] unitTy) -> Type 0) (c : [.1, .0] C unit') (a : [.1, .0] unitTy) -> C a
+unitElim : (C : [.0, .2] (x : [.1, .0] unitTy) -> Type 0) (c : [.1, .0] C unit') (a : [.1, .1] unitTy) -> C a
 unitElim = \C c a -> case a as z in C z of unit -> c
