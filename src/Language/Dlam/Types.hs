@@ -886,7 +886,7 @@ inferExpr' (Case t1 tp [CasePatBound (PBox (PVar x')) t2]) ctxt = do
           -- value of B from the typing of t2.
           Nothing -> do
             z <- getFreshName "z"
-            let tB = xForZinB
+            tB <- substitute (x, Var z) xForZinB
             -- (M,g5 | g4,r | gZ) @ G, z : A |- B : Type l2
             (g4r, _) <- checkExprIsType tB (extendInputContext ctxt z tA g5)
             -- in this case we require that q is zero
