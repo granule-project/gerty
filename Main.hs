@@ -21,19 +21,20 @@ import Language.Dlam.Util.Pretty
   , green, red
   )
 
-import Data.List (isPrefixOf, partition)
+import Control.Monad      (replicateM)
+import Data.List          (isPrefixOf, partition, intercalate)
 import System.Directory   (doesPathExist)
 import System.Environment (getArgs)
 import System.Exit
 import qualified System.Clock as Clock
-
-
+import Text.Printf
 
 data Options = Options
   { verbosity :: Verbosity
   , renderOpts :: RenderOptions
   , tycOptimise :: Bool
   , benchmark   :: Bool
+  , trials      :: Int
   }
 
 
@@ -43,6 +44,7 @@ defaultOptions = Options
   , renderOpts = defaultRenderOptions
   , tycOptimise = False
   , benchmark   = False
+  , trials      = 1
   }
 
 
@@ -60,6 +62,8 @@ parseArgs args = do
           parseArgsWithDefaults (opts { tycOptimise = True }) xs
         parseArgsWithDefaults opts ("--benchmark":xs) =
           parseArgsWithDefaults (opts { benchmark = True }) xs
+        parseArgsWithDefaults opts (x:xs) | "--trials=" `isPrefixOf` x =
+          parseArgsWithDefaults (opts { trials = read (drop 9 x) }) xs
         parseArgsWithDefaults opts ("--silent":xs) =
           parseArgsWithDefaults (opts { verbosity = verbositySilent }) xs
         parseArgsWithDefaults opts ("--info":xs) =
@@ -84,7 +88,7 @@ main = do
         then putStrLn $ "File `" <> fname <> "` cannot be found."
         else do
           input <- readFile fname
-          exitStatus <- benchmarkTime (benchmark opts) (do
+          exitStatus <- benchmarkTime (benchmark opts) (trials opts) (\() -> do
             let res = runNewChecker (benchmark opts) (tycOptimise opts) (Interpreter.runTypeChecker fname input)
             printLog (renderOpts opts) (verbosity opts) (tcrLog res)
             case tcrRes res of
@@ -98,15 +102,47 @@ main = do
             Left err -> printLn (formatError err) >> exitFailure
             Right () -> exitSuccess
 
-benchmarkTime :: Bool -> IO a -> IO a
-benchmarkTime False m = m
-benchmarkTime True  m = do
-  start  <- Clock.getTime Clock.Monotonic
-  -- Run the computation
-  result <- m
-  -- Force the result (to WHNF)
-  _ <- return $ result `seq` result
-  end    <- Clock.getTime Clock.Monotonic
-  let time = fromIntegral (Clock.toNanoSecs (Clock.diffTimeSpec end start)) / (10^(6 :: Integer)::Double)
-  putStrLn $ "Time (ms) = " <> show time
-  return result
+-- Benchmarking helpers follow
+
+benchmarkTime :: Bool -> Int -> (() -> IO a) -> IO a
+benchmarkTime False _ m = m ()
+benchmarkTime True  trials m = do
+   measurements <- replicateM trials timingComp
+   let result = head (map snd measurements)
+   let runs = map fst measurements
+   let totalTime = sum runs
+   let meanTime = totalTime / fromIntegral trials
+   let error    = stdError runs
+   -- Output
+   putStrLn $ "Timing for each run   = " <> intercalate ", " (map show runs)
+   printf "Mean time of %d trials = %6.2f (%6.2f) ms" trials meanTime error
+   return result
+  where
+    timingComp = do
+      start  <- Clock.getTime Clock.Monotonic
+      -- Run the computation
+      result <- m ()
+      -- Force the result (to WHNF)
+      _ <- return $ result `seq` result
+      end    <- Clock.getTime Clock.Monotonic
+      let time = fromIntegral (Clock.toNanoSecs (Clock.diffTimeSpec end start)) / (10^(6 :: Integer)::Double)
+      return (time, result)
+
+-- Sample standard deviation
+stdDeviation :: [Double] -> Double
+stdDeviation xs = sqrt (divisor * (sum . map (\x -> (x - mean)**2) $ xs))
+  where
+   divisor = 1 / ((cast n) - 1)
+   n = length xs
+   mean = sum xs / (cast n)
+
+cast :: Int -> Double
+cast = fromInteger . toInteger
+
+-- Sample standard error
+stdError :: [Double] -> Double
+stdError []  = 0
+stdError [_] = 0
+stdError xs  = (stdDeviation xs) / sqrt (cast n)
+  where
+    n = length xs
