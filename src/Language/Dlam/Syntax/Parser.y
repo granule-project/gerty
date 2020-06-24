@@ -71,6 +71,7 @@ import Language.Dlam.Util.Pretty (pprintShow)
     '.*'    { TokSymbol SymDotStar $$ }
     '.lub'  { TokSymbol SymDotLub $$ }
     -- builtin names
+    'unit'  { TokKeyword KwUnit   $$ }
     'Unit'  { TokKeyword KwUnitTy $$ }
     -- temporary tokens until we can parse mixfix names
     '::'    { TokSymbol SymDoubleColon _ }
@@ -339,7 +340,7 @@ Atom :: { ParseExpr }
   -- TODO: ensure we can only parse natural numbers here (2020-06-13)
   | Type literal              { Universe (natTokenToInt $2) }
   | '[' Expr ']'              { Box $2 }
-  | '*'                       { Unit }
+  | 'unit'                    { Unit }
   | 'Unit'                    { UnitTy }
 
   -- For later
@@ -370,7 +371,7 @@ PatternAtomic :: { Pattern }
   -- if the name is in scope, then try and treat it as a constructor, otherwise
   -- we will bind it as a new name
   | QId             { PIdent $1 }
-  | '*'             { PUnit }
+  | 'unit'          { PUnit }
   | '[' Pattern ']' { PBox $2 }
   | Ident '@' PatternAtomic { PAt $1 $3 }
 

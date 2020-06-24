@@ -117,6 +117,7 @@ tokens :-
 <0,code> of             { keyword KwOf }
 <0,code> Type           { keyword KwType }
 <0,code> Unit           { keyword KwUnitTy }
+<0,code> unit           { keyword KwUnit }
 
 -- Holes
 <0,code> "{!"           { hole }

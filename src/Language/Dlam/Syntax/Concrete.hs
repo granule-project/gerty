@@ -417,7 +417,7 @@ instance Pretty Expr where
 
     pprint UniverseNoLevel        = text "Type"
     pprint UnitTy                 = text "Unit"
-    pprint Unit                   = char '*'
+    pprint Unit                   = text "unit"
     pprint (BoxTy (g1, g2) e) =
       pprintParened e <+> brackets ((pprint g1 <> char ',') <+> pprint g2)
     pprint (Box e) = brackets (pprint e)
@@ -459,7 +459,7 @@ instance Pretty Pattern where
   pprint (PPair l r) = parens $ pprint l <> comma <+> pprint r
   pprint (PAt v p) = pprint v <> at <> pprint p
   pprint (PApp v args) = pprint v <+> (hsep $ fmap pprintParened args)
-  pprint PUnit = char '*'
+  pprint PUnit = text "unit"
   pprint (PParens p) = parens $ pprint p
   pprint (PBox p) = brackets $ pprint p
 
