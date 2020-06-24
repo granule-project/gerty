@@ -3,7 +3,7 @@ module Dlam (main) where
 
 import Language.Dlam.Interpreter (formatError)
 import Language.Dlam.TypeChecking.Monad
-  ( runNewChecker
+  ( runNewCheckerWithOpts
   , tcrLog
   , tcrRes
   , Verbosity
@@ -89,7 +89,7 @@ main = do
         else do
           input <- readFile fname
           exitStatus <- benchmarkTime (benchmark opts) (trials opts) (\() -> do
-            let res = runNewChecker (benchmark opts) (tycOptimise opts) (Interpreter.runTypeChecker fname input)
+            let res = runNewCheckerWithOpts (benchmark opts) (tycOptimise opts) (Interpreter.runTypeChecker fname input)
             printLog (renderOpts opts) (verbosity opts) (tcrLog res)
             case tcrRes res of
               Left err -> do

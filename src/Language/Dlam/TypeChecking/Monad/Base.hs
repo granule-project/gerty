@@ -19,6 +19,7 @@ module Language.Dlam.TypeChecking.Monad.Base
    -- * State
   , CheckerState
   , runNewChecker
+  , runNewCheckerWithOpts
   , TCResult
   , tcrLog
   , tcrRes
@@ -213,9 +214,13 @@ runChecker env st p =
   in TCResult { tcrLog = log, tcrRes = res }
 
 
-runNewChecker :: Bool -> Bool -> CM a -> TCResult a
-runNewChecker benchmarkFlag optimiseFlag =
-  runChecker (startEnv benchmarkFlag optimiseFlag) startCheckerState
+runNewChecker :: CM a -> TCResult a
+runNewChecker = runChecker startEnv startCheckerState
+
+
+runNewCheckerWithOpts :: Bool -> Bool -> CM a -> TCResult a
+runNewCheckerWithOpts bench optimise =
+  runChecker (startEnv { tycOptimise = optimise, benchmark = bench }) startCheckerState
 
 
 
@@ -292,7 +297,9 @@ data TCEnv = TCEnv
   { tceCurrentExpr :: Maybe Expr
   -- ^ Expression currently being checked (if any).
   , tycOptimise :: Bool
+  -- ^ Whether to optimise code.
   , benchmark   :: Bool
+  -- ^ Whether to run benchmarks.
   }
 
 isBenchmarking :: CM Bool
@@ -306,11 +313,8 @@ tceSetCurrentExpr :: Expr -> TCEnv -> TCEnv
 tceSetCurrentExpr e env = env { tceCurrentExpr = Just e }
 
 
-startEnv :: Bool -> Bool -> TCEnv
-startEnv benchmarkFlag optimiseFlag =
-  TCEnv { benchmark = benchmarkFlag
-        , tycOptimise = optimiseFlag
-        , tceCurrentExpr = Nothing }
+startEnv :: TCEnv
+startEnv = TCEnv { benchmark = False, tycOptimise = False, tceCurrentExpr = Nothing }
 
 
 -- | Indicate that we are now checking the given expression when running the action.
