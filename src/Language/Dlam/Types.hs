@@ -449,9 +449,7 @@ checkExpr' (Lam lam) t ctxt = do
          -- right variable
          lamBody <- substitute (absVar lam, Var (absVar pi)) (absExpr lam)
          checkExpr lamBody (absExpr pi)
-                 (InContext
-                    { types = extend (types ctxt) (absVar pi) (absTy pi)
-                    , contextGradesIn = extend (contextGradesIn ctxt) (absVar pi) sigma1 })
+                 (extendInputContext ctxt (absVar pi) (absTy pi) sigma1)
 
       -- Check calculated grades against binder
       let (sigma2, (_, s)) = unextend (subjectGradesOut outctxtBody)
@@ -614,8 +612,7 @@ inferExpr' (FunTy pi) ctxt = do
   -- Infer type of function type body B
   debug $ "Infer for pi type (infer for body type)"
   (sigma2r, l2) <- checkExprIsType (absExpr pi)
-    (InContext { types = extend (types ctxt) (absVar pi) (absTy pi)
-               , contextGradesIn = extend (contextGradesIn ctxt) (absVar pi) sigma1 })
+    (extendInputContext ctxt (absVar pi) (absTy pi) sigma1)
 
   let (sigma2, (_, rInferred)) = unextend sigma2r
 
@@ -668,9 +665,7 @@ inferExpr' (App t1 t2) ctxt = do
 
       -- (M,g1 | g3,r | gZ) @ G, x : A |- B : Type l
       debug $ "App infer for tyB = " <> pprint tB
-      let gammaX = extend (types ctxt) (absVar pi) tA
-          mG1 = extend (contextGradesIn ctxt) (absVar pi) g1
-      (g3r, _) <- checkExprIsType tB (InContext { types = gammaX, contextGradesIn = mG1 })
+      (g3r, _) <- checkExprIsType tB (extendInputContext ctxt (absVar pi) tA g1)
       let (g3, (_, rInferred)) = unextend g3r
 
       eq <- gradeEq rInferred r
@@ -895,10 +890,7 @@ inferExpr' (Lam lam) ctxt = do
 
   -- Check body of the lambda
   (outctxtBody, bodyTy) <- do
-     inferExpr (absExpr lam)
-             (InContext
-                { types = extend (types ctxt) x tA
-                , contextGradesIn = extend (contextGradesIn ctxt) x sigma1 })
+     inferExpr (absExpr lam) (extendInputContext ctxt x tA sigma1)
 
   -- Check calculated grades against binder
   let (sigma2, (_, s)) = unextend (subjectGradesOut outctxtBody)
