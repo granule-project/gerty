@@ -1,7 +1,7 @@
 name: dependent-lamb
 version: '0.0.1'
-synopsis: Minimal, dependently-typed programming language
-author: Ben Moon
+synopsis: An implementation of (Graded Modal Dependent Type Theory)
+author: Ben Moon, Dominic Orchard
 copyright: 2020 authors
 license: BSD3
 dependencies:
