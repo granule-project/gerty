@@ -360,7 +360,7 @@ boundSubjectVars (PVar n) = Set.singleton n
 boundSubjectVars (PAt _ p) = boundSubjectVars p
 boundSubjectVars PUnit = mempty
 boundSubjectVars (PCon _ args) = Set.unions $ fmap boundSubjectVars args
-boundSubjectVars (PBox p) = boundTypingVars p
+boundSubjectVars (PBox p) = boundSubjectVars p
 
 
 ---------
