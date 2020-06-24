@@ -1,17 +1,17 @@
 -- Example converting a 2-arity function to a function on pairs
-uncurry : (a b c : [.0, .2] Type 0) (f : [.1, .0] ((x : [._, .0] a) (y : [._, .0] b) -> c)) (p : [._, .0] (a * b)) -> c
-uncurry = \a b c f p -> let (x, y) = p in f x y
+uncurry : (a b c : [.0, .2] Type 0) (f : [.1, .0] ((x : [.1, .0] a) (y : [.1, .0] b) -> c)) (p : [.1, .0] (a * b)) -> c
+uncurry = \a b c f p -> case p of (x, y) -> f x y
 
 -- Example converting a function from pairs to a 2-arity function
-curry : (a b c : [.0, .2] Type 0) -> (f : [.1, .0] (p : [._, .0] a * b) -> c) -> (x : [._, .0] a) -> (y : [._, .0] b) -> c
+curry : (a b c : [.0, .2] Type 0) -> (f : [.1, .0] (p : [.1, .0] a * b) -> c) -> (x : [.1, .0] a) -> (y : [.1, .0] b) -> c
 curry = \a b c f x y -> f (x, y)
 
 -- pairId : (a b : [.0, .2] Type 0) (p : [.1, .0] (a * b)) -> (a * b)
 -- pairId = \a b p -> let (x, y) = p in (x, y)
 --
 -- Example showing the dependent tensor type
-pairTy : (a : [.1, .1] Type 0) -> (b : [.1, .0] (x : [._, .0] a) -> Type 0) -> Type 0
-pairTy = \a b -> x :: a * b x
+pairTy : (a : [.1, .1] Type 0) -> (b : [.1, .0] (x : [.1, .0] a) -> Type 0) -> Type 0
+pairTy = \a b -> x :: [.1] a * b x
 
 -- Example showing pair construction
 mkPair : (a : [.0, .3] Type 0) -> (b : [.0, .2] (x : [.1, .0] a) -> Type 0) -> (x : [.1, .1] a) -> (y : [.1, .0] b x) -> z :: [.1] a * b z
