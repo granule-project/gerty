@@ -1017,38 +1017,6 @@ mkUnivTy :: Level -> Expr
 mkUnivTy = Universe
 
 
--- | Used to replace known introduction forms in terms, handle with
--- | great care. You should ensure that any names in the pattern are
--- | unique.
---
--- TODO: add support for more patterns (2020-06-18)
-replacePat :: (Pattern, Expr) -> Expr -> CM Expr
-replacePat (PPair (PVar x) (PVar y), e) (Pair (Var a) (Var b))
-  | a == unBindName x && b == unBindName y = pure e
-replacePat p (Pair l r) = Pair <$> replacePat p l <*> replacePat p r
-replacePat _ v@Var{} = pure v
-replacePat _ d@Def{} = pure d
-replacePat p (FunTy abs) = FunTy <$> replacePatAbs p abs
-replacePat p (Lam abs) = Lam <$> replacePatAbs p abs
-replacePat p (ProductTy abs) = ProductTy <$> replacePatAbs p abs
-replacePat p (App t1 t2) = App <$> replacePat p t1 <*> replacePat p t2
-replacePat p (Sig t1 t2) = Sig <$> replacePat p t1 <*> replacePat p t2
-replacePat _ u@Universe{} = pure u
-replacePat _ h@Hole = pure h
-replacePat _ i@Implicit = pure i
-replacePat p (Case e Nothing binds) = Case <$> replacePat p e <*> pure Nothing <*> mapM (replacePatBinds p) binds
-replacePat (p, e1) e2 = notImplemented $ "replacePat for pattern" <+> quoted p <+> "with replacement" <+> quoted e1 <+> "in expr" <+> quoted e2
-
-
-replacePatBinds :: (Pattern, Expr) -> CaseBinding -> CM CaseBinding
-replacePatBinds p (CasePatBound p' e) = CasePatBound p' <$> replacePat p e
-
-
--- TODO: if we add support for first-class grades, ensure those get updated here (2020-06-18)
-replacePatAbs :: (Pattern, Expr) -> Abstraction -> CM Abstraction
-replacePatAbs p a = mkAbsGr (absVar a) <$> replacePat p (absTy a) <*> pure (subjectGrade a) <*> pure (subjectTypeGrade a) <*> replacePat p (absExpr a)
-
-
 -- | Check that an expression is a type, and return the subject grades
 -- | and level it was formed as.
 --
