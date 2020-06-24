@@ -195,14 +195,16 @@ registerTypeForName n t = do
 -- | Attempt to infer the types of a definition, and check this against the declared
 -- | type, if any.
 doDeclarationInference :: Declaration -> CM Declaration
-doDeclarationInference (TypeSig n t) = do
+doDeclarationInference (TypeSig n t) =
+  withCheckingOfTopLevel n $ do
   -- this just assumes the type is okay, as we need the definition
   -- available to resolve e.g., type-level usage from boxes. Hopefully
   -- equation inference checks that the type is actually okay.
   registerTypeForName n =<< normalise t
   pure (TypeSig n t)
 
-doDeclarationInference (FunEqn (FLHSName v) (FRHSAssign e)) = do
+doDeclarationInference (FunEqn (FLHSName v) (FRHSAssign e)) =
+  withCheckingOfTopLevel v $ do
   -- try and get a prescribed type for the equation,
   -- treating it as an implicit if no type is given
   t <- debugBlock "FUN EQN INFERENCE" ("finding signature for " <> pprint v) (\t -> maybe "no sig found" (("found sig: "<>) . pprint) t)

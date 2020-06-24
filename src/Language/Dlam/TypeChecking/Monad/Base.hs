@@ -40,6 +40,7 @@ module Language.Dlam.TypeChecking.Monad.Base
 
   -- * Environment
   , withLocalCheckingOf
+  , withCheckingOfTopLevel
   , isBenchmarking
   , isOptimising
 
@@ -296,6 +297,8 @@ instance Pretty Stage where
 data TCEnv = TCEnv
   { tceCurrentExpr :: Maybe Expr
   -- ^ Expression currently being checked (if any).
+  , tceCurrentTopLevel :: Maybe Name
+  -- ^ Top-level definition being checked (if any).
   , tycOptimise :: Bool
   -- ^ Whether to optimise code.
   , benchmark   :: Bool
@@ -313,13 +316,22 @@ tceSetCurrentExpr :: Expr -> TCEnv -> TCEnv
 tceSetCurrentExpr e env = env { tceCurrentExpr = Just e }
 
 
+tceSetCurrentTopLevel :: Name -> TCEnv -> TCEnv
+tceSetCurrentTopLevel n env = env { tceCurrentTopLevel = Just n }
+
+
 startEnv :: TCEnv
-startEnv = TCEnv { benchmark = False, tycOptimise = False, tceCurrentExpr = Nothing }
+startEnv = TCEnv { benchmark = False, tycOptimise = False, tceCurrentExpr = Nothing, tceCurrentTopLevel = Nothing }
 
 
 -- | Indicate that we are now checking the given expression when running the action.
 withLocalCheckingOf :: Expr -> CM a -> CM a
 withLocalCheckingOf e = local (tceSetCurrentExpr e)
+
+
+-- | Indicate that we are now checking the given top-level name when running the action.
+withCheckingOfTopLevel :: Name -> CM a -> CM a
+withCheckingOfTopLevel n = local (tceSetCurrentTopLevel n)
 
 
 -----------------------------------------
@@ -482,6 +494,11 @@ tcErrExpr :: TCErr -> Maybe Expr
 tcErrExpr = tceCurrentExpr . tcErrEnv
 
 
+-- | Top-level definition being checked when failure occurred.
+tcErrTL :: TCErr -> Maybe Name
+tcErrTL = tceCurrentTopLevel . tcErrEnv
+
+
 throwCM :: TCError -> CM a
 throwCM e = do
   env <- ask
@@ -493,7 +510,7 @@ throwCMat msg e = do
   throwError $ TCErr { tcErrErr = e, tcErrEnv = env, localeMessage = Just msg }
 
 instance Pretty TCErr where
-  pprint e = ("The following error occurred when" <+> text phaseMsg)
+  pprint e = ((maybe "" (\tld -> ("During checking of top-level" <+> (quoted tld <> colon))) (tcErrTL e)) $+$ "The following error occurred when" <+> text phaseMsg)
       <> (maybe "" (\msg -> " (at " <> msg <> ")") (localeMessage e))
       <> (maybe ":" (\expr -> " " <> quoted expr <> ":") (tcErrExpr e)) $+$ pprint (tcErrErr e)
     where phaseMsg = case errPhase e of
