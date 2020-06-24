@@ -115,7 +115,7 @@ benchmarkTime True  trials m = do
    let error    = stdError runs
    -- Output
    putStrLn $ "Timing for each run   = " <> intercalate ", " (map show runs)
-   printf "Mean time of %d trials = %6.2f (%6.2f) ms" trials meanTime error
+   printf "Mean time of %d trials = %6.2f (%6.2f) ms\n" trials meanTime error
    return result
   where
     timingComp = do
