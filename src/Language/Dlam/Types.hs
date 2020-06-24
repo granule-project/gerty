@@ -1030,6 +1030,7 @@ maybeGetPatternSubst (PPair p1 p2) (Pair l r) =
 maybeGetPatternSubst (PAt n p) e =
   (([], [(unBindName n, e)]) <>) <$> maybeGetPatternSubst p e
 maybeGetPatternSubst (PVar n) e = pure ([(unBindName n, e)], [])
+maybeGetPatternSubst (PBox p) (Box b) = maybeGetPatternSubst p b
 maybeGetPatternSubst _ _ = Nothing
 
 
