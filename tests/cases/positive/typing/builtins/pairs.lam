@@ -37,3 +37,19 @@ mkPair = \a b x y -> (x, y)
 -- -- Pair eliminator
 -- letTen : (a : Type 0) (b : a -> Type 0) (c : Type 0) -> ((x : a) -> b x -> c) -> x :: a * b x -> c
 -- letTen = \a b c f p -> let (x, y) = p in f x y
+
+letTen : (a : [.0, .3] Type 0)
+         (b : [.0, .2] (ba : [.inf, .0] a) -> Type 0)
+         (c : [.0, .2] Type 0)
+         (f : [.1, .0] (x : [.inf, .0] a) (bx : [.1, .0] b x) -> c)
+         (p : [.1, .0] y :: [.1] a * b y)
+         -> c
+letTen = \a b c f p -> case p of (x, y) -> f x y
+
+letTenDep : (a : [.0, .4] Type 0)
+            (b : [.0, .3] (ba : [.inf, .0] a) -> Type 0)
+            (c : [.0, .2] (p1 : [.1, .0] y2 :: [.1] a * b y2) -> Type 0) ->
+            (f : [.1, .0] (x : [.inf, .0] a) -> (bx : [.1, .1] b x) -> c (x, bx))
+            (p : [.1, .1] y :: [.1] a * b y)
+            -> c p
+letTenDep = \a b c f p -> case p as z in c z of (x, y) -> f x y

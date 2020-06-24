@@ -747,15 +747,11 @@ inferExpr' (ProductTy ten) ctxt = do
   (M | g3 | g1 + g2) @ G |- t1 : (x : (0,r) A) * B
   (M,(g1 + g2) | g5,q | gZ) @ G, z : (x : (0,r) A) * B |- C : Type l3
   (M,g1,(g2,r) | g4,s,s | g5,q,q) @ G, x : A, y : B |- t2 : [(x,y)/z]C
-  ---------------------------------------------------------------------- :: TenCut
-  (M | g4 + s * g3 | g5 + q * g3) @ G |- let (x, y) = t1 in t2 : [t1/z]C
+  ---------------------------------------------------------------------------------- :: TenCut
+  (M | g4 + s * g3 | g5 + q * g3) @ G |- case t1 as z in C of (x, y) -> t2 : [t1/z]C
 -}
-inferExpr' (Case t1 Nothing [CasePatBound p@(PPair (PVar x) (PVar y)) t2]) ctxt = do
-  -- TODO: I'm currently having to have extra premises for 'A' and
-  -- 'B', as I can't see how to get g1 or g2 from the typing premise
-  -- for t2 (but I feel we ought to be able to, as we can unambigously
-  -- match on it in the rules) (GD: 2020-06-18)
-
+inferExpr' (Case t1 tp [CasePatBound (PPair (PVar x') (PVar y')) t2]) ctxt = do
+  let (x, y) = (unBindName x', unBindName y')
   -- (M | g3 | g1 + g2) @ G |- t1 : (x : (0,r) A) * B
   (OutContext { subjectGradesOut = g3, typeGradesOut = g1plusG2 }, pairTy)
     <- inferExpr t1 ctxt
@@ -770,37 +766,57 @@ inferExpr' (Case t1 Nothing [CasePatBound p@(PPair (PVar x) (PVar y)) t2]) ctxt 
       (g1, _) <- checkExprIsType tA ctxt
 
       -- (M | g2,r | gZ) @ G, x : A |- B : Type l2
-      tB <- substitute [(x', Var (unBindName x))] tB
-      (g2r, _) <- checkExprIsType tB (extendInputContext ctxt (unBindName x) tA g1)
+      tB <- substitute [(x', Var x)] tB
+      (g2r, _) <- checkExprIsType tB (extendInputContext ctxt x tA g1)
 
       let (g2Comp, (_, rComp)) = unextend g2r
 
-      _ <- verifyGradesEq "typing of second component of pair" Subject (unBindName x) r rComp
+      _ <- verifyGradesEq "typing of second component of pair" Subject x r rComp
 
       g1plusG2Comp <- contextGradeAdd g1 g2Comp
       g1plusG2 <- verifyGradeVecEq "todo" g1plusG2 g1plusG2Comp
 
       -- (M,g1,(g2,r) | g4,s,s | g5,q,q) @ G, x : A, y : B |- t2 : [(x,y)/z]C
       (OutContext { subjectGradesOut = g4ss, typeGradesOut = g5qq }, xyForZinC)
-        <- inferExpr t2 (extendInputContext (extendInputContext ctxt (unBindName x) tA g1) (unBindName y) tB g2r)
+        <- inferExpr t2 (extendInputContext (extendInputContext ctxt x tA g1) y tB g2r)
 
-      -- (M,(g1 + g2) | g5,q | gZ) @ G, z : (x : (0,r) A) * B |- C : Type l
-      z <- getFreshName "z"
-      tC <- replacePat (p, Var z) xyForZinC
-      (g5q, _) <- checkExprIsType tC
-        (InContext { types = extend (types ctxt) z pairTy
-                   , contextGradesIn = extend (contextGradesIn ctxt) z g1plusG2 })
+      (g5, q, z, tC) <-
+        case tp of
+          -- non-dependent elimination
+          --
+          -- but as the rules don't actually have a non-dependent
+          -- elimination, we pretend there is a fresh variable "z" in
+          -- C that is used with grade 0. Then we obtain the actual
+          -- value of C from the typing of t2 ([(x,y)/z]C = C).
+          Nothing -> do
+            z <- getFreshName "z"
+            let tC = xyForZinC
+            -- (M,(g1 + g2) | g5,q | gZ) @ G, z : (x : (0,r) A) * B |- C : Type l3
+            (g5q, _) <- checkExprIsType tC (extendInputContext ctxt z pairTy g1plusG2)
+            -- in this case we require that q is zero
+            let (g5, (_, q)) = unextend g5q
+            q <- verifyGradesEq "formation of product elim type (C)" Subject x q gradeZero
+            pure (g5, q, z, tC)
+          Just (PVar z', tC) -> do
+            let z = unBindName z'
+            -- (M,(g1 + g2) | g5,q | gZ) @ G, z : (x : (0,r) A) * B |- C : Type l3
+            (g5q, _) <- checkExprIsType tC (extendInputContext ctxt z pairTy g1plusG2)
+            let (g5, (_, q)) = unextend g5q
+            pure (g5, q, z, tC)
+          Just (p, _) -> patternMismatch p t1
+
+      xyForZinCCalc <- substitute (z, Pair (Var x) (Var y)) tC
+      _ <- ensureEqualTypes xyForZinC xyForZinCCalc
 
       let (g4s, (_, sV1)) = unextend g4ss
           (g4, (_, sV2))  = unextend g4s
-          (g5, (_, qV1))   = unextend g5q
           (g5qV2, (_, qV2)) = unextend g5qq
           (g5', (_, qV3)) = unextend g5qV2
 
       -- check that things that should be equal are equal
-      s <- verifyGradesEq "usage of components of a pair must be the same" Subject (unBindName x) sV1 sV2
-      q <- verifyGradesEq "formation of product elim type (C)" Subject (unBindName x) qV1 qV2
-      q <- verifyGradesEq "formation of product elim type (C)" Subject (unBindName x) q qV3
+      s <- verifyGradesEq "usage of components of a pair must be the same" Subject x sV1 sV2
+      q <- verifyGradesEq "formation of product elim type (C)" Subject x q qV2
+      q <- verifyGradesEq "formation of product elim type (C)" Subject x q qV3
       g5 <- verifyGradeVecEq "pair elim" g5 g5'
 
       sTimesG3 <- contextGradeMult s g3
