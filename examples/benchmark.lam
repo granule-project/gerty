@@ -39,4 +39,4 @@ fanOut : (a1 : [.0, .11] Type 0)
        -> (z9 : [.1, .0] a1) -> b1))
       -> (z : [.10, .0] a1)
       -> b1
-fanOut = \a1 -> \b1 -> \f1 -> \z -> bigApp a1 b1 f1 z z z z z z z z z z
+fanOut = \a1 -> \b1 -> \f1 -> \z -> bigApp a1 b1 z z z z z z z z z z f1
