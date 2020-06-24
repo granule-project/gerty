@@ -136,6 +136,7 @@ equalExprs e1 e2 = do
     (Universe l1, Universe l2) -> levelsAreEqual l1 l2
     (UnitTy, UnitTy) -> pure True
     (Unit, Unit) -> pure True
+    (Pair e1 e2, Pair e1' e2') -> (&&) <$> equalExprs e1 e1' <*> equalExprs e2 e2'
 
     (Case e1 Nothing binds1, Case e2 Nothing binds2) -> do
       esOK <- equalExprs e1 e2
