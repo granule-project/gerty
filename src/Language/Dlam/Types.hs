@@ -855,44 +855,77 @@ inferExpr' (BoxTy _ t) ctxt = do
 {-
   (M | g5 | gZ) @ G |- A : Type l
   (M | g1 | g2)  @ G |- t1 : Box (s, r) A
-  (M,g5 | g3,s | g4,r) @ G, x : A |- t2 : B
+  (M,g5 | g4,r | gZ) @ G, z : A |- B : Type l2
+  (M,g5 | g3,s | g4,r) @ G, x : A |- t2 : [x/z]B
   exists g6 such that g2 = g6 + g5 -- TODO: awaiting SMT solver (2020-06-22)
-  -------------------------------------------------------------------------- :: BoxE
-  (M | g1 + g3 | g6 + g4) @ G |- case t1 of [x] -> t2 : case t1 of [x] -> B
+  ------------------------------------------------------------------------------------- :: BoxE
+  (M | g1 + g3 | g6 + g4) @ G |- case t1 split z in C of [x] -> t2 : case t1 of [z] -> B
 -}
-inferExpr' (Case t1 Nothing [CasePatBound (PBox (PVar x)) t2]) ctxt = do
+-- TODO: currently just using 'as' for 'split', separate these! (GD: 2020-06-24)
+inferExpr' (Case t1 tp [CasePatBound (PBox (PVar x')) t2]) ctxt = do
+  let x = unBindName x'
   -- (M | g1 | g2) @ G |- t1 : Box (s, r) A
-  (OutContext { subjectGradesOut = g1, typeGradesOut = _g2 }, boxTy)
+  (OutContext { subjectGradesOut = g1, typeGradesOut = g2 }, boxTy)
     <- inferExpr t1 ctxt
   case boxTy of
     BoxTy (s, r) tA -> do
       -- (M | g5 | gZ) @ G |- A : Type l
       (g5, _) <- checkExprIsType tA ctxt
 
-      -- (M,g5 | g3,s | g4,r) @ G, x : A |- t2 : B
-      (OutContext { subjectGradesOut = g3s, typeGradesOut = g4r }, tB)
-        <- inferExpr' t2 (extendInputContext ctxt (unBindName x) tA g5)
+      -- (M,g5 | g3,s | g4,r) @ G, x : A |- t2 : [x/z]B
+      (OutContext { subjectGradesOut = g3s, typeGradesOut = g4r }, xForZinB)
+        <- inferExpr t2 (extendInputContext ctxt x tA g5)
+
+      (g4, r, finTy) <-
+        case tp of
+          -- non-dependent elimination
+          --
+          -- but as the rules don't actually have a non-dependent
+          -- elimination, we pretend there is a fresh variable "z" in
+          -- B that is used with grade 0. Then we obtain the actual
+          -- value of B from the typing of t2.
+          Nothing -> do
+            z <- getFreshName "z"
+            let tB = xForZinB
+            -- (M,g5 | g4,r | gZ) @ G, z : A |- B : Type l2
+            (g4r, _) <- checkExprIsType tB (extendInputContext ctxt z tA g5)
+            -- in this case we require that q is zero
+            let (g4, (_, r)) = unextend g4r
+            r <- verifyGradesEq "formation of product elim type (C)" Subject x r gradeZero
+            let finTy = tB
+            pure (g4, r, finTy)
+          Just (PVar z', tB) -> do
+            let z = unBindName z'
+            -- (M,g5 | g4,r | gZ) @ G, z : A |- B : Type l2
+            (g4r, _) <- checkExprIsType tB (extendInputContext ctxt z tA g5)
+            let (g4, (_, r')) = unextend g4r
+            r <- verifyGradesEq "formation of product elim type (C)" Subject x r r'
+            let finTy = Case t1 Nothing [CasePatBound (PBox (PVar (BindName z))) tB]
+            pure (g4, r, finTy)
+          Just (p, _) -> patternMismatch p t1
 
       let (g3, (_, sComp)) = unextend g3s
-          (g4, (_, rComp)) = unextend g4r
+          (g4Comp, (_, rComp)) = unextend g4r
+      g4 <- verifyGradeVecEq "?" g4 g4Comp
 
       -- TODO: currently specialised for the case where g6 = gZ, thus
       -- g2 = g5.... PENDING SMT SOLVER (GD: 2020-06-24)
       --
       -- exists g6 such that g2 = g6 + g5 -- TODO: awaiting SMT solver (2020-06-22)
       let g6 = zeroesMatchingShape (types ctxt)
+      -- TODO: add a check that g2 = g5 (2020-06-24)
+      g5plusG6 <- contextGradeAdd g5 g6
+      _ <- verifyGradeVecEq "?" g2 g5plusG6
 
-      _ <- verifyGradesEq "typing of body" Subject (unBindName x) s sComp
-      _ <- verifyGradesEq "typing of type" SubjectType (unBindName x) r rComp
+      _ <- verifyGradesEq "typing of body" Subject x s sComp
+      _ <- verifyGradesEq "typing of type" SubjectType x r rComp
 
       g1plusG3 <- contextGradeAdd g1 g3
       g6plusG4 <- contextGradeAdd g6 g4
 
-      let letBoxXAbeT1inB = Case t1 Nothing [CasePatBound (PBox (PVar x)) tB]
-
       -- (M | g1 + g3 | g6 + g4) @ G |- let [x] = t1 in t2 : let [x] = t1 in B
       pure ( OutContext { subjectGradesOut = g1plusG3, typeGradesOut = g6plusG4 }
-           , letBoxXAbeT1inB)
+           , finTy)
     _ -> expectedInferredTypeForm "graded modal" boxTy
 
 inferExpr' (Def n) ctxt = do
@@ -957,7 +990,7 @@ inferExpr' (Case t1 (Just (PVar z', tC)) [CasePatBound PUnit t2]) ctxt = do
     UnitTy -> do
       -- (M | g2 | g3) @ G |- t2 : [*/x]C
       (OutContext { subjectGradesOut = g2, typeGradesOut = g3 }, starForZinC)
-        <- inferExpr' t2 ctxt
+        <- inferExpr t2 ctxt
 
       starForZinCCalc <- substitute (z, Unit) tC
       _ <- ensureEqualTypes starForZinCCalc starForZinC
