@@ -5,6 +5,7 @@ module Language.Dlam.Types
   ( doASTInference
   ) where
 
+import Control.Monad.Extra (ifM)
 import Control.Monad (unless, zipWithM)
 import Data.List (sort)
 
@@ -669,7 +670,16 @@ inferExpr' (App t1 t2) ctxt = do
           rTimesG4 <- contextGradeMult r g4
           g3PlusRTimesG4 <- contextGradeAdd g3 rTimesG4
 
-          t2forXinB <- substitute (absVar pi, t2) tB
+          t2forXinB <-
+            ifM isOptimising
+              {- then -} (do
+              -- optimise here when 0 use
+              noTypeUse <- gradeEq r gradeZero
+              if noTypeUse
+                then return tB
+                else substitute (absVar pi, t2) tB)
+              {- else -} (substitute (absVar pi, t2) tB)
+
 
           pure ( OutContext { subjectGradesOut = g2PlusSTimesG4
                             , typeGradesOut = g3PlusRTimesG4 }

@@ -29,6 +29,8 @@ library:
    - pretty
    - transformers
    - array
+   - clock
+   - extra
   exposed-modules:
    - Language.Dlam.Interpreter
    - Language.Dlam.Substitution
@@ -64,12 +66,13 @@ library:
    - Language.Dlam.Util.Peekaboo
 
 executables:
-  dlam:
+  gerty:
     main: Main.hs
     ghc-options: -main-is Dlam
     dependencies:
      - dependent-lamb
      - directory
+     - clock
 
 tests:
   dependent-lamb:
