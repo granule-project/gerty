@@ -9,11 +9,13 @@ import Control.Monad.Extra (ifM)
 import Control.Monad (unless, zipWithM)
 import Data.Either (partitionEithers)
 import Data.List (sort)
+import qualified Data.Set as Set
 
 import Language.Dlam.Substitution (Substitutable(substitute))
 import Language.Dlam.Syntax.Abstract
 import Language.Dlam.Syntax.Common
 import qualified Language.Dlam.Syntax.Concrete as C
+import Language.Dlam.Syntax.Free (freeVars)
 import Language.Dlam.Syntax.Internal
 import Language.Dlam.TypeChecking.Monad
 import Language.Dlam.Util.Pretty hiding ((<>), isEmpty)
@@ -872,11 +874,24 @@ inferExpr' (Case t1 tp [CasePatBound (PBox (PVar x')) t2]) ctxt = do
       -- (M | g5 | gZ) @ G |- A : Type l
       (g5, _) <- checkExprIsType tA ctxt
 
-      -- (M,g5 | g3,s | g4,r) @ G, x : A |- t2 : [x/z]B
-      (OutContext { subjectGradesOut = g3s, typeGradesOut = g4r }, xForZinB)
-        <- inferExpr t2 (extendInputContext ctxt x tA g5)
+      (z, g3, g4, r, xForZinB) <- do
+        let mx = extendInputContext ctxt x tA g5
+        -- (M,g5 | g3,s | g4,r) @ G, x : A |- t2 : [x/z]B
+        (OutContext { subjectGradesOut = g3s, typeGradesOut = g4r }, xForZinB)
+          <- case tp of
+               Nothing -> inferExpr t2 mx
+               Just (PVar z', tB) -> do
+                 xForZinB <- substitute (unBindName z', Var x) tB
+                 fmap (flip (,) xForZinB) $ checkExpr t2 tB mx
+               Just (p, _) -> patternMismatch p t1
+        z <- getFreshName "z"
+        let (g3, (_, sComp)) = unextend g3s
+            (g4, (_, rComp)) = unextend g4r
+        _ <- verifyGradesEq "typing of body" Subject x s sComp
+        r <- verifyGradesEq "typing of type" SubjectType x r rComp
+        pure (z, g3, g4, r, xForZinB)
 
-      (g4, r, finTy) <-
+      (g4', finTy) <-
         case tp of
           -- non-dependent elimination
           --
@@ -885,28 +900,28 @@ inferExpr' (Case t1 tp [CasePatBound (PBox (PVar x')) t2]) ctxt = do
           -- B that is used with grade 0. Then we obtain the actual
           -- value of B from the typing of t2.
           Nothing -> do
-            z <- getFreshName "z"
             tB <- substitute (x, Var z) xForZinB
             -- (M,g5 | g4,r | gZ) @ G, z : A |- B : Type l2
             (g4r, _) <- checkExprIsType tB (extendInputContext ctxt z tA g5)
             -- in this case we require that q is zero
-            let (g4, (_, r)) = unextend g4r
+            let (g4, (_, rComp)) = unextend g4r
             r <- verifyGradesEq "formation of product elim type (C)" Subject x r gradeZero
+            _ <- verifyGradesEq "formation of product elim type (C)" Subject x r rComp
             let finTy = tB
-            pure (g4, r, finTy)
+            pure (g4, finTy)
           Just (PVar z', tB) -> do
             let z = unBindName z'
             -- (M,g5 | g4,r | gZ) @ G, z : A |- B : Type l2
             (g4r, _) <- checkExprIsType tB (extendInputContext ctxt z tA g5)
             let (g4, (_, r')) = unextend g4r
-            r <- verifyGradesEq "formation of product elim type (C)" Subject x r r'
-            let finTy = Case t1 Nothing [CasePatBound (PBox (PVar (BindName z))) tB]
-            pure (g4, r, finTy)
+            _ <- verifyGradesEq "formation of product elim type (C)" Subject x r r'
+            -- TODO: this check (for freeVars) should probably be
+            -- handled by equality (2020-06-24)
+            let finTy = if z `Set.member` freeVars tB then Case t1 Nothing [CasePatBound (PBox (PVar (BindName z))) tB] else tB
+            pure (g4, finTy)
           Just (p, _) -> patternMismatch p t1
 
-      let (g3, (_, sComp)) = unextend g3s
-          (g4Comp, (_, rComp)) = unextend g4r
-      g4 <- verifyGradeVecEq "?" g4 g4Comp
+      g4 <- verifyGradeVecEq "?" g4 g4'
 
       -- TODO: currently specialised for the case where g6 = gZ, thus
       -- g2 = g5.... PENDING SMT SOLVER (GD: 2020-06-24)
@@ -916,9 +931,6 @@ inferExpr' (Case t1 tp [CasePatBound (PBox (PVar x')) t2]) ctxt = do
       -- TODO: add a check that g2 = g5 (2020-06-24)
       g5plusG6 <- contextGradeAdd g5 g6
       _ <- verifyGradeVecEq "?" g2 g5plusG6
-
-      _ <- verifyGradesEq "typing of body" Subject x s sComp
-      _ <- verifyGradesEq "typing of type" SubjectType x r rComp
 
       g1plusG3 <- contextGradeAdd g1 g3
       g6plusG4 <- contextGradeAdd g6 g4
