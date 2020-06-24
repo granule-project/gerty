@@ -813,6 +813,49 @@ inferExpr' (BoxTy _ t) ctxt = do
   -- (M, g, gZ) @ G |- Box (s, r) A : Type l
   pure (OutContext { subjectGradesOut = g, typeGradesOut = zeroesMatchingShape (types ctxt) }, mkUnivTy l)
 
+{-
+  (M | g5 | gZ) @ G |- A : Type l
+  (M | g1 | g2)  @ G |- t1 : Box (s, r) A
+  (M,g5 | g3,s | g4,r) @ G, x : A |- t2 : B
+  exists g6 such that g2 = g6 + g5 -- TODO: awaiting SMT solver (2020-06-22)
+  -------------------------------------------------------------------------- :: BoxE
+  (M | g1 + g3 | g6 + g4) @ G |- let [x] = t1 in t2 : let [x:A] = t1 in B
+-}
+inferExpr' (Let (LetPatBound (PBox (PVar x)) t1) t2) ctxt = do
+  -- (M | g1 | g2) @ G |- t1 : Box (s, r) A
+  (OutContext { subjectGradesOut = g1, typeGradesOut = _g2 }, boxTy)
+    <- inferExpr t1 ctxt
+  case boxTy of
+    BoxTy (s, r) tA -> do
+      -- (M | g5 | gZ) @ G |- A : Type l
+      (g5, _) <- checkExprIsType tA ctxt
+
+      -- (M,g5 | g3,s | g4,r) @ G, x : A |- t2 : B
+      (OutContext { subjectGradesOut = g3s, typeGradesOut = g4r }, tB)
+        <- inferExpr' t2 (extendInputContext ctxt (unBindName x) tA g5)
+
+      let (g3, (_, sComp)) = unextend g3s
+          (g4, (_, rComp)) = unextend g4r
+
+      -- TODO: currently specialised for the case where g6 = gZ, thus
+      -- g2 = g5.... PENDING SMT SOLVER (GD: 2020-06-24)
+      --
+      -- exists g6 such that g2 = g6 + g5 -- TODO: awaiting SMT solver (2020-06-22)
+      let g6 = zeroesMatchingShape (types ctxt)
+
+      _ <- verifyGradesEq "typing of body" Subject (unBindName x) s sComp
+      _ <- verifyGradesEq "typing of type" SubjectType (unBindName x) r rComp
+
+      g1plusG3 <- contextGradeAdd g1 g3
+      g6plusG4 <- contextGradeAdd g6 g4
+
+      let letBoxXAbeT1inB = Let (LetPatBound (PBox (PVar x)) t1) tB
+
+      -- (M | g1 + g3 | g6 + g4) @ G |- let [x] = t1 in t2 : let [x] = t1 in B
+      pure ( OutContext { subjectGradesOut = g1plusG3, typeGradesOut = g6plusG4 }
+           , letBoxXAbeT1inB)
+    _ -> expectedInferredTypeForm "graded modal" boxTy
+
 inferExpr' (Def n) ctxt = do
   tA <- lookupType n >>= maybe (scoperError $ SE.unknownNameErr (C.Unqualified $ nameConcrete n)) pure
   pure (zeroedOutContextForInContext ctxt, tA)
@@ -889,6 +932,7 @@ maybeGetPatternUnificationSubst (PVar n) (PVar m) =
   pure . pure $ (unBindName n, Var (unBindName m))
 maybeGetPatternUnificationSubst (PPair l1 r1) (PPair l2 r2) =
   maybeGetPatternUnificationSubst l1 l2 <> maybeGetPatternUnificationSubst r1 r2
+maybeGetPatternUnificationSubst (PBox p1) (PBox p2) = maybeGetPatternUnificationSubst p1 p2
 maybeGetPatternUnificationSubst _ _ = Nothing
 
 

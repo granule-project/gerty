@@ -8,3 +8,13 @@ mkBoxSimple = \a x -> [x]
 -- Example showing box construction
 mkBox : (a : [.0, .2] Type) (x : [.3, .4] a) -> a [.3, .4]
 mkBox = \a x -> [x]
+
+-- Box eliminator (no subject-type grade)
+letBox : (a b : [.0, .2] Type 0) (f : [.1, .0] (x : [.3, .0] a) -> b) -> (p : [.1, .0] a [.3, .0]) -> let [y] = p in b
+letBox = \a b f p -> let [y] = p in f y
+
+-- TODO: this box eliminator is awaiting SMT solver support, so we can distinguish type-level grades (2020-06-24)
+--
+-- Box eliminator
+-- letBox : (a b : [.0, .2] Type 0) (f : [.1, .0] (x : [.3, .4] a) -> b) -> (p : [.1, .0] a [.3, .4]) -> b
+-- letBox = \a b f p -> let [y] = p in f y
