@@ -9,6 +9,7 @@ module Language.Dlam.Syntax.Translation.ConcreteToAbstract
 import Control.Arrow (first, second)
 import Control.Monad (join)
 import Control.Monad.Except (throwError)
+import qualified Data.List.NonEmpty as NE
 
 
 import Language.Dlam.Substitution (fresh)
@@ -243,14 +244,25 @@ instance ToAbstract C.Expr A.Expr where
   toAbstract (C.Sig e t) = A.Sig <$> toAbstract e <*> toAbstract t
   toAbstract C.Hole = pure A.Hole
   toAbstract C.Implicit = pure A.Implicit
-  toAbstract (C.Let (C.LetPatBound p e1) e2) = do
-    (p', names) <- toAbstract p
-    e1' <- toAbstract e1
-    e2' <- withLocals names $ toAbstract e2
-    pure $ A.Let (A.LetPatBound p' e1') e2'
+  toAbstract (C.Case e tp binds) = do
+    e <- toAbstract e
+    tp <- case tp of
+            Nothing -> pure Nothing
+            Just (p, t) -> do
+              (A.CasePatBound p t) <- toAbstract (C.CasePatBound p t)
+              pure (Just (p, t))
+    binds <- mapM toAbstract (NE.toList $ NE.sort binds)
+    pure $ A.Case e tp binds
   -- TODO: add special handling for brace arguments (2020-03-09)
   toAbstract (C.BraceArg e) = toAbstract (un e)
   toAbstract (C.Parens   e) = toAbstract e
+
+
+instance ToAbstract C.CaseBinding A.CaseBinding where
+  toAbstract (C.CasePatBound p e) = do
+    (p, names) <- toAbstract p
+    e <- withLocals names $ toAbstract e
+    pure $ A.CasePatBound p e
 
 
 instance ToAbstract C.Pattern (A.Pattern, Locals) where

@@ -21,8 +21,8 @@ module Language.Dlam.Syntax.Abstract
   , absVar
   , absTy
   , absExpr
-  -- ** Let bindings
-  , LetBinding(..)
+  -- ** Case bindings
+  , CaseBinding(..)
   , Pattern(..)
   , BindName(..)
   , boundTypingVars
@@ -299,7 +299,8 @@ data Expr
   -- | Implicits for synthesis.
   | Implicit
 
-  | Let LetBinding Expr
+  -- | Case binding.
+  | Case Expr (Maybe (Pattern, Expr)) [CaseBinding]
   deriving (Show, Eq, Ord)
 
 
@@ -308,13 +309,13 @@ mkImplicit :: Expr
 mkImplicit = Implicit
 
 
-------------------
--- Let bindings --
-------------------
+-------------------
+-- Case bindings --
+-------------------
 
 
-data LetBinding
-  = LetPatBound Pattern Expr
+data CaseBinding
+  = CasePatBound Pattern Expr
   deriving (Show, Eq, Ord)
 
 
@@ -536,10 +537,14 @@ instance Pretty Expr where
     pprint (Sig e t) = pprintParened e <+> colon <+> pprint t
     pprint Hole = char '?'
     pprint Implicit{} = char '_'
-    pprint (Let lb e) = text "let" <+> pprint lb <+> text "in" <+> pprint e
+    pprint (Case e Nothing binds) =
+      hang ("case" <+> pprint e <+> "of") 1 (vcat $ fmap pprint binds)
+    pprint (Case e (Just (p, t)) binds) =
+      hang ("case" <+> pprint e <+> "as" <+> pprint p <+> "in" <+> pprint t <+> "of")
+             1 (vcat $ fmap pprint binds)
 
-instance Pretty LetBinding where
-  pprint (LetPatBound p e) = pprint p <+> equals <+> pprint e
+instance Pretty CaseBinding where
+  pprint (CasePatBound p e) = pprint p <+> arrow <+> pprint e
 
 instance Pretty Pattern where
   pprint (PVar v) = pprint v

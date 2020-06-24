@@ -2,6 +2,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeOperators #-}
 
 module Language.Dlam.Syntax.Concrete
@@ -44,7 +45,7 @@ module Language.Dlam.Syntax.Concrete
   , lambdaBindingFromTyped
   , lambdaArgFromTypedBinding
   -- ** Let bindings and patterns
-  , LetBinding(..)
+  , CaseBinding(..)
   , Pattern(..)
   -- * AST
   , AST(..)
@@ -287,8 +288,8 @@ data Expr
   -- | Implicits for synthesis.
   | Implicit
 
-  | Let LetBinding Expr
-  -- ^ Let binding (@let x in y@).
+  | Case Expr (Maybe (Pattern, Expr)) (NE.NonEmpty CaseBinding)
+  -- ^ Case binding (@case t1 of pat1 -> e1;... patn -> en@).
 
   -- | Argument wrapped in braces.
   | BraceArg (MaybeNamed Expr)
@@ -315,13 +316,13 @@ mkImplicit :: Expr
 mkImplicit = Implicit
 
 
-------------------
--- Let bindings --
-------------------
+-------------------
+-- Case bindings --
+-------------------
 
 
-data LetBinding
-  = LetPatBound Pattern Expr
+data CaseBinding
+  = CasePatBound Pattern Expr
   deriving (Show, Eq, Ord)
 
 
@@ -441,12 +442,16 @@ instance Pretty Expr where
     pprint (Sig e t) = pprintParened e <+> colon <+> pprint t
     pprint Hole = char '?'
     pprint Implicit{} = char '_'
-    pprint (Let lb e) = text "let" <+> pprint lb <+> text "in" <+> pprint e
+    pprint (Case e Nothing binds) =
+      hang ("case" <+> pprint e <+> "of") 1 (vcat . NE.toList $ fmap pprint binds)
+    pprint (Case e (Just (p, t)) binds) =
+      hang ("case" <+> pprint e <+> "as" <+> pprint p <+> "in" <+> pprint t <+> "of")
+             1 (vcat . NE.toList $ fmap pprint binds)
     pprint (BraceArg e) = braces $ pprint e
     pprint (Parens e)   = parens $ pprint e
 
-instance Pretty LetBinding where
-  pprint (LetPatBound p e) = pprint p <+> equals <+> pprint e
+instance Pretty CaseBinding where
+  pprint (CasePatBound p e) = pprint p <+> arrow <+> pprint e
 
 instance Pretty Pattern where
   isLexicallyAtomic PIdent{} = True

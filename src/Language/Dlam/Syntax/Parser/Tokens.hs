@@ -13,6 +13,7 @@ data Keyword
         | KwRecord | KwConstructor | KwField
         | KwRewrite
         | KwCase | KwOf | KwInl | KwInr
+        | KwAs
         | KwZero | KwSucc
         | KwType
         | KwUnitTy | KwUnit

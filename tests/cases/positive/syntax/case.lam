@@ -1,0 +1,10 @@
+t = case t1 of (x, y) -> t2
+
+t = case t1 as z in C of (x, y) -> t2
+
+t = case t1 of
+      (x, y) -> t2
+
+t = case t1 of
+      a -> t2;
+      b -> t3

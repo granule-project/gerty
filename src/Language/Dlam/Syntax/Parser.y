@@ -10,6 +10,7 @@ import System.Exit
 import Control.Monad.Trans.Reader
 import Control.Monad.Trans.Class (lift)
 import Data.List.NonEmpty ((<|))
+import qualified Data.List.NonEmpty as NE
 
 import Language.Dlam.Syntax.Common
 import Language.Dlam.Syntax.Concrete
@@ -44,6 +45,7 @@ import Language.Dlam.Util.Pretty (pprintShow)
     case    { TokKeyword KwCase $$ }
     of      { TokKeyword KwOf $$ }
     in      { TokKeyword KwIn  $$  }
+    as      { TokKeyword KwAs  $$  }
     Type    { TokKeyword KwType $$ }
     VAR     { TokId $$ }
     literal { TokLiteral $$ }
@@ -316,7 +318,8 @@ ExprOrSig :: { Expr }
 Expr2 :: { ParseExpr }
   : '\\' LambdaArgs '->' Expr { Lam $2 $4 }
 
-  | let LetBinding in ExprOrSig { Let $2 $4 }
+  | case Expr of CaseBindings1 { Case $2 Nothing $4 }
+  | case Expr as Pattern in Expr of CaseBindings1 { Case $2 (Just ($4, $6)) $8 }
 
   | Expr3 { $1 }
 
@@ -346,10 +349,12 @@ Atom :: { ParseExpr }
   -- For later
   -- | '?' { Hole }
 
+CaseBinding :: { CaseBinding }
+  : Pattern '->' Expr { CasePatBound $1 $3 }
 
-LetBinding :: { LetBinding }
-  : Pattern '=' Expr { LetPatBound $1 $3 }
-
+CaseBindings1 :: { NE.NonEmpty CaseBinding }
+  : CaseBinding { pure $1 }
+  | CaseBinding ';' CaseBindings1 { $1 <| $3 }
 
 Pattern :: { Pattern }
   : QId SomeAtomicPatterns     { PApp $1 $2 }
@@ -366,6 +371,7 @@ AtomicPatternsOrEmpty :: { [Pattern] }
   | {- empty -}                         { [] }
 
 
+-- TODO: add support for blank '_' pattern (GD: 2020-06-24)
 PatternAtomic :: { Pattern }
   : '(' Pattern ')' { PParens $2 }
   -- if the name is in scope, then try and treat it as a constructor, otherwise

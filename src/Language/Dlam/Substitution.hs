@@ -50,6 +50,12 @@ substAbs s ab = do
     pure $ mkAbsGr v' t (subjectGrade ab) (subjectTypeGrade ab) e
 
 
+-- | Substitute into an expression that's guarded by a pattern.
+substitutePatGuarded :: (Name, Expr) -> Pattern -> Expr -> CM Expr
+substitutePatGuarded s@(v, _) p e = do
+    if v `Set.member` (Set.map unBindName (boundSubjectVars p)) then pure e else substitute s e
+
+
 instance {-# OVERLAPPABLE #-} (Monad m, Substitutable m n e, Foldable t) => Substitutable m (t n) e where
   substitute n e = F.foldrM substitute e n
 
@@ -58,6 +64,10 @@ instance {-# OVERLAPS #-} Substitutable CM (Name, Level) Level where
   -- TODO: add support for full substitutions if we add variables to levels (2020-06-13)
   substitute _ l = pure l
 
+instance {-# OVERLAPS #-} Substitutable CM (Name, Expr) CaseBinding where
+  substitute s (CasePatBound p e) = do
+    e <- substitutePatGuarded s p e
+    pure (CasePatBound p e)
 
 instance {-# OVERLAPS #-} Substitutable CM (Name, Expr) Expr where
   substitute (v, e) (Var x)
@@ -81,15 +91,15 @@ instance {-# OVERLAPS #-} Substitutable CM (Name, Expr) Expr where
   substitute _ e@Hole{} = pure e
   substitute _ e@Implicit = pure e
   substitute s (Sig e t) = Sig <$> substitute s e <*> substitute s t
-  substitute s@(v, _) (Let (LetPatBound p e) (Sig r t)) = do
-    e' <- substitute s e
-    r' <- if v `Set.member` (Set.map unBindName (boundSubjectVars p)) then pure r else substitute s r
-    t' <- if v `Set.member` (Set.map unBindName (boundTypingVars p)) then pure t else substitute s t
-    pure $ Let (LetPatBound p e') (Sig r' t')
-  substitute s@(v, _) (Let (LetPatBound p e) r) = do
-    e' <- substitute s e
-    r' <- if v `Set.member` (Set.map unBindName (boundSubjectVars p)) then pure r else substitute s r
-    pure $ Let (LetPatBound p e') r'
+  substitute s (Case e Nothing binds) = do
+    e <- substitute s e
+    binds <- mapM (substitute s) binds
+    pure $ Case e Nothing binds
+  substitute s (Case e (Just (p, t)) binds) = do
+    e <- substitute s e
+    binds <- mapM (substitute s) binds
+    t <- substitutePatGuarded s p t
+    pure $ Case e (Just (p, t)) binds
 
 
 instance Fresh CM NameId where

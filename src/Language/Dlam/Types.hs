@@ -7,6 +7,7 @@ module Language.Dlam.Types
 
 import Control.Monad.Extra (ifM)
 import Control.Monad (unless, zipWithM)
+import Data.Either (partitionEithers)
 import Data.List (sort)
 
 import Language.Dlam.Substitution (Substitutable(substitute))
@@ -92,16 +93,25 @@ normalise (App e1 e2) = do
     _ -> finalNormalForm $ App e1' e2'
 normalise (Pair e1 e2) = finalNormalForm =<< Pair <$> normalise e1 <*> normalise e2
 
-normalise (Let (LetPatBound p e1) e2) = do
-  e1' <- normalise e1
-  case maybeGetPatternSubst p e1' of
-    Nothing -> normalise e2 >>= finalNormalForm . Let (LetPatBound p e1')
-    -- TODO: perform the subject-type substitution only in the type (2020-03-04)
-    Just (ssubst, tsubst) -> normalise =<< substitute tsubst =<< substitute ssubst e2
+normalise (Case e Nothing binds) = do
+  e <- normalise e
+  binds <- mapM (normaliseCaseBind e) binds
+  case partitionEithers binds of
+    ((match:_), _) -> finalNormalForm match
+    (_, nomatches) -> finalNormalForm $ Case e Nothing nomatches
 normalise (Sig e t) = Sig <$> normalise e <*> normalise t
 -- TODO: Improve normalisation for levels/universes (metas?) (2020-06-13)
 normalise (Universe l) = finalNormalForm $ Universe l
 normalise e = notImplemented $ "normalise does not yet support '" <> pprint e <> "'"
+
+
+normaliseCaseBind :: Expr -> CaseBinding -> CM (Either Expr CaseBinding)
+normaliseCaseBind e (CasePatBound p m) = do
+  case maybeGetPatternSubst p e of
+    Nothing -> normalise m >>= pure . Right . CasePatBound p
+    -- TODO: perform the subject-type substitution only in the type (2020-03-04)
+    -- a.k.a . the pattern matched
+    Just (ssubst, tsubst) -> fmap Left $ normalise =<< substitute tsubst =<< substitute ssubst m
 
 
 ------------------------------
@@ -127,14 +137,15 @@ equalExprs e1 e2 = do
     (UnitTy, UnitTy) -> pure True
     (Unit, Unit) -> pure True
 
-    (Let (LetPatBound p e1) e2, Let (LetPatBound p' e1') e2') -> do
-      case maybeGetPatternUnificationSubst p p' of
-        Nothing -> pure False
-        Just subst -> do
-          e1sOK <- equalExprs e1 e1'
-          -- check that e2 and e2' are equal under the pattern substitution
-          e2sOK <- (`equalExprs` e2') =<< substitute subst e2
-          pure $ e1sOK && e2sOK
+    (Case e1 Nothing binds1, Case e2 Nothing binds2) -> do
+      esOK <- equalExprs e1 e2
+      -- TODO: need to make sure that this equality is stable, i.e.,
+      -- that the cases are in the correct order (2020-06-24)
+      let sizesOK = length binds1 == length binds2
+      -- TODO: check whether this is optimised by the size (do we
+      -- check if the binds are equal if sizes aren't?) (2020-06-24)
+      bindsOK <- fmap (sizesOK &&) $ fmap and $ zipWithM equalBinds binds1 binds2
+      pure $ esOK && bindsOK
 
     -- when there are two Sigs, we make sure their expressions and types are the same
     (Sig e1 t1, Sig e2 t2) -> (&&) <$> equalExprs e1 e2 <*> equalExprs t1 t2
@@ -153,6 +164,15 @@ equalExprs e1 e2 = do
           e2s <- substitute (absVar ab2, Var (absVar ab1)) (absExpr ab2)
           (&&) <$> equalExprs (absTy ab1) (absTy ab2)
                <*> withAbsBinding ab1 (equalExprs (absExpr ab1) e2s)
+
+
+equalBinds :: CaseBinding -> CaseBinding -> CM Bool
+equalBinds (CasePatBound p1 e1) (CasePatBound p2 e2) = do
+    case maybeGetPatternUnificationSubst p1 p2 of
+      Nothing -> pure False
+      Just subst -> do
+        -- check that e1 and e2 are equal under the pattern substitution
+        (`equalExprs` e1) =<< substitute subst e2
 
 
 -- | 'ensureEqualTypes tyExpected tyActual' checks that 'tyExpected' and 'tyActual'
@@ -732,7 +752,7 @@ inferExpr' (ProductTy ten) ctxt = do
   ---------------------------------------------------------------------- :: TenCut
   (M | g4 + s * g3 | g5 + q * g3) @ G |- let (x, y) = t1 in t2 : [t1/z]C
 -}
-inferExpr' (Let (LetPatBound p@(PPair (PVar x) (PVar y)) t1) t2) ctxt = do
+inferExpr' (Case t1 Nothing [CasePatBound p@(PPair (PVar x) (PVar y)) t2]) ctxt = do
   -- TODO: I'm currently having to have extra premises for 'A' and
   -- 'B', as I can't see how to get g1 or g2 from the typing premise
   -- for t2 (but I feel we ought to be able to, as we can unambigously
@@ -819,9 +839,9 @@ inferExpr' (BoxTy _ t) ctxt = do
   (M,g5 | g3,s | g4,r) @ G, x : A |- t2 : B
   exists g6 such that g2 = g6 + g5 -- TODO: awaiting SMT solver (2020-06-22)
   -------------------------------------------------------------------------- :: BoxE
-  (M | g1 + g3 | g6 + g4) @ G |- let [x] = t1 in t2 : let [x:A] = t1 in B
+  (M | g1 + g3 | g6 + g4) @ G |- case t1 of [x] -> t2 : case t1 of [x] -> B
 -}
-inferExpr' (Let (LetPatBound (PBox (PVar x)) t1) t2) ctxt = do
+inferExpr' (Case t1 Nothing [CasePatBound (PBox (PVar x)) t2]) ctxt = do
   -- (M | g1 | g2) @ G |- t1 : Box (s, r) A
   (OutContext { subjectGradesOut = g1, typeGradesOut = _g2 }, boxTy)
     <- inferExpr t1 ctxt
@@ -849,7 +869,7 @@ inferExpr' (Let (LetPatBound (PBox (PVar x)) t1) t2) ctxt = do
       g1plusG3 <- contextGradeAdd g1 g3
       g6plusG4 <- contextGradeAdd g6 g4
 
-      let letBoxXAbeT1inB = Let (LetPatBound (PBox (PVar x)) t1) tB
+      let letBoxXAbeT1inB = Case t1 Nothing [CasePatBound (PBox (PVar x)) tB]
 
       -- (M | g1 + g3 | g6 + g4) @ G |- let [x] = t1 in t2 : let [x] = t1 in B
       pure ( OutContext { subjectGradesOut = g1plusG3, typeGradesOut = g6plusG4 }
@@ -964,8 +984,12 @@ replacePat p (Sig t1 t2) = Sig <$> replacePat p t1 <*> replacePat p t2
 replacePat _ u@Universe{} = pure u
 replacePat _ h@Hole = pure h
 replacePat _ i@Implicit = pure i
-replacePat p (Let (LetPatBound p' t1) t2) = Let <$> (LetPatBound p' <$> replacePat p t1) <*> replacePat p t2
+replacePat p (Case e Nothing binds) = Case <$> replacePat p e <*> pure Nothing <*> mapM (replacePatBinds p) binds
 replacePat (p, e1) e2 = notImplemented $ "replacePat for pattern" <+> quoted p <+> "with replacement" <+> quoted e1 <+> "in expr" <+> quoted e2
+
+
+replacePatBinds :: (Pattern, Expr) -> CaseBinding -> CM CaseBinding
+replacePatBinds p (CasePatBound p' e) = CasePatBound p' <$> replacePat p e
 
 
 -- TODO: if we add support for first-class grades, ensure those get updated here (2020-06-18)

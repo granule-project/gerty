@@ -114,6 +114,7 @@ tokens :-
 <0,code> record         { keyword KwRecord }
 <0,code> constructor    { keyword KwConstructor }
 <0,code> case           { keyword KwCase }
+<0,code> as             { keyword KwAs }
 <0,code> of             { keyword KwOf }
 <0,code> Type           { keyword KwType }
 <0,code> Unit           { keyword KwUnitTy }
