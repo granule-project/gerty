@@ -137,6 +137,11 @@ equalExprs e1 e2 = do
     (UnitTy, UnitTy) -> pure True
     (Unit, Unit) -> pure True
     (Pair e1 e2, Pair e1' e2') -> (&&) <$> equalExprs e1 e1' <*> equalExprs e2 e2'
+    (BoxTy (g1, g2) e, BoxTy (g1', g2') e') -> do
+      g1sOK <- gradeEq g1 g1'
+      g2sOK <- gradeEq g2 g2'
+      esOK <- equalExprs e e'
+      pure $ g1sOK && g2sOK && esOK
 
     (Case e1 Nothing binds1, Case e2 Nothing binds2) -> do
       esOK <- equalExprs e1 e2
