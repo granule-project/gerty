@@ -558,9 +558,7 @@ checkExpr' (Box t) ty ctxt = do
   case ty of
     (BoxTy (s, r) tA) -> do
       -- (M | g1 | g2) @ G |- t : A
-      (OutContext { subjectGradesOut = g1, typeGradesOut = g2 }, tA') <- inferExpr t ctxt
-
-      _ <- ensureEqualTypes tA tA'
+      (OutContext { subjectGradesOut = g1, typeGradesOut = g2 }) <- checkExpr t tA ctxt
 
       sTimesG1 <- contextGradeMult s g1
       rTimesG1 <- contextGradeMult r g1
