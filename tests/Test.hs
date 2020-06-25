@@ -1,5 +1,6 @@
 module Main (main) where
 
+import Control.Monad.IO.Class (liftIO)
 import System.Directory (doesDirectoryExist)
 import qualified System.IO.Strict as Strict
 
@@ -53,7 +54,7 @@ fileTestsPositiveGen :: String -> String -> (FilePath -> String -> CM a) -> [Fil
 fileTestsPositiveGen groupName desc phase = testGroup groupName .
   fmap (\file -> testCase ("checking " <> file <> " " <> desc <> "s") $ do
                    src <- Strict.readFile file
-                   let res = tcrRes $ runNewChecker (phase file src)
+                   res <- liftIO . fmap tcrRes $ runNewChecker (phase file src)
                    case res of
                      Right _ -> pure ()
                      Left err -> assertFailure
@@ -89,8 +90,8 @@ fileTestsNegativeGen :: String -> String -> (FilePath -> String -> CM a) -> (TCE
 fileTestsNegativeGen groupName desc phase isErrGood = testGroup groupName .
   fmap (\file -> testCase ("checking " <> file <> " doesn't " <> desc) $ do
                    src <- Strict.readFile file
-                   let res = tcrRes $ runNewChecker (phase file src)
-                       (didErrOK, phaseMsg) =
+                   res <- liftIO . fmap tcrRes $ runNewChecker (phase file src)
+                   let (didErrOK, phaseMsg) =
                          either (\err ->
                            if isErrGood err
                            then (True, "")
