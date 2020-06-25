@@ -71,7 +71,7 @@ instance {-# OVERLAPS #-} Substitutable CM (Name, Expr) CaseBinding where
 
 instance {-# OVERLAPS #-} Substitutable CM (Name, Expr) Expr where
   substitute (v, e) (Var x)
-    | ident v == ident x    = pure e
+    | v == x    = pure e
     | otherwise = pure (Var x)
   substitute _ (Def n) = pure (Def n)
   substitute _ UnitTy = pure UnitTy
