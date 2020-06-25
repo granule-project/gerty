@@ -681,6 +681,7 @@ inferExpr' (App t1 t2) ctxt = do
 
   -- (M | g2 | g1 + g3) @ G |- t1 : (x : (s, r) A) -o B
   (outCtxtFun@(OutContext g2 g1plusG3), funTy) <- inferExpr t1 ctxt
+  funTy <- normalise funTy
 
   -- Need to infer types for `funTy` to see how the context
   -- is used to form `A` and `B`
