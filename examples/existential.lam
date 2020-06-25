@@ -1,0 +1,81 @@
+------------------------
+----- Existentials -----
+------------------------
+
+
+exists : (a : [.1, .1] Type 0) (b : [.1, .0] (x : [.inf, .0] a) -> Type 0) -> Type 0
+exists = \a b -> (x :: [.inf] a * b x) [.1, .0]
+
+
+pack : (a : [.0, .3] Type 0)
+       (b : [.0, .2] (x : [.inf, .0] a) -> Type 0)
+       (x : [.1, .inf] a)
+       (y : [.1, .0] b x)
+       -> exists a b
+pack = \a b x y -> [<x, y>]
+
+
+open : (a : [.0, .3] Type 0)
+       (b : [.0, .2] (x : [.inf, .0] a) -> Type 0)
+       (c : [.0, .2] Type 0)
+       (f : [.1, .0] (x : [.inf, .0] a) (y : [.inf, .0] b x) -> c)
+       (p : [.inf, .0] exists a b)
+       -> c
+open = \a b c f p -> case p of [q] -> case q of (s, r) -> f s r
+
+
+existsNonDep : (a b : [.1, .0] Type 0) -> Type 0
+existsNonDep = \a b -> exists a (\(x : [.0, .0] a) -> b)
+
+
+packNonDep : (a b : [.0, .2] Type 0)
+             (x : [.1, .inf] a)
+             (y : [.1, .0] b)
+             -> existsNonDep a b
+packNonDep = \a b x y -> pack a (\(x : [.0, .0] a) -> b) x y
+
+
+openNonDep : (a b c : [.0, .2] Type 0)
+             (f : [.1, .0] (x : [.inf, .0] a) (y : [.inf, .0] b) -> c)
+             (p : [.inf, .0] existsNonDep a b)
+             -> c
+openNonDep = \a b c f p -> open a (\(x : [.0, .0] a) -> b) c f p
+
+
+-- exists a. a x (a -> b)
+Exp : (a : [.2, .0] Type 0) (b : [.1, .0] Type 0) -> Type 0
+Exp = \a b -> existsNonDep a ((y : [.inf, .0] a) -> b)
+
+
+packExp : (a : [.0, .4] Type 0)
+          (b : [.0, .2] Type 0)
+          (x : [.1, .inf] a)
+          (f : [.1, .0] (x : [.1, .0] a) -> b)
+          -> Exp a b
+packExp = \a b x f -> packNonDep a ((x : [.inf, .0] a) -> b) x f
+
+
+openExp : (a : [.0, .3] Type 0)
+          (b c : [.0, .2] Type 0)
+          (f : [.1, .0] (x : [.inf, .0] a) (y : [.inf, .0] b) -> c)
+          (p : [.inf, .0] Exp a b)
+          -> c
+openExp = \a b c f p -> openNonDep a (a -> b) c (\x y -> f x (y x)) p
+
+
+openApply : (a b : [.0, .2] Type 0)
+            (p : [.1, .0] Exp a b)
+            -> b
+openApply = \a b p -> openExp a b b (\x y -> y) p
+
+
+example : existsNonDep Nat Nat
+example = packNonDep Nat Nat zero zero
+
+
+main : exists Nat (\(x : [.0, .0] Nat) -> Nat)
+main = pack Nat (\(x : [.0, .0] Nat) -> Nat) zero zero
+
+
+main2 : Nat
+main2 = openApply Nat Nat (packExp Nat Nat zero succ)
