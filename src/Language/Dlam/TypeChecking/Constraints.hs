@@ -28,11 +28,11 @@ data Quantifier = ForallQ | InstanceQ
 
 data SolverResult
   = QED
-  | NotValid String
+  | NotValid Doc
   -- | NotValidTrivial [Constraint]
   | Timeout
-  | SolverProofError String
-  | OtherSolverError String
+  | SolverProofError Doc
+  | OtherSolverError Doc
 
 provePredicate :: Pred -> IO SolverResult
 provePredicate predicate
@@ -50,9 +50,9 @@ provePredicate predicate
       return $ case thmRes of
         -- we're good: the negation of the theorem is unsatisfiable
         Unsatisfiable {}    -> QED
-        ProofError _ msgs _ -> SolverProofError $ unlines msgs
+        ProofError _ msgs _ -> SolverProofError $ vcat (fmap pprint msgs)
         Unknown _ UnknownTimeOut -> Timeout
-        Unknown _ reason  -> OtherSolverError $ show reason
+        Unknown _ reason  -> OtherSolverError $ text (show reason)
         _ ->
           case getModelAssignment thmRes of
             -- Main 'Falsifiable' result
@@ -66,9 +66,9 @@ provePredicate predicate
                       print $ show assg
                     Left msg -> print $ show msg
                   -}
-                   NotValid $ "is " ++ show (ThmResult thmRes) ++ "assignment " ++ show assg
+                   NotValid $ "is" <+> pprint (show (ThmResult thmRes)) <+> "assignment" <+> pprint (show assg)
             Right (True, _) -> NotValid "returned probable model."
-            Left str -> OtherSolverError str
+            Left str -> OtherSolverError (pprint str)
 
 
 -- | Compile constraint into an SBV symbolic bool, along with a list of

@@ -471,9 +471,9 @@ data TCError
 
   | GradeTypeMismatch GradeSpec GradeSpec
 
-  | SolverNotValid String
+  | SolverNotValid Doc
 
-  | SolverError String
+  | SolverError Doc
 
   | SolverTimeout
 
@@ -498,8 +498,8 @@ instance Pretty TCError where
   pprint (GradeMismatch stage mismatches) =
     hang ("At stage" <+> pprint stage <+> "got the following mismatched grades:") 1
     (vcat $ fmap (\(v, (e, a)) -> "For" <+> quoted v <+> "expected" <+> pprint e <+> "but got" <+> pprint a) mismatches)
-  pprint (SolverError msg)    = text msg
-  pprint (SolverNotValid msg) = text msg
+  pprint (SolverError msg)    = msg
+  pprint (SolverNotValid msg) = msg
   pprint SolverTimeout = "Solver timeout"
   pprint (ExpectedInferredTypeForm descr t) =
     "I was expecting the expression to have a" <+> descr <+>
@@ -561,13 +561,11 @@ expectedInferredTypeForm :: Doc -> Expr -> CM a
 expectedInferredTypeForm descr t =
   throwCM (ExpectedInferredTypeForm descr t)
 
-solverError :: String -> CM a
-solverError msg =
-  throwCM (SolverError msg)
+solverError :: Doc -> CM a
+solverError msg = throwCM (SolverError msg)
 
-solverNotValid :: String -> CM a
-solverNotValid msg =
-  throwCM (SolverNotValid msg)
+solverNotValid :: Doc -> CM a
+solverNotValid msg = throwCM (SolverNotValid msg)
 
 solverTimeout :: CM a
 solverTimeout =
