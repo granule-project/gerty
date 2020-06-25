@@ -26,15 +26,6 @@ module Language.Dlam.TypeChecking.Monad.Base
   , getFreshNameId
   , getFreshName
 
-  -- * Predicate
-  , addConstraint
-  , existential
-  , universal
-  , concludeImplication
-  , newConjunct
-  , isTheoremValid
-  , isTheoremValidBool
-
   -- ** Scope
   , lookupType
   , setType
@@ -51,6 +42,14 @@ module Language.Dlam.TypeChecking.Monad.Base
   , withCheckingOfTopLevel
   , isBenchmarking
   , isOptimising
+
+  -- * Predicates
+  , getPredicateStack
+  , addConstraint
+  , existential
+  , universal
+  , concludeImplication
+  , newConjunct
 
   -- * Exceptions and error handling
   , TCErr
@@ -103,7 +102,6 @@ import Language.Dlam.Syntax.Parser.Monad (ParseError)
 import Language.Dlam.Util.Pretty hiding ((<>))
 
 import Language.Dlam.TypeChecking.Predicates
-import Language.Dlam.TypeChecking.Constraints
 
 data CheckerState
   = CheckerState
@@ -138,76 +136,6 @@ newtype CM a =
            , MonadWriter TCLog
            , MonadError TCErr
            , MonadIO)
-
--------------------
------ Predicate building -----
--------------------
-
--- Add a constraint to the predicate stack
-addConstraint :: Constraint -> CM ()
-addConstraint c = do
-  st <- get
-  case predicateStack st of
-    (p : stack) ->
-      put (st { predicateStack = conjunctPred (Con c) p : stack })
-    stack ->
-      put (st { predicateStack = Conj [Con c] : stack })
-
-newConjunct :: CM ()
-newConjunct =
-  modify (\st -> st { predicateStack = Conj [] : predicateStack st })
-
-concludeImplication :: CM ()
-concludeImplication = do
-  st <- get
-  case predicateStack st of
-    (p' : p : stack) ->
-      modify (\st -> st { predicateStack = conjunctPredStack (Impl p p') stack })
-    _ -> error "Predicate: not enough conjunctions on the stack"
-
--- Introduce a conjunction onto the the top of the predicate stack
-conjunctPredStack :: Pred -> [Pred] -> [Pred]
-conjunctPredStack p (p' : stack) = conjunctPred p p' : stack
-conjunctPredStack p [] = [Conj [p]]
-
--- Introduce a conjunction (under the scope of binders)
-conjunctPred :: Pred -> Pred -> Pred
-conjunctPred p (Conj ps) = Conj (p : ps)
-conjunctPred p (Forall var k ps) = Forall var k (conjunctPred p ps)
-conjunctPred p (Exists var k ps) = Exists var k (conjunctPred p ps)
-conjunctPred _ p = error $ "Cannot append a predicate to " <> pprintShow p
-
-existential :: Name -> GradeSpec -> CM ()
-existential var k = do
-  checkerState <- get
-  case predicateStack checkerState of
-    (p : stack) -> do
-      put (checkerState { predicateStack = Exists var k p : stack })
-    [] ->
-      put (checkerState { predicateStack = [Exists var k (Conj [])] })
-
-universal :: Name -> GradeSpec -> CM ()
-universal var k = do
-  checkerState <- get
-  case predicateStack checkerState of
-    (p : stack) -> do
-      put (checkerState { predicateStack = Forall var k p : stack })
-    [] ->
-      put (checkerState { predicateStack = [Forall var k (Conj [])] })
-
-isTheoremValid :: CM SolverResult
-isTheoremValid = do
-  st <- get
-  let thm = Conj (reverse $ predicateStack st)
-  debug $ "Asking SMT solver if the following is valid: " <> pprint thm
-  liftIO $ provePredicate thm
-
-isTheoremValidBool :: CM Bool
-isTheoremValidBool = do
-  result <- isTheoremValid
-  case result of
-    QED -> return True
-    _   -> return False
 
 -------------------
 ----- Logging -----
@@ -419,6 +347,68 @@ withLocalCheckingOf e = local (tceSetCurrentExpr e)
 -- | Indicate that we are now checking the given top-level name when running the action.
 withCheckingOfTopLevel :: Name -> CM a -> CM a
 withCheckingOfTopLevel n = local (tceSetCurrentTopLevel n)
+
+
+-----------------------
+----- Constraints -----
+-----------------------
+
+
+getPredicateStack :: CM [Pred]
+getPredicateStack = fmap predicateStack $ get
+
+
+-- Add a constraint to the predicate stack
+addConstraint :: Constraint -> CM ()
+addConstraint c = do
+  st <- get
+  case predicateStack st of
+    (p : stack) ->
+      put (st { predicateStack = conjunctPred (Con c) p : stack })
+    stack ->
+      put (st { predicateStack = Conj [Con c] : stack })
+
+newConjunct :: CM ()
+newConjunct =
+  modify (\st -> st { predicateStack = Conj [] : predicateStack st })
+
+concludeImplication :: CM ()
+concludeImplication = do
+  st <- get
+  case predicateStack st of
+    (p' : p : stack) ->
+      modify (\st -> st { predicateStack = conjunctPredStack (Impl p p') stack })
+    _ -> error "Predicate: not enough conjunctions on the stack"
+
+-- Introduce a conjunction onto the the top of the predicate stack
+conjunctPredStack :: Pred -> [Pred] -> [Pred]
+conjunctPredStack p (p' : stack) = conjunctPred p p' : stack
+conjunctPredStack p [] = [Conj [p]]
+
+-- Introduce a conjunction (under the scope of binders)
+conjunctPred :: Pred -> Pred -> Pred
+conjunctPred p (Conj ps) = Conj (p : ps)
+conjunctPred p (Forall var k ps) = Forall var k (conjunctPred p ps)
+conjunctPred p (Exists var k ps) = Exists var k (conjunctPred p ps)
+conjunctPred _ p = error $ "Cannot append a predicate to " <> pprintShow p
+
+existential :: Name -> GradeSpec -> CM ()
+existential var k = do
+  checkerState <- get
+  case predicateStack checkerState of
+    (p : stack) -> do
+      put (checkerState { predicateStack = Exists var k p : stack })
+    [] ->
+      put (checkerState { predicateStack = [Exists var k (Conj [])] })
+
+universal :: Name -> GradeSpec -> CM ()
+universal var k = do
+  checkerState <- get
+  case predicateStack checkerState of
+    (p : stack) -> do
+      put (checkerState { predicateStack = Forall var k p : stack })
+    [] ->
+      put (checkerState { predicateStack = [Forall var k (Conj [])] })
 
 
 -----------------------------------------
