@@ -1,5 +1,4 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE OverloadedStrings #-}
 module Language.Dlam.TypeChecking.Monad.Base
   (
    -- * Type checker monad

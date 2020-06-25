@@ -1,4 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
 module Language.Dlam.Interpreter
   ( runParser
   , runScoper

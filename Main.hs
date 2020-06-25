@@ -1,4 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
 module Dlam (main) where
 
 import Language.Dlam.Interpreter (formatError)

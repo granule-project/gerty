@@ -1,5 +1,4 @@
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE OverloadedStrings #-}
 module Language.Dlam.Scoping.Monad.Exception
   (
   -- * Exceptions and error handling

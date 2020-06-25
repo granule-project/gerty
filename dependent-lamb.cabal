@@ -54,7 +54,7 @@ library
       Language.Dlam.Util.Peekaboo
   hs-source-dirs:
       src
-  ghc-options: -O0 -Wall -Werror -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns -Wredundant-constraints -Wno-name-shadowing -Wno-type-defaults
+  ghc-options: -O0 -Wall -Werror -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns -Wredundant-constraints -Wno-name-shadowing -Wno-type-defaults -XOverloadedStrings
   build-tools:
       alex
     , happy
@@ -74,7 +74,7 @@ executable gerty
   main-is: Main.hs
   other-modules:
       Paths_dependent_lamb
-  ghc-options: -O0 -Wall -Werror -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns -Wredundant-constraints -Wno-name-shadowing -Wno-type-defaults -main-is Dlam
+  ghc-options: -O0 -Wall -Werror -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns -Wredundant-constraints -Wno-name-shadowing -Wno-type-defaults -XOverloadedStrings -main-is Dlam
   build-depends:
       base >=4.10 && <5
     , clock
@@ -89,7 +89,7 @@ test-suite dependent-lamb
       Paths_dependent_lamb
   hs-source-dirs:
       tests
-  ghc-options: -O0 -Wall -Werror -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns -Wredundant-constraints -Wno-name-shadowing -Wno-type-defaults
+  ghc-options: -O0 -Wall -Werror -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns -Wredundant-constraints -Wno-name-shadowing -Wno-type-defaults -XOverloadedStrings
   build-depends:
       base >=4.10 && <5
     , dependent-lamb

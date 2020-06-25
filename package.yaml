@@ -17,6 +17,7 @@ ghc-options:
 - -Wredundant-constraints
 - -Wno-name-shadowing
 - -Wno-type-defaults
+- -XOverloadedStrings
 
 library:
   source-dirs: src
