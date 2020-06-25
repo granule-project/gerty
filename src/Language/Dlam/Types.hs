@@ -4,7 +4,7 @@ module Language.Dlam.Types
   ( doASTInference
   ) where
 
-import Control.Monad.IO.Class (liftIO)
+--import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Extra (ifM)
 import Control.Monad (unless, zipWithM)
 import Data.Either (partitionEithers)
@@ -281,7 +281,7 @@ gradeEqBase forceSMT r1 r2 = do
     (_, GImplicit) -> pure False
     (_, _) -> do
       -- Go to the SMT solver
-      liftIO $ putStrLn $ "Adding smt equality: " <> (pprintShow r1') <> " = " <> (pprintShow r2')
+      debug $ "Adding smt equality: " <> (pprint r1') <> " = " <> (pprint r2')
       addConstraint (Eq (grade r1') (grade r2') (gradeTy r1))
       if forceSMT
         then isTheoremValidBool
@@ -736,7 +736,9 @@ inferExpr' (App t1 t2) ctxt = do
               -- optimise here when 0 use
               noTypeUse <- gradeEqAndForceSMTresult r gradeZero
               if noTypeUse
-                then return tB
+                then do
+                  debug $ "Optimised: no subst of " <> pprint t2 <> " for " <> pprint (absVar pi)
+                  return tB
                 else substitute (absVar pi, t2) tB)
               {- else -} (substitute (absVar pi, t2) tB)
 
@@ -963,6 +965,7 @@ inferExpr' (Case t1 tp [CasePatBound (PBox (PVar x')) t2]) ctxt = do
       --
       -- exists g6 such that g2 = g6 + g5 -- TODO: awaiting SMT solver (2020-06-22)
       let g6 = zeroesMatchingShape (types ctxt)
+
       -- TODO: add a check that g2 = g5 (2020-06-24)
       g5plusG6 <- contextGradeAdd g5 g6
       _ <- verifyGradeVecEq "?" g2 g5plusG6

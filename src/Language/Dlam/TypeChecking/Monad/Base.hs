@@ -199,7 +199,7 @@ isTheoremValid :: CM SolverResult
 isTheoremValid = do
   st <- get
   let thm = Conj (reverse $ predicateStack st)
-  debug $ text "Asking SMT solver if the following is valid: " <> pprint thm
+  debug $ "Asking SMT solver if the following is valid: " <> pprint thm
   liftIO $ provePredicate thm
 
 isTheoremValidBool :: CM Bool
