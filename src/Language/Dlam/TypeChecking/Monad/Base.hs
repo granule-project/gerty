@@ -27,6 +27,14 @@ module Language.Dlam.TypeChecking.Monad.Base
   , getFreshNameId
   , getFreshName
 
+  -- * Predicate
+  , addConstraint
+  , existential
+  , universal
+  , concludeImplication
+  , newConjunct
+  , isTheoremValid
+
   -- ** Scope
   , lookupType
   , setType
@@ -73,6 +81,9 @@ module Language.Dlam.TypeChecking.Monad.Base
   , gradeMismatchAt
   , gradeMismatchAt'
   , gradeTyMismatch
+  , solverNotValid
+  , solverError
+  , solverTimeout
 
   -- ** Parse errors
   , parseError
@@ -91,6 +102,9 @@ import qualified Language.Dlam.Syntax.Concrete as C
 import Language.Dlam.Syntax.Parser.Monad (ParseError)
 import Language.Dlam.Util.Pretty hiding ((<>))
 
+import Language.Dlam.TypeChecking.Predicates
+import Language.Dlam.TypeChecking.Constraints
+
 data CheckerState
   = CheckerState
     { typingScope :: M.Map Name Expr
@@ -99,6 +113,7 @@ data CheckerState
     -- ^ Unique NameId for naming.
     , debugNesting :: Int
     -- ^ Counter used to make it easier to locate debugging messages.
+    , predicateStack :: [Pred]
     }
 
 
@@ -109,18 +124,83 @@ startCheckerState =
                , valueScope = mempty
                , nextNameId = 0
                , debugNesting = 0
+               , predicateStack = []
                }
+
 
 
 -- | The checker monad.
 newtype CM a =
-  CM { runCM :: ExceptT TCErr (WriterT TCLog (ReaderT TCEnv (State CheckerState))) a }
+  CM { runCM :: ExceptT TCErr (WriterT TCLog (ReaderT TCEnv (StateT CheckerState IO))) a }
   deriving ( Applicative, Functor, Monad
            , MonadReader TCEnv
            , MonadState CheckerState
            , MonadWriter TCLog
-           , MonadError TCErr)
+           , MonadError TCErr
+           , MonadIO)
 
+-------------------
+----- Predicate building -----
+-------------------
+
+-- Add a constraint to the predicate stack
+addConstraint :: Constraint -> CM ()
+addConstraint c = do
+  st <- get
+  case predicateStack st of
+    (p : stack) ->
+      put (st { predicateStack = conjunctPred (Con c) p : stack })
+    stack ->
+      put (st { predicateStack = Conj [Con c] : stack })
+
+newConjunct :: CM ()
+newConjunct =
+  modify (\st -> st { predicateStack = Conj [] : predicateStack st })
+
+concludeImplication :: CM ()
+concludeImplication = do
+  st <- get
+  case predicateStack st of
+    (p' : p : stack) ->
+      modify (\st -> st { predicateStack = conjunctPredStack (Impl p p') stack })
+    _ -> error "Predicate: not enough conjunctions on the stack"
+
+-- Introduce a conjunction onto the the top of the predicate stack
+conjunctPredStack :: Pred -> [Pred] -> [Pred]
+conjunctPredStack p (p' : stack) = conjunctPred p p' : stack
+conjunctPredStack p [] = [Conj [p]]
+
+-- Introduce a conjunction (under the scope of binders)
+conjunctPred :: Pred -> Pred -> Pred
+conjunctPred p (Conj ps) = Conj (p : ps)
+conjunctPred p (Forall var k ps) = Forall var k (conjunctPred p ps)
+conjunctPred p (Exists var k ps) = Exists var k (conjunctPred p ps)
+conjunctPred _ p = error $ "Cannot append a predicate to " <> pprintShow p
+
+existential :: Name -> GradeSpec -> CM ()
+existential var k = do
+  checkerState <- get
+  case predicateStack checkerState of
+    (p : stack) -> do
+      put (checkerState { predicateStack = Exists var k p : stack })
+    [] ->
+      put (checkerState { predicateStack = [Exists var k (Conj [])] })
+
+universal :: Name -> GradeSpec -> CM ()
+universal var k = do
+  checkerState <- get
+  case predicateStack checkerState of
+    (p : stack) -> do
+      put (checkerState { predicateStack = Forall var k p : stack })
+    [] ->
+      put (checkerState { predicateStack = [Forall var k (Conj [])] })
+
+isTheoremValid :: CM SolverResult
+isTheoremValid = do
+  st <- get
+  let thm = Conj (reverse $ predicateStack st)
+  debug $ text "Asking SMT solver if the following is valid: " <> pprint thm
+  liftIO $ provePredicate thm
 
 -------------------
 ----- Logging -----
@@ -209,17 +289,17 @@ data TCResult a
     }
 
 
-runChecker :: TCEnv -> CheckerState -> CM a -> TCResult a
-runChecker env st p =
-  let (res, log) = evalState (runReaderT (runWriterT $ (runExceptT (runCM p))) env) st
-  in TCResult { tcrLog = log, tcrRes = res }
+runChecker :: TCEnv -> CheckerState -> CM a -> IO (TCResult a)
+runChecker env st p = do
+  (res, log) <- evalStateT (runReaderT (runWriterT $ (runExceptT (runCM p))) env) st
+  return $ TCResult { tcrLog = log, tcrRes = res }
 
 
-runNewChecker :: CM a -> TCResult a
+runNewChecker :: CM a -> IO (TCResult a)
 runNewChecker = runChecker startEnv startCheckerState
 
 
-runNewCheckerWithOpts :: Bool -> Bool -> CM a -> TCResult a
+runNewCheckerWithOpts :: Bool -> Bool -> CM a -> IO (TCResult a)
 runNewCheckerWithOpts bench optimise =
   runChecker (startEnv { tycOptimise = optimise, benchmark = bench }) startCheckerState
 
@@ -384,6 +464,12 @@ data TCError
 
   | GradeTypeMismatch GradeSpec GradeSpec
 
+  | SolverNotValid String
+
+  | SolverError String
+
+  | SolverTimeout
+
   ------------------
   -- Parse Errors --
   ------------------
@@ -405,6 +491,9 @@ instance Pretty TCError where
   pprint (GradeMismatch stage mismatches) =
     hang ("At stage" <+> pprint stage <+> "got the following mismatched grades:") 1
     (vcat $ fmap (\(v, (e, a)) -> "For" <+> quoted v <+> "expected" <+> pprint e <+> "but got" <+> pprint a) mismatches)
+  pprint (SolverError msg)    = text msg
+  pprint (SolverNotValid msg) = text msg
+  pprint SolverTimeout = "Solver timeout"
   pprint (ExpectedInferredTypeForm descr t) =
     "I was expecting the expression to have a" <+> descr <+>
                         "type, but instead I found its type to be" <+> quoted t
@@ -465,6 +554,17 @@ expectedInferredTypeForm :: Doc -> Expr -> CM a
 expectedInferredTypeForm descr t =
   throwCM (ExpectedInferredTypeForm descr t)
 
+solverError :: String -> CM a
+solverError msg =
+  throwCM (SolverError msg)
+
+solverNotValid :: String -> CM a
+solverNotValid msg =
+  throwCM (SolverNotValid msg)
+
+solverTimeout :: CM a
+solverTimeout =
+  throwCM SolverTimeout
 
 patternMismatch :: Pattern -> Expr -> CM a
 patternMismatch p t = throwCM (PatternMismatch p t)

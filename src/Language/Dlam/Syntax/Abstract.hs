@@ -53,6 +53,7 @@ module Language.Dlam.Syntax.Abstract
   , pattern GOne
   , pattern GInf
   , gradeImplicit
+  , atSpec
   , mkGrade
   , mkGradePlus
   , mkGradeTimes
@@ -420,13 +421,13 @@ data Grade'
   = GEnc Integer
 
   -- | Grade addition.
-  | GPlus Grade Grade
+  | GPlus Grade' Grade'
 
   -- | Grade multiplication.
-  | GTimes Grade Grade
+  | GTimes Grade' Grade'
 
   -- | Least-upper bound.
-  | GLub Grade Grade
+  | GLub Grade' Grade'
 
   -- | Special grade when unspecified.
   | GImplicit
@@ -435,7 +436,7 @@ data Grade'
   | GExpr Expr
 
   -- | Grade with signature.
-  | GSig Grade GradeSpec
+  | GSig Grade' GradeSpec
   deriving (Show, Eq, Ord)
 
 
@@ -458,6 +459,18 @@ data GradeSpec
   -- | Unspecified, to resolve.
   | GSImplicit
 
+  -- | Natural numbers
+  | ExactUsage
+
+  -- | Intervals over some other types
+  | Interval GradeSpec
+
+  -- | 0, 1, omega
+  | NoneOneTons
+
+  -- Top-completed version of some other type
+  | Extended GradeSpec
+
   -- | Arbitrary expression.
   | GSExpr Expr
   deriving (Show, Eq, Ord)
@@ -471,6 +484,8 @@ data Grade = Grade { grade :: Grade', gradeTy :: GradeSpec }
 mkGrade :: Grade' -> GradeSpec -> Grade
 mkGrade = Grade
 
+atSpec :: Grade' -> Grade -> Grade
+atSpec g (Grade _ gradeTy) = Grade g gradeTy
 
 gradeZero, gradeOne, gradeInf, gradeImplicit :: Grade
 gradeZero     = mkGrade GZero     GSImplicit
@@ -482,10 +497,9 @@ gradeImplicit = mkGrade GImplicit GSImplicit
 -- NOTE: these should only be used in ConcreteToAbstract, and they are
 -- very hacky (they just assume the grades are well-typed)
 mkGradePlus, mkGradeTimes, mkGradeLub :: Grade -> Grade -> Grade
-mkGradePlus  g1 g2 = mkGrade (GPlus  g1 g2) (gradeTy g1)
-mkGradeTimes g1 g2 = mkGrade (GTimes g1 g2) (gradeTy g1)
-mkGradeLub   g1 g2 = mkGrade (GLub   g1 g2) (gradeTy g1)
-
+mkGradePlus  g1 g2 = Grade (GPlus  (grade g1) (grade g2)) (gradeTy g1)
+mkGradeTimes g1 g2 = Grade (GTimes (grade g1) (grade g2)) (gradeTy g1)
+mkGradeLub   g1 g2 = Grade (GLub   (grade g1) (grade g2)) (gradeTy g1)
 
 implicitGrading :: Grading
 implicitGrading = mkGrading gradeImplicit gradeImplicit
@@ -597,17 +611,17 @@ instance Pretty Grade' where
   pprint GZero = text ".0"
   pprint GOne  = text ".1"
   pprint GInf = text ".inf"
-  pprint (GPlus Grade{grade=g1} Grade{grade=g2}) = pprintSquishy 0 (g1, g2)
+  pprint (GPlus g1 g2) = pprintSquishy 0 (g1, g2)
     where pprintSquishy n (GZero, GZero) = char '.' <> integer n
           pprintSquishy n (GOne,  r) = pprintSquishy (n+1) (GZero, r)
           pprintSquishy n (s, GOne) = pprintSquishy (n+1) (s, GZero)
-          pprintSquishy n (GPlus Grade{grade=GOne} Grade{grade=s}, r) =
+          pprintSquishy n (GPlus GOne s, r) =
             pprintSquishy (n+1) (s, r)
-          pprintSquishy n (GPlus Grade{grade=s} Grade{grade=GOne}, r) =
+          pprintSquishy n (GPlus s GOne, r) =
             pprintSquishy (n+1) (s, r)
-          pprintSquishy n (s, GPlus (Grade{grade=GOne}) Grade{grade=r}) =
+          pprintSquishy n (s, GPlus GOne r) =
             pprintSquishy (n+1) (s, r)
-          pprintSquishy n (s, GPlus Grade{grade=r} Grade{grade=GOne}) =
+          pprintSquishy n (s, GPlus r GOne) =
             pprintSquishy (n+1) (s, r)
           pprintSquishy n (GZero, r) =
             (char '.' <> integer n) <+> char '+' <+> pprintParened r
@@ -628,11 +642,18 @@ instance Pretty Grade' where
 instance Pretty GradeSpec where
   isLexicallyAtomic PrivacyLevel = True
   isLexicallyAtomic GSImplicit = True
+  isLexicallyAtomic ExactUsage = True
+  isLexicallyAtomic NoneOneTons = True
   isLexicallyAtomic (GSExpr e) = isLexicallyAtomic e
+  isLexicallyAtomic _ = False
 
   pprint PrivacyLevel = "Privacy"
   pprint GSImplicit = "_"
   pprint (GSExpr e) = pprint e
+  pprint ExactUsage = "Nat"
+  pprint (Interval g) = "Interval " <> pprint g
+  pprint (Extended g) = "Ext " <> pprint g
+  pprint NoneOneTons  = "ntw"
 
 instance Pretty Grade where
   isLexicallyAtomic (Grade { grade = g }) = isLexicallyAtomic g

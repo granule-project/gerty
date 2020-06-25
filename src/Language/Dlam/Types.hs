@@ -21,6 +21,9 @@ import Language.Dlam.TypeChecking.Monad
 import Language.Dlam.Util.Pretty hiding ((<>), isEmpty)
 import qualified Language.Dlam.Scoping.Monad as SE
 
+import Language.Dlam.TypeChecking.Predicates
+import Language.Dlam.TypeChecking.Constraints (SolverResult(..))
+
 -------------------------
 ----- Normalisation -----
 -------------------------
@@ -264,12 +267,18 @@ gradeEq r1 r2 = do
     (GInf, _) -> pure True
     (_, GInf) -> pure True
     (GEnc n, GEnc n') -> pure (n == n')
-    (GPlus s1 s2, GPlus s3 s4) -> (&&) <$> gradeEq s1 s3 <*> gradeEq s2 s4
+    (GPlus s1 s2, GPlus s3 s4) -> (&&) <$> gradeEq (atSpec s1 r1) (atSpec s3 r1) <*> gradeEq (atSpec s2 r2) (atSpec s4 r2)
     -- TODO: have implicits unify (need to solve constraints),
     -- currently just rejecting implicits outright (2020-06-21)
     (GImplicit, _) -> pure False
     (_, GImplicit) -> pure False
-    (_, _) -> pure False
+    (_, _) -> do
+      -- Go to the SMT solver
+      debug $ "Adding smt equality: " <> (pprint r1') <> " = " <> (pprint r2')
+      addConstraint (Eq (grade r1') (grade r2') (gradeTy r1))
+
+      -- Say true, but we don't know yet...!
+      return True
 
 contextGradeAdd :: Ctxt Grade -> Ctxt Grade -> CM (Ctxt Grade)
 contextGradeAdd = cZipWithM gradeAdd
@@ -431,9 +440,19 @@ zeroesMatchingShape = cMap (const gradeZero)
 -- Top level
 checkOrInferTypeNew :: Type -> Expr -> CM ()
 checkOrInferTypeNew ty expr = do
+  newConjunct
   outContext <- checkExpr expr ty emptyInContext
   if isEmpty outContext
-    then return ()
+    then do
+      -- Time to check that any theorems hold
+      proverResult <- isTheoremValid
+      case proverResult of
+        QED                  -> return ()
+        NotValid msg         -> solverNotValid msg
+        Timeout              -> solverTimeout
+        OtherSolverError msg -> solverError msg
+        SolverProofError msg -> solverError msg
+
     else error "Binders are left!"
 
 checkExpr :: Expr -> Type -> InContext -> CM OutContext
@@ -1201,6 +1220,10 @@ levelsAreEqual (LMax l1) (LMax l2) = lEqual (levelMax' l1) (levelMax' l2)
 gradeAdd :: Grade -> Grade -> CM Grade
 gradeAdd g1 g2 = do
   ty <- requireSameTypedGrades g1 g2
+  normaliseGrade (Grade { grade = GPlus (grade g1) (grade g2), gradeTy = ty })
+
+gradeAdd':: Grade' -> Grade' -> GradeSpec -> CM Grade
+gradeAdd' g1 g2 ty =
   normaliseGrade (Grade { grade = GPlus g1 g2, gradeTy = ty })
 
 
@@ -1210,7 +1233,12 @@ gradeAdd g1 g2 = do
 gradeMult :: Grade -> Grade -> CM Grade
 gradeMult g1 g2 = do
   ty <- requireSameTypedGrades g1 g2
+  normaliseGrade (Grade { grade = GTimes (grade g1) (grade g2), gradeTy = ty })
+
+gradeMult' :: Grade' -> Grade' -> GradeSpec -> CM Grade
+gradeMult' g1 g2 ty =
   normaliseGrade (Grade { grade = GTimes g1 g2, gradeTy = ty })
+
 
 
 gradeIsZero :: Grade -> Bool
@@ -1233,10 +1261,10 @@ normaliseGrade Grade{grade=GSig g s, gradeTy=s'} = do
   -- type to use (2020-06-21)
   eqTys <- gradeTypesAreEqual s s'
   unless eqTys (gradeTyMismatch s s')
-  normaliseGrade g
+  normaliseGrade (mkGrade g s)
 normaliseGrade Grade{grade=GPlus g1 g2, gradeTy=ty} = do
-  g1' <- normaliseGrade g1
-  g2' <- normaliseGrade g2
+  g1' <- normaliseGrade (mkGrade g1 ty)
+  g2' <- normaliseGrade (mkGrade g2 ty)
   _ <- requireSameTypedGrades g1' g2'
   case (g1', g2') of
     (Grade{grade=GZero}, r) -> pure r
@@ -1248,12 +1276,12 @@ normaliseGrade Grade{grade=GPlus g1 g2, gradeTy=ty} = do
     (_, r@Grade{grade=GInf}) -> pure r
 
     (g3, Grade{grade=GPlus g4 g5}) -> do
-      l <- gradeAdd g3 g4
-      gradeAdd l g5
-    _ -> pure Grade{grade=GPlus g1' g2', gradeTy=ty}
+      l <- gradeAdd' (grade g3) g4 ty
+      gradeAdd' (grade l) g5 ty
+    _ -> pure Grade{grade=GPlus (grade g1') (grade g2'), gradeTy=ty}
 normaliseGrade Grade{grade=GTimes g1 g2, gradeTy=ty} = do
-  g1' <- normaliseGrade g1
-  g2' <- normaliseGrade g2
+  g1' <- normaliseGrade (mkGrade g1 ty)
+  g2' <- normaliseGrade (mkGrade g2 ty)
   _ <- requireSameTypedGrades g1' g2'
   case (g1', g2') of
     (s@Grade{grade=GZero}, _) -> pure s
@@ -1267,14 +1295,14 @@ normaliseGrade Grade{grade=GTimes g1 g2, gradeTy=ty} = do
     (s@Grade{grade=GInf}, _) -> pure s
 
     (s1, Grade{grade=GTimes s2 s3}) -> do
-      l <- gradeMult s1 s2
-      gradeMult l s3
-    _ -> pure Grade{grade=GTimes g1' g2', gradeTy=ty}
+      l <- gradeMult' (grade s1) s2 ty
+      gradeMult' (grade l) s3 ty
+    _ -> pure Grade{grade=GTimes (grade g1') (grade g2'), gradeTy=ty}
 -- TODO: Allow using the ordering according to whatever type the grade
 -- is of (2020-06-13)
-normaliseGrade Grade{grade=GLub g1 g2} = do
-  g1' <- normaliseGrade g1
-  g2' <- normaliseGrade g2
+normaliseGrade Grade{grade=GLub g1 g2, gradeTy=ty} = do
+  g1' <- normaliseGrade (mkGrade g1 ty)
+  g2' <- normaliseGrade (mkGrade g2 ty)
   ty <- requireSameTypedGrades g1' g2'
   case (grade g1', grade g2', ty) of
     -- forall r. r <= inf
@@ -1288,7 +1316,7 @@ normaliseGrade Grade{grade=GLub g1 g2} = do
     (GEnc 0, GEnc 2, PrivacyLevel) -> pure $ mkGrade (GEnc 2) PrivacyLevel
     _ -> do
       gEq <- gradeEq g1' g2'
-      pure $ if gEq then g1' else Grade{grade=GLub g1' g2', gradeTy=ty}
+      pure $ if gEq then g1' else Grade{grade=GLub (grade g1') (grade g2'), gradeTy=ty}
 normaliseGrade Grade{grade=GExpr g,gradeTy=ty} =
   normalise g >>= \g -> pure Grade{grade=GExpr g, gradeTy=ty}
 normaliseGrade g@Grade{grade=GImplicit} = pure g
@@ -1305,6 +1333,12 @@ gradeTypesAreEqual e1@PrivacyLevel e2 =
   notImplemented $ "Equality of grade types on" <+> quoted e1 <+> "and" <+> quoted e2
 gradeTypesAreEqual e1@GSExpr{} e2 =
   notImplemented $ "Equality of grade types on" <+> quoted e1 <+> "and" <+> quoted e2
+gradeTypesAreEqual (Extended s1) (Extended s2) =
+  gradeTypesAreEqual s1 s2
+gradeTypesAreEqual (Interval s1) (Interval s2) =
+  gradeTypesAreEqual s1 s2
+gradeTypesAreEqual s1 s2 = return (s1 == s2)
+
 
 
 requireSameTypedGrades :: Grade -> Grade -> CM GradeSpec

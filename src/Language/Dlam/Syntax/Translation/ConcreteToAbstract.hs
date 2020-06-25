@@ -165,14 +165,16 @@ instance ToAbstract C.LambdaArgs ([A.LambdaArg], Locals) where
 instance ToAbstract C.Grading A.Grading where
   toAbstract g = A.mkGrading <$> toAbstract (C.subjectGrade g) <*> toAbstract (C.subjectTypeGrade g)
 
+instance ToAbstract C.Grade A.Grade' where
+  toAbstract g = toAbstract g >>= (return . A.grade)
 
 instance ToAbstract C.Grade A.Grade where
   toAbstract C.GZero = pure A.gradeZero
-  toAbstract C.GOne = pure A.gradeOne
-  toAbstract C.GInf = pure A.gradeInf
-  toAbstract (C.GPlus g1 g2) = A.mkGradePlus <$> toAbstract g1 <*> toAbstract g2
+  toAbstract C.GOne  = pure A.gradeOne
+  toAbstract C.GInf  = pure A.gradeInf
+  toAbstract (C.GPlus g1 g2)  = A.mkGradePlus  <$> toAbstract g1 <*> toAbstract g2
   toAbstract (C.GTimes g1 g2) = A.mkGradeTimes <$> toAbstract g1 <*> toAbstract g2
-  toAbstract (C.GLub g1 g2) = A.mkGradeLub <$> toAbstract g1 <*> toAbstract g2
+  toAbstract (C.GLub g1 g2)   = A.mkGradeLub   <$> toAbstract g1 <*> toAbstract g2
   toAbstract C.GImplicit = pure A.gradeImplicit
   toAbstract (C.GExpr e@(C.Ident v))
     -- TODO: make this more robust, it's really hacky at the moment... (2020-06-21)

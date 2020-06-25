@@ -31,6 +31,7 @@ library:
    - array
    - clock
    - extra
+   - sbv >= 8.6
   exposed-modules:
    - Language.Dlam.Interpreter
    - Language.Dlam.Substitution
@@ -62,6 +63,10 @@ library:
    - Language.Dlam.Scoping.Monad.Exception
    - Language.Dlam.Scoping.Scope
    - Language.Dlam.TypeChecking.Monad.Base
+   - Language.Dlam.TypeChecking.Constraints
+   - Language.Dlam.TypeChecking.Constraints.SNatX
+   - Language.Dlam.TypeChecking.Constraints.SymbolicGrades
+   - Language.Dlam.TypeChecking.Predicates
    - Language.Dlam.Util.Lens
    - Language.Dlam.Util.Peekaboo
 

@@ -89,7 +89,7 @@ main = do
         else do
           input <- readFile fname
           exitStatus <- benchmarkTime (benchmark opts) (trials opts) (\() -> do
-            let res = runNewCheckerWithOpts (benchmark opts) (tycOptimise opts) (Interpreter.runTypeChecker fname input)
+            res <- runNewCheckerWithOpts (benchmark opts) (tycOptimise opts) (Interpreter.runTypeChecker fname input)
             printLog (renderOpts opts) (verbosity opts) (tcrLog res)
             case tcrRes res of
               Left err -> do
