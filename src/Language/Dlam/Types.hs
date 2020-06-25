@@ -169,9 +169,12 @@ equalExprs e1 e2 = do
           -- d' = [y/x]d
           -- then check:
           -- a = c and b = d' (with (x : a) in scope)
+          g1sOK <- gradeEq (subjectGrade ab1) (subjectGrade ab2)
+          g2sOK <- gradeEq (subjectTypeGrade ab1) (subjectTypeGrade ab2)
           e2s <- substitute (absVar ab2, Var (absVar ab1)) (absExpr ab2)
-          (&&) <$> equalExprs (absTy ab1) (absTy ab2)
-               <*> withAbsBinding ab1 (equalExprs (absExpr ab1) e2s)
+          fmap ((g1sOK &&) . (g2sOK &&)) $
+            (&&) <$> equalExprs (absTy ab1) (absTy ab2)
+                 <*> withAbsBinding ab1 (equalExprs (absExpr ab1) e2s)
 
 
 equalBinds :: CaseBinding -> CaseBinding -> CM Bool

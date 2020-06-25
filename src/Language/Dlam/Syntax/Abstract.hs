@@ -492,8 +492,10 @@ implicitGrading = mkGrading gradeImplicit gradeImplicit
 pprintAbs :: Doc -> Abstraction -> Doc
 pprintAbs sep ab =
   let leftTyDoc =
-        case absVar ab of
-          Name _ C.NoName{} -> pprint (absTy ab)
+        case (absVar ab, subjectGrade ab, subjectTypeGrade ab) of
+          -- special case, we render (_ : [.1, .0] A) -> B as A -> B
+          ( Name _ C.NoName{}, Grade{grade=GOne,gradeTy=GSImplicit}
+                             , Grade{grade=GZero,gradeTy=GSImplicit}) -> pprint (absTy ab)
           _        -> parens (pprint (absVar ab) <+> colon <+> pprint (grading ab) <+> pprint (absTy ab))
   in leftTyDoc <+> sep <+> pprint (absExpr ab)
 
