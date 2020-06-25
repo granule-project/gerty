@@ -12,7 +12,7 @@ pack : (a : [.0, .3] Type 0)
        (x : [.1, .inf] a)
        (y : [.1, .0] b x)
        -> exists a b
-pack = \a b x y -> [<x, y>]
+pack = \a b x y -> [x, y]
 
 
 open : (a : [.0, .3] Type 0)
