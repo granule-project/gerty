@@ -34,6 +34,7 @@ module Language.Dlam.TypeChecking.Monad.Base
   , concludeImplication
   , newConjunct
   , isTheoremValid
+  , isTheoremValidBool
 
   -- ** Scope
   , lookupType
@@ -201,6 +202,13 @@ isTheoremValid = do
   let thm = Conj (reverse $ predicateStack st)
   debug $ text "Asking SMT solver if the following is valid: " <> pprint thm
   liftIO $ provePredicate thm
+
+isTheoremValidBool :: CM Bool
+isTheoremValidBool = do
+  result <- isTheoremValid
+  case result of
+    QED -> return True
+    _   -> return False
 
 -------------------
 ----- Logging -----

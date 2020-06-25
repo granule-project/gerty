@@ -5,6 +5,7 @@ module Language.Dlam.Types
   ( doASTInference
   ) where
 
+import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Extra (ifM)
 import Control.Monad (unless, zipWithM)
 import Data.Either (partitionEithers)
@@ -258,8 +259,15 @@ doASTInference (AST ds) = do
 --
 -- NOTE: this expects that 'normaliseGrade' is rendering e.g.,
 -- additions in a canonical form.
+
+gradeEqAndForceSMTresult :: Grade -> Grade -> CM Bool
+gradeEqAndForceSMTresult = gradeEqBase True
+
 gradeEq :: Grade -> Grade -> CM Bool
-gradeEq r1 r2 = do
+gradeEq = gradeEqBase False
+
+gradeEqBase :: Bool -> Grade -> Grade -> CM Bool
+gradeEqBase forceSMT r1 r2 = do
   r1' <- normaliseGrade r1
   r2' <- normaliseGrade r2
   _ <- requireSameTypedGrades r1 r2
@@ -274,11 +282,13 @@ gradeEq r1 r2 = do
     (_, GImplicit) -> pure False
     (_, _) -> do
       -- Go to the SMT solver
-      debug $ "Adding smt equality: " <> (pprint r1') <> " = " <> (pprint r2')
+      liftIO $ putStrLn $ "Adding smt equality: " <> (pprintShow r1') <> " = " <> (pprintShow r2')
       addConstraint (Eq (grade r1') (grade r2') (gradeTy r1))
-
-      -- Say true, but we don't know yet...!
-      return True
+      if forceSMT
+        then isTheoremValidBool
+        else
+          -- Say true, but we don't know yet...!
+          return True
 
 contextGradeAdd :: Ctxt Grade -> Ctxt Grade -> CM (Ctxt Grade)
 contextGradeAdd = cZipWithM gradeAdd
@@ -725,7 +735,7 @@ inferExpr' (App t1 t2) ctxt = do
             ifM isOptimising
               {- then -} (do
               -- optimise here when 0 use
-              noTypeUse <- gradeEq r gradeZero
+              noTypeUse <- gradeEqAndForceSMTresult r gradeZero
               if noTypeUse
                 then return tB
                 else substitute (absVar pi, t2) tB)
