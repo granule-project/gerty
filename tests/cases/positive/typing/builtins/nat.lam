@@ -11,15 +11,17 @@ zero' : Nat
 zero' = zero
 
 
-succ' : Nat -> Nat
+succ' : (n : [.1, .0] Nat) -> Nat
 succ' = succ
 
 
-natCase :
-  (l : Level)
-  (C : natTy -> Type l)
-  (cz : C zero')
-  (cs : (x : natTy) -> (y : C x) -> C (succ' x))
-  (n : natTy)
-  -> C n
-natCase = \l C cz cs n -> case x@n of (Zero -> cz; Succ w@y -> cs w y) : C x
+-- TODO: add support for Nat case (2020-06-25)
+--
+-- natCase :
+--   (l : Level)
+--   (C : natTy -> Type l)
+--   (cz : C zero')
+--   (cs : (x : natTy) -> (y : C x) -> C (succ' x))
+--   (n : natTy)
+--   -> C n
+-- natCase = \l C cz cs n -> case x@n of (Zero -> cz; Succ w@y -> cs w y) : C x

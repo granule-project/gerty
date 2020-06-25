@@ -299,6 +299,15 @@ data Expr
   -- | Implicits for synthesis.
   | Implicit
 
+  -- | Natural number type.
+  | NatTy
+
+  -- | Natural number successor.
+  | NSucc
+
+  -- | Natural number zero.
+  | NZero
+
   -- | Case binding.
   | Case Expr (Maybe (Pattern, Expr)) [CaseBinding]
   deriving (Show, Eq, Ord)
@@ -515,6 +524,9 @@ instance Pretty Expr where
     isLexicallyAtomic _       = False
 
     pprint (Universe l)           = text "Type" <+> pprintParened l
+    pprint NatTy  = text "Nat"
+    pprint NSucc  = text "succ"
+    pprint NZero  = text "zero"
     pprint UnitTy = text "Unit"
     pprint Unit = text "unit"
     pprint (BoxTy (g1, g2) e) =

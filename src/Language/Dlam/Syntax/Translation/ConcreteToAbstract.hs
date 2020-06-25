@@ -120,11 +120,16 @@ instance ToAbstract OldQName A.Expr where
     -- this will fail if the name isn't in scope (which is exactly
     -- what we want to happen, as we are trying to look up an existing
     -- name)
-    rn <- resolveNameCurrentScope n
+    rn <- maybeResolveNameCurrentScope n
     -- TODO: add support for resolving constructors (2020-06-12)
-    pure $ case rn of
-             ResolvedVar n -> A.Var n
-             _ -> A.Def (nameOf rn)
+    case rn of
+      Just (ResolvedVar n) -> pure $ A.Var n
+      Just rn -> pure $ A.Def (nameOf rn)
+      Nothing -> case pprintShow n of
+                   "Nat" -> pure A.NatTy
+                   "succ" -> pure A.NSucc
+                   "zero" -> pure A.NZero
+                   _ -> throwError $ unknownNameErr n
 
 
 instance ToAbstract C.PiBindings ([A.TypedBinding], Locals) where

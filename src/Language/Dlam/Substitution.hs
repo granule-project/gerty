@@ -90,6 +90,9 @@ instance {-# OVERLAPS #-} Substitutable CM (Name, Expr) Expr where
   substitute _ e@Universe{} = pure e
   substitute _ e@Hole{} = pure e
   substitute _ e@Implicit = pure e
+  substitute _ e@NatTy = pure e
+  substitute _ e@NZero = pure e
+  substitute _ e@NSucc = pure e
   substitute s (Sig e t) = Sig <$> substitute s e <*> substitute s t
   substitute s (Case e Nothing binds) = do
     e <- substitute s e

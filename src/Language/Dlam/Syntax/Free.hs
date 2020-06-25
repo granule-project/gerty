@@ -40,6 +40,9 @@ instance Free A.Expr where
   freeVars A.Implicit                      = Set.empty
   freeVars A.UnitTy                        = Set.empty
   freeVars A.Unit                          = Set.empty
+  freeVars A.NatTy                         = Set.empty
+  freeVars A.NZero                         = Set.empty
+  freeVars A.NSucc                         = Set.empty
   freeVars (A.Case e pt binds) =
     freeVars e `Set.union`
       maybe Set.empty (\(p, t) -> withDiff t p) pt `Set.union`

@@ -56,6 +56,8 @@ normalise :: Expr -> CM Expr
 normalise Implicit = finalNormalForm Implicit
 normalise UnitTy = finalNormalForm UnitTy
 normalise Unit = finalNormalForm Unit
+normalise NatTy = finalNormalForm NatTy
+normalise NZero = finalNormalForm NZero
 normalise (Def x) = do
   val <- lookupValue x
   case val of
@@ -138,6 +140,9 @@ equalExprs e1 e2 = do
     (Universe l1, Universe l2) -> levelsAreEqual l1 l2
     (UnitTy, UnitTy) -> pure True
     (Unit, Unit) -> pure True
+    (NatTy, NatTy) -> pure True
+    (NZero, NZero) -> pure True
+    (NSucc, NSucc) -> pure True
     (Pair e1 e2, Pair e1' e2') -> (&&) <$> equalExprs e1 e1' <*> equalExprs e2 e2'
     (BoxTy (g1, g2) e, BoxTy (g1', g2') e') -> do
       g1sOK <- gradeEq g1 g1'
@@ -1027,6 +1032,17 @@ inferExpr' (Case t1 (Just (PVar z', tC)) [CasePatBound PUnit t2]) ctxt = do
       pure ( OutContext { subjectGradesOut = g1plusG2, typeGradesOut = g3plusStimesG1 }
            , t1forZinC)
     _ -> expectedInferredTypeForm "Unit" unitTy
+
+---------------------------
+----- Natural numbers -----
+---------------------------
+
+inferExpr' NatTy ctxt =
+  pure (zeroedOutContextForInContext ctxt, mkUnivTy levelZero)
+inferExpr' NZero ctxt =
+  pure (zeroedOutContextForInContext ctxt, NatTy)
+inferExpr' NSucc ctxt =
+  pure (zeroedOutContextForInContext ctxt, FunTy (mkAbsGr ignoreVar NatTy gradeOne gradeZero NatTy))
 
 inferExpr' _ _ = do
   cannotSynthTypeForExpr
