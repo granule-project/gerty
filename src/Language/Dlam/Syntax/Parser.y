@@ -59,6 +59,8 @@ import Language.Dlam.Util.Pretty (pprintShow)
     ')'     { TokSymbol SymCloseParen $$ }
     '{'     { TokSymbol SymOpenBrace $$ }
     '}'     { TokSymbol SymCloseBrace $$ }
+    '<'     { TokSymbol SymOpenAngle $$ }
+    '>'     { TokSymbol SymCloseAngle $$ }
     '['     { TokSymbol SymOpenBracket $$ }
     ']'     { TokSymbol SymCloseBracket $$ }
     ':'     { TokSymbol SymColon $$ }

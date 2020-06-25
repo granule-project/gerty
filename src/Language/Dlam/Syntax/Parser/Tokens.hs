@@ -28,6 +28,7 @@ data Symbol
         | SymColon | SymArrow | SymEqual | SymLambda
         | SymUnderscore | SymQuestionMark   | SymAt
         | SymOpenParen        | SymCloseParen
+        | SymOpenAngle        | SymCloseAngle
         | SymOpenBrace        | SymCloseBrace
         | SymOpenVirtualBrace | SymCloseVirtualBrace
         | SymPlus | SymStar | SymAbsurd | SymComma | SymDoubleColon
