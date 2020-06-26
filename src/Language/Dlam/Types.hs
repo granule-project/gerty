@@ -952,7 +952,6 @@ inferExpr' (Case t1 tp [CasePatBound (PBox (PVar x')) t2]) ctxt = do
             tB <- substitute (x, Var z) xForZinB
             -- (M,g5 | g4,r | gZ) @ G, z : A |- B : Type l2
             (g4r, _) <- checkExprIsType tB (extendInputContext ctxt z tA g5)
-            -- in this case we require that q is zero
             let (g4, (_, rComp)) = unextend g4r
             _ <- verifyGradesEq "formation of product elim type (C)" Subject x r rComp
             let finTy = tB
