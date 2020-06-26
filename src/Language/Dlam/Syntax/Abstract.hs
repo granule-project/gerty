@@ -226,7 +226,7 @@ mkAbs' isHid v g e1 e2 = Abst { absArg = mkArg isHid (BindName v `gradedWith` g 
 
 
 newtype MetaId = MetaId { getMetaId :: Integer }
-  deriving (Show, Eq, Ord)
+  deriving (Show, Eq, Ord, Enum, Num, Real, Integral)
 
 
 mkMetaId :: Integer -> MetaId
@@ -557,7 +557,7 @@ instance Pretty Expr where
     pprint (Def name) = pprint name
     pprint (Sig e t) = pprintParened e <+> colon <+> pprint t
     pprint Hole = char '?'
-    pprint Implicit{} = char '_'
+    pprint (Implicit m) = identifier (toInteger m) ("_" :: String)
     pprint (Case e Nothing binds) =
       hang ("case" <+> pprint e <+> "of") 1 (vcat $ fmap pprint binds)
     pprint (Case e (Just (p, t)) binds) =
