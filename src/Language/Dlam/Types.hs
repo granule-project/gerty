@@ -275,10 +275,6 @@ gradeEqBase forceSMT r1 r2 = do
     (_, GInf) -> pure True
     (GEnc n, GEnc n') -> pure (n == n')
     (GPlus s1 s2, GPlus s3 s4) -> (&&) <$> gradeEq (atSpec s1 r1) (atSpec s3 r1) <*> gradeEq (atSpec s2 r2) (atSpec s4 r2)
-    -- TODO: have implicits unify (need to solve constraints),
-    -- currently just rejecting implicits outright (2020-06-21)
-    (GImplicit, _) -> pure False
-    (_, GImplicit) -> pure False
     (_, _) -> do
       -- Go to the SMT solver
       debug $ "Adding smt equality: " <> (pprint r1') <> " = " <> (pprint r2')
@@ -1342,7 +1338,6 @@ normaliseGrade Grade{grade=GLub g1 g2, gradeTy=ty} = do
       pure $ if gEq then g1' else Grade{grade=GLub (grade g1') (grade g2'), gradeTy=ty}
 normaliseGrade Grade{grade=GExpr g,gradeTy=ty} =
   normalise g >>= \g -> pure Grade{grade=GExpr g, gradeTy=ty}
-normaliseGrade g@Grade{grade=GImplicit} = pure g
 
 
 gradeTypesAreEqual :: GradeSpec -> GradeSpec -> CM Bool

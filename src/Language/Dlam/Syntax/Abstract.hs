@@ -428,9 +428,6 @@ data Grade'
   -- | Least-upper bound.
   | GLub Grade' Grade'
 
-  -- | Special grade when unspecified.
-  | GImplicit
-
   -- | Representation for other grade elements.
   | GExpr Expr
 
@@ -490,7 +487,7 @@ gradeZero, gradeOne, gradeInf, gradeImplicit :: Grade
 gradeZero     = mkGrade GZero     GSImplicit
 gradeOne      = mkGrade GOne      GSImplicit
 gradeInf      = mkGrade GInf      GSImplicit
-gradeImplicit = mkGrade GImplicit GSImplicit
+gradeImplicit = mkGrade (GExpr Implicit) GSImplicit
 
 
 -- NOTE: these should only be used in ConcreteToAbstract, and they are
@@ -603,7 +600,6 @@ instance Pretty Declaration where
 
 instance Pretty Grade' where
   isLexicallyAtomic GEnc{} = True
-  isLexicallyAtomic GImplicit = True
   isLexicallyAtomic (GExpr g) = isLexicallyAtomic g
   isLexicallyAtomic _ = False
 
@@ -634,7 +630,6 @@ instance Pretty Grade' where
   pprint (GEnc n) = integer n
   pprint (GTimes g1 g2) = pprintParened g1 <+> text "*" <+> pprintParened g2
   pprint (GLub g1 g2) = pprintParened g1 <+> text "lub" <+> pprintParened g2
-  pprint GImplicit = text "._"
   pprint (GExpr g) = pprint g
   pprint (GSig g s) = pprintParened g <+> char ':' <+> pprintParened s
 

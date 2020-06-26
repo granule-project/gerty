@@ -241,7 +241,6 @@ GradeAtom :: { Grade }
   : '(' Grade ')'      { GParens $2 }
   -- TODO: ensure we can only parse natural numbers here (2020-06-20)
   | '.' literal        { natTokenToUnaryNat $2 }
-  | '.' '_'            { GImplicit }
   | '.inf'             { GInf }
 
 

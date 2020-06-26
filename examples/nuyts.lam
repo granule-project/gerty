@@ -12,7 +12,7 @@
 RI' : (A : [.1, .0] Type 2) -> (B : [.1, .0] Type 2) -> Type 2
 RI' = \A -> \B
        -> (C : [.1, .2] Type 1)
-       -> (r : [.0, .0] (x : [._, .0] C) -> A)
+       -> (r : [.0, .0] (x : [_, .0] C) -> A)
        -> (y : [.0, .0] C) -> B
 
 leak : (A : [.0, .1] Type 2) -> RI' A (Type 1)
@@ -24,7 +24,7 @@ leak = \A C r c -> C
 RI'' : (A : [.1, .0] Type 2) -> (B : [.1, .0] Type 2) -> Type 2
 RI'' = \A -> \B
         -> (C : [.0, .2] Type 1)
-        -> (r : [.1, .0] (x : [._, .0] C) -> A)
+        -> (r : [.1, .0] (x : [_, .0] C) -> A)
         -> (y : [.0, .0] C) -> B
 
 -- the example of leak won't work for this refined RI''. Uncomment

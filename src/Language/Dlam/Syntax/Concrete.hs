@@ -369,9 +369,6 @@ data Grade
   -- | Least-upper bound @s .lub r@.
   | GLub Grade Grade
 
-  -- | Special grade when unspecified.
-  | GImplicit
-
   -- | Representation for other grade elements.
   | GExpr Expr
 
@@ -384,7 +381,7 @@ data Grade
 
 
 implicitGrade :: Grade
-implicitGrade = GImplicit
+implicitGrade = GExpr Implicit
 
 
 ---------------------------
@@ -471,7 +468,6 @@ instance Pretty Grade where
   isLexicallyAtomic GZero = True
   isLexicallyAtomic GOne = True
   isLexicallyAtomic GInf = True
-  isLexicallyAtomic GImplicit = True
   isLexicallyAtomic (GExpr g) = isLexicallyAtomic g
   isLexicallyAtomic _ = False
 
@@ -491,7 +487,6 @@ instance Pretty Grade where
           pprintSquishy n (s, r) = (char '.' <> integer n) <+> char '+' <+> pprintParened s <+> char '+' <+> pprint r
   pprint (GTimes g1 g2) = pprintParened g1 <+> text "*" <+> pprintParened g2
   pprint (GLub g1 g2) = pprintParened g1 <+> text "lub" <+> pprintParened g2
-  pprint GImplicit = text "._"
   pprint (GExpr g) = pprint g
   pprint (GSig g s) = pprintParened g <+> char ':' <+> pprintParened s
   pprint (GParens g) = parens (pprint g)
