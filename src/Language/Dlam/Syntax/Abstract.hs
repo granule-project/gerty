@@ -14,7 +14,6 @@ module Language.Dlam.Syntax.Abstract
   , mkIdent
   , ident
   , ignoreVar
-  , mkAbs
   , mkAbs'
   , mkAbsGr
   , absVar
@@ -38,10 +37,11 @@ module Language.Dlam.Syntax.Abstract
   , FRHS(..)
   , Declaration(..)
   , Abstraction
-  , mkImplicit
 
   -- * Metas
-  , MetaId(..)
+  , MetaId
+  , mkMetaId
+  , mkImplicit
 
   -- * Grading
   , Grade(..)
@@ -51,7 +51,6 @@ module Language.Dlam.Syntax.Abstract
   , pattern GZero
   , pattern GOne
   , pattern GInf
-  , gradeImplicit
   , atSpec
   , mkGrade
   , mkGradePlus
@@ -60,7 +59,6 @@ module Language.Dlam.Syntax.Abstract
   , GradeSpec(..)
   , Grade'(..)
   , Grading
-  , implicitGrading
   , mkGrading
   , grading
   , subjectGrade
@@ -219,9 +217,6 @@ absTy :: Abstraction -> Expr
 absTy = argTy . absArg
 
 
-mkAbs :: Name -> Expr -> Expr -> Abstraction
-mkAbs v e1 e2 = Abst { absArg = mkArg NotHidden (BindName v `gradedWith` implicitGrading `typedWith` e1), absExpr = e2 }
-
 mkAbsGr :: Name -> Expr -> Grade -> Grade -> Expr -> Abstraction
 mkAbsGr v e1 r s e2 = Abst { absArg = mkArg NotHidden (BindName v `gradedWith` (mkGrading r s) `typedWith` e1), absExpr = e2 }
 
@@ -232,6 +227,10 @@ mkAbs' isHid v g e1 e2 = Abst { absArg = mkArg isHid (BindName v `gradedWith` g 
 
 newtype MetaId = MetaId { getMetaId :: Integer }
   deriving (Show, Eq, Ord)
+
+
+mkMetaId :: Integer -> MetaId
+mkMetaId = MetaId
 
 
 -- | Levels, in the style of Agda: https://hackage.haskell.org/package/Agda-2.6.0.1/docs/Agda-Syntax-Internal.html#t:Level
@@ -297,7 +296,9 @@ data Expr
   | Hole
 
   -- | Implicits for synthesis.
-  | Implicit
+  -- |
+  -- | Implicits are resolved by the type checker and SMT solver.
+  | Implicit MetaId
 
   -- | Natural number type.
   | NatTy
@@ -314,7 +315,7 @@ data Expr
 
 
 -- | Make a new, unnamed, implicit term.
-mkImplicit :: Expr
+mkImplicit :: MetaId -> Expr
 mkImplicit = Implicit
 
 
@@ -483,11 +484,10 @@ mkGrade = Grade
 atSpec :: Grade' -> Grade -> Grade
 atSpec g (Grade _ gradeTy) = Grade g gradeTy
 
-gradeZero, gradeOne, gradeInf, gradeImplicit :: Grade
+gradeZero, gradeOne, gradeInf :: Grade
 gradeZero     = mkGrade GZero     GSImplicit
 gradeOne      = mkGrade GOne      GSImplicit
 gradeInf      = mkGrade GInf      GSImplicit
-gradeImplicit = mkGrade (GExpr Implicit) GSImplicit
 
 
 -- NOTE: these should only be used in ConcreteToAbstract, and they are
@@ -496,9 +496,6 @@ mkGradePlus, mkGradeTimes, mkGradeLub :: Grade -> Grade -> Grade
 mkGradePlus  g1 g2 = Grade (GPlus  (grade g1) (grade g2)) (gradeTy g1)
 mkGradeTimes g1 g2 = Grade (GTimes (grade g1) (grade g2)) (gradeTy g1)
 mkGradeLub   g1 g2 = Grade (GLub   (grade g1) (grade g2)) (gradeTy g1)
-
-implicitGrading :: Grading
-implicitGrading = mkGrading gradeImplicit gradeImplicit
 
 
 ---------------------------

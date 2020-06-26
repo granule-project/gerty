@@ -141,7 +141,7 @@ instance ToAbstract C.PiBindings ([A.TypedBinding], Locals) where
         s  :: C.Expr = typeOf arg
     ns' <- mapM toAbstract ns
     s' <- toAbstract s
-    g' <- maybe (pure A.implicitGrading) toAbstract g
+    g' <- maybe newImplicitGrading toAbstract g
     let nsLocs = zip ns ns'
     (piBinds, locals) <- withLocals nsLocs $ toAbstract (C.PiBindings bs)
     pure (fmap (A.mkTypedBinding i g' s' . A.bindName) ns' <> piBinds, nsLocs <> locals)
@@ -156,7 +156,7 @@ instance ToAbstract C.LambdaArgs ([A.LambdaArg], Locals) where
         s :: C.Expr = idc typeOf (const C.Implicit) $ un arg
     ns' <- mapM toAbstract ns
     s' <- toAbstract s
-    g' <- maybe (pure A.implicitGrading) toAbstract g
+    g' <- maybe newImplicitGrading toAbstract g
     let nsLocs = zip ns ns'
     (args, locals) <- withLocals nsLocs $ toAbstract bs
     pure (fmap (A.mkLambdaArg i g' s' . A.bindName) ns' <> args, nsLocs <> locals)
@@ -221,14 +221,16 @@ instance ToAbstract C.Expr A.Expr where
   toAbstract (C.Ident v) = toAbstract (OldQName v)
   toAbstract C.UnitTy = pure A.UnitTy
   toAbstract C.Unit = pure A.Unit
-  toAbstract C.UniverseNoLevel = A.univMeta <$> freshMeta
+  toAbstract C.UniverseNoLevel = A.univMeta <$> getFreshMetaId
   toAbstract (C.BoxTy g t) = A.BoxTy <$> toAbstract g <*> toAbstract t
   toAbstract (C.Box t) = A.Box <$> toAbstract t
   toAbstract (C.Universe l) = pure $ A.Universe (A.LMax [A.LitLevel l])
   toAbstract (C.Fun tA tB) = do
     name <- newIgnoredName
     (tA, tB) <- toAbstract (tA, tB)
-    pure . A.FunTy $ A.mkAbsGr name tA A.gradeImplicit A.gradeZero tB
+    subG <- newImplicitGrade
+    subTyG <- newZeroGrade
+    pure . A.FunTy $ A.mkAbsGr name tA subG subTyG tB
   toAbstract (C.Pi piBinds expr) = do
     (piBinds' :: [A.TypedBinding], mySpace) <- toAbstract piBinds
     expr' <- withLocals mySpace $ toAbstract expr
@@ -240,7 +242,9 @@ instance ToAbstract C.Expr A.Expr where
   toAbstract (C.NondepProductTy tA tB) = do
     name <- newIgnoredName
     (tA, tB) <- toAbstract (tA, tB)
-    pure $ A.ProductTy (A.mkAbsGr name tA A.gradeImplicit A.gradeZero tB)
+    subG <- newImplicitGrade
+    subTyG <- newZeroGrade
+    pure $ A.ProductTy (A.mkAbsGr name tA subG subTyG tB)
   toAbstract (C.ProductTy (x, r, tA) tB) = do
     (v, r, tA) <- toAbstract (x, r, tA)
     tB <- withLocals [(x, v)] $ toAbstract tB
@@ -249,7 +253,7 @@ instance ToAbstract C.Expr A.Expr where
   toAbstract (C.App f e) = A.App <$> toAbstract f <*> toAbstract e
   toAbstract (C.Sig e t) = A.Sig <$> toAbstract e <*> toAbstract t
   toAbstract C.Hole = pure A.Hole
-  toAbstract C.Implicit = pure A.Implicit
+  toAbstract C.Implicit = newImplicit
   toAbstract (C.Case e tp binds) = do
     e <- toAbstract e
     tp <- case tp of
@@ -329,11 +333,9 @@ instance ToAbstract C.Abstraction A.Abstraction where
     v <- toAbstract (C.absVar ab)
     t <- toAbstract (C.absTy ab)
     e <- withLocals [(C.absVar ab, v)] $ toAbstract (C.absExpr ab)
-    pure $ A.mkAbs v t e
-
-
-freshMeta :: SM A.MetaId
-freshMeta = A.MetaId . (\(NameId k) -> toInteger k) <$> getFreshNameId
+    s <- newImplicitGrade
+    r <- newImplicitGrade
+    pure $ A.mkAbsGr v t s r e
 
 
 ----------------------------
@@ -352,3 +354,16 @@ instance (ToAbstract a a', ToAbstract b b', ToAbstract c c') => ToAbstract (a, b
   toAbstract (x, y, z) = do
     (x, (y, z)) <- toAbstract (x, (y, z))
     pure (x, y, z)
+
+
+newImplicit :: SM A.Expr
+newImplicit = A.mkImplicit <$> getFreshMetaId
+
+
+newImplicitGrading :: SM A.Grading
+newImplicitGrading = A.mkGrading <$> newImplicitGrade <*> newImplicitGrade
+
+
+newImplicitGrade, newZeroGrade :: SM A.Grade
+newImplicitGrade = toAbstract C.implicitGrade
+newZeroGrade = toAbstract C.GZero

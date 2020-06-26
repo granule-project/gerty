@@ -89,7 +89,7 @@ instance {-# OVERLAPS #-} Substitutable CM (Name, Expr) Expr where
     pure (App e1' e2')
   substitute _ e@Universe{} = pure e
   substitute _ e@Hole{} = pure e
-  substitute _ e@Implicit = pure e
+  substitute _ e@Implicit{} = pure e
   substitute _ e@NatTy = pure e
   substitute _ e@NZero = pure e
   substitute _ e@NSucc = pure e

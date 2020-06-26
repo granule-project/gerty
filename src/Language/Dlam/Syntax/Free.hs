@@ -37,7 +37,7 @@ instance Free A.Expr where
   freeVars (A.Sig e _)                     = freeVars e
   freeVars (A.Universe l)                  = freeVars l
   freeVars A.Hole                          = Set.empty
-  freeVars A.Implicit                      = Set.empty
+  freeVars A.Implicit{}                    = Set.empty
   freeVars A.UnitTy                        = Set.empty
   freeVars A.Unit                          = Set.empty
   freeVars A.NatTy                         = Set.empty

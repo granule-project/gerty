@@ -56,7 +56,7 @@ finalNormalForm = pure
 
 -- | Normalise the expression via a series of reductions.
 normalise :: Expr -> CM Expr
-normalise Implicit = finalNormalForm Implicit
+normalise e@Implicit{} = finalNormalForm e
 normalise UnitTy = finalNormalForm UnitTy
 normalise Unit = finalNormalForm Unit
 normalise NatTy = finalNormalForm NatTy
@@ -138,8 +138,11 @@ equalExprs e1 e2 = do
     (Lam ab1, Lam ab2) -> equalAbs ab1 ab2
     (ProductTy ab1, ProductTy ab2) -> equalAbs ab1 ab2
     -- Implicits always match.
-    (Implicit, _) -> pure True
-    (_, Implicit) -> pure True
+    --
+    -- TODO: here we want to tell the solver to make the expressions
+    -- equal, like we do with gradeEq (2020-06-26)
+    (Implicit{}, _) -> pure True
+    (_, Implicit{}) -> pure True
     (Universe l1, Universe l2) -> levelsAreEqual l1 l2
     (UnitTy, UnitTy) -> pure True
     (Unit, Unit) -> pure True
@@ -517,7 +520,7 @@ checkExpr' (Lam lam) t ctxt = do
             else gradeMismatchAt' "pi binder" SubjectType (absVar pi) (subjectTypeGrade pi) r
         else gradeMismatchAt' "pi binder" Subject (absVar pi) (subjectGrade pi) s
 
-    _ -> tyMismatchAt "abs" (FunTy (mkAbs (mkIdent "?") Hole Hole)) t
+    _ -> expectedInferredTypeForm "function" t
 
 {-
   (M,g1 | g3,r | gZ) @ G, x : A |- B : Type l
@@ -756,7 +759,7 @@ inferExpr' (App t1 t2) ctxt = do
                , t2forXinB)
         Left mismatches ->
           gradeMismatchAt "application function" Context mismatches
-    _ -> tyMismatchAt "type of app left" (FunTy (mkAbs (mkIdent "?") Hole Hole)) funTy
+    _ -> expectedInferredTypeForm "function (type of app left)" funTy
 
 -----------------
 ----- Pairs -----

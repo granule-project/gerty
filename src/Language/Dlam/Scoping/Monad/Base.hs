@@ -12,6 +12,7 @@ module Language.Dlam.Scoping.Monad.Base
   , scrLog
   , scrRes
   , getFreshNameId
+  , getFreshMetaId
 
   -- * Environment
 
@@ -92,6 +93,11 @@ runNewScoper = runScoper startEnv startScoperState
 -- | Get a unique NameId.
 getFreshNameId :: SM NameId
 getFreshNameId = get >>= \s -> let c = nextNameId s in put s { nextNameId = succ c } >> pure c
+
+
+-- | Get a unique MetaId.
+getFreshMetaId :: SM MetaId
+getFreshMetaId = mkMetaId . fromIntegral <$> getFreshNameId
 
 
 -------------------------------
