@@ -903,12 +903,13 @@ inferExpr' (BoxTy _ t) ctxt = do
   pure (OutContext { subjectGradesOut = g, typeGradesOut = zeroesMatchingShape (types ctxt) }, mkUnivTy l)
 
 {-
-  (M | g5 | gZ) @ G |- A : Type l
+  (M | g5 | gZ) @ G |- A : Type l1
   (M | g1 | g2)  @ G |- t1 : Box (s, r) A
-  (M,g5 | g4,r | gZ) @ G, z : A |- B : Type l2
-  (M,g5 | g3,s | g4,r) @ G, x : A |- t2 : [x/z]B
+  (M,g5 | g4,r1 | gZ) @ G, z : A |- B : Type l2
+  (M,g5 | g3,s | g4,(r1 + r2)) @ G, x : A |- t2 : [x/z]B
   exists g6 such that g2 = g6 + g5
-  ------------------------------------------------------------------------------------- :: BoxE
+  exists r2 such that r = r1 + r2
+  -------------------------------------------------------------------------------------- :: BoxE
   (M | g1 + g3 | g6 + g4) @ G |- case t1 split z in C of [x] -> t2 : case t1 of [z] -> B
 -}
 -- TODO: currently just using 'as' for 'split', separate these! (GD: 2020-06-24)
@@ -922,10 +923,19 @@ inferExpr' (Case t1 tp [CasePatBound (PBox (PVar x')) t2]) ctxt = do
       -- (M | g5 | gZ) @ G |- A : Type l
       (g5, _) <- checkExprIsType tA ctxt
 
-      (z, g3, g4, r, xForZinB) <- do
+      -- exists r2 such that r = r1 + r2
+      r2 <- do
+        r2 <- getFreshName "r"
+        gty <- if gradeTy r == GSImplicit
+               then debug "no grade type specified, defaulting to ExactUsage" >> pure ExactUsage
+               else pure (gradeTy r)
+        existential r2 gty
+        pure (Grade (GExpr (Var r2)) gty)
+
+      (z, g3, g4, r1plusR2, xForZinB) <- do
         let mx = extendInputContext ctxt x tA g5
-        -- (M,g5 | g3,s | g4,r) @ G, x : A |- t2 : [x/z]B
-        (OutContext { subjectGradesOut = g3s, typeGradesOut = g4r }, xForZinB)
+        -- (M,g5 | g3,s | g4,(r1+r2)) @ G, x : A |- t2 : [x/z]B
+        (OutContext { subjectGradesOut = g3s, typeGradesOut = g4R1plusR2 }, xForZinB)
           <- case tp of
                Nothing -> inferExpr t2 mx
                Just (PVar z', tB) -> do
@@ -934,12 +944,12 @@ inferExpr' (Case t1 tp [CasePatBound (PBox (PVar x')) t2]) ctxt = do
                Just (p, _) -> patternMismatch p t1
         z <- getFreshName "z"
         let (g3, (_, sComp)) = unextend g3s
-            (g4, (_, rComp)) = unextend g4r
+            (g4, (_, r1plusR2)) = unextend g4R1plusR2
         _ <- verifyGradesEq "typing of body" Subject x s sComp
-        r <- verifyGradesEq "typing of type" SubjectType x r rComp
+        r <- verifyGradesEq "typing of type" SubjectType x r r1plusR2
         pure (z, g3, g4, r, xForZinB)
 
-      (g4', finTy) <-
+      (g4', r1, finTy) <-
         case tp of
           -- non-dependent elimination
           --
@@ -949,25 +959,27 @@ inferExpr' (Case t1 tp [CasePatBound (PBox (PVar x')) t2]) ctxt = do
           -- value of B from the typing of t2.
           Nothing -> do
             tB <- substitute (x, Var z) xForZinB
-            -- (M,g5 | g4,r | gZ) @ G, z : A |- B : Type l2
-            (g4r, _) <- checkExprIsType tB (extendInputContext ctxt z tA g5)
-            -- in this case we require that q is zero
-            let (g4, (_, rComp)) = unextend g4r
-            r <- verifyGradesEq "formation of product elim type (C)" Subject x r gradeZero
-            _ <- verifyGradesEq "formation of product elim type (C)" Subject x r rComp
+            -- (M,g5 | g4,r1 | gZ) @ G, z : A |- B : Type l2
+            (g4r1, _) <- checkExprIsType tB (extendInputContext ctxt z tA g5)
+            -- in this case we require that r1 is zero
+            let (g4, (_, r1)) = unextend g4r1
+            r1 <- verifyGradesEq "box case type" Subject x r1 gradeZero
+            _ <- verifyGradesEq "box case type" Subject x r r1
             let finTy = tB
-            pure (g4, finTy)
+            pure (g4, r1, finTy)
           Just (PVar z', tB) -> do
             let z = unBindName z'
-            -- (M,g5 | g4,r | gZ) @ G, z : A |- B : Type l2
-            (g4r, _) <- checkExprIsType tB (extendInputContext ctxt z tA g5)
-            let (g4, (_, r')) = unextend g4r
-            _ <- verifyGradesEq "formation of product elim type (C)" Subject x r r'
+            -- (M,g5 | g4,r1 | gZ) @ G, z : A |- B : Type l2
+            (g4r1, _) <- checkExprIsType tB (extendInputContext ctxt z tA g5)
+            let (g4, (_, r1)) = unextend g4r1
             -- TODO: this check (for freeVars) should probably be
             -- handled by equality (2020-06-24)
             let finTy = if z `Set.member` freeVars tB then Case t1 Nothing [CasePatBound (PBox (PVar (BindName z))) tB] else tB
-            pure (g4, finTy)
+            pure (g4, r1, finTy)
           Just (p, _) -> patternMismatch p t1
+
+      r1plusR2Comp <- gradeAdd r1 r2
+      _ <- verifyGradesEq "combined type-level use" SubjectType x r1plusR2 r1plusR2Comp
 
       g4 <- verifyGradeVecEq "?" g4 g4'
 

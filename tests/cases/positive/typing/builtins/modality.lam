@@ -17,9 +17,8 @@ letBox = \a b f p -> case p as z in b of [y] -> f y
 letBox' : (a b : [.0, .2] Type 0) (f : [.1, .0] (x : [.3, .0] a) -> b) -> (p : [.1, .0] a [.3, .0]) -> b
 letBox' = \a b f p -> case p of [y] -> f y
 
--- currently specialised to 0 until we have SMT (2020-06-24)
-boxId : (a : [.0, .2] Type 0) (x : [.1, .0] a [.4, .0]) -> a [.4, .0]
-boxId = \a x -> case x as p in a [.4, .0] of [z] -> [z]
+boxId : (a : [.0, .2] Type 0) (x : [.1, .0] a [.4, .2]) -> a [.4, .2]
+boxId = \a x -> case x as p in a [.4, .2] of [z] -> [z]
 
 -- TODO: this box eliminator is awaiting SMT solver support, so we can distinguish type-level grades (2020-06-24)
 --
