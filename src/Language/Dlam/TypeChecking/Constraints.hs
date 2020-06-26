@@ -272,7 +272,7 @@ compileCoeffect (GEnc i) t vars | i >= 2 =
       injection i = error . pprintShow $ "Cannot interpreter integer" <+> integer i <+> "for" <+> pprint t
 
 compileCoeffect grade ty _ =
-   solverError $ "Can't compile a grade:" <+> pprint grade <+> "{" <+> pprint grade <+> "}"
+   solverError $ "Can't compile a grade:" <+> pprint grade <+> "{" <+> pprint (show grade) <+> "}"
         <+> "of ty" <+> pprint ty
 
 -- | Generate equality constraints for two symbolic grades
