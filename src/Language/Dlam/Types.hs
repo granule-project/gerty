@@ -992,32 +992,37 @@ inferExpr' (Def n) ctxt = do
 inferExpr' (Universe l) ctxt =
   pure (zeroedOutContextForInContext ctxt, mkUnivTy (levelSucc l))
 
+{-
+  (M | g1 | gZ) @ G |- A : Type l
+  (M,g1 | g2,s | g3,r) @ G, x : A |- t : B
+  ------------------------------------------------------- :: Fun
+  (M | g2 | g1 + g3) @ G |- \x -> t : (x : [s, r] A) -o B
+-}
 inferExpr' (Lam lam) ctxt = do
   let x = absVar lam
       tA = absTy lam
-      slam = subjectGrade lam
-      rlam = subjectTypeGrade lam
+      t = absExpr lam
+      s = subjectGrade lam
+      r = subjectTypeGrade lam
 
-  (sigma1, _) <- checkExprIsType tA ctxt
+  -- (M | g1 | gZ) @ G |- A : Type l
+  (g1, _) <- checkExprIsType tA ctxt
 
-  -- Check body of the lambda
-  (outctxtBody, bodyTy) <- do
-     inferExpr (absExpr lam) (extendInputContext ctxt x tA sigma1)
+  -- (M,g1 | g2,s | g3,r) @ G, x : A |- t : B
+  (OutContext { subjectGradesOut = g2s, typeGradesOut = g3r }, tB)
+    <- inferExpr t (extendInputContext ctxt x tA g1)
 
   -- Check calculated grades against binder
-  let (sigma2, (_, s)) = unextend (subjectGradesOut outctxtBody)
-  let (sigma3, (_, r)) = unextend (typeGradesOut outctxtBody)
-  eq1 <- gradeEq s slam
-  if eq1
-    then do
-      eq2 <- gradeEq r rlam
-      if eq2
-        then do
-          tgo <- contextGradeAdd sigma1 sigma3
-          pure ( OutContext { subjectGradesOut = sigma2, typeGradesOut = tgo }
-               , FunTy (mkAbsGr x tA s r bodyTy))
-        else gradeMismatchAt' "pi binder" SubjectType x rlam r
-    else gradeMismatchAt' "pi binder" Subject x slam s
+  let (g2, (_, sComp)) = unextend g2s
+      (g3, (_, rComp)) = unextend g3r
+  s <- verifyGradesEq "pi binder (subject)" Subject x s sComp
+  r <- verifyGradesEq "pi binder (subject type)" SubjectType x r rComp
+
+  -- (M | g2 | g1 + g3) @ G |- \x -> t : (x : [s, r] A) -o B
+  g1plusG3 <- contextGradeAdd g1 g3
+
+  pure ( OutContext { subjectGradesOut = g2, typeGradesOut = g1plusG3 }
+       , FunTy (mkAbsGr x tA s r tB) )
 
 ----------------
 ----- Unit -----
