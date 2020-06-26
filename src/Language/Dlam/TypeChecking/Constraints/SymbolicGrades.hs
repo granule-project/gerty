@@ -1,23 +1,56 @@
 {-# LANGUAGE DeriveGeneric  #-}
-
-module Language.Dlam.TypeChecking.Constraints.SymbolicGrades where
+{-# LANGUAGE FlexibleContexts #-}
 
 {- Provides a symbolic representation of grades (coeffects, effects, indices)
    in order for a solver to use.
 -}
+module Language.Dlam.TypeChecking.Constraints.SymbolicGrades
+  (
+  -- * IOSolver
+    IOSolver
+  , runIOSolver
+  , solverError
+  , Symbolic
+
+  -- * Grades
+  , SGrade(..)
+  , match
+  , natLike
+  , symGradeLess
+  , symGradeGreater
+  , symGradeLessEq
+  , symGradeGreaterEq
+  , symGradeMeet
+  , symGradeJoin
+  , symGradePlus
+  , symGradeTimes
+  )
+  where
+
+
+import Control.Monad (liftM2)
+import Control.Monad.Except (ExceptT, MonadError, throwError, runExceptT)
+import Control.Monad.IO.Class (MonadIO, liftIO)
+import Data.SBV hiding (kindOf, name, symbolic, Symbolic)
+import GHC.Generics (Generic)
+
 
 import Language.Dlam.TypeChecking.Constraints.SNatX
+import Language.Dlam.TypeChecking.Monad.Base (SolverError, solverError')
+import Language.Dlam.Util.Pretty (Doc, pprint, pprintShow, quoted, (<+>))
 
-import Control.Monad.IO.Class
-import Control.Monad (liftM2)
--- import System.Exit (die)
-import Control.Exception
 
-import GHC.Generics (Generic)
-import Data.SBV hiding (kindOf, name, symbolic)
+type IOSolver = ExceptT SolverError IO
+type Symbolic = SymbolicT IOSolver
 
-solverError :: MonadIO m => String -> m a
-solverError msg = liftIO $ throwIO . ErrorCall $ msg
+
+solverError :: (MonadError SolverError m) => Doc -> m a
+solverError = throwError . solverError'
+
+
+runIOSolver :: (MonadIO m) => IOSolver a -> m (Either SolverError a)
+runIOSolver = liftIO . runExceptT
+
 
 -- Symbolic grades, for coeffects and indices
 data SGrade =
@@ -51,7 +84,7 @@ instance Mergeable SGrade where
     SInterval (symbolicMerge s sb lb1 lb2) (symbolicMerge s sb ub1 ub2)
   symbolicMerge _s _sb SPoint SPoint = SPoint
 
-  symbolicMerge _ _ s t = error $ cannotDo "symbolicMerge" s t
+  symbolicMerge _ _ s t = error . pprintShow $ cannotDo "symbolicMerge" s t
 
 symGradeLess :: SGrade -> SGrade -> Symbolic SBool
 symGradeLess (SInterval lb1 ub1) (SInterval lb2 ub2) =
@@ -150,9 +183,9 @@ symGradeTimes (SInterval lb1 ub1) (SInterval lb2 ub2) =
 symGradeTimes SPoint SPoint = return SPoint
 symGradeTimes s t = solverError $ cannotDo "times" s t
 
-cannotDo :: String -> SGrade -> SGrade -> String
+cannotDo :: Doc -> SGrade -> SGrade -> Doc
 cannotDo op s t =
-  "Cannot perform symbolic operation `"
-      <> op <> "` on "
-      <> show s <> " and "
-      <> show t
+  "Cannot perform symbolic operation"
+      <+> quoted op <+> "on"
+      <+> pprint (show s) <+> "and"
+      <+> pprint (show t)

@@ -11,16 +11,17 @@
 module Language.Dlam.TypeChecking.Constraints
   (provePredicate, Quantifier(..), SolverResult(..)) where
 
---import Data.Foldable (foldrM)
-import Data.SBV hiding (kindOf, name, symbolic, Interval)
+
 import Control.Monad (liftM2)
+import Data.SBV.Trans hiding (kindOf, name, symbolic, Interval, Symbolic)
 
-import Language.Dlam.Util.Pretty
-import Language.Dlam.TypeChecking.Predicates
 
-import Language.Dlam.TypeChecking.Constraints.SymbolicGrades
-import qualified Language.Dlam.TypeChecking.Constraints.SNatX as SNatX
 import Language.Dlam.Syntax.Abstract
+import qualified Language.Dlam.TypeChecking.Constraints.SNatX as SNatX
+import Language.Dlam.TypeChecking.Constraints.SymbolicGrades
+import Language.Dlam.TypeChecking.Predicates
+import Language.Dlam.Util.Pretty hiding ((<>))
+
 
 type Ctxt a = [(Name, a)]
 
@@ -34,7 +35,7 @@ data SolverResult
   | SolverProofError Doc
   | OtherSolverError Doc
 
-provePredicate :: Pred -> IO SolverResult
+provePredicate :: Pred -> IOSolver SolverResult
 provePredicate predicate
   | isTrivial predicate = do
       return QED
@@ -122,9 +123,9 @@ freshCVarScoped ::
   -> Symbolic SBool
 freshCVarScoped quant name (Interval t) q k =
 
-  freshCVarScoped quant (name ++ ".lower") t q
+  freshCVarScoped quant (pprintShow $ name <> ".lower") t q
    (\(predLb, solverVarLb) ->
-      freshCVarScoped quant (name ++ ".upper") t q
+      freshCVarScoped quant (pprintShow $ name <> ".upper") t q
        (\(predUb, solverVarUb) -> do
           -- Respect the meaning of intervals
           lessEq <- symGradeLessEq solverVarLb solverVarUb
@@ -148,8 +149,8 @@ freshCVarScoped quant name (Extended ExactUsage) q k =
      , SExtNat (SNatX.SNatX solverVar)))
 
 freshCVarScoped _ _ t _ _ =
-  solverError $ "Trying to make a fresh solver variable for a grade of type: "
-      ++ show t ++ " but I don't know how."
+  solverError $ "Trying to make a fresh solver variable for a grade of type:"
+      <+> pprint t <+> "but I don't know how."
 
 -- | What is the SBV representation of a quantifier
 compileQuantScoped :: QuantifiableScoped a => Quantifier -> String -> (SBV a -> Symbolic SBool) -> Symbolic SBool
@@ -162,6 +163,7 @@ compileQuantScoped _ = existentialScoped
 class QuantifiableScoped a where
   universalScoped :: String -> (SBV a -> Symbolic SBool) -> Symbolic SBool
   existentialScoped :: String -> (SBV a -> Symbolic SBool) -> Symbolic SBool
+
 
 instance QuantifiableScoped Integer where
   universalScoped v = forAll [v]
@@ -203,7 +205,7 @@ compile vars (Lub c1 c2 c3@(GExpr (Var v)) t) =
       pa1 <- approximatedByOrEqualConstraint s1 s3
       pb1 <- approximatedByOrEqualConstraint s2 s3
       --- and it is the least such upper bound
-      pc <- freshCVarScoped compileQuantScoped (ident v ++ ".up") t ForallQ
+      pc <- freshCVarScoped compileQuantScoped (pprintShow $ pprint v <> ".up") t ForallQ
               (\(py, y) -> do
                 pc1 <- approximatedByOrEqualConstraint s1 y
                 pc2 <- approximatedByOrEqualConstraint s2 y
@@ -214,7 +216,7 @@ compile vars (Lub c1 c2 c3@(GExpr (Var v)) t) =
 compile vars (ApproximatedBy c1 c2 t) =
   bindM2And' approximatedByOrEqualConstraint (compileCoeffect c1 t vars) (compileCoeffect c2 t vars)
 
-compile _vars c = error $ "Internal bug: cannot compile " ++ show c
+compile _vars c = error . pprintShow $ "Internal bug: cannot compile" <+> pprint c
 
 -- | Compile a grade term into its symbolic representation
 -- | (along with any additional predicates)
@@ -243,7 +245,7 @@ compileCoeffect (GEnc i) (Interval gspec) vars =
 compileCoeffect (GExpr (Var v)) _ vars =
    case lookup v vars of
     Just cvar -> return (cvar, sTrue)
-    _ -> solverError $ "Looking up a variable '" ++ show v ++ "' in " ++ show vars
+    _ -> solverError $ "Looking up a variable" <+> quoted v <+> "in" <+> pprint (show vars)
 
 compileCoeffect (GLub n m) k vars =
   bindM2And symGradeJoin (compileCoeffect n k vars) (compileCoeffect m k vars)
@@ -267,11 +269,11 @@ compileCoeffect (GEnc i) t vars | i >= 2 =
       injection 0 = GEnc 0
       injection 1 = GEnc 1
       injection i | i > 1 = GPlus (GEnc 1) (injection (i-1))
-      injection i = error $ "Cannot interpreter integer " ++ show i ++ " for " ++ pprintShow t
+      injection i = error . pprintShow $ "Cannot interpreter integer" <+> integer i <+> "for" <+> pprint t
 
 compileCoeffect grade ty _ =
-   solverError $ "Can't compile a grade: " ++ pprintShow grade ++ " {" ++ (show grade) ++ "}"
-        ++ " of ty " ++ pprintShow ty
+   solverError $ "Can't compile a grade:" <+> pprint grade <+> "{" <+> pprint grade <+> "}"
+        <+> "of ty" <+> pprint ty
 
 -- | Generate equality constraints for two symbolic grades
 eqConstraint :: SGrade -> SGrade -> Symbolic SBool
@@ -284,7 +286,7 @@ eqConstraint (SInterval lb1 ub1) (SInterval lb2 ub2) =
   liftM2 (.&&) (eqConstraint lb1 lb2) (eqConstraint ub1 ub2)
 
 eqConstraint x y =
-  solverError $ "Kind error trying to generate equality " ++ show x ++ " = " ++ show y
+  solverError $ "Kind error trying to generate equality" <+> pprint (show x) <+> "=" <+> pprint (show y)
 
 -- | Generate less-than-equal constraints for two symbolic grades
 approximatedByOrEqualConstraint :: SGrade -> SGrade -> Symbolic SBool
@@ -312,7 +314,7 @@ approximatedByOrEqualConstraint (SInterval lb1 ub1) (SInterval lb2 ub2) =
                 (approximatedByOrEqualConstraint ub1 ub2)
 
 approximatedByOrEqualConstraint x y =
-  solverError $ "Error trying to generate " ++ show x ++ " <= " ++ show y
+  solverError $ "Error trying to generate" <+> pprint (show x) <+> "<=" <+> pprint (show y)
 
 -- Useful combinators here
 -- Generalises `bindM2` to functions which return also a symbolic grades

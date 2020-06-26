@@ -53,9 +53,11 @@ module Language.Dlam.TypeChecking.Monad.Base
 
   -- * Exceptions and error handling
   , TCErr
+  , throwCM
   , isSyntaxErr
   , isScopingErr
   , isTypingErr
+  , SolverError
 
   -- ** Implementation errors
   , notImplemented
@@ -83,6 +85,7 @@ module Language.Dlam.TypeChecking.Monad.Base
   , solverNotValid
   , solverError
   , solverTimeout
+  , solverError'
 
   -- ** Parse errors
   , parseError
@@ -474,6 +477,9 @@ data TCError
   | ParseError ParseError
 
 
+-- for now, this is just an alias for a type-checker error, but we can
+-- separate this out if desired (2020-06-26)
+type SolverError = TCError
 
 
 instance Pretty TCError where
@@ -551,8 +557,11 @@ expectedInferredTypeForm :: Doc -> Expr -> CM a
 expectedInferredTypeForm descr t =
   throwCM (ExpectedInferredTypeForm descr t)
 
+solverError' :: Doc -> SolverError
+solverError' = SolverError
+
 solverError :: Doc -> CM a
-solverError msg = throwCM (SolverError msg)
+solverError = throwCM . solverError'
 
 solverNotValid :: Doc -> CM a
 solverNotValid msg = throwCM (SolverNotValid msg)
