@@ -11,10 +11,6 @@ module Language.Dlam.Syntax.Concrete
   , OneOrMoreBoundNames
   -- * Expressions
   , Expr(..)
-  , mkAbs
-  , absVar
-  , absTy
-  , absExpr
 
   -- ** Grading
   , Grade(..)
@@ -52,7 +48,6 @@ module Language.Dlam.Syntax.Concrete
   , FLHS(..)
   , FRHS(..)
   , Declaration(..)
-  , Abstraction
   , mkImplicit
   ) where
 
@@ -229,24 +224,6 @@ data Declaration
   -- | A record field.
   | Field Name Expr
   deriving (Show)
-
-newtype Abstraction = Abst { getAbst :: (Name, Expr, Expr) }
-  deriving (Show, Eq, Ord)
-
--- | Variable bound in the abstraction.
-absVar :: Abstraction -> Name
-absVar (Abst (v, _, _)) = v
-
--- | Type of the bound variable in the abstraction.
-absTy :: Abstraction -> Expr
-absTy (Abst (_, t, _)) = t
-
--- | Target expression of the abstraction.
-absExpr :: Abstraction -> Expr
-absExpr (Abst (_, _, t)) = t
-
-mkAbs :: Name -> Expr -> Expr -> Abstraction
-mkAbs v e1 e2 = Abst (v, e1, e2)
 
 
 data Expr

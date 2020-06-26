@@ -328,16 +328,6 @@ toUnqualifiedName C.Qualified{} = Nothing
 toUnqualifiedName (C.Unqualified n) = pure n
 
 
-instance ToAbstract C.Abstraction A.Abstraction where
-  toAbstract ab = do
-    v <- toAbstract (C.absVar ab)
-    t <- toAbstract (C.absTy ab)
-    e <- withLocals [(C.absVar ab, v)] $ toAbstract (C.absExpr ab)
-    s <- newImplicitGrade
-    r <- newImplicitGrade
-    pure $ A.mkAbsGr v t s r e
-
-
 ----------------------------
 ----- Helper Instances -----
 ----------------------------
