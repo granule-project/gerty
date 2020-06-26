@@ -252,7 +252,7 @@ instance ToAbstract C.Expr A.Expr where
   toAbstract (C.Pair l r) = A.Pair <$> toAbstract l <*> toAbstract r
   toAbstract (C.App f e) = A.App <$> toAbstract f <*> toAbstract e
   toAbstract (C.Sig e t) = A.Sig <$> toAbstract e <*> toAbstract t
-  toAbstract C.Hole = pure A.Hole
+  toAbstract C.Hole = newHole
   toAbstract C.Implicit = newImplicit
   toAbstract (C.Case e tp binds) = do
     e <- toAbstract e
@@ -344,6 +344,10 @@ instance (ToAbstract a a', ToAbstract b b', ToAbstract c c') => ToAbstract (a, b
   toAbstract (x, y, z) = do
     (x, (y, z)) <- toAbstract (x, (y, z))
     pure (x, y, z)
+
+
+newHole :: SM A.Expr
+newHole = A.mkHole <$> getFreshMetaId
 
 
 newImplicit :: SM A.Expr

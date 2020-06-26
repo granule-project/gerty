@@ -42,6 +42,7 @@ module Language.Dlam.Syntax.Abstract
   , MetaId
   , mkMetaId
   , mkImplicit
+  , mkHole
 
   -- * Grading
   , Grade(..)
@@ -293,7 +294,11 @@ data Expr
   | Unit
 
   -- | Holes for inference.
-  | Hole
+  -- |
+  -- | Holes represent values that the programmer intends to fill out,
+  -- | but would like some additional information/guidance from the
+  -- | typechecker (e.g., type, constraints, etc.).
+  | Hole MetaId
 
   -- | Implicits for synthesis.
   -- |
@@ -317,6 +322,11 @@ data Expr
 -- | Make a new, unnamed, implicit term.
 mkImplicit :: MetaId -> Expr
 mkImplicit = Implicit
+
+
+-- | Make a new hole.
+mkHole :: MetaId -> Expr
+mkHole = Hole
 
 
 -------------------
@@ -556,7 +566,7 @@ instance Pretty Expr where
     pprint (Var var) = pprint var
     pprint (Def name) = pprint name
     pprint (Sig e t) = pprintParened e <+> colon <+> pprint t
-    pprint Hole = char '?'
+    pprint (Hole m) = identifier (toInteger m) ("?" :: String)
     pprint (Implicit m) = identifier (toInteger m) ("_" :: String)
     pprint (Case e Nothing binds) =
       hang ("case" <+> pprint e <+> "of") 1 (vcat $ fmap pprint binds)
