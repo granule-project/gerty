@@ -399,6 +399,18 @@ zeroedOutContextForInContext inCtx =
   OutContext { subjectGradesOut = zeroesMatchingShape (types inCtx)
              , typeGradesOut = zeroesMatchingShape (types inCtx) }
 
+
+freshGradeVecMatchingShape :: Ctxt Grade -> CM (Ctxt Grade)
+freshGradeVecMatchingShape =
+  cMapM (\g -> do
+           n <- getFreshName "s"
+           gty <- if gradeTy g == GSImplicit
+                  then debug "no grade type specified, defaulting to ExactUsage" >> pure ExactUsage
+                  else pure (gradeTy g)
+           existential n gty
+           pure (Grade (GExpr (Var n)) gty))
+
+
 lookupAndCutoutIn :: Name -> InContext -> Maybe (InContext, (Type, Ctxt Grade), InContext)
 lookupAndCutoutIn n context = do
   (typesL, t, typesR)         <- lookupAndCutout1 n (types context)
@@ -896,7 +908,7 @@ inferExpr' (BoxTy _ t) ctxt = do
   (M | g1 | g2)  @ G |- t1 : Box (s, r) A
   (M,g5 | g4,r | gZ) @ G, z : A |- B : Type l2
   (M,g5 | g3,s | g4,r) @ G, x : A |- t2 : [x/z]B
-  exists g6 such that g2 = g6 + g5 -- TODO: awaiting SMT solver (2020-06-22)
+  exists g6 such that g2 = g6 + g5
   ------------------------------------------------------------------------------------- :: BoxE
   (M | g1 + g3 | g6 + g4) @ G |- case t1 split z in C of [x] -> t2 : case t1 of [z] -> B
 -}
@@ -942,7 +954,6 @@ inferExpr' (Case t1 tp [CasePatBound (PBox (PVar x')) t2]) ctxt = do
             (g4r, _) <- checkExprIsType tB (extendInputContext ctxt z tA g5)
             -- in this case we require that q is zero
             let (g4, (_, rComp)) = unextend g4r
-            r <- verifyGradesEq "formation of product elim type (C)" Subject x r gradeZero
             _ <- verifyGradesEq "formation of product elim type (C)" Subject x r rComp
             let finTy = tB
             pure (g4, finTy)
@@ -960,13 +971,8 @@ inferExpr' (Case t1 tp [CasePatBound (PBox (PVar x')) t2]) ctxt = do
 
       g4 <- verifyGradeVecEq "?" g4 g4'
 
-      -- TODO: currently specialised for the case where g6 = gZ, thus
-      -- g2 = g5.... PENDING SMT SOLVER (GD: 2020-06-24)
-      --
-      -- exists g6 such that g2 = g6 + g5 -- TODO: awaiting SMT solver (2020-06-22)
-      let g6 = zeroesMatchingShape (types ctxt)
-
-      -- TODO: add a check that g2 = g5 (2020-06-24)
+      -- exists g6 such that g2 = g6 + g5
+      g6 <- freshGradeVecMatchingShape g5
       g5plusG6 <- contextGradeAdd g5 g6
       _ <- verifyGradeVecEq "?" g2 g5plusG6
 
