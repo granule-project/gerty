@@ -776,7 +776,7 @@ inferExpr' (ProductTy ten) ctxt = do
   let x = absVar ten
       tA = absTy ten
       tB = absExpr ten
-      r = subjectTypeGrade ten
+  r <- existentiallyQuantifyGradeImplicits (subjectTypeGrade ten)
 
   -- (M | g1 | gZ) @ G |- A : Type l1
   (g1, l1) <- checkExprIsType tA ctxt
