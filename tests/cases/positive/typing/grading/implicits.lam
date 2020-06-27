@@ -16,3 +16,12 @@ t5 = (a : Type 0) -> a -> a
 
 t6 : Type 1
 t6 = (a : Type 0) (b : a -> Type 0) -> x :: .[_] a * b x
+
+t7 : x :: .[_] Nat * Nat
+t7 = (zero, zero)
+
+t8 : (a : Type 0) (b : a -> Type 0) -> (x : a) -> b x -> (x :: .[_] a * b x)
+t8 = \a b x y -> (x, y)
+
+t9 : (a : Type 0) (b : a -> Type 0) -> (x : a) -> b x -> (x :: a * b x)
+t9 = \a b x y -> (x, y)

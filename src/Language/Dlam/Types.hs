@@ -532,8 +532,8 @@ checkExpr' (Pair t1 t2) ty ctxt = do
     (ProductTy prod) -> do
       let x  = absVar prod
           tA = absTy prod
-          r  = subjectTypeGrade prod
           tB = absExpr prod
+      r <- existentiallyQuantifyGradeImplicits (subjectTypeGrade prod)
 
       -- (M | g2 | g1) @ G |- t1 : A
       (OutContext { subjectGradesOut = g2, typeGradesOut = g1 }, tA')
