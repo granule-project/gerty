@@ -305,8 +305,6 @@ data CaseBinding
 data Pattern
   = PIdent QName
   -- ^ x. (or could be a constructor).
-  | PAt  Name Pattern
-  -- ^ x@p.
   | PPair Pattern Pattern
   -- ^ (p1, p2).
   | PUnit
@@ -366,9 +364,8 @@ implicitGrade = GExpr Implicit
 ---------------------------
 
 
-arrow, at :: Doc
+arrow :: Doc
 arrow = text "->"
-at = char '@'
 
 
 instance (Pretty e) => Pretty (MaybeNamed e) where
@@ -429,13 +426,11 @@ instance Pretty CaseBinding where
 instance Pretty Pattern where
   isLexicallyAtomic PIdent{} = True
   isLexicallyAtomic PPair{}  = True
-  isLexicallyAtomic PAt{}    = True
   isLexicallyAtomic PUnit    = True
   isLexicallyAtomic _        = False
 
   pprint (PIdent v) = pprint v
   pprint (PPair l r) = angles $ pprint l <> comma <+> pprint r
-  pprint (PAt v p) = pprint v <> at <> pprint p
   pprint (PApp v args) = pprint v <+> (hsep $ fmap pprintParened args)
   pprint PUnit = text "unit"
   pprint (PParens p) = parens $ pprint p

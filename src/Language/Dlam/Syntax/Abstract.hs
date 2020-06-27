@@ -357,8 +357,6 @@ type ConName = Name
 data Pattern
   = PVar BindName
   -- ^ x.
-  | PAt  BindName Pattern
-  -- ^ x@p.
   | PPair Pattern Pattern
   -- ^ (p1, p2).
   | PUnit
@@ -373,7 +371,6 @@ data Pattern
 boundTypingVars :: Pattern -> Set.Set BindName
 boundTypingVars (PPair l r) = boundTypingVars l `Set.union` boundTypingVars r
 boundTypingVars (PVar _) = mempty
-boundTypingVars (PAt n p) = Set.singleton n `Set.union` boundTypingVars p
 boundTypingVars PUnit = mempty
 boundTypingVars (PCon _ args) = Set.unions $ fmap boundTypingVars args
 boundTypingVars (PBox p) = boundTypingVars p
@@ -382,7 +379,6 @@ boundTypingVars (PBox p) = boundTypingVars p
 boundSubjectVars :: Pattern -> Set.Set BindName
 boundSubjectVars (PPair l r) = boundSubjectVars l `Set.union` boundSubjectVars r
 boundSubjectVars (PVar n) = Set.singleton n
-boundSubjectVars (PAt _ p) = boundSubjectVars p
 boundSubjectVars PUnit = mempty
 boundSubjectVars (PCon _ args) = Set.unions $ fmap boundSubjectVars args
 boundSubjectVars (PBox p) = boundSubjectVars p
@@ -531,9 +527,8 @@ pprintAbs sep ab =
   in leftTyDoc <+> sep <+> pprint (absExpr ab)
 
 
-arrow, at :: Doc
+arrow :: Doc
 arrow = text "->"
-at = char '@'
 
 
 instance Pretty Expr where
@@ -585,7 +580,6 @@ instance Pretty CaseBinding where
 instance Pretty Pattern where
   pprint (PVar v) = pprint v
   pprint (PPair l r) = angles $ pprint l <> comma <+> pprint r
-  pprint (PAt v p) = pprint v <> at <> pprint p
   pprint PUnit = text "unit"
   pprint (PCon c args) = pprint c <+> (hsep $ fmap pprintParened args)
   pprint (PBox p) = brackets $ pprint p

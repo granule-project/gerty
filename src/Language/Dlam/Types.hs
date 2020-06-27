@@ -1106,8 +1106,6 @@ maybeGetPatternSubst :: Pattern -> Expr -> Maybe ([(Name, Expr)], [(Name, Expr)]
 maybeGetPatternSubst (PPair p1 p2) (Pair l r) =
   maybeGetPatternSubst p1 l <> maybeGetPatternSubst p2 r
 -- maybeGetPatternSubst PUnit (Builtin DUnitTerm) = pure []
-maybeGetPatternSubst (PAt n p) e =
-  (([], [(unBindName n, e)]) <>) <$> maybeGetPatternSubst p e
 maybeGetPatternSubst (PVar n) e = pure ([(unBindName n, e)], [])
 maybeGetPatternSubst (PBox p) (Box b) = maybeGetPatternSubst p b
 maybeGetPatternSubst _ _ = Nothing

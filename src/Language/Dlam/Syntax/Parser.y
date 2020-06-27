@@ -380,7 +380,6 @@ PatternAtomic :: { Pattern }
   | QId             { PIdent $1 }
   | 'unit'          { PUnit }
   | '[' Pattern ']' { PBox $2 }
-  | Ident '@' PatternAtomic { PAt $1 $3 }
   | '<' Pattern ',' Pattern '>' { PPair $2 $4 }
 
 

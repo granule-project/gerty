@@ -297,10 +297,6 @@ instance ToAbstract C.Pattern (A.Pattern, Locals) where
     (p1', p1vs) <- toAbstract p1
     (p2', p2vs) <- toAbstract p2
     pure $ (A.PPair p1' p2', p1vs <> p2vs)
-  toAbstract (C.PAt n p) = do
-    n' <- toAbstract n
-    (p', pvs) <- toAbstract p
-    pure $ (A.PAt (A.BindName n') p', (n, n') : pvs)
   toAbstract C.PUnit = pure (A.PUnit, [])
   toAbstract p@(C.PApp c args) = do
     c' <- maybeResolveMeAConstructor c
