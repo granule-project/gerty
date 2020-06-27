@@ -594,6 +594,7 @@ checkExpr' (Box t) ty ctxt = do
 -- Switch over to synth case
 checkExpr' e t ctxt = do
   debug $ "Check fall through for " <> pprint e
+  t <- forallBindExpr t
   --
   (ctxt', t') <- inferExpr e ctxt
   eq <- equalExprs t t'
@@ -997,7 +998,7 @@ inferExpr' (Case t1 tp [CasePatBound (PBox (PVar x')) t2]) ctxt = do
     _ -> expectedInferredTypeForm "graded modal" boxTy
 
 inferExpr' (Def n) ctxt = do
-  tA <- lookupType n >>= maybe (scoperError $ SE.unknownNameErr (C.Unqualified $ nameConcrete n)) pure
+  tA <- lookupType n >>= maybe (scoperError $ SE.unknownNameErr (C.Unqualified $ nameConcrete n)) forallBindExpr
   pure (zeroedOutContextForInContext ctxt, tA)
 
 inferExpr' (Universe l) ctxt =
@@ -1422,3 +1423,72 @@ existentiallyQuantifyExprImplicitsAsGrades e@(Implicit i) gty = do
          else pure gty
   existential (implicitToName i) gty >> pure e
 existentiallyQuantifyExprImplicitsAsGrades e _ = pure e
+
+
+-- | Bind any foralls in the grade.
+forallBindGrade :: Grade -> CM Grade
+forallBindGrade p@(Grade{grade=g,gradeTy=ty}) = do
+  case g of
+    GExpr e -> existentiallyQuantifyExprImplicitsAsGrades e ty
+               >>= \e -> pure p { grade = GExpr e }
+    -- GExpr e -> forallBindExpr e >>= \e -> pure p { grade = GExpr e }
+    GEnc{} -> pure p
+    GPlus l r -> do
+      l <- forallBindGrade (mkGrade l ty)
+      r <- forallBindGrade (mkGrade r ty)
+      pure p { grade = GPlus (grade l) (grade r) }
+    GTimes l r -> do
+      l <- forallBindGrade (mkGrade l ty)
+      r <- forallBindGrade (mkGrade r ty)
+      pure p { grade = GTimes (grade l) (grade r) }
+    GLub l r -> do
+      l <- forallBindGrade (mkGrade l ty)
+      r <- forallBindGrade (mkGrade r ty)
+      pure p { grade = GLub (grade l) (grade r) }
+    GSig s t -> do
+      -- TODO: make sure that t and ty are the same (2020-06-27)
+      forallBindGrade (mkGrade s t)
+
+
+forallBindLevel :: Level -> CM Level
+forallBindLevel (LMax ls) = LMax <$> mapM forallBindPlusLevel ls
+  where forallBindPlusLevel e@LitLevel{} = pure e
+        -- TODO: ensure meta gets bound here (2020-06-27)
+        forallBindPlusLevel e@LPlus{} = pure e
+
+
+-- | Bind any foralls in the signature.
+-- |
+-- | Rough idea: this should be used to pull in constraints from a
+-- | definition, for use in a calling definition, such that foralls in
+-- | the head definition can be unified with existentials in the
+-- | caller.
+forallBindExpr :: Expr -> CM Expr
+forallBindExpr e@Var{} = pure e
+forallBindExpr e@Def{} = pure e
+forallBindExpr e@NatTy{} = pure e
+forallBindExpr e@NSucc{} = pure e
+forallBindExpr e@NZero{} = pure e
+forallBindExpr (BoxTy (s, r) e) = do
+  s <- forallBindGrade s
+  r <- forallBindGrade r
+  e <- forallBindExpr e
+  pure (BoxTy (s, r) e)
+forallBindExpr (Box e) = Box <$> forallBindExpr e
+forallBindExpr (Universe l) = Universe <$> forallBindLevel l
+forallBindExpr (App l r) = App <$> forallBindExpr l <*> forallBindExpr r
+forallBindExpr (FunTy pi) = do
+  s <- forallBindGrade (subjectGrade pi)
+  r <- forallBindGrade (subjectTypeGrade pi)
+  a <- forallBindExpr (absTy pi)
+  b <- forallBindExpr (absExpr pi)
+  pure $ FunTy (mkAbsGr (absVar pi) a s r b)
+-- TODO: bind implicit here, when we support implicit terms (2020-06-27)
+forallBindExpr e@Implicit{} = pure e
+forallBindExpr (Lam ab) = do
+  s <- forallBindGrade (subjectGrade ab)
+  r <- forallBindGrade (subjectTypeGrade ab)
+  a <- forallBindExpr (absTy ab)
+  b <- forallBindExpr (absExpr ab)
+  pure $ Lam (mkAbsGr (absVar ab) a s r b)
+forallBindExpr e = notImplemented $ "forallBindExpr with" <+> quoted e

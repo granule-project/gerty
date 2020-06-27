@@ -25,3 +25,6 @@ t8 = \a b x y -> <x, y>
 
 t9 : (a : Type 0) (b : a -> Type 0) -> (x : a) -> b x -> (x :: a * b x)
 t9 = \a b x y -> <x, y>
+
+t10 : (a : Type 0) -> a -> a
+t10 = t4
