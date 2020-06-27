@@ -180,7 +180,7 @@ compile vars (Eq c1 c2 t) =
   bindM2And' eqConstraint (compileCoeffect c1 t vars) (compileCoeffect c2 t vars)
 
 -- Assumes that c3 is already existentially bound
-compile vars (Lub c1 c2 c3@(GExpr (Var v)) t) =
+compile vars (Lub c1 c2 c3@(GExpr i@(Implicit{})) t) =
 
   case t of
     {-
@@ -205,7 +205,7 @@ compile vars (Lub c1 c2 c3@(GExpr (Var v)) t) =
       pa1 <- approximatedByOrEqualConstraint s1 s3
       pb1 <- approximatedByOrEqualConstraint s2 s3
       --- and it is the least such upper bound
-      pc <- freshCVarScoped compileQuantScoped (pprintShow $ pprint v <> ".up") t ForallQ
+      pc <- freshCVarScoped compileQuantScoped (pprintShow $ pprint i <> ".up") t ForallQ
               (\(py, y) -> do
                 pc1 <- approximatedByOrEqualConstraint s1 y
                 pc2 <- approximatedByOrEqualConstraint s2 y
@@ -242,7 +242,8 @@ compileCoeffect (GEnc i) (Interval gspec) vars =
         (compileCoeffect (GEnc i) gspec vars)
         (compileCoeffect (GEnc i) gspec vars)
 
-compileCoeffect (GExpr (Var v)) _ vars =
+compileCoeffect (GExpr (Implicit i)) _ vars =
+   let v = implicitToName i in
    case lookup v vars of
     Just cvar -> return (cvar, sTrue)
     _ -> solverError $ "Looking up a variable" <+> quoted v <+> "in" <+> pprint (show vars)

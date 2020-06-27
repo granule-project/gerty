@@ -43,6 +43,7 @@ module Language.Dlam.Syntax.Abstract
   , mkMetaId
   , mkImplicit
   , mkHole
+  , implicitToName
 
   -- * Grading
   , Grade(..)
@@ -327,6 +328,10 @@ mkImplicit = Implicit
 -- | Make a new hole.
 mkHole :: MetaId -> Expr
 mkHole = Hole
+
+
+implicitToName :: MetaId -> Name
+implicitToName m = let nid = NameId (fromIntegral m) in Name nid (C.NoName nid)
 
 
 -------------------

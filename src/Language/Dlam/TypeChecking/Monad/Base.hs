@@ -25,6 +25,7 @@ module Language.Dlam.TypeChecking.Monad.Base
 
   , getFreshNameId
   , getFreshName
+  , getFreshMetaId
 
   -- ** Scope
   , lookupType
@@ -253,6 +254,11 @@ getFreshName :: String -> CM Name
 getFreshName s = do
   n <- getFreshNameId
   pure (Name n (C.Name s))
+
+
+-- | Get a unique NameId.
+getFreshMetaId :: CM MetaId
+getFreshMetaId = getFreshNameId >>= pure . mkMetaId . toInteger
 
 
 lookupType :: Name -> CM (Maybe Expr)

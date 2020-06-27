@@ -400,14 +400,7 @@ zeroedOutContextForInContext inCtx =
 
 
 freshGradeVecMatchingShape :: Ctxt Grade -> CM (Ctxt Grade)
-freshGradeVecMatchingShape =
-  cMapM (\g -> do
-           n <- getFreshName "s"
-           gty <- if gradeTy g == GSImplicit
-                  then debug "no grade type specified, defaulting to ExactUsage" >> pure ExactUsage
-                  else pure (gradeTy g)
-           existential n gty
-           pure (Grade (GExpr (Var n)) gty))
+freshGradeVecMatchingShape = cMapM (newExistentialGrade . gradeTy)
 
 
 lookupAndCutoutIn :: Name -> InContext -> Maybe (InContext, (Type, Ctxt Grade), InContext)
@@ -924,13 +917,7 @@ inferExpr' (Case t1 tp [CasePatBound (PBox (PVar x')) t2]) ctxt = do
       (g5, _) <- checkExprIsType tA ctxt
 
       -- exists r2 such that r = r1 + r2
-      r2 <- do
-        r2 <- getFreshName "r"
-        gty <- if gradeTy r == GSImplicit
-               then debug "no grade type specified, defaulting to ExactUsage" >> pure ExactUsage
-               else pure (gradeTy r)
-        existential r2 gty
-        pure (Grade (GExpr (Var r2)) gty)
+      r2 <- newExistentialGrade (gradeTy r)
 
       (z, g3, g4, r1plusR2, xForZinB) <- do
         let mx = extendInputContext ctxt x tA g5
@@ -1378,3 +1365,14 @@ requireSameTypedGrades :: Grade -> Grade -> CM GradeSpec
 requireSameTypedGrades Grade{gradeTy=s1} Grade{gradeTy=s2} = do
   eqTys <- gradeTypesAreEqual s1 s2
   if eqTys then pure s1 else gradeTyMismatch s1 s2
+
+
+-- | Generate a new, existentially bound, implicit grade.
+newExistentialGrade :: GradeSpec -> CM Grade
+newExistentialGrade gty = do
+  i <- getFreshMetaId
+  gty <- if gty == GSImplicit
+         then debug "no grade type specified, defaulting to ExactUsage" >> pure ExactUsage
+         else pure gty
+  existential (implicitToName i) gty
+  pure (Grade (GExpr (mkImplicit i)) gty)
