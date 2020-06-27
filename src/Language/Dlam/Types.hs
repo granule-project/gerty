@@ -459,6 +459,9 @@ checkOrInferTypeNew :: Type -> Expr -> CM ()
 checkOrInferTypeNew ty expr = do
   newConjunct
   outContext <- checkExpr expr ty emptyInContext
+  -- TODO: ensure that any existentially-bound implicits that don't
+  -- have an exact value after resolution cause the program to fail
+  -- (2020-06-27)
   if isEmpty outContext
     then do
       -- Time to check that any theorems hold
