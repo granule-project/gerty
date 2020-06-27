@@ -246,7 +246,7 @@ compileCoeffect (GExpr (Implicit i)) _ vars =
    let v = implicitToName i in
    case lookup v vars of
     Just cvar -> return (cvar, sTrue)
-    _ -> solverError $ "Looking up a variable" <+> quoted v <+> "in" <+> pprint (show vars)
+    _ -> solverError $ "Looking up a variable" <+> quoted v <+> "in" <+> pprintVars vars
 
 compileCoeffect (GLub n m) k vars =
   bindM2And symGradeJoin (compileCoeffect n k vars) (compileCoeffect m k vars)
@@ -338,3 +338,7 @@ bindM2And' k ma mb = do
 
 liftM2And :: Monad m => (t1 -> t2 -> b) -> m (t1, SBool) -> m (t2, SBool) -> m (b, SBool)
 liftM2And k = bindM2And (\a b -> return (k a b))
+
+
+pprintVars :: [(Name, SGrade)] -> Doc
+pprintVars = pprintList . fmap (\(n, v) -> pprintPair (pprint n, show v))
