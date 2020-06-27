@@ -301,6 +301,7 @@ Expr1 :: { Expr }
   : Application { mkAppFromExprs $1 }
   | Expr1 '*' Expr1   { NondepProductTy $1 $3 }
   | Ident '::' Expr1 '*' Expr1 { ProductTy ($1, implicitGrade, $3) $5 }
+  | Ident '::' '.' '[' Grade ']' Expr1 '*' Expr1 { ProductTy ($1, $5, $7) $9 }
   | Ident '::' '[' Grade ']' Expr1 '*' Expr1 { ProductTy ($1, $4, $6) $8 }
   | Expr1 ',' Expr1 { Pair $1 $3 }
   | Expr3 '[' Grade ',' Grade ']' { BoxTy ($3, $5) $1 }
