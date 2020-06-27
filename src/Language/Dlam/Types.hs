@@ -466,7 +466,7 @@ checkOrInferTypeNew ty expr = do
         OtherSolverError msg -> solverError msg
         SolverProofError msg -> solverError msg
 
-    else error "Binders are left!"
+    else internalBug "Binders are left!"
 
 -- TODO: Perhaps combine 'checkExpr' and 'inferExpr' by taking in a
 -- 'Maybe Type', which you then use to determine whether to synth or
