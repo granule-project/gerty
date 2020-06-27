@@ -54,12 +54,12 @@ lamMixedArgs = \(l1 l2 : Level) (a : Type l1) b -> b
 
 -- the dependent tensor type uses the syntax 'x :: a * b'
 tenSimple : x :: Type 2 * x
-tenSimple = (Type 1, Type 0)
+tenSimple = <Type 1, Type 0>
 
 -- when the type of the second element does not depend upon the value
 -- of the first, you can omit the binder
 tenNonDep : Type 1 * Type 1
-tenNonDep = (Type 0, Type 0)
+tenNonDep = <Type 0, Type 0>
 
 -----------
 -- Pairs --
@@ -68,7 +68,7 @@ tenNonDep = (Type 0, Type 0)
 -- pairs are formed by separating each component by a comma,
 -- surrounded by parentheses
 pairSimple : Type 1 * Type 1
-pairSimple = (Type 0, Type 0)
+pairSimple = <Type 0, Type 0>
 
 -----------------------
 -- Tensor eliminator --
@@ -76,7 +76,7 @@ pairSimple = (Type 0, Type 0)
 
 -- tensors are eliminated through the syntax 'let (x, y) = e1 in e2'
 pairElimSimple : Level * Level -> Level
-pairElimSimple = \p -> let (x, y) = p in lmax x y
+pairElimSimple = \p -> let <x, y> = p in lmax x y
 
 
 ----------------

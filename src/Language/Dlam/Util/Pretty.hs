@@ -15,6 +15,7 @@ module Language.Dlam.Util.Pretty
   , pprintList
   , pprintPair
   , quoted
+  , angles
   , bold
   , red
   , green
@@ -115,6 +116,11 @@ instance Pretty Doc where
 
 quoted :: (Pretty a) => a -> Doc
 quoted = quotes . pprint
+
+
+-- | Pretty-print a value inside angle brackets.
+angles :: (Pretty a) => a -> Doc
+angles p = char '<' <> pprint p <> char '>'
 
 
 -- | Pretty-print an identifier.

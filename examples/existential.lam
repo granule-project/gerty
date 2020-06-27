@@ -12,7 +12,7 @@ pack : (a : [.0, .3] Type 0)
        (x : [.1, .inf] a)
        (y : [.1, .0] b x)
        -> exists a b
-pack = \a b x y -> [x, y]
+pack = \a b x y -> [<x, y>]
 
 
 open : (a : [.0, .3] Type 0)
@@ -21,7 +21,7 @@ open : (a : [.0, .3] Type 0)
        (f : [.1, .0] (x : [.inf, .0] a) (y : [.inf, .0] b x) -> c)
        (p : [.inf, .0] exists a b)
        -> c
-open = \a b c f p -> case p of [q] -> case q of (s, r) -> f s r
+open = \a b c f p -> case p of [q] -> case q of <s, r> -> f s r
 
 
 existsNonDep : (a b : [.1, .0] Type 0) -> Type 0

@@ -567,7 +567,7 @@ instance Pretty Expr where
     pprint (App (Sig e1 t) e2) =
       pprintParened (Sig e1 t) <+> pprintParened e2
     pprint (App e1 e2) = pprint e1 <+> pprintParened e2
-    pprint (Pair e1 e2) = parens (pprint e1 <> comma <+> pprint e2)
+    pprint (Pair e1 e2) = angles (pprint e1 <> comma <+> pprint e2)
     pprint (Var var) = pprint var
     pprint (Def name) = pprint name
     pprint (Sig e t) = pprintParened e <+> colon <+> pprint t
@@ -584,7 +584,7 @@ instance Pretty CaseBinding where
 
 instance Pretty Pattern where
   pprint (PVar v) = pprint v
-  pprint (PPair l r) = parens $ pprint l <> comma <+> pprint r
+  pprint (PPair l r) = angles $ pprint l <> comma <+> pprint r
   pprint (PAt v p) = pprint v <> at <> pprint p
   pprint PUnit = text "unit"
   pprint (PCon c args) = pprint c <+> (hsep $ fmap pprintParened args)

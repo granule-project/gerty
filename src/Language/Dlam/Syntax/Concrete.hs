@@ -410,7 +410,7 @@ instance Pretty Expr where
     pprint (App (Sig e1 t) e2) =
       pprintParened (Sig e1 t) <+> pprintParened e2
     pprint (App e1 e2) = pprint e1 <+> pprintParened e2
-    pprint (Pair e1 e2) = parens (pprint e1 <> comma <+> pprint e2)
+    pprint (Pair e1 e2) = angles (pprint e1 <> comma <+> pprint e2)
     pprint (Ident var) = pprint var
     pprint (Sig e t) = pprintParened e <+> colon <+> pprint t
     pprint Hole = char '?'
@@ -434,7 +434,7 @@ instance Pretty Pattern where
   isLexicallyAtomic _        = False
 
   pprint (PIdent v) = pprint v
-  pprint (PPair l r) = parens $ pprint l <> comma <+> pprint r
+  pprint (PPair l r) = angles $ pprint l <> comma <+> pprint r
   pprint (PAt v p) = pprint v <> at <> pprint p
   pprint (PApp v args) = pprint v <+> (hsep $ fmap pprintParened args)
   pprint PUnit = text "unit"

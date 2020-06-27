@@ -303,7 +303,6 @@ Expr1 :: { Expr }
   | Ident '::' Expr1 '*' Expr1 { ProductTy ($1, implicitGrade, $3) $5 }
   | Ident '::' '.' '[' Grade ']' Expr1 '*' Expr1 { ProductTy ($1, $5, $7) $9 }
   | Ident '::' '[' Grade ']' Expr1 '*' Expr1 { ProductTy ($1, $4, $6) $8 }
-  | Expr1 ',' Expr1 { Pair $1 $3 }
   | Expr3 '[' Grade ',' Grade ']' { BoxTy ($3, $5) $1 }
 
 Application :: { [Expr] }
@@ -347,6 +346,7 @@ Atom :: { ParseExpr }
   | '[' Expr ']'              { Box $2 }
   | 'unit'                    { Unit }
   | 'Unit'                    { UnitTy }
+  | '<' Expr1 ',' Expr1 '>'   { Pair $2 $4 }
 
   -- For later
   -- | '?' { Hole }
@@ -360,7 +360,6 @@ CaseBindings1 :: { NE.NonEmpty CaseBinding }
 
 Pattern :: { Pattern }
   : QId SomeAtomicPatterns     { PApp $1 $2 }
-  | Pattern ',' Pattern { PPair $1 $3 }
   | PatternAtomic %prec LOWEST { $1 }
 
 
@@ -382,6 +381,7 @@ PatternAtomic :: { Pattern }
   | 'unit'          { PUnit }
   | '[' Pattern ']' { PBox $2 }
   | Ident '@' PatternAtomic { PAt $1 $3 }
+  | '<' Pattern ',' Pattern '>' { PPair $2 $4 }
 
 
 -- Arguments for a lambda term.

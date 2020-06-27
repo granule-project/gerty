@@ -11,10 +11,10 @@ t : x :: [.0] A * B
 t : x :: .[_] A * B
 
 -- pair
-t = (x, y)
+t = <x, y>
 
 -- tensor eliminator
-t = case p of (x, y) -> t
+t = case p of <x, y> -> t
 
 -- tensor eliminator (with as)
-t = case p as z in C of (x, y) -> t
+t = case p as z in C of <x, y> -> t
