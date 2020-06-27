@@ -10,3 +10,6 @@ t3 : (a : Type 0) -> a -> a
 t3 = \a x -> x
 
 t4 = \(a : Type 0) (x : a) -> x
+
+t5 : Type 1
+t5 = (a : Type 0) -> a -> a

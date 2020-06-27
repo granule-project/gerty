@@ -644,39 +644,42 @@ inferExpr' (Var x) ctxt = do
 
 {-
 
-(D         | sigma1    | 0) . G        |- A : Type l1
-(D, sigma1 | sigma2, r | 0) . G, x : A |- B : Type l2
----------------------------------------------------------------------- -o
-(D | sigma1 + sigma2   | 0)  . G |- (x :(s, r) A -o B) : Type (l1 u l2)
-)
-
+-}
+{-
+  (M | g1 | gZ) @ G |- A : Type l1
+  (M,g1 | g2,r | gZ) @ G, x : A |- B : Type l2
+  ----------------------------------------------------------------- :: Fun
+  (M | g1 + g2 | gZ) @ G |- (x : (s, r) A) -o B : Type (lmax l1 l2)
 -}
 
 -- (x :(s, r) A -o B)
 inferExpr' (FunTy pi) ctxt = do
-  debug $ "Infer for pi type " <> pprint (FunTy pi)
+  -- TODO: this might not be needed, as we don't do any equations with 's' (this might be a forall) (2020-06-27)
+  _ <- existentiallyQuantifyGradeImplicits (subjectGrade pi)
+  rPi <- existentiallyQuantifyGradeImplicits (subjectTypeGrade pi)
+
+  let x = absVar pi
+      tA = absTy pi
+      tB = absExpr pi
 
   -- Infer type of parameter A
   debug $ "Infer for pi type (infer for param type)"
-  (sigma1, l1) <- checkExprIsType (absTy pi) ctxt
+  (g1, l1) <- checkExprIsType tA ctxt
 
   -- Infer type of function type body B
   debug $ "Infer for pi type (infer for body type)"
-  (sigma2r, l2) <- checkExprIsType (absExpr pi)
-    (extendInputContext ctxt (absVar pi) (absTy pi) sigma1)
+  (g2r, l2) <- checkExprIsType tB (extendInputContext ctxt x tA g1)
 
-  let (sigma2, (_, rInferred)) = unextend sigma2r
+  let (g2, (_, r)) = unextend g2r
 
   -- (ii) Check binder grade specification matches usage `r`
-  eq <- gradeEq rInferred (subjectTypeGrade pi)
-  if eq
-    then do
-      lmaxl1l2 <- levelMax l1 l2
-      sgo <- contextGradeAdd sigma1 sigma2
-      pure ( OutContext { subjectGradesOut = sgo
-                        , typeGradesOut = zeroesMatchingShape (types ctxt) }
-           , mkUnivTy lmaxl1l2)
-    else gradeMismatchAt' "pi type binder" Subject (absVar pi) (subjectTypeGrade pi) rInferred
+  _ <- verifyGradesEq "pi type binder" Subject x r rPi
+
+  lmaxl1l2 <- levelMax l1 l2
+  g1plusG2 <- contextGradeAdd g1 g2
+  pure ( OutContext { subjectGradesOut = g1plusG2
+                    , typeGradesOut = zeroesMatchingShape (types ctxt) }
+       , mkUnivTy lmaxl1l2)
 
 {-
 
