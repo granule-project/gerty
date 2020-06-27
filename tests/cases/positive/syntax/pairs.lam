@@ -14,4 +14,7 @@ t : x :: .[_] A * B
 t = (x, y)
 
 -- tensor eliminator
-t = let (x, y) = p in t
+t = case p of (x, y) -> t
+
+-- tensor eliminator (with as)
+t = case p as z in C of (x, y) -> t
