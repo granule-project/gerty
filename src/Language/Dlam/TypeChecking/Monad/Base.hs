@@ -46,6 +46,7 @@ module Language.Dlam.TypeChecking.Monad.Base
 
   -- * Predicates
   , getPredicateStack
+  , resetPredicateStack
   , addConstraint
   , existential
   , universal
@@ -365,6 +366,14 @@ withCheckingOfTopLevel n = local (tceSetCurrentTopLevel n)
 
 getPredicateStack :: CM [Pred]
 getPredicateStack = fmap predicateStack $ get
+
+
+setPredicateStack :: [Pred] -> CM ()
+setPredicateStack s = modify (\st -> st { predicateStack = s })
+
+
+resetPredicateStack :: CM ()
+resetPredicateStack = setPredicateStack []
 
 
 -- Add a constraint to the predicate stack

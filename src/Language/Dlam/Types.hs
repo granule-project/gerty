@@ -240,6 +240,9 @@ doDeclarationInference (FunEqn (FLHSName v) (FRHSAssign e)) =
   -- assign the appopriate equation and normalised/inferred type for the name
   setValue v e
   registerTypeForName v exprTy
+  -- reset stack, so that predicates from previous equations don't
+  -- bleed into the wrong scope
+  resetPredicateStack
   pure (FunEqn (FLHSName v) (FRHSAssign e))
 
 
