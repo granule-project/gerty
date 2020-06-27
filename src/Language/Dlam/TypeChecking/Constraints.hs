@@ -257,6 +257,8 @@ compileCoeffect (GPlus n m) k vars =
 compileCoeffect (GTimes n m) k vars =
   bindM2And symGradeTimes (compileCoeffect n k vars) (compileCoeffect m k vars)
 
+-- TODO: make sure this doesn't accidentally access a user defined
+-- Interval, rather than the builtin one (2020-06-27)
 compileCoeffect (GExpr (App (App (Var (ident -> "Interval")) lb) ub)) (Interval t) vars = do
   (lower, p1) <- compileCoeffect (GExpr lb) t vars
   (upper, p2) <- compileCoeffect (GExpr ub) t vars

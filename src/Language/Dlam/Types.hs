@@ -468,6 +468,9 @@ checkOrInferTypeNew ty expr = do
 
     else error "Binders are left!"
 
+-- TODO: Perhaps combine 'checkExpr' and 'inferExpr' by taking in a
+-- 'Maybe Type', which you then use to determine whether to synth or
+-- checkExpr (2020-06-27)
 checkExpr :: Expr -> Type -> InContext -> CM OutContext
 checkExpr e t c =
   debugBlock "checkExpr"
