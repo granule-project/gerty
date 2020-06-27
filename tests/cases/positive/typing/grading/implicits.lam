@@ -1,0 +1,12 @@
+-- tests for implicit grades
+
+t1 : (a : [_, _] Type 0) -> Type 0
+t1 = \a -> a
+
+t2 : (a : [_, _] Type 0) (x : [_, _] a) -> a
+t2 = \a x -> x
+
+t3 : (a : Type 0) -> a -> a
+t3 = \a x -> x
+
+t4 = \(a : Type 0) (x : a) -> x

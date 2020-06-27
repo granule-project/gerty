@@ -478,44 +478,43 @@ checkExpr e t c =
     (\_ -> "checked OK for '" <> pprint e <> "'") (checkExpr' e t c)
 
 {-
-
-(Delta | sigma1 | 0) . G |- A : Type l
-(Delta, sigma1 | sigma2, s | sigma3, r) . G, x : A |- t : B
------------------------------------------------------------------------ abs
-(Delta | sigma2 | sigma1 + sigma3) . G |- \x . t : (x :(r, s) A -o B )
-
+  (M | g1 | gZ) @ G |- A : Type l
+  (M,g1 | g2,s | g3,r) @ G, x : A |- t : B
+  ------------------------------------------------------- :: Fun
+  (M | g2 | g1 + g3) @ G |- \x -> t : (x : [s, r] A) -o B
 -}
 
 checkExpr' :: Expr -> Type -> InContext -> CM OutContext
 checkExpr' (Lam lam) t ctxt = do
+  sLam <- existentiallyQuantifyGradeImplicits (subjectGrade lam)
+  rLam <- existentiallyQuantifyGradeImplicits (subjectTypeGrade lam)
   case t of
     -- (x : A) -> B
     FunTy pi -> do
-      (sigma1, _) <- checkExprIsType (absTy pi) ctxt
+      sPi <- existentiallyQuantifyGradeImplicits (subjectGrade pi)
+      rPi <- existentiallyQuantifyGradeImplicits (subjectTypeGrade pi)
+      let x = absVar pi
+      sBinder <- verifyGradesEq "pi binder" Subject x sLam sPi
+      rBinder <- verifyGradesEq "pi binder" SubjectType x rLam rPi
+      -- substitute the Pi var for the Lam var in the Lam body,
+      -- to make sure that variable lookups try and find the
+      -- right variable
+      lamBody <- substitute (absVar lam, Var x) (absExpr lam)
 
-      outctxtBody <- do
+      (g1, _) <- checkExprIsType (absTy pi) ctxt
+
+      (OutContext { subjectGradesOut = g2s, typeGradesOut = g3r }) <- do
          debug $ "Check body binding `" <> pprint (absVar pi) <> "` in scope"
-         -- substitute the Pi var for the Lam var in the Lam body,
-         -- to make sure that variable lookups try and find the
-         -- right variable
-         lamBody <- substitute (absVar lam, Var (absVar pi)) (absExpr lam)
          checkExpr lamBody (absExpr pi)
-                 (extendInputContext ctxt (absVar pi) (absTy pi) sigma1)
+                 (extendInputContext ctxt x (absTy pi) g1)
 
       -- Check calculated grades against binder
-      let (sigma2, (_, s)) = unextend (subjectGradesOut outctxtBody)
-      let (sigma3, (_, r)) = unextend (typeGradesOut outctxtBody)
-      eq1 <- gradeEq s (subjectGrade pi)
-      if eq1
-        then do
-          eq2 <- gradeEq r (subjectTypeGrade pi)
-          if eq2
-            then do
-              tgo <- contextGradeAdd sigma1 sigma3
-              pure $ OutContext { subjectGradesOut = sigma2, typeGradesOut = tgo }
-            else gradeMismatchAt' "pi binder" SubjectType (absVar pi) (subjectTypeGrade pi) r
-        else gradeMismatchAt' "pi binder" Subject (absVar pi) (subjectGrade pi) s
-
+      let (g2, (_, s)) = unextend g2s
+          (g3, (_, r)) = unextend g3r
+      _ <- verifyGradesEq "pi binder" Subject x s sBinder
+      _ <- verifyGradesEq "pi binder" SubjectType x r rBinder
+      g1plusG3 <- contextGradeAdd g1 g3
+      pure $ OutContext { subjectGradesOut = g2, typeGradesOut = g1plusG3}
     _ -> expectedInferredTypeForm "function" t
 
 {-
@@ -1379,3 +1378,36 @@ newExistentialGrade gty = do
          else pure gty
   existential (implicitToName i) gty
   pure (Grade (GExpr (mkImplicit i)) gty)
+
+
+-- TODO: set up a class for folding over expressions and grades (2020-06-27)
+existentiallyQuantifyGradeImplicits :: Grade -> CM Grade
+existentiallyQuantifyGradeImplicits p@(Grade{grade=g,gradeTy=ty}) = do
+  case g of
+    GExpr e -> existentiallyQuantifyExprImplicitsAsGrades e ty
+               >>= \e -> pure p { grade = GExpr e }
+    GEnc{} -> pure p
+    GPlus l r -> do
+      l <- existentiallyQuantifyGradeImplicits (mkGrade l ty)
+      r <- existentiallyQuantifyGradeImplicits (mkGrade r ty)
+      pure p { grade = GPlus (grade l) (grade r) }
+    GTimes l r -> do
+      l <- existentiallyQuantifyGradeImplicits (mkGrade l ty)
+      r <- existentiallyQuantifyGradeImplicits (mkGrade r ty)
+      pure p { grade = GTimes (grade l) (grade r) }
+    GLub l r -> do
+      l <- existentiallyQuantifyGradeImplicits (mkGrade l ty)
+      r <- existentiallyQuantifyGradeImplicits (mkGrade r ty)
+      pure p { grade = GLub (grade l) (grade r) }
+    GSig s t -> do
+      -- TODO: make sure that t and ty are the same (2020-06-27)
+      existentiallyQuantifyGradeImplicits (mkGrade s t)
+
+
+existentiallyQuantifyExprImplicitsAsGrades :: Expr -> GradeSpec -> CM Expr
+existentiallyQuantifyExprImplicitsAsGrades e@(Implicit i) gty = do
+  gty <- if gty == GSImplicit
+         then debug "no grade type specified, defaulting to ExactUsage" >> pure ExactUsage
+         else pure gty
+  existential (implicitToName i) gty >> pure e
+existentiallyQuantifyExprImplicitsAsGrades e _ = pure e
