@@ -82,6 +82,7 @@ normalise (BoxTy (g1, g2) e) = do
   g2 <- normaliseGrade g2
   e <- normalise e
   finalNormalForm $ BoxTy (g1, g2) e
+normalise (Box e) = finalNormalForm =<< Box <$> normalise e
 normalise (App e1 e2) = do
   e1' <- normalise e1
   e2' <- normalise e2
