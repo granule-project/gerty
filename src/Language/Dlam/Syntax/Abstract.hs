@@ -23,8 +23,7 @@ module Language.Dlam.Syntax.Abstract
   , CaseBinding(..)
   , Pattern(..)
   , BindName(..)
-  , boundTypingVars
-  , boundSubjectVars
+  , patBoundVars
   -- ** Levels and Universes
   , Level(..)
   , levelZero
@@ -368,20 +367,13 @@ data Pattern
   deriving (Show, Eq, Ord)
 
 
-boundTypingVars :: Pattern -> Set.Set BindName
-boundTypingVars (PPair l r) = boundTypingVars l `Set.union` boundTypingVars r
-boundTypingVars (PVar _) = mempty
-boundTypingVars PUnit = mempty
-boundTypingVars (PCon _ args) = Set.unions $ fmap boundTypingVars args
-boundTypingVars (PBox p) = boundTypingVars p
-
-
-boundSubjectVars :: Pattern -> Set.Set BindName
-boundSubjectVars (PPair l r) = boundSubjectVars l `Set.union` boundSubjectVars r
-boundSubjectVars (PVar n) = Set.singleton n
-boundSubjectVars PUnit = mempty
-boundSubjectVars (PCon _ args) = Set.unions $ fmap boundSubjectVars args
-boundSubjectVars (PBox p) = boundSubjectVars p
+-- | The set of names bound in a pattern.
+patBoundVars :: Pattern -> Set.Set BindName
+patBoundVars (PPair l r) = patBoundVars l `Set.union` patBoundVars r
+patBoundVars (PVar n) = Set.singleton n
+patBoundVars PUnit = mempty
+patBoundVars (PCon _ args) = Set.unions $ fmap patBoundVars args
+patBoundVars (PBox p) = patBoundVars p
 
 
 ---------

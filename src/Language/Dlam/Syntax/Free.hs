@@ -48,7 +48,7 @@ instance Free A.Expr where
       maybe Set.empty (\(p, t) -> withDiff t p) pt `Set.union`
       (Set.unions (fmap (\(A.CasePatBound p b) -> withDiff b p) binds))
     where withDiff e p = Set.difference (freeVars e)
-            (Set.map A.unBindName $ A.boundSubjectVars p <> A.boundTypingVars p)
+            (Set.map A.unBindName $ A.patBoundVars p)
 
 
 instance Free A.Level where

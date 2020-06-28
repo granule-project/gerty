@@ -53,7 +53,7 @@ substAbs s ab = do
 -- | Substitute into an expression that's guarded by a pattern.
 substitutePatGuarded :: (Name, Expr) -> Pattern -> Expr -> CM Expr
 substitutePatGuarded s@(v, _) p e = do
-    if v `Set.member` (Set.map unBindName (boundSubjectVars p)) then pure e else substitute s e
+    if v `Set.member` (Set.map unBindName (patBoundVars p)) then pure e else substitute s e
 
 
 instance {-# OVERLAPPABLE #-} (Monad m, Substitutable m n e, Foldable t) => Substitutable m (t n) e where
