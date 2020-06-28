@@ -390,7 +390,7 @@ instance Pretty Expr where
     pprint UnitTy                 = text "Unit"
     pprint Unit                   = text "unit"
     pprint (BoxTy (g1, g2) e) =
-      pprintParened e <+> brackets ((pprint g1 <> char ',') <+> pprint g2)
+      brackets ((pprint g1 <> char ',') <+> pprint g2) <+> pprintParened e
     pprint (Box e) = brackets (pprint e)
     pprint (Universe l)           = text "Type" <+> integer l
     pprint (Lam binders finE) =
