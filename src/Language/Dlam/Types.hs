@@ -494,25 +494,31 @@ checkExpr e t c =
 
 checkExpr' :: Expr -> Type -> InContext -> CM OutContext
 checkExpr' (Lam lam) t ctxt = do
-  let (sLam, rLam) = (subjectGrade lam, subjectTypeGrade lam)
+  let tALam = absTy lam
+      (sLam, rLam) = (subjectGrade lam, subjectTypeGrade lam)
   case t of
     -- (x : A) -> B
     FunTy pi -> do
       let (sPi, rPi) = (subjectGrade pi, subjectTypeGrade pi)
+          tAPi = absTy pi
           x = absVar pi
+
+      -- ensure components of the lambda and Pi match up (argument type, grades)
+      tA <- ensureEqualTypes tALam tAPi
       sBinder <- verifyGradesEq "pi binder" Subject x sLam sPi
       rBinder <- verifyGradesEq "pi binder" SubjectType x rLam rPi
+
       -- substitute the Pi var for the Lam var in the Lam body,
       -- to make sure that variable lookups try and find the
       -- right variable
       lamBody <- substitute (absVar lam, Var x) (absExpr lam)
 
-      (g1, _) <- checkExprIsType (absTy pi) ctxt
+      (g1, _) <- checkExprIsType tA ctxt
 
       (OutContext { subjectGradesOut = g2s, typeGradesOut = g3r }) <- do
          debug $ "Check body binding `" <> pprint (absVar pi) <> "` in scope"
          checkExpr lamBody (absExpr pi)
-                 (extendInputContext ctxt x (absTy pi) g1)
+                 (extendInputContext ctxt x tA g1)
 
       -- Check calculated grades against binder
       let (g2, (_, s)) = unextend g2s
