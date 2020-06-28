@@ -478,7 +478,7 @@ checkOrInferTypeNew ty expr = do
 
 -- TODO: ensure incoming types are normalised (2020-06-28)
 checkExpr :: Expr -> Maybe Type -> InContext -> CM (OutContext, Type)
-checkExpr e t c =
+checkExpr e t c = withLocalCheckingOf e $
   debugBlock "checkExpr"
     (maybe ("inferring a type for expression" <+> quoted e) (\t -> "checking expression" <+> quoted e <+> "against type" <+> quoted t) t)
     (\(_, ty) -> maybe ("inferred a type" <+> quoted ty <+> "for expression" <+> quoted e)
