@@ -332,8 +332,7 @@ Atom :: { ParseExpr }
   | 'Unit'                    { UnitTy }
   | '<' Expr ',' Expr '>'     { Pair $2 $4 }
   | '<' Ident ':' Expr '*' Expr '>' { ProductTy ($2, implicitGrade, $4) $6 }
-  | '<' Ident ':' '.' '[' Grade ']' Expr '*' Expr '>' { ProductTy ($2, $6, $8) $10 }
-  | '<' Ident ':' '[' Grade ']' Expr '*' Expr '>' { ProductTy ($2, $5, $7) $9 }
+  | '<' Ident '[' Grade ']' ':' Expr '*' Expr '>' { ProductTy ($2, $4, $7) $9 }
   | '<' Expr '*' Expr '>'   { NondepProductTy $2 $4 }
 
   -- For later
