@@ -1206,7 +1206,7 @@ checkExprIsType e ctxt = do
   l <- exprIsTypeAndSubjectTypeGradesZero cOut typel
   case l of
     Just l -> pure (g, l)
-    _ -> expectedInferredTypeForm "type" typel
+    _ -> expectedInferredTypeForm "universe" typel
   where
     -- Auxiliary function that examines an output context to check it has
     -- 0 subject type use and that its type is of the form `Type l`
