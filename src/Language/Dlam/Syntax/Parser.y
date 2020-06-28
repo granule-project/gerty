@@ -316,11 +316,6 @@ Expr2 :: { ParseExpr }
   | Expr3 { $1 }
 
 
-ExprOrSig :: { Expr }
-  : Expr { $1 }
-  | Expr ':' Expr { Sig $1 $3 }
-
-
 Expr3Braces :: { Expr }
   : Ident '=' Expr { BraceArg (Named $1 $3) }
   | Expr           { BraceArg (Unnamed $1) }
