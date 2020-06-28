@@ -320,8 +320,11 @@ instance Pretty Stage where
 
 -- | Type-checking environment.
 data TCEnv = TCEnv
-  { tceCurrentExpr :: Maybe Expr
-  -- ^ Expression currently being checked (if any).
+  { tceCurrentExpr :: Maybe (Expr, Maybe Expr)
+  -- ^ Expression currently being checked (if any). When the type
+  -- ^ is provided (second element), it means the expression was being
+  -- ^ checked against that type. When the type is not provided, it
+  -- ^ means a type was being inferred for the expression.
   , tceCurrentTopLevel :: Maybe Name
   -- ^ Top-level definition being checked (if any).
   , tycOptimise :: Bool
@@ -337,7 +340,7 @@ isOptimising :: CM Bool
 isOptimising = ask >>= (return . tycOptimise)
 
 
-tceSetCurrentExpr :: Expr -> TCEnv -> TCEnv
+tceSetCurrentExpr :: (Expr, Maybe Expr) -> TCEnv -> TCEnv
 tceSetCurrentExpr e env = env { tceCurrentExpr = Just e }
 
 
@@ -350,8 +353,8 @@ startEnv = TCEnv { benchmark = False, tycOptimise = False, tceCurrentExpr = Noth
 
 
 -- | Indicate that we are now checking the given expression when running the action.
-withLocalCheckingOf :: Expr -> CM a -> CM a
-withLocalCheckingOf e = local (tceSetCurrentExpr e)
+withLocalCheckingOf :: Expr -> Maybe Expr -> CM a -> CM a
+withLocalCheckingOf e t = local (tceSetCurrentExpr (e, t))
 
 
 -- | Indicate that we are now checking the given top-level name when running the action.
@@ -610,7 +613,12 @@ data TCErr = TCErr
 
 -- | Expression being checked when failure occurred.
 tcErrExpr :: TCErr -> Maybe Expr
-tcErrExpr = tceCurrentExpr . tcErrEnv
+tcErrExpr = fmap fst . tceCurrentExpr . tcErrEnv
+
+
+-- | Type of expression being checked when failure occurred.
+tcErrTy :: TCErr -> Maybe Expr
+tcErrTy = join . fmap snd . tceCurrentExpr . tcErrEnv
 
 
 -- | Top-level definition being checked when failure occurred.
@@ -631,7 +639,8 @@ throwCMat msg e = do
 instance Pretty TCErr where
   pprint e = ((maybe "" (\tld -> ("During checking of top-level" <+> (quoted tld <> colon))) (tcErrTL e)) $+$ "The following error occurred when" <+> text phaseMsg)
       <> (maybe "" (\msg -> " (at " <> msg <> ")") (localeMessage e))
-      <> (maybe ":" (\expr -> " " <> quoted expr <> ":") (tcErrExpr e)) $+$ pprint (tcErrErr e)
+      <> (maybe ":" (\expr -> " " <> (quoted expr <+>
+                              (maybe empty (("against a type" <+>) . quoted) (tcErrTy e))) <> ":") (tcErrExpr e)) $+$ pprint (tcErrErr e)
     where phaseMsg = case errPhase e of
                        PhaseParsing -> "parsing"
                        PhaseScoping -> "scope checking"
