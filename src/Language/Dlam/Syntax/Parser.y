@@ -296,23 +296,14 @@ Expr0 :: { Expr }
   | Expr1 %prec LOWEST { $1 }
 
 
--- applications
 Expr1 :: { Expr }
-  : Application { mkAppFromExprs $1 }
-  | Expr1 '*' Expr1   { NondepProductTy $1 $3 }
-  | Ident '::' Expr1 '*' Expr1 { ProductTy ($1, implicitGrade, $3) $5 }
-  | Ident '::' '.' '[' Grade ']' Expr1 '*' Expr1 { ProductTy ($1, $5, $7) $9 }
-  | Ident '::' '[' Grade ']' Expr1 '*' Expr1 { ProductTy ($1, $4, $6) $8 }
-  | Expr3 '[' Grade ',' Grade ']' { BoxTy ($3, $5) $1 }
+  : '[' Grade ',' Grade ']' Expr1 { BoxTy ($2, $4) $6 }
+  | Application %prec LOWEST { mkAppFromExprs $1 }
+
 
 Application :: { [Expr] }
   : Expr2 { [$1] }
   | Expr3 Application { $1 : $2 }
-
-
-ExprOrSig :: { Expr }
-  : Expr { $1 }
-  | Expr ':' Expr { Sig $1 $3 }
 
 
 -- lambdas, lets, cases
@@ -323,6 +314,11 @@ Expr2 :: { ParseExpr }
   | case Expr as Pattern in Expr of CaseBindings1 { Case $2 (Just ($4, $6)) $8 }
 
   | Expr3 { $1 }
+
+
+ExprOrSig :: { Expr }
+  : Expr { $1 }
+  | Expr ':' Expr { Sig $1 $3 }
 
 
 Expr3Braces :: { Expr }
@@ -347,6 +343,10 @@ Atom :: { ParseExpr }
   | 'unit'                    { Unit }
   | 'Unit'                    { UnitTy }
   | '<' Expr ',' Expr '>'     { Pair $2 $4 }
+  | '<' Ident ':' Expr '*' Expr '>' { ProductTy ($2, implicitGrade, $4) $6 }
+  | '<' Ident ':' '.' '[' Grade ']' Expr '*' Expr '>' { ProductTy ($2, $6, $8) $10 }
+  | '<' Ident ':' '[' Grade ']' Expr '*' Expr '>' { ProductTy ($2, $5, $7) $9 }
+  | '<' Expr '*' Expr '>'   { NondepProductTy $2 $4 }
 
   -- For later
   -- | '?' { Hole }
