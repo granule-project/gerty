@@ -817,8 +817,7 @@ checkExpr' (Pair t1 t2) (Just ty) ctxt = do
   ---------------------------------------------------------------------------------- :: TenCut
   (M | g4 + s * g3 | g5 + q * g3) @ G |- case t1 as z in C of (x, y) -> t2 : [t1/z]C
 -}
--- TODO: update this to allow input type (2020-06-28)
-checkExpr' (Case t1 tp [CasePatBound (PPair (PVar x') (PVar y')) t2]) Nothing ctxt = do
+checkExpr' (Case t1 tp [CasePatBound (PPair (PVar x') (PVar y')) t2]) t1ForZinC ctxt = do
   let (x, y) = (unBindName x', unBindName y')
   -- (M | g3 | g1 + g2) @ G |- t1 : (x : (0,r) A) * B
   (OutContext { subjectGradesOut = g3, typeGradesOut = g1plusG2 }, pairTy)
@@ -847,7 +846,8 @@ checkExpr' (Case t1 tp [CasePatBound (PPair (PVar x') (PVar y')) t2]) Nothing ct
       -- (M,g1,(g2,r) | g4,s,s | g5,q,q) @ G, x : A, y : B |- t2 : [(x,y)/z]C
       (OutContext { subjectGradesOut = g4ss, typeGradesOut = g5qq }, xyForZinC)
         <- case tp of
-             Nothing -> inferExpr t2 (extendInputContext (extendInputContext ctxt x tA g1) y tB g2r)
+             -- in the non-dependent case, we need [(x,y)/z]C = [t1/z]C = C
+             Nothing -> checkExpr t2 t1ForZinC (extendInputContext (extendInputContext ctxt x tA g1) y tB g2r)
              Just (PVar z, tC) -> do
                xyForZinC <- substitute (unBindName z, Pair (Var x) (Var y)) tC
                (out, xyForZinC) <- checkExpr t2 (Just xyForZinC) (extendInputContext (extendInputContext ctxt x tA g1) y tB g2r)
@@ -898,11 +898,12 @@ checkExpr' (Case t1 tp [CasePatBound (PPair (PVar x') (PVar y')) t2]) Nothing ct
       qTimesG3 <- contextGradeMult q g3
       g5plusQtimesG3 <- contextGradeAdd g5 qTimesG3
 
-      t1forZinC <- substitute [(z, t1)] tC
+      t1ForZinCComp <- substitute [(z, t1)] tC
+      t1ForZinC <- maybe (pure t1ForZinCComp) (ensureEqualTypes t1ForZinCComp) t1ForZinC
 
       -- (M | g4 + s * g3 | g5 + r' * g3) @ G |- let (x, y) = t1 in t2 : [t1/z]C
       pure ( OutContext { subjectGradesOut = g4plusStimesG3, typeGradesOut = g5plusQtimesG3 }
-           , t1forZinC )
+           , t1ForZinC )
     _ -> expectedInferredTypeForm "tensor" pairTy
 
 
