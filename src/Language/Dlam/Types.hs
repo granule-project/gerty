@@ -360,21 +360,12 @@ cMapM :: (a -> CM b) -> Ctxt a -> CM (Ctxt b)
 cMapM f (Ctxt c) = Ctxt <$> mapM (\(n, v) -> f v >>= \r -> pure (n, r)) c
 
 
--- | Map a function over a context.
-cMapMWithKey :: (Name -> a -> CM b) -> Ctxt a -> CM (Ctxt b)
-cMapMWithKey f (Ctxt c) = Ctxt <$> mapM (\(n, v) -> f n v >>= \r -> pure (n, r)) c
-
-
 cAnyWithKey :: ((Name, v) -> Bool) -> Ctxt v -> Bool
 cAnyWithKey f = any f . contextToList
 
 
 contextToList :: Ctxt a -> [(Name, a)]
 contextToList = unContext
-
-
-contextValues :: Ctxt a -> [a]
-contextValues = fmap snd . contextToList
 
 
 -- TODO: ensure this doesn't allow repeated names (2020-06-20)
@@ -437,16 +428,6 @@ instance Semigroup OutContext where
 
      hasVar v m = cAnyWithKey (\(v', _) -> v' == v) m
 
-
-allZeroes :: Ctxt Grade -> CM Bool
-allZeroes ctxt = cMapMWithKey normaliseAndCheck ctxt >>= (pure . and . contextValues)
-  where
-    normaliseAndCheck n grade = do
-      grade' <- normaliseGrade grade
-      if gradeIsZero grade'
-        then return True
-        else
-          gradeMismatchAt' "Type judgment" SubjectType n gradeZero grade'
 
 zeroesMatchingShape :: Ctxt a -> Ctxt Grade
 zeroesMatchingShape = cMap (const gradeZero)
@@ -1199,20 +1180,16 @@ mkUnivTy = Universe
 -- TODO: perhaps allow grades in the subject type where r <= 0 (2020-06-18)
 checkExprIsType :: Expr -> InContext -> CM (Ctxt Grade, Level)
 checkExprIsType e ctxt = do
-  (cOut@OutContext { subjectGradesOut = g }, typel) <- inferExpr e ctxt
-  l <- exprIsTypeAndSubjectTypeGradesZero cOut typel
-  case l of
-    Just l -> pure (g, l)
+  (OutContext { subjectGradesOut = g, typeGradesOut = gZ }, typel) <- inferExpr e ctxt
+  case typel of
+    (Universe l) -> do
+      _ <- allZeroes gZ
+      pure (g, l)
     _ -> expectedInferredTypeForm "universe" typel
   where
-    -- Auxiliary function that examines an output context to check it has
-    -- 0 subject type use and that its type is of the form `Type l`
-    exprIsTypeAndSubjectTypeGradesZero :: OutContext -> Type -> CM (Maybe Level)
-    exprIsTypeAndSubjectTypeGradesZero ctxt ty = do
-      isZeroed <- allZeroes (typeGradesOut ctxt)
-      case ty of
-        (Universe l) | isZeroed -> pure (Just l)
-        _ -> pure Nothing
+    -- | Ensure the grade vector contains only zeroes (or refinements of zero).
+    allZeroes :: Ctxt Grade -> CM (Ctxt Grade)
+    allZeroes ctxt = verifyGradeVecEq "" ctxt (zeroesMatchingShape ctxt)
 
 
 extendInputContext :: InContext -> Name -> Type -> Ctxt Grade -> InContext
@@ -1323,12 +1300,6 @@ gradeMult g1 g2 = do
 gradeMult' :: Grade' -> Grade' -> GradeSpec -> CM Grade
 gradeMult' g1 g2 ty =
   normaliseGrade (Grade { grade = GTimes g1 g2, gradeTy = ty })
-
-
-
-gradeIsZero :: Grade -> Bool
-gradeIsZero Grade{grade=GZero} = True
-gradeIsZero _ = False
 
 
 -- TODO: do normalisation according to whatever type the grade belongs
