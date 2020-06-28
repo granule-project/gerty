@@ -10,7 +10,7 @@ import Language.Dlam.TypeChecking.Constraints
 import Language.Dlam.TypeChecking.Constraints.SymbolicGrades (runIOSolver)
 import Language.Dlam.TypeChecking.Monad.Base
 import Language.Dlam.TypeChecking.Predicates
-import Language.Dlam.Util.Pretty (pprint)
+import Language.Dlam.Util.Pretty (hang, pprint)
 
 
 ------------------------------
@@ -22,7 +22,7 @@ isTheoremValid :: CM SolverResult
 isTheoremValid = do
   ps <- getPredicateStack
   let thm = Conj (reverse ps)
-  debug $ "Asking SMT solver if the following is valid: " <> pprint thm
+  debug $ hang "Asking SMT solver if the following is valid:" 1 (pprint thm)
   sRes <- runIOSolver (provePredicate thm)
   either throwCM pure sRes
 

@@ -78,8 +78,8 @@ instance Pretty Pred where
      (\p q -> "(" <> p <> " -> " <> q <> ")")
      pprint
      (\p -> "¬(" <> p <> ")")
-     (\x t p -> "∀ " <> pprint x <> " : " <> pprint t <> " . " <> p)
-     (\x t p -> "∃ " <> pprint x <> " : " <> pprint t <> " . " <> p)
+     (\x t p -> "∀ " <> pprint x <> " : " <> pprint t <> " . " $$ p)
+     (\x t p -> "∃ " <> pprint x <> " : " <> pprint t <> " . " $$ p)
 
 -- | Whether the predicate is empty, i.e. contains no constraints
 isTrivial :: Pred -> Bool
