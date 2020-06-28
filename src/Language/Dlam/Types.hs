@@ -232,11 +232,10 @@ doDeclarationInference (FunEqn (FLHSName v) (FRHSAssign e)) =
   -- treating it as an implicit if no type is given
   t <- debugBlock "FUN EQN INFERENCE" ("finding signature for " <> pprint v) (\t -> maybe "no sig found" (("found sig: "<>) . pprint) t)
        (lookupType v)
+  -- TODO: refactor this to just call checkOrInferTypeNew (2020-06-28)
   exprTy <- case t of
               Nothing -> inferExpr e emptyInContext >>= normalise . snd
-              Just ty -> do
-                checkOrInferTypeNew ty e
-                return ty
+              Just ty -> checkOrInferTypeNew ty e
 
   -- assign the appopriate equation and normalised/inferred type for the name
   setValue v e
@@ -456,10 +455,10 @@ zeroesMatchingShape :: Ctxt a -> Ctxt Grade
 zeroesMatchingShape = cMap (const gradeZero)
 
 -- Top level
-checkOrInferTypeNew :: Type -> Expr -> CM ()
+checkOrInferTypeNew :: Type -> Expr -> CM Type
 checkOrInferTypeNew ty expr = do
   newConjunct
-  outContext <- checkExpr expr ty emptyInContext
+  (outContext, t) <- checkExpr expr (Just ty) emptyInContext
   -- TODO: ensure that any existentially-bound implicits that don't
   -- have an exact value after resolution cause the program to fail
   -- (2020-06-27)
@@ -468,7 +467,7 @@ checkOrInferTypeNew ty expr = do
       -- Time to check that any theorems hold
       proverResult <- isTheoremValid
       case proverResult of
-        QED                  -> return ()
+        QED                  -> pure t
         NotValid msg         -> solverNotValid msg
         Timeout              -> solverTimeout
         OtherSolverError msg -> solverError msg
@@ -476,169 +475,45 @@ checkOrInferTypeNew ty expr = do
 
     else internalBug "Binders are left!"
 
--- TODO: Perhaps combine 'checkExpr' and 'inferExpr' by taking in a
--- 'Maybe Type', which you then use to determine whether to synth or
--- checkExpr (2020-06-27)
-checkExpr :: Expr -> Type -> InContext -> CM OutContext
+
+-- TODO: ensure incoming types are normalised (2020-06-28)
+checkExpr :: Expr -> Maybe Type -> InContext -> CM (OutContext, Type)
 checkExpr e t c =
   debugBlock "checkExpr"
-    ("checking expression '" <> pprint e <> "' against type '" <> pprint t <> "'")
-    (\_ -> "checked OK for '" <> pprint e <> "'") (checkExpr' e t c)
+    (maybe ("inferring a type for expression" <+> quoted e) (\t -> "checking expression" <+> quoted e <+> "against type" <+> quoted t) t)
+    (\(_, ty) -> maybe ("inferred a type" <+> quoted ty <+> "for expression" <+> quoted e)
+                       (\_ -> "checked OK for" <+> quoted e) t) (checkExpr' e t c)
+
+
+checkExpr' :: Expr -> Maybe Type -> InContext -> CM (OutContext, Type)
+
+
+---------------------
+----- Variables -----
+---------------------
+
 
 {-
-  (M | g1 | gZ) @ G |- A : Type l
-  (M,g1 | g2,s | g3,r) @ G, x : A |- t : B
-  ------------------------------------------------------- :: Fun
-  (M | g2 | g1 + g3) @ G |- \x -> t : (x : [s, r] A) -o B
+  (M1 | g | gZ) @ G1 |- A : Type l
+  ----------------------------------------------------------- :: Var
+  ((M1, g, M2) | gZ,1,gZ | g,0,gZ) @ (G1, x : A, G2) |- x : A
 -}
-
-checkExpr' :: Expr -> Type -> InContext -> CM OutContext
-checkExpr' (Lam lam) t ctxt = do
-  let tALam = absTy lam
-      (sLam, rLam) = (subjectGrade lam, subjectTypeGrade lam)
-  case t of
-    -- (x : A) -> B
-    FunTy pi -> do
-      let (sPi, rPi) = (subjectGrade pi, subjectTypeGrade pi)
-          tAPi = absTy pi
-          x = absVar pi
-
-      -- ensure components of the lambda and Pi match up (argument type, grades)
-      tA <- ensureEqualTypes tALam tAPi
-      sBinder <- verifyGradesEq "pi binder" Subject x sLam sPi
-      rBinder <- verifyGradesEq "pi binder" SubjectType x rLam rPi
-
-      -- substitute the Pi var for the Lam var in the Lam body,
-      -- to make sure that variable lookups try and find the
-      -- right variable
-      lamBody <- substitute (absVar lam, Var x) (absExpr lam)
-
-      (g1, _) <- checkExprIsType tA ctxt
-
-      (OutContext { subjectGradesOut = g2s, typeGradesOut = g3r }) <- do
-         debug $ "Check body binding `" <> pprint (absVar pi) <> "` in scope"
-         checkExpr lamBody (absExpr pi)
-                 (extendInputContext ctxt x tA g1)
-
-      -- Check calculated grades against binder
-      let (g2, (_, s)) = unextend g2s
-          (g3, (_, r)) = unextend g3r
-      _ <- verifyGradesEq "pi binder" Subject x s sBinder
-      _ <- verifyGradesEq "pi binder" SubjectType x r rBinder
-      g1plusG3 <- contextGradeAdd g1 g3
-      pure $ OutContext { subjectGradesOut = g2, typeGradesOut = g1plusG3}
-    _ -> expectedInferredTypeForm "function" t
-
-{-
-  (M,g1 | g3,r | gZ) @ G, x : A |- B : Type l
-  (M | g2 | g1) @ G |- t1 : A
-  (M | g4 | g3 + r * g2) @ G |- t2 : [t1/x]B
-  ----------------------------------------------------------- :: Pair
-  (M | g2 + g4 | g1 + g3) @ G |- (t1, t2) : (x : (0,r) A) * B
--}
-checkExpr' (Pair t1 t2) ty ctxt = do
-  case ty of
-    (ProductTy prod) -> do
-      let x  = absVar prod
-          tA = absTy prod
-          tB = absExpr prod
-          r  = subjectTypeGrade prod
-
-      -- (M | g2 | g1) @ G |- t1 : A
-      (OutContext { subjectGradesOut = g2, typeGradesOut = g1 }, tA')
-        <- inferExpr t1 ctxt
-
-      tA <- ensureEqualTypes tA tA'
-
-      -- (M | g4 | g3 + r * g2) @ G |- t2 : [t1/x]B
-      (OutContext { subjectGradesOut = g4, typeGradesOut = g3plusRtimesG2 }, t1forXinB)
-        <- inferExpr t2 ctxt
-
-      t1forXinB' <- substitute (x, t1) tB
-      _ <- ensureEqualTypes t1forXinB t1forXinB'
-
-      -- (M,g1 | g3,r | gZ) @ G, x : A |- B : Type l
-
-      (g3r, _) <- checkExprIsType tB (extendInputContext ctxt x tA g1)
-
-      let (g3, (_, r')) = unextend g3r
-
-      rtimesG2 <- contextGradeMult r g2
-      g3plusRtimesG2Calc <- contextGradeAdd g3 rtimesG2
-
-      _ <- verifyGradeVecEq "?" g3plusRtimesG2 g3plusRtimesG2Calc
-      _ <- verifyGradesEq "pair type" Subject x r r'
-
-      g2plusG4 <- contextGradeAdd g2 g4
-      g1plusG3 <- contextGradeAdd g1 g3
-
-      -- (M | g2 + g4 | g1 + g3) @ G |- (t1, t2) : (x : (0,r) A) * B
-      pure (OutContext { subjectGradesOut = g2plusG4, typeGradesOut = g1plusG3 })
-    _ -> expectedInferredTypeForm "product" ty
-
-{-
-  (M | g1 | g2) @ G |- t : A
-  ---------------------------------------------------- :: BoxI
-  (M | s * g1 | g2 + r * g1) @ G |- [t] : Box (s, r) A
--}
-checkExpr' (Box t) ty ctxt = do
-  case ty of
-    (BoxTy (s, r) tA) -> do
-      -- (M | g1 | g2) @ G |- t : A
-      (OutContext { subjectGradesOut = g1, typeGradesOut = g2 }) <- checkExpr t tA ctxt
-
-      sTimesG1 <- contextGradeMult s g1
-      rTimesG1 <- contextGradeMult r g1
-      g2PlusRTimesG1 <- contextGradeAdd g2 rTimesG1
-
-      -- (M | s * g1 | g2 + r * g1) @ G |- [t] : Box (s, r) A
-      pure $ OutContext { subjectGradesOut = sTimesG1, typeGradesOut = g2PlusRTimesG1 }
-    _ -> expectedInferredTypeForm "graded modal" ty
-
--- Switch over to synth case
-checkExpr' e t ctxt = do
-  debug $ "Check fall through for " <> pprint e
-  --
-  (ctxt', t') <- inferExpr e ctxt
-  eq <- equalExprs t t'
-  if eq
-    then return ctxt'
-    else tyMismatchAt "synth/check" t t'
-
--- | Try and infer a type for the given expression.
-inferExpr :: Expr -> InContext -> CM (OutContext, Type)
-inferExpr e c = withLocalCheckingOf e $
-  debugBlock "inferExpr" ("inferring a type for expression '" <> pprint e <> "'")
-             (\(_, t) -> "inferred a type '" <> pprint t <> "'")
-             (inferExpr' e c)
-
-{-
-
-Declarative:
-
-(D | sigma | 0) . G1 |- A : Type
----------------------------------------------------------------------- var
-((D1, sigma, D2) | 0, 1, 0 | sigma, 0, 0) . (G1, x : A, G2) |- x : A
-
--}
-
-inferExpr' :: Expr -> InContext -> CM (OutContext, Type)
-inferExpr' (Var x) ctxt = do
+checkExpr' (Var x) Nothing ctxt = do
   debug $ "Infer for var" <+> pprint x <+> "in context" <+> pprint ctxt
   --
   case lookupAndCutoutIn x ctxt of
     -- this should be prevented by the scope checker (encountering a
     -- free variable that isn't in scope)
     Nothing -> scoperError $ SE.unknownNameErr (C.Unqualified $ nameConcrete x)
-    Just (ctxtL, (ty, sigma'), ctxtR) -> do
+    Just (ctxtL, (ty, g'), ctxtR) -> do
 
       -- Check that this type is indeed a Type
       debug $ "Infer for var (type)" <+> pprint ctxtL
-      (sigma, _) <- checkExprIsType ty ctxtL
+      (g, _) <- checkExprIsType ty ctxtL
 
-      debug $ "Context grade eq var" <+> pprint x <+> "with" <+> pprint sigma' <+> "and" <+> pprint sigma
+      debug $ "Context grade eq var" <+> pprint x <+> "with" <+> pprint g' <+> "and" <+> pprint g
       --  Check context grades for `x` match what was calculated in typing
-      eq <- contextGradeEq sigma' sigma
+      eq <- contextGradeEq g' g
 
       case eq of
         Left mismatches ->
@@ -648,21 +523,50 @@ inferExpr' (Var x) ctxt = do
                     { subjectGradesOut = extend (zeroesMatchingShape (types ctxtL)) x gradeOne
                                         `cappend` (zeroesMatchingShape (types ctxtR))
 
-                    , typeGradesOut    = extend sigma x gradeZero
+                    , typeGradesOut    = extend g x gradeZero
                                         `cappend` (zeroesMatchingShape (types ctxtR)) }, ty)
 
-{-
 
+----------------------------
+----- Typing Universes -----
+----------------------------
+
+
+{-
+  ------------------------- :: Type
+  0G |- Type l : Type (l+1)
 -}
+checkExpr' (Universe l) Nothing ctxt =
+  pure (zeroedOutContextForInContext ctxt, mkUnivTy (levelSucc l))
+
+
+------------------------------------------------------------
+----- Definitions (names standing for constant values) -----
+------------------------------------------------------------
+
+
+{-
+  f : A in scope (aka . |- f : A)
+  ------------------------------- :: Def
+  0G |- f : A
+-}
+checkExpr' (Def n) Nothing ctxt = do
+  tA <- lookupType n >>= maybe (scoperError $ SE.unknownNameErr (C.Unqualified $ nameConcrete n)) pure
+  pure (zeroedOutContextForInContext ctxt, tA)
+
+
+---------------------
+----- Functions -----
+---------------------
+
+
 {-
   (M | g1 | gZ) @ G |- A : Type l1
   (M,g1 | g2,r | gZ) @ G, x : A |- B : Type l2
-  ----------------------------------------------------------------- :: Fun
-  (M | g1 + g2 | gZ) @ G |- (x : (s, r) A) -o B : Type (lmax l1 l2)
+  ----------------------------------------------------------------- :: Pi
+  (M | g1 + g2 | gZ) @ G |- (x : [s, r] A) -> B : Type (lmax l1 l2)
 -}
-
--- (x :(s, r) A -o B)
-inferExpr' (FunTy pi) ctxt = do
+checkExpr' (FunTy pi) Nothing ctxt = do
   let x = absVar pi
       tA = absTy pi
       tB = absExpr pi
@@ -687,22 +591,72 @@ inferExpr' (FunTy pi) ctxt = do
                     , typeGradesOut = zeroesMatchingShape (types ctxt) }
        , mkUnivTy lmaxl1l2)
 
-{-
-
--}
-
-----
 
 {-
-
-(M | g2 | g1 + g3) @ G |- t1 : (x : (s, r) A) -o B
-(M | g4 | g1) @ G |- t2 : A
------------------------------------------------------- :: App
-(M | g2 + s * g4 | g3 + r * g4) @ G |- t1 t2 : [t2/x]B
-
+  (M | g1 | gZ) @ G |- A : Type l
+  (M,g1 | g2,s | g3,r) @ G, x : A |- t : B
+  ------------------------------------------------------- :: Fun
+  (M | g2 | g1 + g3) @ G |- \x -> t : (x : [s, r] A) -o B
 -}
+checkExpr' (Lam lam) t ctxt = do
+  let tALam = absTy lam
+      xLam = absVar lam
+      (sLam, rLam) = (subjectGrade lam, subjectTypeGrade lam)
 
-inferExpr' (App t1 t2) ctxt = do
+  -- (M | g1 | gZ) @ G |- A : Type l
+  (lamBody, x, tA, tB, sBinder, rBinder) <-
+    case t of
+      -- no type specified, take as much information from the
+      -- abstraction as possible
+      Nothing -> pure (absExpr lam, xLam, tALam, Nothing, sLam, rLam)
+      -- function type specified, so we check that components are
+      -- equal, and use the result type from the Pi
+      Just (FunTy pi) -> do
+        let (sPi, rPi) = (subjectGrade pi, subjectTypeGrade pi)
+            tAPi = absTy pi
+            x = absVar pi
+
+        -- ensure components of the lambda and Pi match up (argument type, grades)
+        tA <- ensureEqualTypes tALam tAPi
+        sBinder <- verifyGradesEq "pi binder" Subject x sLam sPi
+        rBinder <- verifyGradesEq "pi binder" SubjectType x rLam rPi
+
+        -- substitute the Pi var for the Lam var in the Lam body,
+        -- to make sure that variable lookups try and find the
+        -- right variable
+        lamBody <- substitute (xLam, Var x) (absExpr lam)
+
+        pure (lamBody, x, tA, Just $ absExpr pi, sBinder, rBinder)
+      Just t -> expectedInferredTypeForm "function" t
+
+  -- (M | g1 | gZ) @ G |- A : Type l
+  (g1, _) <- checkExprIsType tA ctxt
+
+  -- (M,g1 | g2,s | g3,r) @ G, x : A |- t : B
+  (OutContext { subjectGradesOut = g2s, typeGradesOut = g3r }, tB) <-
+    checkExpr lamBody tB (extendInputContext ctxt x tA g1)
+
+  -- Check calculated grades against binder
+  let (g2, (_, s)) = unextend g2s
+      (g3, (_, r)) = unextend g3r
+  s <- verifyGradesEq "pi binder" Subject x s sBinder
+  r <- verifyGradesEq "pi binder" SubjectType x r rBinder
+
+  g1plusG3 <- contextGradeAdd g1 g3
+
+  -- (M | g2 | g1 + g3) @ G |- \x -> t : (x : [s, r] A) -o B
+  pure ( OutContext { subjectGradesOut = g2, typeGradesOut = g1plusG3 }
+       , FunTy (mkAbsGr x tA s r tB) )
+
+
+{-
+  (M | g2 | g1 + g3) @ G |- t1 : (x : (s, r) A) -o B
+  (M | g4 | g1) @ G |- t2 : A
+  ------------------------------------------------------ :: App
+  (M | g2 + s * g4 | g3 + r * g4) @ G |- t1 t2 : [t2/x]B
+-}
+-- TODO: update this to allow a specified type (2020-06-28)
+checkExpr' (App t1 t2) Nothing ctxt = do
   -- Infer left of application
   debug $ "App infer for t1 = " <> pprint t1
 
@@ -721,7 +675,7 @@ inferExpr' (App t1 t2) ctxt = do
           tB = absExpr pi
 
       -- (M | g4 | g1) @ G |- t2 : A
-      OutContext g4 g1 <- checkExpr t2 tA ctxt
+      (OutContext g4 g1, tA) <- checkExpr t2 (Just tA) ctxt
       debug $ "ok A : " <> pprint tA
 
       -- (M,g1 | g3,r | gZ) @ G, x : A |- B : Type l
@@ -768,9 +722,11 @@ inferExpr' (App t1 t2) ctxt = do
           gradeMismatchAt "application function" Context mismatches
     _ -> expectedInferredTypeForm "function (type of app left)" funTy
 
------------------
------ Pairs -----
------------------
+
+-------------------
+----- Tensors -----
+-------------------
+
 
 {-
   (M | g1 | gZ) @ G |- A : Type l1
@@ -778,7 +734,7 @@ inferExpr' (App t1 t2) ctxt = do
   ---------------------------------------------------------- :: Ten
   (M | g1 + g2 | gZ) @ G |- (x : r A) * B : Type (lmax l1 l2)
 -}
-inferExpr' (ProductTy ten) ctxt = do
+checkExpr' (ProductTy ten) Nothing ctxt = do
   let x = absVar ten
       tA = absTy ten
       tB = absExpr ten
@@ -804,6 +760,55 @@ inferExpr' (ProductTy ten) ctxt = do
 
 
 {-
+  (M,g1 | g3,r | gZ) @ G, x : A |- B : Type l
+  (M | g2 | g1) @ G |- t1 : A
+  (M | g4 | g3 + r * g2) @ G |- t2 : [t1/x]B
+  ----------------------------------------------------------- :: Pair
+  (M | g2 + g4 | g1 + g3) @ G |- (t1, t2) : (x : (0,r) A) * B
+-}
+checkExpr' (Pair t1 t2) (Just ty) ctxt = do
+  case ty of
+    (ProductTy prod) -> do
+      let x  = absVar prod
+          tA = absTy prod
+          tB = absExpr prod
+          r  = subjectTypeGrade prod
+
+      -- (M | g2 | g1) @ G |- t1 : A
+      (OutContext { subjectGradesOut = g2, typeGradesOut = g1 }, tA')
+        <- inferExpr t1 ctxt
+
+      tA <- ensureEqualTypes tA tA'
+
+      -- (M | g4 | g3 + r * g2) @ G |- t2 : [t1/x]B
+      (OutContext { subjectGradesOut = g4, typeGradesOut = g3plusRtimesG2 }, t1forXinB)
+        <- inferExpr t2 ctxt
+
+      t1forXinB' <- substitute (x, t1) tB
+      _ <- ensureEqualTypes t1forXinB t1forXinB'
+
+      -- (M,g1 | g3,r | gZ) @ G, x : A |- B : Type l
+
+      (g3r, _) <- checkExprIsType tB (extendInputContext ctxt x tA g1)
+
+      let (g3, (_, r')) = unextend g3r
+
+      rtimesG2 <- contextGradeMult r g2
+      g3plusRtimesG2Calc <- contextGradeAdd g3 rtimesG2
+
+      _ <- verifyGradeVecEq "?" g3plusRtimesG2 g3plusRtimesG2Calc
+      r <- verifyGradesEq "pair type" Subject x r r'
+
+      g2plusG4 <- contextGradeAdd g2 g4
+      g1plusG3 <- contextGradeAdd g1 g3
+
+      -- (M | g2 + g4 | g1 + g3) @ G |- (t1, t2) : (x : (0,r) A) * B
+      pure (OutContext { subjectGradesOut = g2plusG4, typeGradesOut = g1plusG3 },
+           ProductTy (mkAbsGr x tA gradeZero r tB))
+    _ -> expectedInferredTypeForm "product" ty
+
+
+{-
   (M | g1 | gZ) @ G |- A : Type l1
   (M | g2,r | gZ) @ G, x : A |- B : Type l2
   (M | g3 | g1 + g2) @ G |- t1 : (x : (0,r) A) * B
@@ -812,7 +817,8 @@ inferExpr' (ProductTy ten) ctxt = do
   ---------------------------------------------------------------------------------- :: TenCut
   (M | g4 + s * g3 | g5 + q * g3) @ G |- case t1 as z in C of (x, y) -> t2 : [t1/z]C
 -}
-inferExpr' (Case t1 tp [CasePatBound (PPair (PVar x') (PVar y')) t2]) ctxt = do
+-- TODO: update this to allow input type (2020-06-28)
+checkExpr' (Case t1 tp [CasePatBound (PPair (PVar x') (PVar y')) t2]) Nothing ctxt = do
   let (x, y) = (unBindName x', unBindName y')
   -- (M | g3 | g1 + g2) @ G |- t1 : (x : (0,r) A) * B
   (OutContext { subjectGradesOut = g3, typeGradesOut = g1plusG2 }, pairTy)
@@ -844,7 +850,7 @@ inferExpr' (Case t1 tp [CasePatBound (PPair (PVar x') (PVar y')) t2]) ctxt = do
              Nothing -> inferExpr t2 (extendInputContext (extendInputContext ctxt x tA g1) y tB g2r)
              Just (PVar z, tC) -> do
                xyForZinC <- substitute (unBindName z, Pair (Var x) (Var y)) tC
-               out <- checkExpr t2 xyForZinC (extendInputContext (extendInputContext ctxt x tA g1) y tB g2r)
+               (out, xyForZinC) <- checkExpr t2 (Just xyForZinC) (extendInputContext (extendInputContext ctxt x tA g1) y tB g2r)
                pure (out, xyForZinC)
              Just (p, _) -> patternMismatch p t1
 
@@ -900,20 +906,44 @@ inferExpr' (Case t1 tp [CasePatBound (PPair (PVar x') (PVar y')) t2]) ctxt = do
     _ -> expectedInferredTypeForm "tensor" pairTy
 
 
------------------------------
------ Graded Modalities -----
------------------------------
+---------------------------
+----- Graded Modality -----
+---------------------------
+
 
 {-
   (M, g, gZ) @ G |- A : Type l
   --------------------------------------- :: Box
   (M, g, gZ) @ G |- Box (s, r) A : Type l
 -}
-inferExpr' (BoxTy _ t) ctxt = do
+checkExpr' (BoxTy _ t) Nothing ctxt = do
   -- (M, g, gZ) @ G |- A : Type l
   (g, l) <- checkExprIsType t ctxt
   -- (M, g, gZ) @ G |- Box (s, r) A : Type l
   pure (OutContext { subjectGradesOut = g, typeGradesOut = zeroesMatchingShape (types ctxt) }, mkUnivTy l)
+
+
+{-
+  (M | g1 | g2) @ G |- t : A
+  ---------------------------------------------------- :: BoxI
+  (M | s * g1 | g2 + r * g1) @ G |- [t] : Box (s, r) A
+-}
+checkExpr' (Box t) (Just ty) ctxt = do
+  case ty of
+    (BoxTy (s, r) tA) -> do
+      -- (M | g1 | g2) @ G |- t : A
+      (OutContext { subjectGradesOut = g1, typeGradesOut = g2 }, tA)
+        <- checkExpr t (Just tA) ctxt
+
+      sTimesG1 <- contextGradeMult s g1
+      rTimesG1 <- contextGradeMult r g1
+      g2PlusRTimesG1 <- contextGradeAdd g2 rTimesG1
+
+      -- (M | s * g1 | g2 + r * g1) @ G |- [t] : Box (s, r) A
+      pure $ ( OutContext { subjectGradesOut = sTimesG1, typeGradesOut = g2PlusRTimesG1 }
+             , BoxTy (s, r) tA )
+    _ -> expectedInferredTypeForm "graded modal" ty
+
 
 {-
   (M | g5 | gZ) @ G |- A : Type l1
@@ -926,7 +956,9 @@ inferExpr' (BoxTy _ t) ctxt = do
   (M | g1 + g3 | g6 + g4) @ G |- case t1 split z in C of [x] -> t2 : case t1 of [z] -> B
 -}
 -- TODO: currently just using 'as' for 'split', separate these! (GD: 2020-06-24)
-inferExpr' (Case t1 tp [CasePatBound (PBox (PVar x')) t2]) ctxt = do
+--
+-- TODO: add support for input type (2020-06-28)
+checkExpr' (Case t1 tp [CasePatBound (PBox (PVar x')) t2]) Nothing ctxt = do
   let x = unBindName x'
   -- (M | g1 | g2) @ G |- t1 : Box (s, r) A
   (OutContext { subjectGradesOut = g1, typeGradesOut = g2 }, boxTy)
@@ -947,7 +979,8 @@ inferExpr' (Case t1 tp [CasePatBound (PBox (PVar x')) t2]) ctxt = do
                Nothing -> inferExpr t2 mx
                Just (PVar z', tB) -> do
                  xForZinB <- substitute (unBindName z', Var x) tB
-                 fmap (flip (,) xForZinB) $ checkExpr t2 tB mx
+                 (out, _) <- checkExpr t2 (Just tB) mx
+                 pure (out, xForZinB)
                Just (p, _) -> patternMismatch p t1
         z <- getFreshName "z"
         let (g3, (_, sComp)) = unextend g3s
@@ -1003,54 +1036,27 @@ inferExpr' (Case t1 tp [CasePatBound (PBox (PVar x')) t2]) ctxt = do
            , finTy)
     _ -> expectedInferredTypeForm "graded modal" boxTy
 
-inferExpr' (Def n) ctxt = do
-  tA <- lookupType n >>= maybe (scoperError $ SE.unknownNameErr (C.Unqualified $ nameConcrete n)) pure
-  pure (zeroedOutContextForInContext ctxt, tA)
-
-inferExpr' (Universe l) ctxt =
-  pure (zeroedOutContextForInContext ctxt, mkUnivTy (levelSucc l))
-
-{-
-  (M | g1 | gZ) @ G |- A : Type l
-  (M,g1 | g2,s | g3,r) @ G, x : A |- t : B
-  ------------------------------------------------------- :: Fun
-  (M | g2 | g1 + g3) @ G |- \x -> t : (x : [s, r] A) -o B
--}
-inferExpr' (Lam lam) ctxt = do
-  let x = absVar lam
-      tA = absTy lam
-      t = absExpr lam
-      s = subjectGrade lam
-      r = subjectTypeGrade lam
-
-  -- (M | g1 | gZ) @ G |- A : Type l
-  (g1, _) <- checkExprIsType tA ctxt
-
-  -- (M,g1 | g2,s | g3,r) @ G, x : A |- t : B
-  (OutContext { subjectGradesOut = g2s, typeGradesOut = g3r }, tB)
-    <- inferExpr t (extendInputContext ctxt x tA g1)
-
-  -- Check calculated grades against binder
-  let (g2, (_, sComp)) = unextend g2s
-      (g3, (_, rComp)) = unextend g3r
-  s <- verifyGradesEq "pi binder (subject)" Subject x s sComp
-  r <- verifyGradesEq "pi binder (subject type)" SubjectType x r rComp
-
-  -- (M | g2 | g1 + g3) @ G |- \x -> t : (x : [s, r] A) -o B
-  g1plusG3 <- contextGradeAdd g1 g3
-
-  pure ( OutContext { subjectGradesOut = g2, typeGradesOut = g1plusG3 }
-       , FunTy (mkAbsGr x tA s r tB) )
 
 ----------------
 ----- Unit -----
 ----------------
 
-inferExpr' Unit ctxt =
+
+{-
+  ------------------- :: UnitTy
+  0G |- Unit : Type 0
+-}
+checkExpr' UnitTy Nothing ctxt =
+  pure (zeroedOutContextForInContext ctxt, mkUnivTy levelZero)
+
+
+{-
+  ----------------- :: Unit
+  0G |- unit : Unit
+-}
+checkExpr' Unit Nothing ctxt =
   pure (zeroedOutContextForInContext ctxt, UnitTy)
 
-inferExpr' UnitTy ctxt =
-  pure (zeroedOutContextForInContext ctxt, mkUnivTy levelZero)
 
 {-
   (M | g1 | gZ) @ G |- t1 : Unit
@@ -1059,7 +1065,8 @@ inferExpr' UnitTy ctxt =
   ----------------------------------------------------------------------- :: UnitE
   (M | g1 + g2 | g3 + s * g1) G |- case t1 as z in C of * -> t2 : [t1/z]C
 -}
-inferExpr' (Case t1 (Just (PVar z', tC)) [CasePatBound PUnit t2]) ctxt = do
+-- TODO: add support for input type (2020-06-28)
+checkExpr' (Case t1 (Just (PVar z', tC)) [CasePatBound PUnit t2]) Nothing ctxt = do
   let z = unBindName z'
 
   -- (M | g1 | gZ) @ G |- t1 : Unit
@@ -1093,19 +1100,60 @@ inferExpr' (Case t1 (Just (PVar z', tC)) [CasePatBound PUnit t2]) ctxt = do
            , t1forZinC)
     _ -> expectedInferredTypeForm "Unit" unitTy
 
+
 ---------------------------
 ----- Natural numbers -----
 ---------------------------
 
-inferExpr' NatTy ctxt =
+
+{-
+  ------------------ :: NatTy
+  0G |- Nat : Type 0
+-}
+checkExpr' NatTy Nothing ctxt =
   pure (zeroedOutContextForInContext ctxt, mkUnivTy levelZero)
-inferExpr' NZero ctxt =
+
+
+{-
+  ---------------- :: zero
+  0G |- zero : Nat
+-}
+checkExpr' NZero Nothing ctxt =
   pure (zeroedOutContextForInContext ctxt, NatTy)
-inferExpr' NSucc ctxt =
+
+
+{-
+  -------------------------------------- :: succ
+  0G |- succ : (k : [.1, .0] Nat) -> Nat
+-}
+checkExpr' NSucc Nothing ctxt =
   pure (zeroedOutContextForInContext ctxt, FunTy (mkAbsGr ignoreVar NatTy gradeOne gradeZero NatTy))
 
-inferExpr' _ _ = do
-  cannotSynthTypeForExpr
+
+-----------------------------
+----- Fallthrough cases -----
+-----------------------------
+
+
+-- no type passed, and none of the cases provided inference for the
+-- term, so we cannot infer a type for the expression
+checkExpr' _ Nothing _ = cannotSynthTypeForExpr
+
+
+-- a type was passed, but none of the cases provided a way to compare
+-- the types (this usually arises from type constructors), so we
+-- instead infer a type and then compare Switch over to synth case
+checkExpr' e (Just t) ctxt = do
+  debug $ "Check fall through for " <> pprint e
+  --
+  (ctxt', t') <- inferExpr e ctxt
+  t <- ensureEqualTypes t t'
+  pure (ctxt', t)
+
+
+-- | Try and infer a type for the given expression.
+inferExpr :: Expr -> InContext -> CM (OutContext, Type)
+inferExpr e = checkExpr e Nothing
 
 
 --------------------
