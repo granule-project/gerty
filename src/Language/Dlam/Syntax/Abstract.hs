@@ -656,8 +656,7 @@ instance Pretty Grade where
   pprint (Grade { grade = g }) = pprint g
 
 instance Pretty Grading where
-  pprint g = char '[' <>
-             pprint (subjectGrade g) <> comma <+> pprint (subjectTypeGrade g) <> char ']'
+  pprint g = parens (pprint (subjectGrade g) <> comma <+> pprint (subjectTypeGrade g))
 
 instance Pretty Level where
   isLexicallyAtomic (LMax []) = True

@@ -243,7 +243,7 @@ GradeAtom :: { Grade }
 
 
 MaybeBinderGrading :: { Maybe Grading }
-  : '[' Grade ',' Grade ']' { Just (mkGrading $2 $4) }
+  : '(' Grade ',' Grade ')' { Just (mkGrading $2 $4) }
   | {- empty -} { Nothing }
 
 

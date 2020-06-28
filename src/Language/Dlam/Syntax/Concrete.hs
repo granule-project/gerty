@@ -464,8 +464,7 @@ instance Pretty Grade where
   pprint (GParens g) = parens (pprint g)
 
 instance Pretty Grading where
-  pprint g = char '[' <>
-             pprint (subjectGrade g) <> comma <+> pprint (subjectTypeGrade g) <> char ']'
+  pprint g = parens (pprint (subjectGrade g) <> comma <+> pprint (subjectTypeGrade g))
 
 instance Pretty TypedBinding where
   isLexicallyAtomic _ = True
