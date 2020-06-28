@@ -840,7 +840,13 @@ inferExpr' (Case t1 tp [CasePatBound (PPair (PVar x') (PVar y')) t2]) ctxt = do
 
       -- (M,g1,(g2,r) | g4,s,s | g5,q,q) @ G, x : A, y : B |- t2 : [(x,y)/z]C
       (OutContext { subjectGradesOut = g4ss, typeGradesOut = g5qq }, xyForZinC)
-        <- inferExpr t2 (extendInputContext (extendInputContext ctxt x tA g1) y tB g2r)
+        <- case tp of
+             Nothing -> inferExpr t2 (extendInputContext (extendInputContext ctxt x tA g1) y tB g2r)
+             Just (PVar z, tC) -> do
+               xyForZinC <- substitute (unBindName z, Pair (Var x) (Var y)) tC
+               out <- checkExpr t2 xyForZinC (extendInputContext (extendInputContext ctxt x tA g1) y tB g2r)
+               pure (out, xyForZinC)
+             Just (p, _) -> patternMismatch p t1
 
       (g5, q, z, tC) <-
         case tp of
