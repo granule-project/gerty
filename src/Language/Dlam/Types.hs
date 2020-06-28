@@ -276,7 +276,7 @@ gradeEqBase :: Bool -> Grade -> Grade -> CM Bool
 gradeEqBase forceSMT r1 r2 = do
   r1' <- normaliseGrade r1 >>= existentiallyQuantifyGradeImplicits
   r2' <- normaliseGrade r2 >>= existentiallyQuantifyGradeImplicits
-  _ <- requireSameTypedGrades r1 r2
+  ty <- requireSameTypedGrades r1 r2
   case (grade r1', grade r2') of
     -- TODO: remove Inf grade (replaced by implicits) (2020-06-27)
     (GInf, _) -> pure True
@@ -286,7 +286,7 @@ gradeEqBase forceSMT r1 r2 = do
     (_, _) -> do
       -- Go to the SMT solver
       debug $ "Adding smt equality: " <> (pprint r1') <> " = " <> (pprint r2')
-      addConstraint (Eq (grade r1') (grade r2') (gradeTy r1))
+      addConstraint (Eq (grade r1') (grade r2') ty)
       if forceSMT
         then isTheoremValidBool
         else
