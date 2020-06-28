@@ -277,9 +277,6 @@ gradeEqBase forceSMT r1 r2 = do
   r2' <- normaliseGrade r2 >>= existentiallyQuantifyGradeImplicits
   ty <- requireSameTypedGrades r1 r2
   case (grade r1', grade r2') of
-    -- TODO: remove Inf grade (replaced by implicits) (2020-06-27)
-    (GInf, _) -> pure True
-    (_, GInf) -> pure True
     (GEnc n, GEnc n') -> pure (n == n')
     (GPlus s1 s2, GPlus s3 s4) -> (&&) <$> gradeEq (atSpec s1 r1) (atSpec s3 r1) <*> gradeEq (atSpec s2 r2) (atSpec s4 r2)
     (_, _) -> do
