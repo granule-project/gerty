@@ -346,7 +346,7 @@ Atom :: { ParseExpr }
   | '[' Expr ']'              { Box $2 }
   | 'unit'                    { Unit }
   | 'Unit'                    { UnitTy }
-  | '<' Expr1 ',' Expr1 '>'   { Pair $2 $4 }
+  | '<' Expr ',' Expr '>'     { Pair $2 $4 }
 
   -- For later
   -- | '?' { Hole }
