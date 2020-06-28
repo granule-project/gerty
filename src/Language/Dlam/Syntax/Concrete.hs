@@ -398,10 +398,10 @@ instance Pretty Expr where
     pprint (Pi binders finTy) = pprint binders <+> arrow <+> pprint finTy
     pprint (Fun i@Fun{} o) = pprintParened i <+> arrow <+> pprint o
     pprint (Fun i o) = pprint i <+> arrow <+> pprint o
-    pprint (NondepProductTy t1 t2) = pprintParened t1 <+> char '*' <+> pprintParened t2
+    pprint (NondepProductTy t1 t2) = angles (pprintParened t1 <+> char '*' <+> pprintParened t2)
     pprint (ProductTy (n, r, t1) t2) =
-      pprint n <+> colon <> colon <+> pprintParened r <+> pprint t1
-        <+> char '*' <+> pprint t2
+      angles (pprint n <+> brackets (pprint r) <+> colon <+> pprint t1
+        <+> char '*' <+> pprint t2)
     pprint (App lam@Lam{} e2) =
       pprintParened lam <+> pprintParened e2
     pprint (App (Sig e1 t) e2) =
