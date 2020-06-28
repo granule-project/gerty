@@ -278,7 +278,6 @@ gradeEqBase forceSMT r1 r2 = do
   ty <- requireSameTypedGrades r1 r2
   case (grade r1', grade r2') of
     (GEnc n, GEnc n') -> pure (n == n')
-    (GPlus s1 s2, GPlus s3 s4) -> (&&) <$> gradeEq (atSpec s1 r1) (atSpec s3 r1) <*> gradeEq (atSpec s2 r2) (atSpec s4 r2)
     (_, _) -> do
       -- Go to the SMT solver
       debug $ "Adding smt equality: " <> (pprint r1') <> " = " <> (pprint r2')
