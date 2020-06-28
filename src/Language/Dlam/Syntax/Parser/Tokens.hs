@@ -31,7 +31,7 @@ data Symbol
         | SymOpenAngle        | SymCloseAngle
         | SymOpenBrace        | SymCloseBrace
         | SymOpenVirtualBrace | SymCloseVirtualBrace
-        | SymPlus | SymStar | SymAbsurd | SymComma | SymDoubleColon
+        | SymPlus | SymStar | SymAbsurd | SymComma
         | SymOpenBracket | SymCloseBracket
         | SymEndComment -- ^ A misplaced end-comment "-}".
         | SymDotInf | SymDotPlus | SymDotStar | SymDotLub

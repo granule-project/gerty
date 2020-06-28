@@ -36,7 +36,6 @@ import Language.Dlam.Util.Pretty (pprintShow)
 
 %token
     QID     { TokQId $$ }
-    let     { TokKeyword KwLet $$ }
     record  { TokKeyword KwRecord $$ }
     where   { TokKeyword KwWhere $$ }
     constructor { TokKeyword KwConstructor $$ }
@@ -49,11 +48,9 @@ import Language.Dlam.Util.Pretty (pprintShow)
     Type    { TokKeyword KwType $$ }
     VAR     { TokId $$ }
     literal { TokLiteral $$ }
-    absurd  { TokSymbol SymAbsurd $$ }
     '\\'    { TokSymbol SymLambda $$ }
     '->'    { TokSymbol SymArrow $$ }
     '*'     { TokSymbol SymStar $$ }
-    '+'     { TokSymbol SymPlus $$ }
     '='     { TokSymbol SymEqual $$ }
     '('     { TokSymbol SymOpenParen $$ }
     ')'     { TokSymbol SymCloseParen $$ }
@@ -67,8 +64,6 @@ import Language.Dlam.Util.Pretty (pprintShow)
     ','     { TokSymbol SymComma $$ }
     '.'     { TokSymbol SymDot $$ }
     ';'     { TokSymbol SymSemi $$ }
-    '@'     { TokSymbol SymAt $$ }
-    '|'     { TokSymbol SymBar $$ }
     -- grade operations
     '.inf'  { TokSymbol SymDotInf $$ }
     '.+'    { TokSymbol SymDotPlus $$ }
@@ -77,8 +72,6 @@ import Language.Dlam.Util.Pretty (pprintShow)
     -- builtin names
     'unit'  { TokKeyword KwUnit   $$ }
     'Unit'  { TokKeyword KwUnitTy $$ }
-    -- temporary tokens until we can parse mixfix names
-    '::'    { TokSymbol SymDoubleColon _ }
     vopen   { TokSymbol SymOpenVirtualBrace $$ }
     vclose  { TokSymbol SymCloseVirtualBrace $$ }
     vsemi   { TokSymbol SymVirtualSemi $$ }

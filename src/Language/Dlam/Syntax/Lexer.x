@@ -127,7 +127,6 @@ tokens :-
 <0,code> "."            { symbol SymDot }
 <0,code> ","            { symbol SymComma }
 <0,code> ";"            { symbol SymSemi }
-<0,code> "::"           { symbol SymDoubleColon }
 <0,code> ":"            { symbol SymColon }
 <0,code> "="            { symbol SymEqual }
 <0,code> "_"            { symbol SymUnderscore }
