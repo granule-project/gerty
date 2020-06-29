@@ -1043,31 +1043,54 @@ checkExpr' Unit Nothing ctxt =
   ----------------------------------------------------------------------- :: UnitE
   (M | g1 + g2 | g3 + s * g1) G |- case t1 as z in C of * -> t2 : [t1/z]C
 -}
--- TODO: add support for input type (2020-06-28)
-checkExpr' (Case t1 (Just (PVar z', tC)) [CasePatBound PUnit t2]) Nothing ctxt = do
-  let z = unBindName z'
-
+checkExpr' (Case t1 tp [CasePatBound PUnit t2]) t1ForZinC ctxt = do
   -- (M | g1 | gZ) @ G |- t1 : Unit
   (OutContext { subjectGradesOut = g1, typeGradesOut = gZ' }, unitTy)
     <- inferExpr t1 ctxt
   gZ <- verifyGradeVecEq "unit elim" gZ' (zeroesMatchingShape (types ctxt))
   case unitTy of
     UnitTy -> do
-      -- (M | g2 | g3) @ G |- t2 : [*/x]C
+      -- (M | g2 | g3) @ G |- t2 : [*/z]C
       (OutContext { subjectGradesOut = g2, typeGradesOut = g3 }, starForZinC)
-        <- inferExpr t2 ctxt
+        <- case tp of
+             -- in the non-dependent case, we need [*/z]C = [t1/z]C = C
+             Nothing -> checkExpr t2 t1ForZinC ctxt
+             Just (PVar z, tC) -> do
+               starForZinC <- substitute (unBindName z, Unit) tC
+               checkExpr t2 (Just starForZinC) ctxt
+             Just (p, _) -> patternMismatch p t1
+
+      (g3Comp, s, z, tC) <-
+        case tp of
+          -- non-dependent elimination
+          --
+          -- but as the rules don't actually have a non-dependent
+          -- elimination, we pretend there is a fresh variable "z" in
+          -- C that is used with grade 0. Then we obtain the actual
+          -- value of C from the typing of t2 ([*/z]C = C).
+          Nothing -> do
+            z <- getFreshName "z"
+            let tC = starForZinC
+            -- (M,gZ | g3,s | gZ) @ G, z : Unit |- C : Type l
+            (g3s, _) <- checkExprIsType tC (extendInputContext ctxt z UnitTy gZ)
+            -- in this case we require that s is zero
+            let (g3, (_, s)) = unextend g3s
+            s <- verifyGradesEq "formation of product elim type (C)" Subject z s gradeZero
+            pure (g3, s, z, tC)
+          Just (PVar z', tC) -> do
+            let z = unBindName z'
+            -- (M,gZ | g3,s | gZ) @ G, z : Unit |- C : Type l
+            (g3s, _) <- checkExprIsType tC (extendInputContext ctxt z UnitTy gZ)
+            let (g3, (_, s)) = unextend g3s
+            pure (g3, s, z, tC)
+          Just (p, _) -> patternMismatch p t1
 
       starForZinCCalc <- substitute (z, Unit) tC
-      _ <- ensureEqualTypes starForZinCCalc starForZinC
-
-      -- (M,gZ | g3,s | gZ) @ G, z : Unit |- C : Type l
-      (g3s, _) <- checkExprIsType tC (extendInputContext ctxt z UnitTy gZ)
-
-      let (g3Comp, (_, sComp)) = unextend g3s
+      _ <- ensureEqualTypes starForZinC starForZinCCalc
 
       g3 <- verifyGradeVecEq "unit elim" g3 g3Comp
 
-      sTimesG1 <- contextGradeMult sComp g1
+      sTimesG1 <- contextGradeMult s g1
       g1plusG2 <- contextGradeAdd g1 g2
       g3plusStimesG1 <- contextGradeAdd g3 sTimesG1
 

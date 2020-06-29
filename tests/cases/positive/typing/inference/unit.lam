@@ -1,0 +1,11 @@
+t0 : Unit
+t0 = case unit of unit -> unit
+
+t1 : Unit
+t1 = case unit as z in Unit of unit -> unit
+
+t2 : <Unit * Unit> -> Unit
+t2 = \p -> case p of <x, y> -> case x of unit -> y
+
+t3 : <Unit * Unit> -> Unit
+t3 = \p -> case p of <x, y> -> case x as z in Unit of unit -> y
