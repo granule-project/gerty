@@ -4,22 +4,22 @@
 
 
 -- implicit grades
-t1 : (a : [_, _] Type) -> Type
+t1 : (a : (_, _) Type) -> Type
 
 -- infinity
-t2 : (a : [.inf, .inf] Type) -> Type
+t2 : (a : (.inf, .inf) Type) -> Type
 
 -- zero and one
-t3 : (a : [.0, .1] Type) -> Type
+t3 : (a : (.0, .1) Type) -> Type
 
 -- compiled arbitrary grades
-t4 : (a : [.7, .5] Type) -> Type
+t4 : (a : (.7, .5) Type) -> Type
 
 -- can use arbitrary expressions for grades
-t5 : (foo : Type) (a : [foo, Type 1] Type) -> Type
+t5 : (foo : Type) (a : (foo, Type 1) Type) -> Type
 
 -- privacy levels
-t6 : (a : [Private, Public] Type) -> Type
+t6 : (a : (Private, Public) Type) -> Type
 
 ----------------
 -- Operations --
@@ -27,13 +27,13 @@ t6 : (a : [Private, Public] Type) -> Type
 
 
 -- addition
-t7 : (a : [.1 .+ .2, _] Type) -> Type
+t7 : (a : (.1 .+ .2, _) Type) -> Type
 
 -- multiplication
-t8 : (a : [.1 .* .2, _] Type) -> Type
+t8 : (a : (.1 .* .2, _) Type) -> Type
 
 -- least-upper bound
-t9 : (a : [.1 .lub .2, _] Type) -> Type
+t9 : (a : (.1 .lub .2, _) Type) -> Type
 
 
 ---------------------
@@ -43,4 +43,4 @@ t9 : (a : [.1 .lub .2, _] Type) -> Type
 
 -- type-signatures to specify grade type
 -- TODO: currently require parens here, but you shouldn't (2020-06-20)
-t10 : (a : [(.0 : Privacy), _] Type) -> Type
+t10 : (a : ((.0 : Privacy), _) Type) -> Type

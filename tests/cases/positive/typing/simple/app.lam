@@ -1,24 +1,24 @@
 -- testing applications
 
 -- application of lambda
-test1 : Level
-test1 = (\(x : Level) -> x) lzero
+test1 : Unit
+test1 = (\(x : Unit) -> x) unit
 
 
-test2 : Level -> Level
+test2 : Unit -> Unit
 test2 = \x -> x
 
 
 -- application of a lambda definition
-test3 : Level
-test3 = test2 lzero
+test3 : Unit
+test3 = test2 unit
 
 
 -- alias for a builtin
-test4 : (l : Level) -> Type (lsuc l)
-test4 = Type
+test4 : (l : Unit) -> Type 1
+test4 = \l -> Type 0
 
 
 -- application of a definition to a definition
-test5 : Type (lsuc test3)
+test5 : Type 1
 test5 = test4 test3

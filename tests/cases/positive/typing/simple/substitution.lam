@@ -1,9 +1,9 @@
 -- tests for when substitution should apply
 
 
--- (\x -> x) lzero = [lzero/x]x = lzero
-t1 : Level
-t1 = (\x -> x) lzero
+-- (\x -> x) unit = [unit/x]x = unit
+t1 : Unit
+t1 = (\(x : Unit) -> x) unit
 
 {-
    G |- t1 : (x : A) -> B
@@ -11,5 +11,5 @@ t1 = (\x -> x) lzero
    ---------------------- :: App
    G |- t1 t2 : [t2/x]B
 -}
-app : (l1 l2 : Level) (A : Type l1) (B : A -> Type l2) (t1 : (x : A) -> B x) (t2 : A) -> B t2
-app = \l1 l2 A B t1 t2 -> t1 t2
+app : (A : Type 0) (B : A -> Type 0) (t1 : (_, _) (x : A) -> B x) (t2 : A) -> B t2
+app = \A B t1 t2 -> t1 t2

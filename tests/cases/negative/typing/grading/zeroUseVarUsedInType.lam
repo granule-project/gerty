@@ -1,3 +1,6 @@
 -- we specify zero uses, but we use the variable in the type
-test : (l : [zero, zero] Level) -> (a : Type l) -> Level
-test = _
+test : (l : (.0, .0) Unit)
+       (f : (.0, .1) (x : (.1, .0) Unit) -> Type 0)
+       (y : (.0, .0) f l)
+       -> Unit
+test = \l f y -> unit

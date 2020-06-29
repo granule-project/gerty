@@ -1,40 +1,40 @@
 -- Examples for the builtin pairs
 
 -- Example converting a 2-arity function to a function on pairs
-uncurry : (l : Level) -> (a : Type l) -> (b : Type l) -> (c : Type l) -> (a -> b -> c) -> (a * b) -> c
-uncurry = \l -> \a -> \b -> \c -> \f -> \p -> let (x, y) = p in f x y
+uncurry : (a b c : Type 0) -> (a -> b -> c) -> <a * b> -> c
+uncurry = \a b c f p -> case p of <x, y> -> f x y
 
 -- Example converting a function from pairs to a 2-arity function
-curry : (l : Level) -> (a : Type l) -> (b : Type l) -> (c : Type l) -> (a * b -> c) -> a -> b -> c
-curry = \l -> \a -> \b -> \c -> \f -> \x -> \y -> f (x, y)
+curry : (a b c : Type 0) -> (<a * b> -> c) -> a -> b -> c
+curry = \a b c f x y -> f <x, y>
 
-pairId : (l : Level) -> (a : Type l) -> (b : Type l) -> (a * b) -> (a * b)
-pairId = \l -> \a -> \b -> \p -> let (x, y) = p in (x, y)
+pairId : (a b : Type 0) -> <a * b> -> <a * b>
+pairId = \a b p -> case p of <x, y> -> <x, y>
 
 -- Example showing the dependent tensor type
-pairTy : (l1 : Level) -> (l2 : Level) -> (a : Type l1) -> (b : a -> Type l2) -> Type (lmax l1 l2)
-pairTy = \l1 -> \l2 -> \a -> \b -> x :: a * b x
+pairTy : (a : Type 0) -> (b : a -> Type 0) -> Type 0
+pairTy = \a b -> <x : a * b x>
 
 -- Example showing pair construction
-mkPair : (l1 : Level) -> (l2 : Level) -> (a : Type l1) -> (b : a -> Type l2) -> (x : a) -> b x -> x :: a * b x
-mkPair = \l1 -> \l2 -> \a -> \b -> \x -> \y -> (x, y)
+mkPair : (a : Type 0) -> (b : a -> Type 0) -> (x : a) -> b x -> <x : a * b x>
+mkPair = \a b x y -> <x, y>
 
 -- The first projection
-fst : (l1 l2 : Level) (a : Type l1) (b : a -> Type l2) -> x :: a * b x -> a
-fst = \l1 l2 a b p -> let (x, y) = p in x
+fst : (a : (.0, .3) Type 0) (b : (.0, .1) (x : (_, _) a) -> Type 0) -> <x [.0] : a * [.0, .0] b x> -> a
+fst = \a b p -> case p of <x, y> -> case y of [z] -> x
 
 -- First projection on non-dependent pairs
-fst' : (l1 l2 : Level) (a : Type l1) (b : Type l2) -> a * b -> a
-fst' = \l1 l2 a b p -> fst l1 l2 a (\x -> b) p
+fst' : (a b : Type 0) -> <a * [.0, .0] b> -> a
+fst' = \a b p -> fst a (\x -> b) p
 
 -- The second projection
-snd : (l1 l2 : Level) (a : Type l1) (b : a -> Type l2) (p : x :: a * b x) -> b (fst l1 l2 a b p)
-snd = \l1 l2 a b p -> let z@(x, y) = p in y : b (fst l1 l2 a b z)
+snd : (a : Type 0) (b : a -> Type 0) (p : <x : a * b x>) -> b (fst a b p)
+snd = \a b p -> case p as z in b (fst a b z) of <x, y> -> y
 
 -- Second projection on non-dependent pairs
-snd' : (l1 l2 : Level) (a : Type l1) (b : Type l2) -> a * b -> b
-snd' = \l1 l2 a b p -> snd l1 l2 a (\x -> b) p
+snd' : (a b : Type 0) -> <a * b> -> b
+snd' = \a b p -> snd a (\x -> b) p
 
 -- Pair eliminator
-letTen : (l1 l2 l3 : Level) (a : Type l1) (b : a -> Type l2) (c : Type l3) -> ((x : a) -> b x -> c) -> x :: a * b x -> c
-letTen = \l1 l2 l3 a b c f p -> let (x, y) = p in f x y
+letTen : (a : Type 0) (b : a -> Type 0) (c : Type 0) -> ((x : a) -> b x -> c) -> <x : a * b x> -> c
+letTen = \a b c f p -> case p of <x, y> -> f x y

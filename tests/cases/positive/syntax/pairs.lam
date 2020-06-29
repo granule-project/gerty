@@ -1,14 +1,11 @@
 -- non-dependent tensor
-t : A * B
+t : <A * B>
 
 -- tensor with bound variable
-t : x :: A * B
+t : <x : A * B>
 
 -- tensor with graded binder
-t : x :: [.0] A * B
-
--- tensor with graded binder (with '.' disambiguator)
-t : x :: .[_] A * B
+t : <x [.0] : A * B>
 
 -- pair
 t = <x, y>

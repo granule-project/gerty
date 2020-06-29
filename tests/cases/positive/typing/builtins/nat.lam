@@ -11,8 +11,12 @@ zero' : Nat
 zero' = zero
 
 
-succ' : (n : [.1, .0] Nat) -> Nat
+succ' : (n : (.1, .0) Nat) -> Nat
 succ' = succ
+
+
+-- f : (b : (.1, .0) (x : (.1, .0) Nat) -> Type 0) -> (n : (.1, .0) Nat) -> Type 0
+-- f = \b n -> b (succ' n)
 
 
 -- TODO: add support for Nat case (2020-06-25)

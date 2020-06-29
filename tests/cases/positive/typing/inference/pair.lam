@@ -1,9 +1,9 @@
 -- the 'z in a * b' should be matched with the 'a * b' in the type
-pairId : (a b : Type 0) -> (a * b) -> (a * b)
-pairId = \a b p -> case p as z in a * b of <x, y> -> <x, y>
+pairId : (a b : Type 0) -> <a * b> -> <a * b>
+pairId = \a b p -> case p as z in <a * b> of <x, y> -> <x, y>
 
 -- no as pattern is specified, so this should fall back to a
 -- non-dependent case, and be able to determine that '<x, y>' has type
 -- '(a * b)' (the result type of the whole case)
-pairId2 : (a b : Type 0) -> (a * b) -> (a * b)
+pairId2 : (a b : Type 0) -> <a * b> -> <a * b>
 pairId2 = \a b p -> case p of <x, y> -> <x, y>

@@ -5,7 +5,7 @@ f : A -> B
 f : (x : A) -> B
 
 -- graded dependent arrow
-f : (x : [.0, .0] A) -> B
+f : (x : (.0, .0) A) -> B
 
 -- lambda
 f = \x -> t
@@ -14,13 +14,13 @@ f = \x -> t
 f = \(x : A) -> t
 
 -- lambda with argument type and grading
-f = \(x : [.0, .0] A) -> t
+f = \(x : (.0, .0) A) -> t
 
 -- lambda with multiple arguments
 f = \x y -> t
 
 -- lambda with multiple complex arguments
-f = \(x : A) y (z : [.0, .0] B) -> t
+f = \(x : A) y (z : (.0, .0) B) -> t
 
 
 -- application

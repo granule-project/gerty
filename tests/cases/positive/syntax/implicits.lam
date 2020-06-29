@@ -11,7 +11,7 @@ idImplApp1 = idImpl1 lzero
 
 -- passing implicit
 idImplApp2 : Level
-idImplApp2 = idImpl1 {1} lzero
+idImplApp2 = idImpl1 {lzero} lzero
 
 -- passing named implicit
 idImplApp3 : Level

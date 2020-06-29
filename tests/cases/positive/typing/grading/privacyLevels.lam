@@ -1,28 +1,28 @@
-t1 : (a : [.0, .2] Type 0) (x : [Private, Irrelevant] a) -> a
+t1 : (a : (.0, .2) Type 0) (x : (Private, Irrelevant) a) -> a
 t1 = \a x -> x
 
 -- TODO: currently bugged (2020-06-21)
 --
--- irrToPriv : (a b : [.0, .2] Type 0)
---   -> (f : [.1, .0] (x : [Irrelevant .lub Private, .0] a) -> b) -> (y : [Irrelevant, .0] a) -> b
+-- irrToPriv : (a b : (.0, .2) Type 0)
+--   -> (f : (.1, .0) (x : (Irrelevant .lub Private, .0) a) -> b) -> (y : (Irrelevant, .0) a) -> b
 -- irrToPriv = \a b f -> f
 
 -- Irrelevant <= Private
-irrToPriv : (a b : [.0, .2] Type 0)
-  -> (f : [.1, .0] (x : [Irrelevant .lub Private, .0] a) -> b) -> (y : [Private, .0] a) -> b
+irrToPriv : (a b : (.0, .2) Type 0)
+  -> (f : (.1, .0) (x : (Irrelevant .lub Private, .0) a) -> b) -> (y : (Private, .0) a) -> b
 irrToPriv = \a b f y -> f y
 
 -- Private <= Public
-privToPub : (a b : [.0, .2] Type 0)
-  -> (f : [.1, .0] (x : [Private .lub Public, .0] a) -> b) -> (y : [Public, .0] a) -> b
+privToPub : (a b : (.0, .2) Type 0)
+  -> (f : (.1, .0) (x : (Private .lub Public, .0) a) -> b) -> (y : (Public, .0) a) -> b
 privToPub = \a b f y -> f y
 
 -- Irrelevant <= Public
-irrToPub : (a b : [.0, .2] Type 0)
-  -> (f : [.1, .0] (x : [Irrelevant .lub Public, .0] a) -> b) -> (y : [Public, .0] a) -> b
+irrToPub : (a b : (.0, .2) Type 0)
+  -> (f : (.1, .0) (x : (Irrelevant .lub Public, .0) a) -> b) -> (y : (Public, .0) a) -> b
 irrToPub = \a b f y -> f y
 
 -- TODO: currently not working due to lack of approx
--- irrToPubApprox : (a b : [.0, .2] Type 0)
---   -> (f : [.1, .0] (x : [Irrelevant, .0] a) -> b) -> (y : [Public, .0] a) -> b
+-- irrToPubApprox : (a b : (.0, .2) Type 0)
+--   -> (f : (.1, .0) (x : (Irrelevant, .0) a) -> b) -> (y : (Public, .0) a) -> b
 -- irrToPubApprox = \a b f y -> f y

@@ -1,4 +1,4 @@
 -- tests for lambda abstractions
 
-test1 : Level -> Level
-test1 = \(x : Level) -> lzero
+test1 : Unit -> Unit
+test1 = \(x : Unit) -> unit

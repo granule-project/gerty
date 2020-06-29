@@ -1,2 +1,2 @@
 -- you can use arbitrary expressions in grades
-test : (l1 l2 : Level) (x : [lmax l1 l2, someFun (lmax (suc l1) l2)] Level) -> Level
+test : (l1 l2 : Level) (x : (lmax l1 l2, someFun (lmax (suc l1) l2)) Level) -> Level

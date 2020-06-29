@@ -1,9 +1,9 @@
 -- tests for implicit grades
 
-t1 : (a : [_, _] Type 0) -> Type 0
+t1 : (a : (_, _) Type 0) -> Type 0
 t1 = \a -> a
 
-t2 : (a : [_, _] Type 0) (x : [_, _] a) -> a
+t2 : (a : (_, _) Type 0) (x : (_, _) a) -> a
 t2 = \a x -> x
 
 t3 : (a : Type 0) -> a -> a
@@ -15,31 +15,31 @@ t5 : Type 1
 t5 = (a : Type 0) -> a -> a
 
 t6 : Type 1
-t6 = (a : Type 0) (b : a -> Type 0) -> x :: .[_] a * b x
+t6 = (a : Type 0) (b : a -> Type 0) -> <x [_] : a * b x>
 
-t7 : x :: .[_] Nat * Nat
+t7 : <x [_] : Nat * Nat>
 t7 = <zero, zero>
 
-t8 : (a : Type 0) (b : a -> Type 0) -> (x : a) -> b x -> (x :: .[_] a * b x)
+t8 : (a : Type 0) (b : a -> Type 0) -> (x : a) -> b x -> <x [_] : a * b x>
 t8 = \a b x y -> <x, y>
 
-t9 : (a : Type 0) (b : a -> Type 0) -> (x : a) -> b x -> (x :: a * b x)
+t9 : (a : Type 0) (b : a -> Type 0) -> (x : a) -> b x -> <x : a * b x>
 t9 = \a b x y -> <x, y>
 
 t10 : (a : Type 0) -> a -> a
 t10 = t4
 
-t11 : Nat [_, _]
+t11 : [_, _] Nat
 t11 = [zero]
 
-t12 : Nat [.5, .7]
+t12 : [.5, .7] Nat
 t12 = t11
 
-t13 : Nat [.8, .7]
+t13 : [.8, .7] Nat
 t13 = t11
 
-t14 : (a : [_ .* _, _] Type 0) (x : [_ .+ (_ .* (_ .lub _)), _] a) -> a
+t14 : (a : (_ .* _, _) Type 0) (x : (_ .+ (_ .* (_ .lub _)), _) a) -> a
 t14 = \a x -> x
 
-t15 : (a : [_, .2 .+ _] Type 0) -> a -> a
+t15 : (a : (_, .2 .+ _) Type 0) -> a -> a
 t15 = \a x -> x

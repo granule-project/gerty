@@ -1,12 +1,11 @@
 -- type
-f : A [.0, .0]
+f : [.0, .0] A
 
 -- intro
 f = [x]
 
 -- elim
-f = let [x] = y in z
+f = case y of [x] -> z
 
--- elim in type
-f : let [x] = y in z
-f = let [x] = a in p
+-- dependent elim
+f = case y as z in a of [x] -> b

@@ -12,18 +12,18 @@ ftySimple = \x -> x
 
 -- we can then use named binders to allow later parts of the type to depend
 -- upon earlier components
-ftyDependent : (l : Level) -> Type l -> Type l
-ftyDependent = \l -> \x -> x
+ftyDependent : (l : Unit) -> (f : Unit -> Type 0) -> f l -> f l
+ftyDependent = \l -> \f -> \x -> x
 
 -- when you have multiple named bindings of the same type, you
 -- can group them as follows:
-ftyDependentSameGrouped : (l1 l2 : Level) -> Type l1 -> Type l2 -> Type l1
+ftyDependentSameGrouped : (l1 l2 : [_, .0] Unit) -> Type 0 -> Type 0 -> Type 0
 ftyDependentSameGrouped = \l1 -> \l2 -> \x -> \y -> x
 
 -- similarly, if you have multiple named binders, you can group them
 -- without needing to put an arrow between them
-ftyDependentMultiBinders : (l : Level) (a : Type l) -> a -> a
-ftyDependentMultiBinders = \l -> \a -> \x -> x
+ftyDependentMultiBinders : (l : Unit) (f : Unit -> Type 0) -> f l -> f l
+ftyDependentMultiBinders = \l -> \f -> \x -> x
 
 -------------------------
 -- Lambda Abstractions --
@@ -45,20 +45,20 @@ lamGroupArgs : Type 0 -> Type 1 -> Type 0
 lamGroupArgs = \x y -> x
 
 -- you can of course mix argument syntax as you wish
-lamMixedArgs : (l1 l2 : Level) (a : Type l1) (b : Type l2) -> Type l2
-lamMixedArgs = \(l1 l2 : Level) (a : Type l1) b -> b
+lamMixedArgs : (l1 l2 : Unit) (a : Type 0) (b : Type 0) -> Type 0
+lamMixedArgs = \(l1 l2 : Unit) (a : Type 0) b -> b
 
 ----------------------------
 -- Dependent tensor types --
 ----------------------------
 
 -- the dependent tensor type uses the syntax 'x :: a * b'
-tenSimple : x :: Type 2 * x
+tenSimple : <x : Type 2 * x>
 tenSimple = <Type 1, Type 0>
 
 -- when the type of the second element does not depend upon the value
 -- of the first, you can omit the binder
-tenNonDep : Type 1 * Type 1
+tenNonDep : <Type 1 * Type 1>
 tenNonDep = <Type 0, Type 0>
 
 -----------
@@ -67,16 +67,16 @@ tenNonDep = <Type 0, Type 0>
 
 -- pairs are formed by separating each component by a comma,
 -- surrounded by parentheses
-pairSimple : Type 1 * Type 1
+pairSimple : <Type 1 * Type 1>
 pairSimple = <Type 0, Type 0>
 
 -----------------------
 -- Tensor eliminator --
 -----------------------
 
--- tensors are eliminated through the syntax 'let (x, y) = e1 in e2'
-pairElimSimple : Level * Level -> Level
-pairElimSimple = \p -> let <x, y> = p in lmax x y
+-- tensors are eliminated through the syntax 'case e1 of <x, y> -> e2'
+pairElimSimple : <Unit * Unit> -> Unit
+pairElimSimple = \p -> case p of <x, y> -> case x of unit -> y
 
 
 ----------------
@@ -84,9 +84,13 @@ pairElimSimple = \p -> let <x, y> = p in lmax x y
 ----------------
 
 
+-- TODO: currently unsupported (2020-06-29)
+
+{-
 cpLongForm : Nat + Nat -> Nat
 cpLongForm = \p -> case z@p of (Inl x -> x; Inr y -> y) : Nat
 
 
 cpShortForm : Nat + Nat -> Nat
 cpShortForm = \p -> case p of Inl x -> x; Inr y -> y
+-}

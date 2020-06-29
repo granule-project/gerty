@@ -1,11 +1,11 @@
-fst : (l1 l2 : Level) (a : Type l1) (b : a -> Type l2) -> x :: a * b x -> a
-fst = \l1 l2 a b p -> let (x, y) = p in x
+fst : (a : Type 0) (b : a -> Type 0) -> <w : a * [.0, .0] b w> -> a
+fst = \a b p -> case p of <x, y> -> case y of [z] -> x
 
-snd : (l1 l2 : Level) (a : Type l1) (b : a -> Type l2) (p : x :: a * b x) -> b (fst l1 l2 a b p)
-snd = \l1 l2 a b p -> let z@(x, y) = p in y : b (fst l1 l2 a b z)
+snd : (a : Type 0) (b : a -> Type 0) (p : <x : a * b x>) -> b (fst a b p)
+snd = \a b p -> case p as z in b (fst a b z) of <x, y> -> y
 
--- The checker should be able to first normalise 'fst l1 l2 a b p' to
--- 'let (x, y) = p in x', then should be able to see that the 'x' in
--- '(x : a) * b x' is equivalent to this.
-snd' : (l1 l2 : Level) (a : Type l1) (b : a -> Type l2) (p : x :: a * b x) -> b (fst l1 l2 a b p)
-snd' = \l1 l2 a b p -> let (x, y) = p in y
+-- The checker should be able to first normalise 'fst a b p' to
+-- 'case p of <x, y> -> x', then should be able to see that the 'x' in
+-- '<x : a * b x>' is equivalent to this.
+snd' : (a : Type 0) (b : a -> Type 0) (p : <x : a * b x>) -> b (fst a b p)
+snd' = \a b p -> case p of <x, y> -> y

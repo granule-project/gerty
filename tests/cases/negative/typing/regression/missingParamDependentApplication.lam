@@ -3,5 +3,5 @@
 --
 -- this is a regression test---it used to be that this
 -- would complain about "Unknown identifier 'p'"
-t : (c : Level -> Type 0) (p : Level) -> (Level -> c p) -> c p
-t = \c l e -> Level
+t : (c : Unit -> Type 0) (p : Unit) -> (Unit -> c p) -> c p
+t = \c l e -> Unit

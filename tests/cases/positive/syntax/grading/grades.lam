@@ -4,22 +4,22 @@
 
 
 -- implicit grades
-t : (a : [_, _] b) -> c
+t : (a : (_, _) b) -> c
 
 -- infinity
-t : (a : [.inf, .inf] b) -> c
+t : (a : (.inf, .inf) b) -> c
 
 -- zero and one
-t : (a : [.0, .1] b) -> c
+t : (a : (.0, .1) b) -> c
 
 -- compiled arbitrary grades
-t : (a : [.7, .5] b) -> c
+t : (a : (.7, .5) b) -> c
 
 -- can use arbitrary expressions for grades
-t : (a : [hello, f x] b) -> c
+t : (a : (hello, f x) b) -> c
 
 -- privacy levels
-t : (a : [Private, Public] b) -> c
+t : (a : (Private, Public) b) -> c
 
 ----------------
 -- Operations --
@@ -27,13 +27,13 @@ t : (a : [Private, Public] b) -> c
 
 
 -- addition
-t : (a : [.1 .+ .2, _] b) -> c
+t : (a : (.1 .+ .2, _) b) -> c
 
 -- multiplication
-t : (a : [.1 .* .2, _] b) -> c
+t : (a : (.1 .* .2, _) b) -> c
 
 -- least-upper bound
-t : (a : [.1 .lub .2, _] b) -> c
+t : (a : (.1 .lub .2, _) b) -> c
 
 
 ---------------------
@@ -43,4 +43,4 @@ t : (a : [.1 .lub .2, _] b) -> c
 
 -- type-signatures to specify grade type
 -- TODO: currently require parens here, but you shouldn't (2020-06-20)
-t : (a : [(.0 : Security), _] b) -> c
+t : (a : ((.0 : Security), _) b) -> c

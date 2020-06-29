@@ -1,57 +1,73 @@
 -- Example converting a 2-arity function to a function on pairs
-uncurry : (a b c : [.0, .2] Type 0) (f : [.1, .0] ((x : [.1, .0] a) (y : [.1, .0] b) -> c)) (p : [.1, .0] (a * b)) -> c
-uncurry = \a b c f p -> case p of (x, y) -> f x y
+uncurry : (a b c : (.0, .2) Type 0) (f : (.1, .0) ((x : (.1, .0) a) (y : (.1, .0) b) -> c)) (p : (.1, .0) <a * b>) -> c
+uncurry = \a b c f p -> case p of <x, y> -> f x y
 
 -- Example converting a function from pairs to a 2-arity function
-curry : (a b c : [.0, .2] Type 0) -> (f : [.1, .0] (p : [.1, .0] a * b) -> c) -> (x : [.1, .0] a) -> (y : [.1, .0] b) -> c
-curry = \a b c f x y -> f (x, y)
+curry : (a b c : (.0, .2) Type 0) -> (f : (.1, .0) (p : (.1, .0) <a * b>) -> c) -> (x : (.1, .0) a) -> (y : (.1, .0) b) -> c
+curry = \a b c f x y -> f <x, y>
 
--- pairId : (a b : [.0, .2] Type 0) (p : [.1, .0] (a * b)) -> (a * b)
--- pairId = \a b p -> let (x, y) = p in (x, y)
+-- pairId : (a b : (.0, .2) Type 0) (p : (.1, .0) <a * b>) -> <a * b>
+-- pairId = \a b p -> case p of <x, y> -> <x, y>
 --
 -- Example showing the dependent tensor type
-pairTy : (a : [.1, .1] Type 0) -> (b : [.1, .0] (x : [.1, .0] a) -> Type 0) -> Type 0
-pairTy = \a b -> x :: [.1] a * b x
+pairTy : (a : (.1, .1) Type 0) -> (b : (.1, .0) (x : (.1, .0) a) -> Type 0) -> Type 0
+pairTy = \a b -> <x [.1] : a * b x>
 
 -- Example showing pair construction
-mkPair : (a : [.0, .3] Type 0) -> (b : [.0, .2] (x : [.1, .0] a) -> Type 0) -> (x : [.1, .1] a) -> (y : [.1, .0] b x) -> z :: [.1] a * b z
-mkPair = \a b x y -> (x, y)
+mkPair : (a : (.0, .3) Type 0) -> (b : (.0, .2) (x : (.1, .0) a) -> Type 0) -> (x : (.1, .1) a) -> (y : (.1, .0) b x) -> <z [.1] : a * b z>
+mkPair = \a b x y -> <x, y>
 
 -- The first projection
-fst : (a : [.0, .3] Type 0)
-      (b : [.0, .1] (x : [.1, .0] a) -> Type 0)
-      (p : [.1, .0] x :: [.1] a * (b x) [.0, .0])
+fst : (a : (.0, .3) Type 0)
+      (b : (.0, .1) (x : (.1, .0) a) -> Type 0)
+      (p : (.1, .0) <x [.1] : a * [.0, .0] (b x)>)
       -> a
-fst = \a b p -> case p of (x, y) -> case y of [z] -> x
+fst = \a b p -> case p of <x, y> -> case y of [z] -> x
 
 -- -- First projection on non-dependent pairs
--- fst' : (a : Type 0) (b : Type 0) -> a * b -> a
+-- fst' : (a : Type 0) (b : Type 0) -> <a * b> -> a
 -- fst' = \a b p -> fst a (\x -> b) p
---
--- -- The second projection
--- snd : (a : Type 0) (b : a -> Type 0) (p : x :: a * b x) -> b (fst a b p)
--- snd = \a b p -> let z@(x, y) = p in y : b (fst a b z)
---
+
+-- The second projection
+
+snd : (a : (.0, .3) Type 0)
+      (b : (.0, .1) (x : (.0, .0) a) -> Type 0)
+      (p : (.1, .0) <x1 [.1] : [.0, .0] a * b (case x1 of [z] -> z)>)
+      -> a
+snd = \a b p -> case p of <x, y> -> case x of [z] -> y
+
+-- snd : (a : (.0, .3) Type 0)
+--       (b : (.0, .1) (x : (.0, .0) a) -> Type 0)
+--       (p : (.1, .0) <x1 [.1] : [.0, .0] a * case x1 of [z] -> b z>)
+--       -> a
+-- snd = \a b p -> case p of <x, y> -> case x of [z] -> y
+
+-- snd : (a : (.0, .3) Type 0)
+--       (b : (.0, .1) (x : (.1, .0) a) -> Type 0)
+--       (p : (.1, .0) <x [.1] : [.0, .1] a * case x of [z] -> b z>)
+--       -> a
+-- snd = \a b p -> case p of <x, y> -> case x of [z] -> x
+
 -- -- Second projection on non-dependent pairs
 -- snd' : (a : Type 0) (b : Type 0) -> a * b -> b
 -- snd' = \a b p -> snd a (\x -> b) p
 --
 -- -- Pair eliminator
--- letTen : (a : Type 0) (b : a -> Type 0) (c : Type 0) -> ((x : a) -> b x -> c) -> x :: a * b x -> c
--- letTen = \a b c f p -> let (x, y) = p in f x y
+-- letTen : (a : Type 0) (b : a -> Type 0) (c : Type 0) -> ((x : a) -> b x -> c) -> <x : a * b x> -> c
+-- letTen = \a b c f p -> let <x, y> = p in f x y
 
-letTen : (a : [.0, .3] Type 0)
-         (b : [.0, .2] (ba : [.inf, .0] a) -> Type 0)
-         (c : [.0, .2] Type 0)
-         (f : [.1, .0] (x : [.inf, .0] a) (bx : [.1, .0] b x) -> c)
-         (p : [.1, .0] y :: [.1] a * b y)
+letTen : (a : (.0, .3) Type 0)
+         (b : (.0, .2) (ba : (.inf, .0) a) -> Type 0)
+         (c : (.0, .2) Type 0)
+         (f : (.1, .0) (x : (.inf, .0) a) (bx : (.1, .0) b x) -> c)
+         (p : (.1, .0) <y [.1] : a * b y>)
          -> c
-letTen = \a b c f p -> case p of (x, y) -> f x y
+letTen = \a b c f p -> case p of <x, y> -> f x y
 
-letTenDep : (a : [.0, .4] Type 0)
-            (b : [.0, .3] (ba : [.inf, .0] a) -> Type 0)
-            (c : [.0, .2] (p1 : [.1, .0] y2 :: [.1] a * b y2) -> Type 0) ->
-            (f : [.1, .0] (x : [.inf, .0] a) -> (bx : [.1, .1] b x) -> c (x, bx))
-            (p : [.1, .1] y :: [.1] a * b y)
+letTenDep : (a : (.0, .4) Type 0)
+            (b : (.0, .3) (ba : (.inf, .0) a) -> Type 0)
+            (c : (.0, .2) (p1 : (.1, .0) <y2 [.1] : a * b y2>) -> Type 0) ->
+            (f : (.1, .0) (x : (.inf, .0) a) -> (bx : (.1, .1) b x) -> c <x, bx>)
+            (p : (.1, .1) <y [.1] : a * b y>)
             -> c p
-letTenDep = \a b c f p -> case p as z in c z of (x, y) -> f x y
+letTenDep = \a b c f p -> case p as z in c z of <x, y> -> f x y

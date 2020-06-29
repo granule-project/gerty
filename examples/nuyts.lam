@@ -9,29 +9,29 @@
 
 -- this version of RI does not guarantee independence, as you can leak
 -- the implementation type C
-RI' : (A : [.1, .0] Type 2) -> (B : [.1, .0] Type 2) -> Type 2
+RI' : (A : (.1, .0) Type 2) -> (B : (.1, .0) Type 2) -> Type 2
 RI' = \A -> \B
-       -> (C : [.1, .2] Type 1)
-       -> (r : [.0, .0] (x : [_, .0] C) -> A)
-       -> (y : [.0, .0] C) -> B
+       -> (C : (.1, .2) Type 1)
+       -> (r : (.0, .0) (x : (_, .0) C) -> A)
+       -> (y : (.0, .0) C) -> B
 
-leak : (A : [.0, .1] Type 2) -> RI' A (Type 1)
+leak : (A : (.0, .1) Type 2) -> RI' A (Type 1)
 leak = \A C r c -> C
 
 -- but by specifying a subject grade of '0' (exact usage) for 'C', we
 -- can guarantee that the implementation type is never leaked
 
-RI'' : (A : [.1, .0] Type 2) -> (B : [.1, .0] Type 2) -> Type 2
+RI'' : (A : (.1, .0) Type 2) -> (B : (.1, .0) Type 2) -> Type 2
 RI'' = \A -> \B
-        -> (C : [.0, .2] Type 1)
-        -> (r : [.1, .0] (x : [_, .0] C) -> A)
-        -> (y : [.0, .0] C) -> B
+        -> (C : (.0, .2) Type 1)
+        -> (r : (.1, .0) (x : (_, .0) C) -> A)
+        -> (y : (.0, .0) C) -> B
 
 -- the example of leak won't work for this refined RI''. Uncomment
 -- leakBad to see that the type-checker sees that C is being used,
 -- when it shouldn't be.
 --
--- leakBad : (A : [.0, .1] Type 2) -> RI'' A (Type 1)
+-- leakBad : (A : (.0, .1) Type 2) -> RI'' A (Type 1)
 -- leakBad = \A C r c -> C
 
 
@@ -45,11 +45,11 @@ RI'' = \A -> \B
 -- the use of 'r', 'x', and 'y' as parameters. (GD: (2020-06-17))
 --
 -- RI A B :≡ Π(C : Type).(C → A) → (C → B)
-RI : (A : [.1, .0] Type 2) -> (B : [.1, .0] Type 2) -> Type 3
+RI : (A : (.1, .0) Type 2) -> (B : (.1, .0) Type 2) -> Type 3
 RI = \A -> \B
-      -> (C : [.0, .2] Type 2)
-      -> (r : [.inf, .0] (x : [.inf, .0] C) -> A)
-      -> (y : [.inf, .0] C) -> B
+      -> (C : (.0, .2) Type 2)
+      -> (r : (.inf, .0) (x : (.inf, .0) C) -> A)
+      -> (y : (.inf, .0) C) -> B
 
 
 ---------------------------------------
@@ -62,14 +62,14 @@ RI = \A -> \B
 
 -- Nuyts would let you do the following implementation:
 --
--- RIisoExampleLeft : (A B : [.0, .2] Type 2) (ri : [.1, .0] RI A B) (a : [.2, .0] A) -> B
--- RIisoExampleLeft = \A B ri a -> ri A (\(x : [.0, .0] A) -> a) a
+-- RIisoExampleLeft : (A B : (.0, .2) Type 2) (ri : (.1, .0) RI A B) (a : (.2, .0) A) -> B
+-- RIisoExampleLeft = \A B ri a -> ri A (\(x : (.0, .0) A) -> a) a
 
 
-RIisoExampleLeft : (A B : [.0, .2] Type 2) (ri : [.1, .0] RI A B) (a : [.1, .0] A) -> B
-RIisoExampleLeft = \A B ri a -> ri A (\(x : [.1, .0] A) -> x) a
+RIisoExampleLeft : (A B : (.0, .2) Type 2) (ri : (.1, .0) RI A B) (a : (.1, .0) A) -> B
+RIisoExampleLeft = \A B ri a -> ri A (\(x : (.1, .0) A) -> x) a
 
-RIisoExampleRight : (A B : [.0, .2] Type 2) (f : [.1, .0] ((x : [.1, .0] A) -> B)) -> RI A B
+RIisoExampleRight : (A B : (.0, .2) Type 2) (f : (.1, .0) ((x : (.1, .0) A) -> B)) -> RI A B
 RIisoExampleRight = \A B f C r y -> f (r y)
 
 
@@ -82,24 +82,24 @@ f : RI (Type 1) (Type 1)
 f = \C -> \r -> \y -> Type 0
 
 -- if we can go from 'C -> D', then we trivially have 'C -> D'
-g : (D : [.0, .2] Type 2) -> RI D D
+g : (D : (.0, .2) Type 2) -> RI D D
 g = \D c r y -> r y
 
 -- given that we have 'D -> E', then whenever we have 'C -> D', we
 -- have 'C -> E'
-h : (D : [.0, .2] Type 2) (E : [.0, .2] Type 2) (dToE : [.1, .0] (z : [.1, .0] D) -> E) -> RI D E
+h : (D : (.0, .2) Type 2) (E : (.0, .2) Type 2) (dToE : (.1, .0) (z : (.1, .0) D) -> E) -> RI D E
 h = \D E dToE C r y -> dToE (r y)
 
-i : (D : [.0, .2] Type 2) -> RI D ((E : [.0, .0] Type 1) -> D)
+i : (D : (.0, .2) Type 2) -> RI D ((E : (.0, .0) Type 1) -> D)
 i = \D C r y z -> r y
 
 -- currently not working due to hardcoded levels (otherwise is fine)
 -- (GD: 2020-06-17)
 --
--- j : (D : [.0, .2] Type 2) -> RI ((E : [.0, .0] Type 2) -> D) D
+-- j : (D : (.0, .2) Type 2) -> RI ((E : (.0, .0) Type 2) -> D) D
 -- j = \D -> \C -> \r -> \y -> r y C
 
-k : (D E F : [.0, .2] Type 2) -> (de : [.1, .0] RI D E) -> (ef : [.1, .0] RI E F) -> RI D F
+k : (D E F : (.0, .2) Type 2) -> (de : (.1, .0) RI D E) -> (ef : (.1, .0) RI E F) -> RI D F
 k = \D E F de ef C r y -> ef C (de C r) y
 
 
@@ -109,16 +109,16 @@ k = \D E F de ef C r y -> ef C (de C r) y
 
 
 -- ChList B = ∀(X : Type).¶X → ¶(B → X → X) → X
-ChList : (B : [.1, .0] Type 2) -> Type 3
-ChList = \B -> (X : [.0, .4] Type 2)
-  -> (x : [.1, .0] X) -> (f : [.inf, .0] (b : [.1, .0] B) -> (x2 : [.1, .0] X) -> X) -> X
+ChList : (B : (.1, .0) Type 2) -> Type 3
+ChList = \B -> (X : (.0, .4) Type 2)
+  -> (x : (.1, .0) X) -> (f : (.inf, .0) (b : (.1, .0) B) -> (x2 : (.1, .0) X) -> X) -> X
 
 
-nil : (B : [.0, .1] Type 2) -> ChList B
+nil : (B : (.0, .1) Type 2) -> ChList B
 nil = \B X x f -> x
 
 
-cons : (B : [.0, .3] Type 2) -> (b : [.1, .0] B) -> (xs : [.1, .0] ChList B) -> ChList B
+cons : (B : (.0, .3) Type 2) -> (b : (.1, .0) B) -> (xs : (.1, .0) ChList B) -> ChList B
 cons = \B b xs X x f -> f b (xs X x f)
 
 
@@ -134,5 +134,5 @@ Z : Nat
 Z = nil (Type 1)
 
 
-S : (k : [.1, .0] Nat) -> Nat
+S : (k : (.1, .0) Nat) -> Nat
 S = \k -> cons (Type 1) (Type 0) k

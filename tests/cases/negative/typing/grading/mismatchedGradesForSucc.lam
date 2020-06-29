@@ -1,5 +1,5 @@
 -- the inferred type should not equal the proposed type
 
--- As succ : (n : [.1, .0] Nat) -> Nat
-succ' : (n : [.3, .4] Nat) -> Nat
+-- As succ : (n : (.1, .0) Nat) -> Nat
+succ' : (n : (.3, .4) Nat) -> Nat
 succ' = succ

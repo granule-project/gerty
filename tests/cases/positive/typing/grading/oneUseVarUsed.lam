@@ -1,3 +1,3 @@
 -- we specify the variable should be used once, and indeed we use it
-test : (l : [succ zero, zero] Level) -> Level
+test : (l : (.1, .0) Unit) -> Unit
 test = \l -> l
