@@ -122,6 +122,9 @@ compileToSBV predicate = buildTheorem' [] predicate
 
 
 -- | Attempt to simplify the predicate.
+--
+-- TODO: track which predicates have been seen before, to prevent
+-- duplicate predicates (2020-07-01)
 simplifyPred :: Pred -> Pred
 simplifyPred = predFold
                  (Conj . simplifyTheorems)
