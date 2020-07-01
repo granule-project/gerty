@@ -410,11 +410,13 @@ resetPredicateStack = setPredicateStack []
 addConstraint :: Constraint -> CM ()
 addConstraint c = do
   st <- get
-  case predicateStack st of
-    (p : stack) ->
-      put (st { predicateStack = conjunctPred (Con c) p : stack })
-    stack ->
-      put (st { predicateStack = Conj [Con c] : stack })
+  let stack = predicateStack st
+  unless (Conj [Con c] `elem` stack) $
+    case predicateStack st of
+      (p : stack) ->
+        put (st { predicateStack = conjunctPred (Con c) p : stack })
+      stack ->
+        put (st { predicateStack = Conj [Con c] : stack })
 
 newConjunct :: CM ()
 newConjunct =
