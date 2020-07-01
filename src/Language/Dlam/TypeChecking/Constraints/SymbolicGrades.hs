@@ -158,8 +158,9 @@ symGradePlus s t = solverError $ cannotDo "plus" s t
 -- | Times operation on symbolic grades
 symGradeTimes :: SGrade -> SGrade -> Symbolic SGrade
 symGradeTimes (SNat n1) (SNat n2) = return $ SNat (n1 * n2)
-symGradeTimes (SNat n1) (SExtNat (SNatX n2)) = return $ SExtNat $ SNatX (n1 * n2)
-symGradeTimes (SExtNat (SNatX n1)) (SNat n2) = return $ SExtNat $ SNatX (n1 * n2)
+-- these would be ill-kinded multiplications (GD: 2020-07-01)
+-- symGradeTimes (SNat n1) (SExtNat (SNatX n2)) = return $ SExtNat $ SNatX (n1 * n2)
+-- symGradeTimes (SExtNat (SNatX n1)) (SNat n2) = return $ SExtNat $ SNatX (n1 * n2)
 symGradeTimes (SLevel lev1) (SLevel lev2) = return $
     ite (lev1 .== literal 0)
         (SLevel $ literal 0)
