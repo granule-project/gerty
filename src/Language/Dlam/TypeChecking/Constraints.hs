@@ -237,8 +237,8 @@ compileCoeffect (GEnc i) ExactUsage _ =
   return (SNat  . fromInteger . toInteger $ i, sTrue)
 
 -- An implicit has gotten through so resolve it to Ext Nat
-compileCoeffect (GEnc i) GSImplicit _ | i == 0 || i == 1 =
-  return (SExtNat  . fromInteger . toInteger $ i, sTrue)
+compileCoeffect (GEnc i) GSImplicit _ =
+  return (SExtNat  . fromInteger $ i, sTrue)
 
 compileCoeffect (GEnc i) (Extended ExactUsage) _ =
   return (SExtNat . fromInteger . toInteger $ i, sTrue)
