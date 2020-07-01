@@ -11,7 +11,10 @@ import Language.Dlam.TypeChecking.Monad
   , verbosityInfo
   , TCLog
   , formatLog
+  , TCOpts
+  , defaultTCOpts
   )
+import qualified Language.Dlam.TypeChecking.Monad as TM
 import qualified Language.Dlam.Interpreter as Interpreter
 import Language.Dlam.Util.Pretty
   ( RenderOptions(..)
@@ -34,6 +37,7 @@ data Options = Options
   , tycOptimise :: Bool
   , benchmark   :: Bool
   , trials      :: Int
+  , smtSimplify :: Bool
   }
 
 
@@ -44,7 +48,15 @@ defaultOptions = Options
   , tycOptimise = False
   , benchmark   = False
   , trials      = 1
+  , smtSimplify = False
   }
+
+
+extractTCOpts :: Options -> TCOpts
+extractTCOpts opts = defaultTCOpts { TM.benchmark = benchmark opts
+                                   , TM.tycOptimise = tycOptimise opts
+                                   , TM.smtSimplify = smtSimplify opts
+                                   }
 
 
 printLog :: RenderOptions -> Verbosity -> TCLog -> IO ()
@@ -67,6 +79,10 @@ parseArgs args = do
           parseArgsWithDefaults (opts { verbosity = verbositySilent }) xs
         parseArgsWithDefaults opts ("--info":xs) =
           parseArgsWithDefaults (opts { verbosity = verbosityInfo }) xs
+        parseArgsWithDefaults opts ("--no-simplify-smt":xs) =
+          parseArgsWithDefaults (opts { smtSimplify = False }) xs
+        parseArgsWithDefaults opts ("--simplify-smt":xs) =
+          parseArgsWithDefaults (opts { smtSimplify = True }) xs
         parseArgsWithDefaults opts ("--debug":xs) =
           parseArgsWithDefaults (opts { verbosity = verbosityDebug, renderOpts = (renderOpts opts) { showIdentNumbers = True } }) xs
         parseArgsWithDefaults _ (x:_) = do
@@ -88,7 +104,7 @@ main = do
         else do
           input <- readFile fname
           exitStatus <- benchmarkTime (benchmark opts) (trials opts) (\() -> do
-            res <- runNewCheckerWithOpts (benchmark opts) (tycOptimise opts) (Interpreter.runTypeChecker fname input)
+            res <- runNewCheckerWithOpts (extractTCOpts opts) (Interpreter.runTypeChecker fname input)
             printLog (renderOpts opts) (verbosity opts) (tcrLog res)
             case tcrRes res of
               Left err -> do

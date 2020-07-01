@@ -21,7 +21,9 @@ import Language.Dlam.Util.Pretty (hang, pprint)
 isTheoremValid :: CM SolverResult
 isTheoremValid = do
   ps <- getPredicateStack
-  let thm = Conj (reverse ps)
+  shouldSimplify <- shouldSimplifySMT
+  let thm = if shouldSimplify then simplifyPred (Conj (reverse ps))
+            else Conj (reverse ps)
   debug $ hang "Asking SMT solver if the following is valid:" 1 (pprint thm)
   sRes <- runIOSolver (provePredicate thm)
   either throwCM pure sRes

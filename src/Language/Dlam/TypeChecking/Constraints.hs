@@ -9,10 +9,16 @@
    Heavily based on Granule by Vilem Liepelt and Dominic Orchard -}
 
 module Language.Dlam.TypeChecking.Constraints
-  (provePredicate, Quantifier(..), SolverResult(..)) where
+  ( provePredicate
+  , simplifyPred
+  , Quantifier(..)
+  , SolverResult(..)
+  ) where
 
 
 import Control.Monad (liftM2)
+import Data.Function (on)
+import Data.Maybe (catMaybes)
 import Data.SBV.Trans hiding (kindOf, name, symbolic, Interval, Symbolic)
 
 
@@ -113,6 +119,42 @@ compileToSBV predicate = buildTheorem' [] predicate
 
     buildTheorem' solverVars (Con cons) =
       compile solverVars cons
+
+
+-- | Attempt to simplify the predicate.
+simplifyPred :: Pred -> Pred
+simplifyPred = predFold
+                 (Conj . simplifyTheorems)
+                 (Disj . simplifyTheorems)
+                 (Impl `on` simplifyPred)
+                 Con
+                 (Neg . simplifyPred)
+                 (\n g -> Forall n g . simplifyPred)
+                 (\n g -> Exists n g . simplifyPred)
+  where
+        simplifyTheorems :: [Pred] -> [Pred]
+        simplifyTheorems = catMaybes . fmap simplifyTheorem
+        -- | Return 'None' if the predicate is trivial, and can be
+        -- | omitted. Return 'Just' if the predicate is non-trivial.
+        simplifyTheorem :: Pred -> Maybe Pred
+        simplifyTheorem = predFold
+                 -- TODO: do some more optimising with these, but be
+                 -- careful that 'Disj []' is false (2020-07-01)
+                 (pure . Conj . catMaybes)
+                 (\xs -> case catMaybes xs of
+                           [] -> pure (Conj [])
+                           xs -> pure (Disj xs))
+                 (\x y -> Impl <$> fmap simplifyPred x <*> fmap simplifyPred y)
+                 (fmap Con . simplifyConstraint)
+                 (maybe (pure $ Disj []) (pure . Neg) . fmap simplifyPred)
+                 (\n g -> fmap (Forall n g . simplifyPred))
+                 (\n g -> fmap (Exists n g . simplifyPred))
+        -- | Return 'None' if the constraint is trivial, and can be
+        -- | omitted. Return 'Just' if the constraint is non-trivial.
+        simplifyConstraint :: Constraint -> Maybe Constraint
+        simplifyConstraint (Eq (GEnc n) (GEnc k) _) | n == k = Nothing
+        simplifyConstraint c = pure c
+
 
 freshCVarScoped ::
     (forall a . QuantifiableScoped a => Quantifier -> String -> (SBV a -> Symbolic SBool) -> Symbolic SBool)

@@ -41,8 +41,13 @@ module Language.Dlam.TypeChecking.Monad.Base
   -- * Environment
   , withLocalCheckingOf
   , withCheckingOfTopLevel
+
+  -- ** Options
+  , TCOpts(..)
+  , defaultTCOpts
   , isBenchmarking
   , isOptimising
+  , shouldSimplifySMT
 
   -- * Predicates
   , getPredicateStack
@@ -239,9 +244,9 @@ runNewChecker :: CM a -> IO (TCResult a)
 runNewChecker = runChecker startEnv startCheckerState
 
 
-runNewCheckerWithOpts :: Bool -> Bool -> CM a -> IO (TCResult a)
-runNewCheckerWithOpts bench optimise =
-  runChecker (startEnv { tycOptimise = optimise, benchmark = bench }) startCheckerState
+runNewCheckerWithOpts :: TCOpts -> CM a -> IO (TCResult a)
+runNewCheckerWithOpts opts =
+  runChecker (startEnv { tcOpts = opts }) startCheckerState
 
 
 
@@ -327,17 +332,35 @@ data TCEnv = TCEnv
   -- ^ means a type was being inferred for the expression.
   , tceCurrentTopLevel :: Maybe Name
   -- ^ Top-level definition being checked (if any).
-  , tycOptimise :: Bool
+  , tcOpts :: TCOpts
+  -- ^ Type-checking options.
+  }
+
+
+-- | Type-checking options.
+data TCOpts = TCOpts
+  { tycOptimise :: Bool
   -- ^ Whether to optimise code.
   , benchmark   :: Bool
   -- ^ Whether to run benchmarks.
+  , smtSimplify :: Bool
+  -- ^ Whether to simplify theorems before passing them to the SMT solver.
   }
 
+
+getOpts :: CM TCOpts
+getOpts = fmap tcOpts ask
+
+
 isBenchmarking :: CM Bool
-isBenchmarking = ask >>= (return . benchmark)
+isBenchmarking = benchmark <$> getOpts
 
 isOptimising :: CM Bool
-isOptimising = ask >>= (return . tycOptimise)
+isOptimising = tycOptimise <$> getOpts
+
+
+shouldSimplifySMT :: CM Bool
+shouldSimplifySMT = smtSimplify <$> getOpts
 
 
 tceSetCurrentExpr :: (Expr, Maybe Expr) -> TCEnv -> TCEnv
@@ -349,7 +372,11 @@ tceSetCurrentTopLevel n env = env { tceCurrentTopLevel = Just n }
 
 
 startEnv :: TCEnv
-startEnv = TCEnv { benchmark = False, tycOptimise = False, tceCurrentExpr = Nothing, tceCurrentTopLevel = Nothing }
+startEnv = TCEnv { tcOpts = defaultTCOpts, tceCurrentExpr = Nothing, tceCurrentTopLevel = Nothing }
+
+
+defaultTCOpts :: TCOpts
+defaultTCOpts = TCOpts { benchmark = False, tycOptimise = False, smtSimplify = False }
 
 
 -- | Indicate that we are now checking the given expression when running the action.
