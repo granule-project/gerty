@@ -1467,6 +1467,6 @@ existentiallyBindGradeImplicit i gty = do
   let n = implicitToName i
   debug $ "existentially binding (grade):" <+> quoted i
   gty <- if gty == GSImplicit
-         then debug "no grade type specified, defaulting to ExactUsage" >> pure ExactUsage
+         then debug "no grade type specified, defaulting to Extended ExactUsage" >> pure (Extended ExactUsage)
          else pure gty
   existential n gty
