@@ -1144,6 +1144,7 @@ checkExpr' (Case t1 tp [CasePatBound PUnit t2]) t1ForZinC ctxt = do
   0G |- Nat : Type 0
 -}
 checkExpr' NatTy Nothing ctxt =
+  -- TODO: ensure that NatTy can inhabit any level (2020-07-01)
   pure (zeroedOutContextForInContext ctxt, mkUnivTy levelZero)
 
 
