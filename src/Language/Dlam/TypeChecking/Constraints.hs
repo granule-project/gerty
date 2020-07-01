@@ -301,7 +301,8 @@ eqConstraint x y =
 approximatedByOrEqualConstraint :: SGrade -> SGrade -> Symbolic SBool
 approximatedByOrEqualConstraint (SNat n) (SNat m)      = return $ n .== m
 approximatedByOrEqualConstraint SPoint SPoint          = return $ sTrue
-approximatedByOrEqualConstraint (SExtNat x) (SExtNat y) = return $ x .== y
+approximatedByOrEqualConstraint (SExtNat x) (SExtNat y) =
+  pure $ (y .== SNatX.inf) .|| (x .== y)
 
 approximatedByOrEqualConstraint (SLevel l) (SLevel k) =
     -- Private <= Public

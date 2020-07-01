@@ -257,16 +257,27 @@ doASTInference (AST ds) = do
 ----------------------------------------------------------------------------
 -- Dominic work here on a bidirectional additive-grading algorithm
 
--- NOTE: this is treating the Inf grade as equal to every other grade
--- as a form of approximation, please change this if that would be
--- incorrect (we probably want a better notion of approximation) (GD:
--- 2020-06-17)
---
+
+-- | Require that the first grade is approximated by the second.
+gradeLEq :: Grade -> Grade -> CM ()
+gradeLEq r1 r2 = do
+  r1 <- normaliseGrade r1 >>= existentiallyQuantifyGradeImplicits
+  r2 <- normaliseGrade r2 >>= existentiallyQuantifyGradeImplicits
+  ty <- requireSameTypedGrades r1 r2
+  case (grade r1, grade r2) of
+    (GEnc i, GEnc j) | i == j -> pure ()
+    (r1, r2) -> do
+      -- Go to the SMT solver
+      let c = ApproximatedBy r1 r2 ty
+      debug $ "Adding smt constraint:" <+> pprint c
+      addConstraint c
+
+
 -- NOTE: this expects that 'normaliseGrade' is rendering e.g.,
 -- additions in a canonical form.
-
 gradeEqAndForceSMTresult :: Grade -> Grade -> CM Bool
 gradeEqAndForceSMTresult = gradeEqBase True
+
 
 gradeEq :: Grade -> Grade -> CM Bool
 gradeEq = gradeEqBase False
@@ -571,9 +582,12 @@ checkExpr' (FunTy pi) Nothing ctxt = do
 
 {-
   (M | g1 | gZ) @ G |- A : Type l
-  (M,g1 | g2,s | g3,r) @ G, x : A |- t : B
-  ------------------------------------------------------- :: Fun
-  (M | g2 | g1 + g3) @ G |- \x -> t : (x : [s, r] A) -o B
+  (M,g1 | g2,s2 | g3,r2) @ G, x : A |- t : B
+
+  s1 <= s2
+  r1 <= r2
+  --------------------------------------------------------- :: Fun
+  (M | g2 | g1 + g3) @ G |- \x -> t : (x : (s1, r1) A) -> B
 -}
 checkExpr' (Lam lam) t ctxt = do
   let tALam = absTy lam
@@ -581,7 +595,7 @@ checkExpr' (Lam lam) t ctxt = do
       (sLam, rLam) = (subjectGrade lam, subjectTypeGrade lam)
 
   -- (M | g1 | gZ) @ G |- A : Type l
-  (lamBody, x, tA, tB, sBinder, rBinder) <-
+  (lamBody, x, tA, tB, s1, r1) <-
     case t of
       -- no type specified, take as much information from the
       -- abstraction as possible
@@ -614,16 +628,18 @@ checkExpr' (Lam lam) t ctxt = do
     checkExpr lamBody tB (extendInputContext ctxt x tA g1)
 
   -- Check calculated grades against binder
-  let (g2, (_, s)) = unextend g2s
-      (g3, (_, r)) = unextend g3r
-  s <- verifyGradesEq "pi binder" Subject x s sBinder
-  r <- verifyGradesEq "pi binder" SubjectType x r rBinder
+  let (g2, (_, s2)) = unextend g2s
+      (g3, (_, r2)) = unextend g3r
+  -- s1 <= s2
+  -- r1 <= r2
+  gradeLEq s1 s2
+  gradeLEq r1 r2
 
   g1plusG3 <- contextGradeAdd g1 g3
 
   -- (M | g2 | g1 + g3) @ G |- \x -> t : (x : [s, r] A) -o B
   pure ( OutContext { subjectGradesOut = g2, typeGradesOut = g1plusG3 }
-       , FunTy (mkAbsGr x tA s r tB) )
+       , FunTy (mkAbsGr x tA s1 r1 tB) )
 
 
 {-

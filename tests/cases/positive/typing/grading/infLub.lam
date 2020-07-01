@@ -1,0 +1,9 @@
+-- tests to make sure approximation (with infinity) is okay
+
+-- .0 <= .inf
+
+t0 : (x : (.0, .0) Nat) -> [.inf, .0] Nat
+t0 = \(x : (.0, .0) Nat) -> [x]
+
+t1 : (f : (.1, .0) (x : (.inf, .0) Type 0) -> Type 0) -> (x : (.0, .0) Type 0) -> Type 0
+t1 = \(f : (.1, .0) (x : (.inf, .0) Type 0) -> Type 0) x -> f x
