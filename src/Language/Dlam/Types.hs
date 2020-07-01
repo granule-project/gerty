@@ -626,6 +626,7 @@ checkExpr' (Lam lam) t ctxt = do
 
 
 {-
+  (M,g1 | g3,r | gZ) @ G, x : A |- B : Type l
   (M | g2 | g1 + g3) @ G |- t1 : (x : (s, r) A) -o B
   (M | g4 | g1) @ G |- t2 : A
   ------------------------------------------------------ :: App
