@@ -552,7 +552,7 @@ checkExpr' (Def n) Nothing ctxt = do
   (M | g1 | gZ) @ G |- A : Type l1
   (M,g1 | g2,r1 | gZ) @ G, x : A |- B : Type l2
 
-  r2 <= r1
+  r1 <= r2
   ----------------------------------------------------------------- :: Pi
   (M | g1 + g2 | gZ) @ G |- (x : (s, r2) A) -> B : Type (lmax l1 l2)
 -}
@@ -573,7 +573,7 @@ checkExpr' (FunTy pi) Nothing ctxt = do
   let (g2, (_, r1)) = unextend g2r
 
   -- (ii) Check binder grade specification matches usage `r`
-  gradeLEq r2 r1
+  gradeLEq r1 r2
 
   lmaxl1l2 <- levelMax l1 l2
   g1plusG2 <- contextGradeAdd g1 g2
