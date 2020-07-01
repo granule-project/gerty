@@ -179,44 +179,8 @@ compile :: Ctxt SGrade -> Constraint -> Symbolic SBool
 compile vars (Eq c1 c2 t) =
   bindM2And' eqConstraint (compileCoeffect c1 t vars) (compileCoeffect c2 t vars)
 
--- Assumes that c3 is already existentially bound
-compile vars (Lub c1 c2 c3@(GExpr i@(Implicit{})) t) =
-
-  case t of
-    {-
-    -- An alternate procedure for computing least-upper bounds
-    -- I was experimenting with this to see if it could speed up solving.
-    -- For largely symbolic constraints, it doesn't seem to make much difference.
-
-    -- Use the join when `extendedNat` is involved
-    (isInterval -> Just t') | t' == extendedNat -> do
-      (s1, p1) <- compileCoeffect c1 t vars
-      (s2, p2) <- compileCoeffect c2 t vars
-      (s3, p3) <- compileCoeffect c3 t vars
-      lub   <- s1 `symGradeJoin` s2
-      eq    <- s3 `symGradeEq` lub
-      return (p1 .&& p2 .&& p3 .&& eq) -}
-
-    _ -> do
-      (s1, p1) <- compileCoeffect c1 t vars
-      (s2, p2) <- compileCoeffect c2 t vars
-      (s3, p3) <- compileCoeffect c3 t vars
-      -- s3 is an upper bound
-      pa1 <- approximatedByOrEqualConstraint s1 s3
-      pb1 <- approximatedByOrEqualConstraint s2 s3
-      --- and it is the least such upper bound
-      pc <- freshCVarScoped compileQuantScoped (pprintShow $ pprint i <> ".up") t ForallQ
-              (\(py, y) -> do
-                pc1 <- approximatedByOrEqualConstraint s1 y
-                pc2 <- approximatedByOrEqualConstraint s2 y
-                pc3 <- approximatedByOrEqualConstraint s3 y
-                return ((py .&& pc1 .&& pc2) .=> pc3))
-      return (p1 .&& p2 .&& p3 .&& pa1 .&& pb1 .&& pc)
-
 compile vars (ApproximatedBy c1 c2 t) =
   bindM2And' approximatedByOrEqualConstraint (compileCoeffect c1 t vars) (compileCoeffect c2 t vars)
-
-compile _vars c = error . pprintShow $ "Internal bug: cannot compile" <+> pprint c
 
 -- | Compile a grade term into its symbolic representation
 -- | (along with any additional predicates)

@@ -34,7 +34,6 @@ data Pred where
 data Constraint =
     Eq             Grade' Grade' GradeSpec
   | ApproximatedBy Grade' Grade' GradeSpec
-  | Lub            Grade' Grade' Grade' GradeSpec
 
   deriving (Show, Eq, Generic)
 
@@ -47,9 +46,6 @@ instance Pretty Constraint where
         -- Nat is discrete
         ExactUsage -> "(" <> pprint c1 <> " = " <> pprint c2 <> ")"
         _ -> "(" <> pprint c1 <> " ≤ " <> pprint c2 <> ")" -- <> " @ " <> pprintShow k
-
-  pprint (Lub c1 c2 c3 _) =
-      "(" <> pprint c1 <> " ⊔ " <> pprint c2 <> " = " <> pprint c3 <> ")"
 
 -- Fold operation on a predicate
 predFold ::
