@@ -966,9 +966,7 @@ checkExpr' (Box t) (Just ty) ctxt = do
   (M | g1 + g3 | g6 + g4) @ G |- case t1 split z in C of [x] -> t2 : case t1 of [z] -> B
 -}
 -- TODO: currently just using 'as' for 'split', separate these! (GD: 2020-06-24)
---
--- TODO: add support for input type (2020-06-28)
-checkExpr' (Case t1 tp [CasePatBound (PBox (PVar x')) t2]) Nothing ctxt = do
+checkExpr' (Case t1 tp [CasePatBound (PBox (PVar x')) t2]) caseTy ctxt = do
   let x = unBindName x'
   -- (M | g1 | g2) @ G |- t1 : Box (s, r) A
   (OutContext { subjectGradesOut = g1, typeGradesOut = g2 }, boxTy)
@@ -986,7 +984,7 @@ checkExpr' (Case t1 tp [CasePatBound (PBox (PVar x')) t2]) Nothing ctxt = do
         -- (M,g5 | g3,s | g4,(r1+r2)) @ G, x : A |- t2 : [x/z]B
         (OutContext { subjectGradesOut = g3s, typeGradesOut = g4R1plusR2 }, xForZinB)
           <- case tp of
-               Nothing -> inferExpr t2 mx
+               Nothing -> checkExpr t2 caseTy mx
                Just (PVar z', tB) -> do
                  xForZinB <- substitute (unBindName z', Var x) tB
                  (out, _) <- checkExpr t2 (Just tB) mx
@@ -1014,7 +1012,6 @@ checkExpr' (Case t1 tp [CasePatBound (PBox (PVar x')) t2]) Nothing ctxt = do
             -- in this case we require that r1 is zero
             let (g4, (_, r1)) = unextend g4r1
             r1 <- verifyGradesEq "box case type" Subject x r1 gradeZero
-            _ <- verifyGradesEq "box case type" Subject x r r1
             let finTy = tB
             pure (g4, r1, finTy)
           Just (PVar z', tB) -> do
@@ -1040,6 +1037,8 @@ checkExpr' (Case t1 tp [CasePatBound (PBox (PVar x')) t2]) Nothing ctxt = do
 
       g1plusG3 <- contextGradeAdd g1 g3
       g6plusG4 <- contextGradeAdd g6 g4
+
+      finTy <- maybe (pure finTy) (ensureEqualTypes finTy) caseTy
 
       -- (M | g1 + g3 | g6 + g4) @ G |- let [x] = t1 in t2 : let [x] = t1 in B
       pure ( OutContext { subjectGradesOut = g1plusG3, typeGradesOut = g6plusG4 }

@@ -1,0 +1,9 @@
+-- the 'k in [.3, .4] a' should be matched with the '[.3, .4]' in the type
+modalId : (a : (.0, .2) Type 0) -> (x : (.1, .0) [.3, .4] a) -> [.3, .4] a
+modalId = \a p -> case p as k in [.3, .4] a of [z] -> [z]
+
+-- no as pattern is specified, so this should fall back to a
+-- non-split case, and be able to determine that '[z]' has type
+-- '[.3, .4] a' (the result type of the whole case)
+modalId2 : (a : Type 0) -> [.3, .4] a -> [.3, .4] a
+modalId2 = \a p -> case p of [z] -> [z]
