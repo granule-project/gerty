@@ -1428,10 +1428,7 @@ requireSameTypedGrades Grade{gradeTy=s1} Grade{gradeTy=s2} = do
 newExistentialGrade :: GradeSpec -> CM Grade
 newExistentialGrade gty = do
   i <- getFreshMetaId
-  gty <- if gty == GSImplicit
-         then debug "no grade type specified, defaulting to ExactUsage" >> pure ExactUsage
-         else pure gty
-  existential (implicitToName i) gty
+  existentiallyBindGradeImplicit i gty
   pure (Grade (GExpr (mkImplicit i)) gty)
 
 
