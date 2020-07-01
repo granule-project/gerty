@@ -5,5 +5,10 @@
 t0 : (x : (.0, .0) Nat) -> [.inf, .0] Nat
 t0 = \(x : (.0, .0) Nat) -> [x]
 
+-- checking lambda
 t1 : (f : (.1, .0) (x : (.inf, .0) Type 0) -> Type 0) -> (x : (.0, .0) Type 0) -> Type 0
 t1 = \(f : (.1, .0) (x : (.inf, .0) Type 0) -> Type 0) x -> f x
+
+-- checking pi type
+t2 : Type 1
+t2 = (f : (.0, .1) (x : (.inf, .0) Type 0) -> Type 0) (x : (.0, .0) Type 0) -> f x

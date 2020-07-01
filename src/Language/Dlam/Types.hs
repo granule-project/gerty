@@ -550,15 +550,17 @@ checkExpr' (Def n) Nothing ctxt = do
 
 {-
   (M | g1 | gZ) @ G |- A : Type l1
-  (M,g1 | g2,r | gZ) @ G, x : A |- B : Type l2
+  (M,g1 | g2,r1 | gZ) @ G, x : A |- B : Type l2
+
+  r2 <= r1
   ----------------------------------------------------------------- :: Pi
-  (M | g1 + g2 | gZ) @ G |- (x : [s, r] A) -> B : Type (lmax l1 l2)
+  (M | g1 + g2 | gZ) @ G |- (x : (s, r2) A) -> B : Type (lmax l1 l2)
 -}
 checkExpr' (FunTy pi) Nothing ctxt = do
   let x = absVar pi
       tA = absTy pi
       tB = absExpr pi
-      rPi = subjectTypeGrade pi
+      r2 = subjectTypeGrade pi
 
   -- Infer type of parameter A
   debug $ "Infer for pi type (infer for param type)"
@@ -568,10 +570,10 @@ checkExpr' (FunTy pi) Nothing ctxt = do
   debug $ "Infer for pi type (infer for body type)"
   (g2r, l2) <- checkExprIsType tB (extendInputContext ctxt x tA g1)
 
-  let (g2, (_, r)) = unextend g2r
+  let (g2, (_, r1)) = unextend g2r
 
   -- (ii) Check binder grade specification matches usage `r`
-  _ <- verifyGradesEq "pi type binder" Subject x r rPi
+  gradeLEq r2 r1
 
   lmaxl1l2 <- levelMax l1 l2
   g1plusG2 <- contextGradeAdd g1 g2
