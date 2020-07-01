@@ -277,7 +277,6 @@ gradeEqBase forceSMT r1 r2 = do
   r2' <- normaliseGrade r2 >>= existentiallyQuantifyGradeImplicits
   ty <- requireSameTypedGrades r1 r2
   case (grade r1', grade r2') of
-    (GEnc n, GEnc n') -> pure (n == n')
     (_, _) -> do
       -- Go to the SMT solver
       debug $ "Adding smt equality: " <> (pprint r1') <> " = " <> (pprint r2')
