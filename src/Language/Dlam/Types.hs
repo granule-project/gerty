@@ -624,8 +624,8 @@ checkExpr' (Lam lam) t ctxt = do
 
         -- ensure components of the lambda and Pi match up (argument type, grades)
         tA <- ensureEqualTypes tALam tAPi
-        sBinder <- verifyGradesEq "pi binder" Subject x sLam sPi
-        rBinder <- verifyGradesEq "pi binder" SubjectType x rLam rPi
+        sBinder <- verifyGradesEqButUseOtherIfImplicit "pi binder" Subject x sLam sPi
+        rBinder <- verifyGradesEqButUseOtherIfImplicit "pi binder" SubjectType x rLam rPi
 
         -- substitute the Pi var for the Lam var in the Lam body,
         -- to make sure that variable lookups try and find the
@@ -1257,6 +1257,14 @@ verifyGradesEq :: Doc -> Stage -> Name -> Grade -> Grade -> CM Grade
 verifyGradesEq desc st n s r = do
   gEq <- gradeEq s r
   if gEq then pure s else gradeMismatchAt' desc st n s r
+
+
+-- | Like verifyGradesEq, but if one of the grades is an implicit,
+-- | then just use the other (for binding positions).
+verifyGradesEqButUseOtherIfImplicit :: Doc -> Stage -> Name -> Grade -> Grade -> CM Grade
+verifyGradesEqButUseOtherIfImplicit _ _ _ s (Grade{grade=GExpr Implicit{}}) = pure s
+verifyGradesEqButUseOtherIfImplicit _ _ _ (Grade{grade=GExpr Implicit{}}) r = pure r
+verifyGradesEqButUseOtherIfImplicit desc st n s r = verifyGradesEq desc st n s r
 
 
 -- | Verify that two grade vectors are equal, and return a suitably
