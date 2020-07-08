@@ -1,4 +1,10 @@
 #!/bin/bash
+echo "THREE"
+gerty benchmarks/bigApp3.lam --silent --benchmark --trials=10
+gerty benchmarks/bigApp3.lam --silent --benchmark --tyc-optimise --trials=10
+gerty benchmarks/bigApp3.lam --silent --benchmark --use-smt --trials=10
+gerty benchmarks/bigApp3.lam --silent --benchmark --tyc-optimise --use-smt --trials=10
+
 echo "FOUR"
 gerty benchmarks/bigApp4.lam --silent --benchmark --trials=10
 gerty benchmarks/bigApp4.lam --silent --benchmark --tyc-optimise --trials=10
