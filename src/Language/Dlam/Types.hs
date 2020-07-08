@@ -272,7 +272,6 @@ gradeLEq r1 r2 = do
       debug $ "Adding smt constraint:" <+> pprint c
       addConstraint c
 
-{-
 -- Asks whether two grades are equal, but does not
 -- remember this constraint in the global predicate
 -- since it could be false (which is fine)
@@ -286,7 +285,6 @@ questioningGradeEq g1 g2 =
     -- Do this as a local check, i.e., if this
     -- returns false then rollback the state
     localCheck $ gradeEqBase True g1 g2
--}
 
 -- NOTE: this expects that 'normaliseGrade' is rendering e.g.,
 -- additions in a canonical form.
@@ -297,20 +295,27 @@ gradeEq = gradeEqBase False
 -- the smt solver to prove equality now
 gradeEqBase :: Bool -> Grade -> Grade -> CM Bool
 gradeEqBase forceSMT r1 r2 = do
-  r1' <- normaliseGrade r1 >>= existentiallyQuantifyGradeImplicits
-  r2' <- normaliseGrade r2 >>= existentiallyQuantifyGradeImplicits
-  ty <- requireSameTypedGrades r1 r2
-  case (grade r1', grade r2') of
-    (GEnc i, GEnc j) | i == j -> pure True
-    (_, _) -> do
-      -- Go to the SMT solver
-      debug $ "Adding smt equality: " <> (pprint r1') <> " = " <> (pprint r2')
-      addConstraint (Eq (grade r1') (grade r2') ty)
-      if forceSMT
-        then isTheoremValidBool
-        else
-          -- Say true, but we don't know yet...!
-          return True
+  ifM shouldUseSMT
+  -- SMT based equality
+    (do
+      r1' <- normaliseGrade r1 >>= existentiallyQuantifyGradeImplicits
+      r2' <- normaliseGrade r2 >>= existentiallyQuantifyGradeImplicits
+      ty <- requireSameTypedGrades r1 r2
+      case (grade r1', grade r2') of
+        (GEnc i, GEnc j) | i == j -> pure True
+        (_, _) -> do
+          -- Go to the SMT solver
+          debug $ "Adding smt equality: " <> (pprint r1') <> " = " <> (pprint r2')
+          addConstraint (Eq (grade r1') (grade r2') ty)
+          if forceSMT
+            then isTheoremValidBool
+            else
+              -- Say true, but we don't know yet...!
+              return True)
+    (do
+      r1' <- normaliseGrade r1
+      r2' <- normaliseGrade r2
+      return $ r1' == r2')
 
 contextGradeAdd :: Ctxt Grade -> Ctxt Grade -> CM (Ctxt Grade)
 contextGradeAdd = cZipWithM gradeAdd
@@ -713,9 +718,9 @@ checkExpr' (App t1 t2) Nothing ctxt = do
 
           t2forXinB <-
             ifM isOptimising
-              {- then -} (do
+            {- then -} (do
               -- optimise here when 0 use
-              noTypeUse <- return $ r == gradeZero -- questioningGradeEq r gradeZero
+              noTypeUse <- questioningGradeEq r gradeZero
               if noTypeUse
                 then do
                   debug $ "Optimised: no subst of " <> pprint t2 <> " for " <> pprint (absVar pi) <> " in " <> pprint tB

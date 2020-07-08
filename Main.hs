@@ -38,6 +38,7 @@ data Options = Options
   , benchmark   :: Bool
   , trials      :: Int
   , smtSimplify :: Bool
+  , useSMT      :: Bool
   }
 
 
@@ -49,6 +50,7 @@ defaultOptions = Options
   , benchmark   = False
   , trials      = 1
   , smtSimplify = False
+  , useSMT      = False
   }
 
 
@@ -56,6 +58,7 @@ extractTCOpts :: Options -> TCOpts
 extractTCOpts opts = defaultTCOpts { TM.benchmark = benchmark opts
                                    , TM.tycOptimise = tycOptimise opts
                                    , TM.smtSimplify = smtSimplify opts
+                                   , TM.useSMT      = useSMT opts
                                    }
 
 
@@ -83,6 +86,8 @@ parseArgs args = do
           parseArgsWithDefaults (opts { smtSimplify = False }) xs
         parseArgsWithDefaults opts ("--simplify-smt":xs) =
           parseArgsWithDefaults (opts { smtSimplify = True }) xs
+        parseArgsWithDefaults opts ("--use-smt":xs) =
+          parseArgsWithDefaults (opts { useSMT = True }) xs
         parseArgsWithDefaults opts ("--debug":xs) =
           parseArgsWithDefaults (opts { verbosity = verbosityDebug, renderOpts = (renderOpts opts) { showIdentNumbers = True } }) xs
         parseArgsWithDefaults _ (x:_) = do

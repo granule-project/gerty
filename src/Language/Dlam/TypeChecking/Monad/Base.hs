@@ -49,6 +49,7 @@ module Language.Dlam.TypeChecking.Monad.Base
   , isBenchmarking
   , isOptimising
   , shouldSimplifySMT
+  , shouldUseSMT
 
   -- * Predicates
   , getPredicateStack
@@ -358,6 +359,8 @@ data TCOpts = TCOpts
   -- ^ Whether to run benchmarks.
   , smtSimplify :: Bool
   -- ^ Whether to simplify theorems before passing them to the SMT solver.
+  , useSMT :: Bool
+  -- ^ Whether to use the SMT solver at all or just normalisation and equality
   }
 
 
@@ -375,6 +378,9 @@ isOptimising = tycOptimise <$> getOpts
 shouldSimplifySMT :: CM Bool
 shouldSimplifySMT = smtSimplify <$> getOpts
 
+shouldUseSMT :: CM Bool
+shouldUseSMT = useSMT <$> getOpts
+
 
 tceSetCurrentExpr :: (Expr, Maybe Expr) -> TCEnv -> TCEnv
 tceSetCurrentExpr e env = env { tceCurrentExpr = Just e }
@@ -389,7 +395,7 @@ startEnv = TCEnv { tcOpts = defaultTCOpts, tceCurrentExpr = Nothing, tceCurrentT
 
 
 defaultTCOpts :: TCOpts
-defaultTCOpts = TCOpts { benchmark = False, tycOptimise = False, smtSimplify = False }
+defaultTCOpts = TCOpts { benchmark = False, tycOptimise = False, smtSimplify = False, useSMT = False }
 
 
 -- | Indicate that we are now checking the given expression when running the action.
