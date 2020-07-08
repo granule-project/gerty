@@ -23,7 +23,7 @@ import Language.Dlam.Util.Pretty
   , green, red
   )
 
-import Control.Monad      (replicateM)
+import Control.Monad      (when)
 import Data.List          (isPrefixOf, partition, intercalate)
 import System.Directory   (doesPathExist)
 import System.Environment (getArgs)
@@ -108,15 +108,15 @@ main = do
         then putStrLn $ "File `" <> fname <> "` cannot be found."
         else do
           input <- readFile fname
-          exitStatus <- benchmarkTime (benchmark opts) (trials opts) (\() -> do
+          exitStatus <- benchmarkTime (benchmark opts) (trials opts) (\isLast -> do
             res <- runNewCheckerWithOpts (extractTCOpts opts) (Interpreter.runTypeChecker fname input)
-            printLog (renderOpts opts) (verbosity opts) (tcrLog res)
+            when isLast $ printLog (renderOpts opts) (verbosity opts) (tcrLog res)
             case tcrRes res of
               Left err -> do
                 printLn $ red "Ill-typed."
                 return (Left err)
               Right _ -> do
-                printLn $ green "Well typed."
+                when isLast $ printLn $ green "Well typed."
                 return $ Right ())
           case exitStatus of
             Left err -> printLn (formatError err) >> exitFailure
@@ -124,10 +124,10 @@ main = do
 
 -- Benchmarking helpers follow
 
-benchmarkTime :: Bool -> Int -> (() -> IO a) -> IO a
-benchmarkTime False _ m = m ()
+benchmarkTime :: Bool -> Int -> (Bool -> IO a) -> IO a
+benchmarkTime False _ m = m True
 benchmarkTime True  trials m = do
-   measurements <- replicateM trials timingComp
+   measurements <- mapM timingComp [0..trials]
    let result = head (map snd measurements)
    let runs = map fst measurements
    let totalTime = sum runs
@@ -138,10 +138,10 @@ benchmarkTime True  trials m = do
    printf "Mean time of %d trials = %6.2f (%6.2f) ms\n" trials meanTime error
    return result
   where
-    timingComp = do
+    timingComp n = do
       start  <- Clock.getTime Clock.Monotonic
       -- Run the computation
-      result <- m ()
+      result <- m (n == 0)
       -- Force the result (to WHNF)
       _ <- return $ result `seq` result
       end    <- Clock.getTime Clock.Monotonic
