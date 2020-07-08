@@ -272,16 +272,29 @@ gradeLEq r1 r2 = do
       debug $ "Adding smt constraint:" <+> pprint c
       addConstraint c
 
+{-
+-- Asks whether two grades are equal, but does not
+-- remember this constraint in the global predicate
+-- since it could be false (which is fine)
+questioningGradeEq :: Grade -> Grade -> CM Bool
+questioningGradeEq g1 g2 =
+  -- If we can do a syntactic equality then great
+  if g1 == g2 then
+    return True
+  -- Otherwise we got the SMT solver now
+  else do
+    -- Do this as a local check, i.e., if this
+    -- returns false then rollback the state
+    localCheck $ gradeEqBase True g1 g2
+-}
 
 -- NOTE: this expects that 'normaliseGrade' is rendering e.g.,
 -- additions in a canonical form.
-gradeEqAndForceSMTresult :: Grade -> Grade -> CM Bool
-gradeEqAndForceSMTresult = gradeEqBase True
-
-
 gradeEq :: Grade -> Grade -> CM Bool
 gradeEq = gradeEqBase False
 
+-- The boolean parameter triggers whether we force ask
+-- the smt solver to prove equality now
 gradeEqBase :: Bool -> Grade -> Grade -> CM Bool
 gradeEqBase forceSMT r1 r2 = do
   r1' <- normaliseGrade r1 >>= existentiallyQuantifyGradeImplicits
@@ -702,10 +715,10 @@ checkExpr' (App t1 t2) Nothing ctxt = do
             ifM isOptimising
               {- then -} (do
               -- optimise here when 0 use
-              noTypeUse <- gradeEqAndForceSMTresult r gradeZero
+              noTypeUse <- return $ r == gradeZero -- questioningGradeEq r gradeZero
               if noTypeUse
                 then do
-                  debug $ "Optimised: no subst of " <> pprint t2 <> " for " <> pprint (absVar pi)
+                  debug $ "Optimised: no subst of " <> pprint t2 <> " for " <> pprint (absVar pi) <> " in " <> pprint tB
                   return tB
                 else substitute (absVar pi, t2) tB)
               {- else -} (substitute (absVar pi, t2) tB)

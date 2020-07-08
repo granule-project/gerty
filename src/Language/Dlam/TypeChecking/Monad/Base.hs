@@ -22,6 +22,7 @@ module Language.Dlam.TypeChecking.Monad.Base
   , TCResult
   , tcrLog
   , tcrRes
+  , localCheck
 
   , getFreshNameId
   , getFreshName
@@ -146,6 +147,18 @@ newtype CM a =
            , MonadWriter TCLog
            , MonadError TCErr
            , MonadIO)
+
+-- Run a computation:
+--  If it returns True then commit to this state
+--  If it returns False then revert the state
+-- Returns the boolean result
+localCheck :: CM Bool -> CM Bool
+localCheck m = do
+  st <- get
+  res <- m
+  if res
+    then return True
+    else put st >> return False
 
 -------------------
 ----- Logging -----
