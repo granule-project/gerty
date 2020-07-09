@@ -259,18 +259,31 @@ doASTInference (AST ds) = do
 
 
 -- | Require that the first grade is approximated by the second.
-gradeLEq :: Grade -> Grade -> CM ()
+gradeLEq :: Grade -> Grade -> CM Bool
 gradeLEq r1 r2 = do
-  r1 <- normaliseGrade r1 >>= existentiallyQuantifyGradeImplicits
-  r2 <- normaliseGrade r2 >>= existentiallyQuantifyGradeImplicits
-  ty <- requireSameTypedGrades r1 r2
-  case (grade r1, grade r2) of
-    (GEnc i, GEnc j) | i == j -> pure ()
-    (r1, r2) -> do
-      -- Go to the SMT solver
-      let c = ApproximatedBy r1 r2 ty
-      debug $ "Adding smt constraint:" <+> pprint c
-      addConstraint c
+  ifM shouldUseSMT
+    -- SMT based equality
+    (do
+      r1 <- normaliseGrade r1 >>= existentiallyQuantifyGradeImplicits
+      r2 <- normaliseGrade r2 >>= existentiallyQuantifyGradeImplicits
+      ty <- requireSameTypedGrades r1 r2
+      case (grade r1, grade r2) of
+        --(GEnc i, GEnc j) | i == j -> pure True
+        (r1, r2) -> do
+          -- Go to the SMT solver
+          -- NOTE THIS IS JUST EQUALITY FOR NOW
+          let c = ApproximatedBy r1 r2 ty
+          debug $ "Adding smt constraint:" <+> pprint c
+          addConstraint c
+          -- Say yes for now
+          return True)
+
+      -- NOTE THIS IS ONLY EQUALITY AT THE MOMENT!
+      (do
+          r1' <- normaliseGrade r1
+          r2' <- normaliseGrade r2
+          _ty <- requireSameTypedGrades r1 r2
+          return $ grade r1' == grade r2')
 
 -- Asks whether two grades are equal, but does not
 -- remember this constraint in the global predicate
