@@ -272,7 +272,7 @@ gradeLEq r1 r2 = do
         (r1, r2) -> do
           -- Go to the SMT solver
           -- NOTE THIS IS JUST EQUALITY FOR NOW
-          let c = ApproximatedBy r1 r2 ty
+          let c = Eq r1 r2 ty
           debug $ "Adding smt constraint:" <+> pprint c
           addConstraint c
           -- Say yes for now
@@ -315,7 +315,7 @@ gradeEqBase forceSMT r1 r2 = do
       r2' <- normaliseGrade r2 >>= existentiallyQuantifyGradeImplicits
       ty <- requireSameTypedGrades r1 r2
       case (grade r1', grade r2') of
-        (GEnc i, GEnc j) | i == j -> pure True
+        --(GEnc i, GEnc j) | i == j -> pure True
         (_, _) -> do
           -- Go to the SMT solver
           debug $ "Adding smt equality: " <> (pprint r1') <> " = " <> (pprint r2')
@@ -328,7 +328,8 @@ gradeEqBase forceSMT r1 r2 = do
     (do
       r1' <- normaliseGrade r1
       r2' <- normaliseGrade r2
-      return $ r1' == r2')
+      _ty <- requireSameTypedGrades r1 r2
+      return $ grade r1' == grade r2')
 
 contextGradeAdd :: Ctxt Grade -> Ctxt Grade -> CM (Ctxt Grade)
 contextGradeAdd = cZipWithM gradeAdd
@@ -604,7 +605,8 @@ checkExpr' (FunTy pi) Nothing ctxt = do
   let (g2, (_, r1)) = unextend g2r
 
   -- (ii) Check binder grade specification matches usage `r`
-  gradeLEq r1 r2
+  eq <- gradeLEq r1 r2
+  unless eq (gradeMismatchAt' "function type" SubjectType (absVar pi) r1 r2)
 
   lmaxl1l2 <- levelMax l1 l2
   g1plusG2 <- contextGradeAdd g1 g2
@@ -665,8 +667,11 @@ checkExpr' (Lam lam) t ctxt = do
       (g3, (_, r2)) = unextend g3r
   -- s1 <= s2
   -- r1 <= r2
-  gradeLEq s1 s2
-  gradeLEq r1 r2
+  eqS <- gradeLEq s1 s2
+  unless eqS (gradeMismatchAt' "function" Subject (absVar lam) s1 s2)
+
+  eqR <- gradeLEq r1 r2
+  unless eqR (gradeMismatchAt' "function" SubjectType (absVar lam) r1 r2)
 
   g1plusG3 <- contextGradeAdd g1 g3
 
