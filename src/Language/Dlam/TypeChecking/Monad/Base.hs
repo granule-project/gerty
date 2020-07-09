@@ -558,7 +558,7 @@ instance Pretty TCError where
   pprint (GradeTypeMismatch tyExpected tyActual) =
     "Expected (grade) type" <+> quoted tyExpected <+> "but got" <+> quoted tyActual
   pprint (GradeMismatch stage mismatches) =
-    hang ("At stage" <+> pprint stage <+> "got the following mismatched grades:") 1
+    hang ("At" <+> pprint stage <+> "stage got the following mismatched grades:") 1
     (vcat $ fmap (\(v, (e, a)) -> "For" <+> quoted v <+> "expected" <+> pprint e <+> "but got" <+> pprint a) mismatches)
   pprint (SolverError msg)    = msg
   pprint (SolverNotValid msg) = msg
