@@ -307,6 +307,7 @@ instance ToAbstract C.Pattern (A.Pattern, Locals) where
     pure $ (A.PCon c' args', binds)
   toAbstract (C.PParens p) = toAbstract p
   toAbstract (C.PBox p) = first A.PBox <$> toAbstract p
+  toAbstract (C.PBoxTy p) = first A.PBoxTy <$> toAbstract p
 
 
 -- | Try and resolve the name as a constructor.

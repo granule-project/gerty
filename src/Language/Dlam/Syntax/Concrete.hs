@@ -315,6 +315,8 @@ data Pattern
   -- ^ Pattern in parentheses.
   | PBox Pattern
   -- ^ Pattern in box.
+  | PBoxTy Pattern
+  -- ^ Pattern in box (ty) (@.[p]@).
   deriving (Show, Eq, Ord)
 
 
@@ -435,6 +437,7 @@ instance Pretty Pattern where
   pprint PUnit = text "unit"
   pprint (PParens p) = parens $ pprint p
   pprint (PBox p) = brackets $ pprint p
+  pprint (PBoxTy p) = "." <> (brackets $ pprint p)
 
 instance Pretty Grade where
   isLexicallyAtomic GZero = True

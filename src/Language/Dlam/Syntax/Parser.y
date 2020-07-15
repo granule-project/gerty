@@ -366,6 +366,7 @@ PatternAtomic :: { Pattern }
   -- we will bind it as a new name
   | QId             { PIdent $1 }
   | 'unit'          { PUnit }
+  | '.' '[' Pattern ']' { PBoxTy $3 }
   | '[' Pattern ']' { PBox $2 }
   | '<' Pattern ',' Pattern '>' { PPair $2 $4 }
 

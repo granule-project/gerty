@@ -9,3 +9,6 @@ f = case y of [x] -> z
 
 -- dependent elim
 f = case y as z in a of [x] -> b
+
+-- box ty intro
+f = case y of .[x] -> b

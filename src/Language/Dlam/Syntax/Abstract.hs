@@ -364,6 +364,8 @@ data Pattern
   -- ^ Constructor application.
   | PBox Pattern
   -- ^ Box pattern.
+  | PBoxTy Pattern
+  -- ^ BoxTy pattern.
   deriving (Show, Eq, Ord)
 
 
@@ -374,6 +376,7 @@ patBoundVars (PVar n) = Set.singleton n
 patBoundVars PUnit = mempty
 patBoundVars (PCon _ args) = Set.unions $ fmap patBoundVars args
 patBoundVars (PBox p) = patBoundVars p
+patBoundVars (PBoxTy p) = patBoundVars p
 
 
 ---------
@@ -575,6 +578,7 @@ instance Pretty Pattern where
   pprint PUnit = text "unit"
   pprint (PCon c args) = pprint c <+> (hsep $ fmap pprintParened args)
   pprint (PBox p) = brackets $ pprint p
+  pprint (PBoxTy p) = "." <> (brackets $ pprint p)
 
 instance Pretty BindName where
   pprint = pprint . unBindName

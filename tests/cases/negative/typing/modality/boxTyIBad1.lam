@@ -1,0 +1,3 @@
+-- need [.3, .5] a, not [.3, .7] a
+boxTyI : (a : (.0, .2) Type 0) (b : (.1, .0) (x : (.5, .0) a) -> Type 0) (t : (.0, .0) [.3, .7] a) -> Type 0
+boxTyI = \a b t -> case t of .[z] -> b z

@@ -10,18 +10,25 @@ mkBox : (a : (.0, .2) Type) (x : (.3, .4) a) -> [.3, .4] a
 mkBox = \a x -> [x]
 
 -- Box eliminator (no subject-type grade)
-letBox : (a b : (.0, .2) Type 0) (f : (.1, .0) (x : (.3, .0) a) -> b) -> (p : (.1, .0) [.3, .0] a) -> b
-letBox = \a b f p -> case p as z in b of [y] -> f y
+letBox : (a b : (.0, .2) Type 0) (f : (.1, .0) (x : (.3, .0) a) -> b) -> (p : (.1, .0) [.3, .0] a) -> case p of .[z] -> b
+letBox = \a b f p -> case p of [y] -> f y
 
 -- Box eliminator (no subject-type grade)
-letBox' : (a b : (.0, .2) Type 0) (f : (.1, .0) (x : (.3, .0) a) -> b) -> (p : (.1, .0) [.3, .0] a) -> b
-letBox' = \a b f p -> case p of [y] -> f y
+letBox' : (a : (.0, .3) Type 0)
+          (b : (.0, .2) (x : (.5, .0) a) -> Type 0)
+          (t2 : (.1, .0) (x : (.3, .5) a) -> b x)
+          (t1 : (.1, .0) [.3, .5] a)
+          -> (case t1 of .[z] -> b z)
+letBox' = \a b t2 t1 -> case t1 of [y] -> t2 y
 
-boxId : (a : (.0, .2) Type 0) (x : (.1, .0) [.4, .5] a) -> [.4, .5] a
-boxId = \a x -> case x as p in [.4, .5] a of [z] -> [z]
+boxId : (a : (.0, .2) Type 0) (x : (.1, .0) [.4, .5] a) -> (case x of .[z] -> [.4, .5] a)
+boxId = \a x -> case x of [z] -> [z]
 
 -- TODO: this box eliminator is awaiting SMT solver support, so we can distinguish type-level grades (2020-06-24)
 --
 -- Box eliminator
 -- letBox : (a b : (.0, .2) Type 0) (f : (.1, .0) (x : (.3, .4) a) -> b) -> (p : (.1, .0) [.3, .4] a) -> b
 -- letBox = \a b f p -> let [y] = p in f y
+
+boxTyI : (a : (.0, .2) Type 0) (b : (.1, .0) (x : (.5, .0) a) -> Type 0) (t : (.0, .0) [.3, .5] a) -> Type 0
+boxTyI = \a b t -> case t of .[z] -> b z
