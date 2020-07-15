@@ -201,11 +201,11 @@ equalBinds (CasePatBound p1 e1) (CasePatBound p2 e2) = do
 -- | 'ensureEqualTypes tyExpected tyActual' checks that 'tyExpected' and 'tyActual'
 -- | represent the same type (under normalisation), and fails if they differ.
 ensureEqualTypes :: Type -> Type -> CM Type
-ensureEqualTypes tyExpected tyActual = do
+ensureEqualTypes tyExpected tyActual = debugBlock
+    "ensureEqualTypes" ("Checking that expected type" <+> quoted tyExpected <+> "is equal to actual type" <+> quoted tyActual) (\t -> "Equal with type:" <+> quoted t) $ do
   typesEqual <- equalExprs tyActual tyExpected
   if typesEqual then pure tyActual
   else do
-    debug $ "Checking that expected type" <+> quoted tyExpected <+> "is equal to actual type" <+> quoted tyActual
     tyMismatchAt "ensure" tyExpected tyActual
 
 
@@ -500,9 +500,12 @@ checkOrInferTypeNew ty expr = do
 checkExpr :: Expr -> Maybe Type -> InContext -> CM (OutContext, Type)
 checkExpr e t c = withLocalCheckingOf e t $
   debugBlock "checkExpr"
-    (maybe ("inferring a type for expression" <+> quoted e) (\t -> "checking expression" <+> quoted e <+> "against type" <+> quoted t) t)
-    (\(_, ty) -> maybe ("inferred a type" <+> quoted ty <+> "for expression" <+> quoted e)
-                       (\_ -> "checked OK for" <+> quoted e) t) (checkExpr' e t c)
+    ((maybe ("inferring a type for expression" <+> quoted e) (\t -> "checking expression" <+> quoted e <+> "against type" <+> quoted t) t) <+> "with input context" <+> pprint c)
+    (\(c, ty) -> maybe
+                 ("inferred a type" <+> quoted ty <+> "for expression" <+> quoted e)
+                 (\_ -> "checked OK for" <+> quoted e)
+                 t <+> "with output context subject grades" <+> pprint (subjectGradesOut c) <+> "and subject type grades" <+> pprint (typeGradesOut c))
+    (checkExpr' e t c)
 
 
 checkExpr' :: Expr -> Maybe Type -> InContext -> CM (OutContext, Type)
@@ -1297,7 +1300,8 @@ verifyGradesEqButUseOtherIfImplicit desc st n s r = verifyGradesEq desc st n s r
 -- | Verify that two grade vectors are equal, and return a suitably
 -- | equivalent grade vector.
 verifyGradeVecEq :: Doc -> Ctxt Grade -> Ctxt Grade -> CM (Ctxt Grade)
-verifyGradeVecEq desc g1 g2 =
+verifyGradeVecEq desc g1 g2 = do
+  debug $ "Adding grade vector equality:" <+> pprint g1 <+> "=" <+> pprint g2
   contextGradeEq g1 g2 >>= \t ->
     case t of
       Right() -> pure g1
