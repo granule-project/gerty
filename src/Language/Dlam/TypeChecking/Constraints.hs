@@ -147,7 +147,7 @@ simplifyPred = predFold
                  (\xs -> case catMaybes xs of
                            [] -> pure (Conj [])
                            xs -> pure (Disj xs))
-                 (\x y -> Impl <$> fmap simplifyPred x <*> fmap simplifyPred y)
+                 (\x y -> Impl <$> (x >>= simplifyTheorem) <*> (y >>= simplifyTheorem))
                  (fmap Con . simplifyConstraint)
                  (maybe (pure $ Disj []) (pure . Neg) . fmap simplifyPred)
                  (\n g -> fmap (Forall n g . simplifyPred))
