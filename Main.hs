@@ -50,7 +50,7 @@ defaultOptions = Options
   , benchmark   = False
   , trials      = 1
   , smtSimplify = False
-  , useSMT      = False
+  , useSMT      = True
   }
 
 

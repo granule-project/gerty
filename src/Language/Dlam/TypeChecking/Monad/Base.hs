@@ -395,7 +395,7 @@ startEnv = TCEnv { tcOpts = defaultTCOpts, tceCurrentExpr = Nothing, tceCurrentT
 
 
 defaultTCOpts :: TCOpts
-defaultTCOpts = TCOpts { benchmark = False, tycOptimise = False, smtSimplify = False, useSMT = False }
+defaultTCOpts = TCOpts { benchmark = False, tycOptimise = False, smtSimplify = False, useSMT = True }
 
 
 -- | Indicate that we are now checking the given expression when running the action.
