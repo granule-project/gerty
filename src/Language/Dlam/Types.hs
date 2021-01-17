@@ -1459,10 +1459,13 @@ normaliseGrade Grade{grade=GLub g1 g2, gradeTy=ty} = do
     (_, GInf, _) -> pure gradeInf { gradeTy = ty }
     -- Irrelevant <= Private
     (GEnc 0, GEnc 1, PrivacyLevel) -> pure $ mkGrade (GEnc 1) PrivacyLevel
+    (GEnc 1, GEnc 0, PrivacyLevel) -> pure $ mkGrade (GEnc 1) PrivacyLevel
     -- Private <= Public
     (GEnc 1, GEnc 2, PrivacyLevel) -> pure $ mkGrade (GEnc 2) PrivacyLevel
+    (GEnc 2, GEnc 1, PrivacyLevel) -> pure $ mkGrade (GEnc 2) PrivacyLevel
     -- Irrelevant <= Public
     (GEnc 0, GEnc 2, PrivacyLevel) -> pure $ mkGrade (GEnc 2) PrivacyLevel
+    (GEnc 2, GEnc 0, PrivacyLevel) -> pure $ mkGrade (GEnc 2) PrivacyLevel
     _ -> do
       gEq <- gradeEq g1' g2'
       pure $ if gEq then g1' else Grade{grade=GLub (grade g1') (grade g2'), gradeTy=ty}
