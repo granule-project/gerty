@@ -459,6 +459,9 @@ data GradeSpec
   -- | Privacy levels.
   = PrivacyLevel
 
+  -- | Security levels.
+  | SecurityLevel
+
   -- | Unspecified, to resolve.
   | GSImplicit
 
@@ -637,6 +640,7 @@ instance Pretty Grade' where
 
 instance Pretty GradeSpec where
   isLexicallyAtomic PrivacyLevel = True
+  isLexicallyAtomic SecurityLevel = True
   isLexicallyAtomic GSImplicit = True
   isLexicallyAtomic ExactUsage = True
   isLexicallyAtomic NoneOneTons = True
@@ -644,6 +648,7 @@ instance Pretty GradeSpec where
   isLexicallyAtomic _ = False
 
   pprint PrivacyLevel = "Privacy"
+  pprint SecurityLevel = "Security"
   pprint GSImplicit = "_"
   pprint (GSExpr e) = pprint e
   pprint ExactUsage = "Nat"
@@ -657,6 +662,8 @@ instance Pretty Grade where
   pprint (Grade { grade = GZero, gradeTy = PrivacyLevel }) = text "Irrelevant"
   pprint (Grade { grade = GOne, gradeTy = PrivacyLevel }) = text "Private"
   pprint (Grade { grade = GEnc 2, gradeTy = PrivacyLevel }) = text "Public"
+  pprint (Grade { grade = GZero, gradeTy = SecurityLevel }) = text "Hi"
+  pprint (Grade { grade = GOne, gradeTy = SecurityLevel }) = text "Lo"
   pprint (Grade { grade = g }) = pprint g
 
 instance Pretty Grading where

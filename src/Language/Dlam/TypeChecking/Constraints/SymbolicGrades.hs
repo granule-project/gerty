@@ -56,6 +56,7 @@ runIOSolver = liftIO . runExceptT
 data SGrade =
        SNat      SInteger
      | SLevel    SInteger
+     | SecLevel  SInteger
      | SExtNat   { sExtNat :: SNatX }
      | SInterval { sLowerBound :: SGrade, sUpperBound :: SGrade }
      -- Single point coeffect (not exposed at the moment)
@@ -66,6 +67,7 @@ data SGrade =
 match :: SGrade -> SGrade -> Bool
 match (SNat _) (SNat _) = True
 match (SLevel _) (SLevel _) = True
+match (SecLevel _) (SecLevel _) = True
 match (SExtNat _) (SExtNat _) = True
 match (SInterval s1 s2) (SInterval t1 t2) = match s1 t1 && match s2 t2
 match SPoint SPoint = True
@@ -79,6 +81,7 @@ natLike _ = False
 instance Mergeable SGrade where
   symbolicMerge s sb (SNat n) (SNat n') = SNat (symbolicMerge s sb n n')
   symbolicMerge s sb (SLevel n) (SLevel n') = SLevel (symbolicMerge s sb n n')
+  symbolicMerge s sb (SecLevel n) (SecLevel n') = SecLevel (symbolicMerge s sb n n')
   symbolicMerge s sb (SExtNat n) (SExtNat n') = SExtNat (symbolicMerge s sb n n')
   symbolicMerge s sb (SInterval lb1 ub1) (SInterval lb2 ub2) =
     SInterval (symbolicMerge s sb lb1 lb2) (symbolicMerge s sb ub1 ub2)
@@ -92,6 +95,7 @@ symGradeLess (SInterval lb1 ub1) (SInterval lb2 ub2) =
 
 symGradeLess (SNat n) (SNat n')     = return $ n .< n'
 symGradeLess (SLevel n) (SLevel n') = return $ n .< n'
+symGradeLess (SecLevel n) (SecLevel n') = return $ n .< n'
 symGradeLess (SExtNat n) (SExtNat n') = return $ n .< n'
 symGradeLess SPoint SPoint            = return sTrue
 symGradeLess s t = solverError $ cannotDo ".<" s t
@@ -119,6 +123,7 @@ symGradeEq (SInterval lb1 ub1) (SInterval lb2 ub2) =
 
 symGradeEq (SNat n) (SNat n')     = return $ n .== n'
 symGradeEq (SLevel n) (SLevel n') = return $ n .== n'
+symGradeEq (SecLevel n) (SecLevel n') = return $ n .== n'
 symGradeEq (SExtNat n) (SExtNat n') = return $ n .== n'
 symGradeEq SPoint SPoint          = return $ sTrue
 symGradeEq s t = solverError $ cannotDo ".==" s t
@@ -127,6 +132,7 @@ symGradeEq s t = solverError $ cannotDo ".==" s t
 symGradeMeet :: SGrade -> SGrade -> Symbolic SGrade
 symGradeMeet (SNat n1) (SNat n2)     = return $ SNat $ n1 `smin` n2
 symGradeMeet (SLevel s) (SLevel t)   = return $ SLevel $ s `smin` t
+symGradeMeet (SecLevel s) (SecLevel t)   = return $ SecLevel $ s `smin` t
 symGradeMeet (SExtNat x) (SExtNat y) = return $ SExtNat $
   ite (isInf x) y (ite (isInf y) x (SNatX (xVal x `smin` xVal y)))
 symGradeMeet (SInterval lb1 ub1) (SInterval lb2 ub2) =
@@ -138,6 +144,7 @@ symGradeMeet s t = solverError $ cannotDo "meet" s t
 symGradeJoin :: SGrade -> SGrade -> Symbolic SGrade
 symGradeJoin (SNat n1) (SNat n2) = return $ SNat (n1 `smax` n2)
 symGradeJoin (SLevel s) (SLevel t) = return $ SLevel $ s `smax` t
+symGradeJoin (SecLevel s) (SecLevel t) = return $ SecLevel $ s `smax` t
 symGradeJoin (SExtNat x) (SExtNat y) = return $ SExtNat $
   ite (isInf x .|| isInf y) inf (SNatX (xVal x `smax` xVal y))
 symGradeJoin (SInterval lb1 ub1) (SInterval lb2 ub2) =
@@ -149,6 +156,7 @@ symGradeJoin s t = solverError $ cannotDo "join" s t
 symGradePlus :: SGrade -> SGrade -> Symbolic SGrade
 symGradePlus (SNat n1) (SNat n2) = return $ SNat (n1 + n2)
 symGradePlus (SLevel lev1) (SLevel lev2) = return $ SLevel $ lev1 `smax` lev2
+symGradePlus (SecLevel lev1) (SecLevel lev2) = return $ SecLevel $ lev1 `smax` lev2
 symGradePlus (SExtNat x) (SExtNat y) = return $ SExtNat (x + y)
 symGradePlus (SInterval lb1 ub1) (SInterval lb2 ub2) =
     liftM2 SInterval (lb1 `symGradePlus` lb2) (ub1 `symGradePlus` ub2)
@@ -167,6 +175,8 @@ symGradeTimes (SLevel lev1) (SLevel lev2) = return $
       $ ite (lev2 .== literal 0)
             (SLevel $ literal 0)
             (SLevel $ lev1 `smax` lev2)
+symGradeTimes (SecLevel lev1) (SecLevel lev2) = return $
+    ite (lev1 .== literal 0) (SecLevel $ literal 0) (SecLevel lev2)
 symGradeTimes (SExtNat x) (SExtNat y) = return $ SExtNat (x * y)
 
 symGradeTimes (SInterval lb1 ub1) (SInterval lb2 ub2) =

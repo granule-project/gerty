@@ -1466,6 +1466,9 @@ normaliseGrade Grade{grade=GLub g1 g2, gradeTy=ty} = do
     -- Irrelevant <= Public
     (GEnc 0, GEnc 2, PrivacyLevel) -> pure $ mkGrade (GEnc 2) PrivacyLevel
     (GEnc 2, GEnc 0, PrivacyLevel) -> pure $ mkGrade (GEnc 2) PrivacyLevel
+    -- Lo <= Hi
+    (GEnc 0, GEnc 1, SecurityLevel) -> pure $ mkGrade (GEnc 0) SecurityLevel
+    (GEnc 1, GEnc 0, SecurityLevel) -> pure $ mkGrade (GEnc 0) SecurityLevel
     _ -> do
       gEq <- gradeEq g1' g2'
       pure $ if gEq then g1' else Grade{grade=GLub (grade g1') (grade g2'), gradeTy=ty}
@@ -1475,12 +1478,15 @@ normaliseGrade Grade{grade=GExpr g,gradeTy=ty} =
 
 gradeTypesAreEqual :: GradeSpec -> GradeSpec -> CM Bool
 gradeTypesAreEqual PrivacyLevel PrivacyLevel = pure True
+gradeTypesAreEqual SecurityLevel SecurityLevel = pure True
 -- for now, just treating implicits as equal to any grade types (GD: 2020-06-20)
 --
 -- TODO: implement unification of implicits (2020-06-21)
 gradeTypesAreEqual GSImplicit _ = pure True
 gradeTypesAreEqual _ GSImplicit = pure True
 gradeTypesAreEqual e1@PrivacyLevel e2 =
+  notImplemented $ "Equality of grade types on" <+> quoted e1 <+> "and" <+> quoted e2
+gradeTypesAreEqual e1@SecurityLevel e2 =
   notImplemented $ "Equality of grade types on" <+> quoted e1 <+> "and" <+> quoted e2
 gradeTypesAreEqual e1@GSExpr{} e2 =
   notImplemented $ "Equality of grade types on" <+> quoted e1 <+> "and" <+> quoted e2

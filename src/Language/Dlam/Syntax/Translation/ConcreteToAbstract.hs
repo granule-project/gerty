@@ -177,7 +177,7 @@ instance ToAbstract C.Grade A.Grade where
   toAbstract (C.GLub g1 g2)   = A.mkGradeLub   <$> toAbstract g1 <*> toAbstract g2
   toAbstract (C.GExpr e@(C.Ident v))
     -- TODO: make this more robust, it's really hacky at the moment... (2020-06-21)
-    | pprintShow v `elem` ["Irrelevant", "Private", "Public"] = do
+    | pprintShow v `elem` ["Irrelevant", "Private", "Public", "Lo", "Hi"] = do
     -- we are treating privacy levels as a form of builtin for now, so
     -- we check whether they are bound in scope already, in which case
     -- we need to just treat them as non builtin expressions
@@ -188,6 +188,8 @@ instance ToAbstract C.Grade A.Grade where
                    "Private" -> pure A.gradeOne{A.gradeTy=A.PrivacyLevel}
                    -- public is encoded as '2'
                    "Public" -> pure A.Grade{A.grade=A.GEnc 2, A.gradeTy=A.PrivacyLevel}
+                   "Hi" -> pure A.gradeZero{A.gradeTy=A.SecurityLevel}
+                   "Lo" -> pure A.gradeOne{A.gradeTy=A.SecurityLevel}
                    _ -> error "impossible at toAbstract C.Grade A.Grade"
       Just _  -> do
         e' <- toAbstract e
@@ -206,6 +208,7 @@ instance ToAbstract C.Grade A.Grade where
     case rn of
       Nothing -> case pprintShow v of
                    "Privacy" -> pure A.Grade{A.grade=A.GSig g A.PrivacyLevel,A.gradeTy=A.PrivacyLevel}
+                   "Security" -> pure A.Grade{A.grade=A.GSig g A.SecurityLevel,A.gradeTy=A.SecurityLevel}
                    _ -> error "impossible at toAbstract (type) C.Grade A.Grade"
       Just _  -> do
         e' <- toAbstract e

@@ -1,0 +1,9 @@
+-- Lo <= Hi
+loToHi1 : (a b : (.0, .2) Type 0)
+  -> (f : (.1, .0) (x : (Lo .lub Hi, .0) a) -> b) -> (y : (Hi, .0) a) -> b
+loToHi1 = \a b f y -> f y
+
+-- Lo <= Hi
+loToHi2 : (a b : (.0, .2) Type 0)
+  -> (f : (.1, .0) (x : (Hi .lub Lo, .0) a) -> b) -> (y : (Hi, .0) a) -> b
+loToHi2 = \a b f y -> f y

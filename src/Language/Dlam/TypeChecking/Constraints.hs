@@ -185,6 +185,12 @@ freshCVarScoped quant name PrivacyLevel q k =
                   .|| solverVar .== literal 0
                     , SLevel solverVar))
 
+freshCVarScoped quant name SecurityLevel q k =
+  quant q name (\solverVar ->
+    k (solverVar .== literal 0
+                  .|| solverVar .== literal 1
+                    , SecLevel solverVar))
+
 freshCVarScoped quant name ExactUsage q k =
   quant q name (\solverVar -> k (solverVar .>= 0, SNat solverVar))
 
@@ -235,6 +241,9 @@ compileCoeffect (GSig g gspec) _ ctxt = compileCoeffect g gspec ctxt
 
 compileCoeffect (GEnc i) PrivacyLevel _ =
   return (SLevel . fromInteger . toInteger $ i, sTrue)
+
+compileCoeffect (GEnc i) SecurityLevel _ =
+  return (SecLevel . fromInteger . toInteger $ i, sTrue)
 
 compileCoeffect (GEnc i) ExactUsage _ =
   return (SNat  . fromInteger . toInteger $ i, sTrue)
@@ -291,6 +300,7 @@ compileCoeffect grade ty _ =
 eqConstraint :: SGrade -> SGrade -> Symbolic SBool
 eqConstraint (SNat n) (SNat m)     = return $ n .== m
 eqConstraint (SLevel l) (SLevel k) = return $ l .== k
+eqConstraint (SecLevel l) (SecLevel k) = return $ l .== k
 eqConstraint (SExtNat x) (SExtNat y) = return $ x .== y
 eqConstraint SPoint SPoint           = return sTrue
 
@@ -313,6 +323,10 @@ approximatedByOrEqualConstraint (SLevel l) (SLevel k) =
     $ ite (l .== literal 0) sTrue
       $ ite (l .== literal 1) sTrue
         $ ite (k .== literal 2) sTrue sFalse
+
+approximatedByOrEqualConstraint (SecLevel l) (SecLevel k) =
+  -- Lo <= Hi
+  return $ ite (l .== literal 1) sTrue $ ite (k .== literal 0) sTrue sFalse
 
 -- Perform approximation when nat-like grades are involved
 -- e.g. [2..3] <= [0..10]  iff (0 <= 2 and 3 <= 10)
