@@ -60,6 +60,7 @@ import Language.Dlam.Util.Pretty (pprintShow)
     '>'     { TokSymbol SymCloseAngle $$ }
     '['     { TokSymbol SymOpenBracket $$ }
     ']'     { TokSymbol SymCloseBracket $$ }
+    '@'     { TokSymbol SymAt $$ }
     ':'     { TokSymbol SymColon $$ }
     ','     { TokSymbol SymComma $$ }
     '.'     { TokSymbol SymDot $$ }
@@ -291,6 +292,7 @@ Expr0 :: { Expr }
 
 Expr1 :: { Expr }
   : '[' Grade ',' Grade ']' Expr1 { BoxTy ($2, $4) $6 }
+  | '@' '[' Grade ']' Expr1 { BoxTy' $3 $5 }
   | Application %prec LOWEST { mkAppFromExprs $1 }
 
 

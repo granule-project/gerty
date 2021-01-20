@@ -27,6 +27,7 @@ instance Free A.Expr where
   -- TODO: when suporting first-class grades, ensure we check the
   -- grading here for free variables (2020-06-21)
   freeVars (A.BoxTy _ e)                   = freeVars e
+  freeVars (A.BoxTy' _ e)                  = freeVars e
   freeVars (A.Box e)                       = freeVars e
   freeVars (A.Lam ab)                      = freeVarsAbs ab
   freeVars (A.ProductTy ab)                = freeVarsAbs ab

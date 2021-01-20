@@ -226,6 +226,7 @@ instance ToAbstract C.Expr A.Expr where
   toAbstract C.Unit = pure A.Unit
   toAbstract C.UniverseNoLevel = A.univMeta <$> getFreshMetaId
   toAbstract (C.BoxTy g t) = A.BoxTy <$> toAbstract g <*> toAbstract t
+  toAbstract (C.BoxTy' g t) = A.BoxTy' <$> toAbstract g <*> toAbstract t
   toAbstract (C.Box t) = A.Box <$> toAbstract t
   toAbstract (C.Universe l) = pure $ A.Universe (A.LMax [A.LitLevel l])
   toAbstract (C.Fun tA tB) = do

@@ -284,6 +284,9 @@ data Expr
   -- | Graded modal types.
   | BoxTy (Grade, Grade) Expr
 
+  -- | Graded modal types (single grade).
+  | BoxTy' Grade Expr
+
   -- | Box value.
   | Box Expr
 
@@ -550,6 +553,8 @@ instance Pretty Expr where
     pprint Unit = text "unit"
     pprint (BoxTy (g1, g2) e) =
       brackets ((pprint g1 <> char ',') <+> pprint g2) <+> pprintParened e
+    pprint (BoxTy' g e) =
+      ("@" <> brackets (pprint g)) <+> pprintParened e
     pprint (Box e) = brackets (pprint e)
     pprint (Lam ab) = text "\\ " <> pprintAbs arrow ab
     pprint (FunTy ab) = pprintAbs arrow ab

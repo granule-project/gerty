@@ -80,6 +80,10 @@ normalise (BoxTy (g1, g2) e) = do
   g2 <- normaliseGrade g2
   e <- normalise e
   finalNormalForm $ BoxTy (g1, g2) e
+normalise (BoxTy' g e) = do
+  g <- normaliseGrade g
+  e <- normalise e
+  finalNormalForm $ BoxTy' g e
 normalise (Box e) = finalNormalForm =<< Box <$> normalise e
 normalise (App e1 e2) = do
   e1' <- normalise e1
@@ -154,6 +158,10 @@ equalExprs e1 e2 = do
       g2sOK <- gradeEq g2 g2'
       esOK <- equalExprs e e'
       pure $ g1sOK && g2sOK && esOK
+    (BoxTy' g e, BoxTy' g' e') -> do
+      gsOK <- gradeEq g g'
+      esOK <- equalExprs e e'
+      pure $ gsOK && esOK
 
     (Case e1 Nothing binds1, Case e2 Nothing binds2) -> do
       esOK <- equalExprs e1 e2
@@ -978,6 +986,21 @@ checkExpr' (Box t) (Just ty) ctxt = do
       -- (M | s * g1 | g2 + r * g1) @ G |- [t] : Box (s, r) A
       pure $ ( OutContext { subjectGradesOut = sTimesG1, typeGradesOut = g2PlusRTimesG1 }
              , BoxTy (s, r) tA )
+    {-
+      (M | g1 | g2) @ G |- t : A
+      -------------------------------------- :: BoxI
+      (M | s * g1 | g2) @ G |- [t] : Box s A
+    -}
+    -- singly-graded
+    (BoxTy' s tA) -> do
+      -- (M | g1 | g2) @ G |- t : A
+      (OutContext { subjectGradesOut = g1, typeGradesOut = g2 }, tA)
+        <- checkExpr t (Just tA) ctxt
+
+      sTimesG1 <- contextGradeMult s g1
+      -- (M | s * g1 | g2) @ G |- [t] : Box s A
+      pure $ ( OutContext { subjectGradesOut = sTimesG1, typeGradesOut = g2 }
+             , BoxTy' s tA )
     _ -> expectedInferredTypeForm "graded modal" ty
 
 
@@ -1020,24 +1043,37 @@ checkExpr' (Case t Nothing [CasePatBound (PBoxTy (PVar x')) tB]) Nothing ctxt = 
 
 
 {-
-  (M | g5 | gZ) @ G |- A : Type l
-  (M,g5 | g4,r | gZ) @ G, x : A |- B : Type l'
-  (M | g1 | g6) @ G |- t1 : Box (s, r) A
-  (M,g5 | g3,s | g4,r) @ G, x : A |- t2 : B
-
-  exists g2 . g2 + g5 = g6
+  (M,g2 | g4,r | gZ) @ G, z : Box s A |- B : Type l
+  (M | g1 | g2) @ G |- t1 : Box s A
+  (M,g2 | g3,s | g4,(s*r)) @ G, x : A |- t2 : [Boxed x/z]B
   -------------------------------------------------------------------------- :: BoxE
-  (M | g1 + g3 | g2 + g4) @ G |- case t1 of [x] -> t2 : case t1 of .[x] -> B
+  (M | g1 + g3 | g4 + r * g1) @ G |- case t1 of [x] -> t2 : [t1/z]B
 -}
 -- TODO: currently just using 'as' for 'split', separate these! (GD: 2020-06-24)
-checkExpr' (Case t1 Nothing [CasePatBound (PBox (PVar x')) t2]) caseTy ctxt = do
+checkExpr' (Case t1 tp [CasePatBound (PBox (PVar x')) t2]) t1ForZinB ctxt = do
   let x = unBindName x'
-  -- (M | g1 | g6) @ G |- t1 : Box (s, r) A
-  (OutContext { subjectGradesOut = g1, typeGradesOut = g6 }, boxTy) <- inferExpr t1 ctxt
+  -- (M | g1 | g2) @ G |- t1 : Box s A
+  (OutContext { subjectGradesOut = g1, typeGradesOut = g2 }, boxTy)
+    <- inferExpr t1 ctxt
   case boxTy of
+    -- doubly-graded
+    {-
+      (M | g5 | gZ) @ G |- A : Type l
+      (M,g5 | g4,r | gZ) @ G, x : A |- B : Type l'
+      (M | g1 | g6) @ G |- t1 : Box (s, r) A
+      (M,g5 | g3,s | g4,r) @ G, x : A |- t2 : B
+
+      exists g2 . g2 + g5 = g6
+      -------------------------------------------------------------------------- :: BoxE
+      (M | g1 + g3 | g2 + g4) @ G |- case t1 of [x] -> t2 : case t1 of .[x] -> B
+    -}
     BoxTy (s, r) tA -> do
+      -- TODO: ensure tp is Nothing (using 'as' for 'split', or something...)
+
       -- (M | g5 | gZ) @ G |- A : Type l
       (g5, _) <- checkExprIsType tA ctxt
+      let caseTy = t1ForZinB
+          g6 = g2
 
       -- exists g2 . g2 + g5 = g6
       g2 <- freshGradeVecMatchingShape g6
@@ -1071,7 +1107,86 @@ checkExpr' (Case t1 Nothing [CasePatBound (PBox (PVar x')) t2]) caseTy ctxt = do
 
       -- (M | g1 + g3 | g2 + g4) @ G |- case t1 of [x] -> t2 : case t1 of .[x] -> B
       pure (OutContext { subjectGradesOut = g1plusG3, typeGradesOut = g2plusG4 }, finTy)
+    {-
+      (M,g2 | g4,r | gZ) @ G, z : Box s A |- B : Type l
+      (M | g1 | g2) @ G |- t1 : Box s A
+      (M,g2 | g3,s | g4,(s*r)) @ G, x : A |- t2 : [Boxed x/z]B
+      -------------------------------------------------------------------------- :: BoxE
+      (M | g1 + g3 | g4 + r * g1) @ G |- case t1 of [x] -> t2 : [t1/z]B
+    -}
+    BoxTy' s tA -> do
+      -- (M,g2 | g3,s | g4,(s*r)) @ G, x : A |- t2 : [Boxed x/z]B
+      (OutContext { subjectGradesOut = g3s, typeGradesOut = g4sTimesR }, boxedXForZinB)
+        <- case tp of
+             -- in the non-dependent case, we need [Boxed x/z]B = [t1/z]B = B
+             Nothing -> checkExpr t2 t1ForZinB (extendInputContext ctxt x tA g2)
+             Just (PVar z, tB) -> do
+               boxedXForZinB <- substitute (unBindName z, Box (Var x)) tB
+               (out, boxedXForZinB) <- checkExpr t2 (Just boxedXForZinB) (extendInputContext ctxt x tA g2)
+               pure (out, boxedXForZinB)
+             Just (p, _) -> patternMismatch p t1
+
+      (g4Comp, r, z, tB) <-
+        case tp of
+          -- non-dependent elimination
+          --
+          -- but as the rules don't actually have a non-dependent
+          -- elimination, we pretend there is a fresh variable "z" in
+          -- B that is used with grade 0. Then we obtain the actual
+          -- value of B from the typing of t2 ([Boxed x/z]B = B).
+          Nothing -> do
+            z <- getFreshName "z"
+            let tB = boxedXForZinB
+            -- (M,g2 | g4,r | gZ) @ G, z : Box s A |- B : Type l
+            (g4r, _) <- checkExprIsType tB (extendInputContext ctxt z (BoxTy' s tA) g2)
+            -- in this case we require that s is zero
+            let (g4, (_, r)) = unextend g4r
+            r <- verifyGradesEq "formation of box elim type (B)" Subject z r gradeZero
+            pure (g4, r, z, tB)
+          Just (PVar z', tB) -> do
+            let z = unBindName z'
+            -- (M,g2 | g4,r | gZ) @ G, z : Box s A |- B : Type l
+            (g4r, _) <- checkExprIsType tB (extendInputContext ctxt z (BoxTy' s tA) g2)
+            let (g4, (_, r)) = unextend g4r
+            pure (g4, r, z, tB)
+          Just (p, _) -> patternMismatch p t1
+
+      boxedXForZinBCalc <- substitute (z, Box (Var x)) tB
+      _ <- ensureEqualTypes boxedXForZinB boxedXForZinBCalc
+
+      let (g3, (_, sComp))  = unextend g3s
+          (g4, (_, sTimesR)) = unextend g4sTimesR
+          -- (g5', (_, qV3)) = unextend g5qV2
+
+      -- check that things that should be equal are equal
+      s <- verifyGradesEq "box elim" Subject x s sComp
+      sTimesRComp <- gradeMult s r
+      g4 <- verifyGradeVecEq "box elim" g4 g4Comp
+      _sTimesR <- verifyGradesEq "box elim" Subject x sTimesR sTimesRComp
+
+      g1plusG3 <- contextGradeAdd g1 g3
+      rTimesG1 <- contextGradeMult r g1
+      g4plusRtimesG1 <- contextGradeAdd g4 rTimesG1
+
+      t1ForZinBComp <- substitute [(z, t1)] tB
+      t1ForZinB <- maybe (pure t1ForZinBComp) (ensureEqualTypes t1ForZinBComp) t1ForZinB
+
+      -- (M | g1 + g3 | g4 + r * g1) @ G |- case t1 of [x] -> t2 : [t1/z]B
+      pure ( OutContext { subjectGradesOut = g1plusG3, typeGradesOut = g4plusRtimesG1 }
+           , t1ForZinB )
     _ -> expectedInferredTypeForm "graded modal" boxTy
+
+
+{-
+  (M, g, gZ) @ G |- A : Type l
+  ---------------------------------- :: Box
+  (M, g, gZ) @ G |- Box s A : Type l
+-}
+checkExpr' (BoxTy' _ t) Nothing ctxt = do
+  -- (M, g, gZ) @ G |- A : Type l
+  (g, l) <- checkExprIsType t ctxt
+  -- (M, g, gZ) @ G |- Box s A : Type l
+  pure (OutContext { subjectGradesOut = g, typeGradesOut = zeroesMatchingShape (types ctxt) }, mkUnivTy l)
 
 
 ----------------
