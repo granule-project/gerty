@@ -539,6 +539,7 @@ instance Pretty Expr where
     isLexicallyAtomic NatTy = True
     isLexicallyAtomic NSucc = True
     isLexicallyAtomic NZero = True
+    isLexicallyAtomic Box{} = True
     isLexicallyAtomic _       = False
 
     pprint (Universe l)           = text "Type" <+> pprintParened l
