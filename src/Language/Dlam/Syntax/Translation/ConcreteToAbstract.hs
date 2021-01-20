@@ -199,7 +199,7 @@ instance ToAbstract C.Grade A.Grade where
     pure A.Grade{A.grade=A.GExpr e', A.gradeTy=A.GSImplicit}
   toAbstract (C.GSig g e@(C.Ident v))
     -- TODO: make this more robust, it's really hacky at the moment... (2020-06-21)
-    | pprintShow v `elem` ["Privacy"] = do
+    | pprintShow v `elem` ["Privacy", "Security"] = do
     -- we are treating privacy levels as a form of builtin for now, so
     -- we check whether they are bound in scope already, in which case
     -- we need to just treat them as non builtin expressions
