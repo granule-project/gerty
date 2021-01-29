@@ -270,11 +270,8 @@ data Expr
   -- | Argument wrapped in braces.
   | BraceArg (MaybeNamed Expr)
 
-  -- | Graded modal type @A [s, r]@.
-  | BoxTy (Grade, Grade) Expr
-
-  -- | Graded modal type (single grade) @A [s]@.
-  | BoxTy' Grade Expr
+  -- | Graded modal type @[s] A@.
+  | BoxTy Grade Expr
 
   -- | Graded modal intro @[t]@.
   | Box Expr
@@ -318,8 +315,6 @@ data Pattern
   -- ^ Pattern in parentheses.
   | PBox Pattern
   -- ^ Pattern in box.
-  | PBoxTy Pattern
-  -- ^ Pattern in box (ty) (@.[p]@).
   deriving (Show, Eq, Ord)
 
 
@@ -394,9 +389,7 @@ instance Pretty Expr where
     pprint UniverseNoLevel        = text "Type"
     pprint UnitTy                 = text "Unit"
     pprint Unit                   = text "unit"
-    pprint (BoxTy (g1, g2) e) =
-      brackets ((pprint g1 <> char ',') <+> pprint g2) <+> pprintParened e
-    pprint (BoxTy' g e) =
+    pprint (BoxTy g e) =
       ("@" <> brackets (pprint g)) <+> pprintParened e
     pprint (Box e) = brackets (pprint e)
     pprint (Universe l)           = text "Type" <+> integer l
@@ -442,7 +435,6 @@ instance Pretty Pattern where
   pprint PUnit = text "unit"
   pprint (PParens p) = parens $ pprint p
   pprint (PBox p) = brackets $ pprint p
-  pprint (PBoxTy p) = "." <> (brackets $ pprint p)
 
 instance Pretty Grade where
   isLexicallyAtomic GZero = True

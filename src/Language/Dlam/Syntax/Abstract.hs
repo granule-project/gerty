@@ -282,10 +282,7 @@ data Expr
   | Universe Level
 
   -- | Graded modal types.
-  | BoxTy (Grade, Grade) Expr
-
-  -- | Graded modal types (single grade).
-  | BoxTy' Grade Expr
+  | BoxTy Grade Expr
 
   -- | Box value.
   | Box Expr
@@ -367,8 +364,6 @@ data Pattern
   -- ^ Constructor application.
   | PBox Pattern
   -- ^ Box pattern.
-  | PBoxTy Pattern
-  -- ^ BoxTy pattern.
   deriving (Show, Eq, Ord)
 
 
@@ -379,7 +374,6 @@ patBoundVars (PVar n) = Set.singleton n
 patBoundVars PUnit = mempty
 patBoundVars (PCon _ args) = Set.unions $ fmap patBoundVars args
 patBoundVars (PBox p) = patBoundVars p
-patBoundVars (PBoxTy p) = patBoundVars p
 
 
 ---------
@@ -551,9 +545,7 @@ instance Pretty Expr where
     pprint NZero  = text "zero"
     pprint UnitTy = text "Unit"
     pprint Unit = text "unit"
-    pprint (BoxTy (g1, g2) e) =
-      brackets ((pprint g1 <> char ',') <+> pprint g2) <+> pprintParened e
-    pprint (BoxTy' g e) =
+    pprint (BoxTy g e) =
       ("@" <> brackets (pprint g)) <+> pprintParened e
     pprint (Box e) = brackets (pprint e)
     pprint (Lam ab) = text "\\ " <> pprintAbs arrow ab
@@ -590,7 +582,6 @@ instance Pretty Pattern where
   pprint PUnit = text "unit"
   pprint (PCon c args) = pprint c <+> (hsep $ fmap pprintParened args)
   pprint (PBox p) = brackets $ pprint p
-  pprint (PBoxTy p) = "." <> (brackets $ pprint p)
 
 instance Pretty BindName where
   pprint = pprint . unBindName

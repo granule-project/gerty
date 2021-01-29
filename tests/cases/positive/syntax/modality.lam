@@ -1,5 +1,17 @@
 -- type
-f : [.0, .0] A
+f : @[.0] A
+
+-- type (with name)
+
+f : @[A] B
+
+-- nested type
+
+f : @[A] @[B] C
+
+-- type app
+
+f : @[A] [B]
 
 -- intro
 f = [x]
@@ -9,6 +21,3 @@ f = case y of [x] -> z
 
 -- dependent elim
 f = case y as z in a of [x] -> b
-
--- box ty intro
-f = case y of .[x] -> b

@@ -1,5 +1,5 @@
-counit : (a : (.0, .2) Type 0) -> (z : (.1 , .0) [.1, .0] a) -> a
+counit : (a : (.0, .2) Type 0) -> (z : (.1 , .0) @[.1] a) -> a
 counit = \a z -> case z of [y] -> y
 
-comult : (a : (.0, .2) Type 0) -> (z : (.1 , .0) [.6 , .0] a) -> [.2, .0] ([.3, .0] a)
+comult : (a : (.0, .2) Type 0) -> (z : (.1 , .0) @[.6] a) -> @[.2] (@[.3] a)
 comult = \a z -> case z of [y] -> [[y]]

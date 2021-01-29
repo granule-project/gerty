@@ -291,14 +291,13 @@ Expr0 :: { Expr }
 
 
 Expr1 :: { Expr }
-  : '[' Grade ',' Grade ']' Expr1 { BoxTy ($2, $4) $6 }
-  | '@' '[' Grade ']' Expr1 { BoxTy' $3 $5 }
+  : '@' '[' Grade ']' Expr1 { BoxTy $3 $5 }
   | Application %prec LOWEST { mkAppFromExprs $1 }
 
 
 Application :: { [Expr] }
   : Expr2 { [$1] }
-  | Expr3 Application { $1 : $2 }
+  | Expr3CanBeApplied Application { $1 : $2 }
 
 
 -- lambdas, lets, cases
@@ -321,15 +320,23 @@ Expr3 :: { Expr }
   : '{' Expr3Braces '}' { $2 }
   | Atom { $1 }
 
+-- atomic values
+Expr3CanBeApplied :: { Expr }
+  : '{' Expr3Braces '}' { $2 }
+  | AtomCanBeApplied { $1 }
+
 
 Atom :: { ParseExpr }
+  : AtomCanBeApplied { $1 }
+  | '[' Expr ']'              { Box $2 }
+
+AtomCanBeApplied :: { ParseExpr }
   : '(' Expr ')'              { Parens $2 }
   | QId                       { Ident $1 }
   | '_'                       { mkImplicit }
   | Type                      { UniverseNoLevel }
   -- TODO: ensure we can only parse natural numbers here (2020-06-13)
   | Type literal              { Universe (natTokenToInt $2) }
-  | '[' Expr ']'              { Box $2 }
   | 'unit'                    { Unit }
   | 'Unit'                    { UnitTy }
   | '<' Expr ',' Expr '>'     { Pair $2 $4 }
@@ -368,7 +375,6 @@ PatternAtomic :: { Pattern }
   -- we will bind it as a new name
   | QId             { PIdent $1 }
   | 'unit'          { PUnit }
-  | '.' '[' Pattern ']' { PBoxTy $3 }
   | '[' Pattern ']' { PBox $2 }
   | '<' Pattern ',' Pattern '>' { PPair $2 $4 }
 
