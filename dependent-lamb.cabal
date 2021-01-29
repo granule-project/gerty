@@ -1,8 +1,10 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.1.
+-- This file has been generated from package.yaml by hpack version 0.33.0.
 --
 -- see: https://github.com/sol/hpack
+--
+-- hash: c910cf0013181cb5c8e28ad07fbcaa80a820c03d4cd424441c113d53a6e6f1be
 
 name:           dependent-lamb
 version:        0.0.1
