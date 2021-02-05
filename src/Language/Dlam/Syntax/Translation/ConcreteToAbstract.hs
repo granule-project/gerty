@@ -253,6 +253,11 @@ instance ToAbstract C.Expr A.Expr where
     tB <- withLocals [(x, v)] $ toAbstract tB
     pure $ A.ProductTy $ A.mkAbsGr v tA A.gradeZero r tB
   toAbstract (C.Pair l r) = A.Pair <$> toAbstract l <*> toAbstract r
+  -- cannot apply a box, so we treat it as modal type constructor in application
+  toAbstract (C.App (C.Box g) e) = do
+    g <- toAbstract (C.GExpr g)
+    e <- toAbstract e
+    pure (A.BoxTy g e)
   toAbstract (C.App f e) = A.App <$> toAbstract f <*> toAbstract e
   toAbstract (C.Sig e t) = A.Sig <$> toAbstract e <*> toAbstract t
   toAbstract C.Hole = newHole

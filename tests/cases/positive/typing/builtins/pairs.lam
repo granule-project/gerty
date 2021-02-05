@@ -20,7 +20,7 @@ mkPair = \a b x y -> <x, y>
 -- The first projection
 fst : (a : (.0, .3) Type 0)
       (b : (.0, .1) (x : (.1, .0) a) -> Type 0)
-      (p : (.1, .0) <x [.1] : a * @[.0] (b x)>)
+      (p : (.1, .0) <x [.1] : a * [.0] (b x)>)
       -> a
 fst = \a b p -> case p of <x, y> -> case y of [z] -> x
 
@@ -32,13 +32,13 @@ fst = \a b p -> case p of <x, y> -> case y of [z] -> x
 
 snd : (a : (.0, .3) Type 0)
       (b : (.0, .1) (x : (.0, .0) a) -> Type 0)
-      (p : (.1, .0) <x1 [.1] : @[.0] a * b (case x1 of [z] -> z)>)
+      (p : (.1, .0) <x1 [.1] : [.0] a * b (case x1 of [z] -> z)>)
       -> a
 snd = \a b p -> case p of <x, y> -> case x of [z] -> y
 
 -- snd : (a : (.0, .3) Type 0)
 --       (b : (.0, .1) (x : (.0, .0) a) -> Type 0)
---       (p : (.1, .0) <x1 [.1] : @[.0] a * case x1 of [z] -> b z>)
+--       (p : (.1, .0) <x1 [.1] : [.0] a * case x1 of [z] -> b z>)
 --       -> a
 -- snd = \a b p -> case p of <x, y> -> case x of [z] -> y
 

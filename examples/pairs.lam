@@ -20,11 +20,11 @@ mkPair : (a : Type 0) -> (b : a -> Type 0) -> (x : a) -> b x -> <x : a * b x>
 mkPair = \a b x y -> <x, y>
 
 -- The first projection
-fst : (a : (.0, .3) Type 0) (b : (.0, .1) (x : (_, _) a) -> Type 0) -> <x [.0] : a * @[.0] b x> -> a
+fst : (a : (.0, .3) Type 0) (b : (.0, .1) (x : (_, _) a) -> Type 0) -> <x [.0] : a * [.0] b x> -> a
 fst = \a b p -> case p of <x, y> -> case y of [z] -> x
 
 -- First projection on non-dependent pairs
-fst' : (a b : Type 0) -> <a * @[.0] b> -> a
+fst' : (a b : Type 0) -> <a * [.0] b> -> a
 fst' = \a b p -> fst a (\x -> b) p
 
 -- The second projection

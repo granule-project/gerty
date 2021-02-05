@@ -1,17 +1,17 @@
 -- type
-f : @[.0] A
+f : [.0] A
 
 -- type (with name)
 
-f : @[A] B
+f : [A] B
 
 -- nested type
 
-f : @[A] @[B] C
+f : [A] [B] C
 
 -- type app
 
-f : @[A] [B]
+f : [A] [B]
 
 -- intro
 f = [x]

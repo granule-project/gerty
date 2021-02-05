@@ -17,7 +17,7 @@ ftyDependent = \l -> \f -> \x -> x
 
 -- when you have multiple named bindings of the same type, you
 -- can group them as follows:
-ftyDependentSameGrouped : (l1 l2 : @[_] Unit) -> Type 0 -> Type 0 -> Type 0
+ftyDependentSameGrouped : (l1 l2 : [_] Unit) -> Type 0 -> Type 0 -> Type 0
 ftyDependentSameGrouped = \l1 -> \l2 -> \x -> \y -> x
 
 -- similarly, if you have multiple named binders, you can group them

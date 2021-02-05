@@ -2,7 +2,7 @@
 
 -- .0 <= .inf
 
-t0 : (x : (.0, .0) Nat) -> @[.inf] Nat
+t0 : (x : (.0, .0) Nat) -> [.inf] Nat
 t0 = \(x : (.0, .0) Nat) -> [x]
 
 -- checking lambda

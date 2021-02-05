@@ -1,27 +1,27 @@
 -- Example showing the modal type
 boxTy : (a : (.1, .0) Type 0) -> Type 0
-boxTy = \a -> @[.3] a
+boxTy = \a -> [.3] a
 
-mkBoxSimple : (a : (.0, .2) Type) (x : (.3, .0) a) -> @[.3] a
+mkBoxSimple : (a : (.0, .2) Type) (x : (.3, .0) a) -> [.3] a
 mkBoxSimple = \a x -> [x]
 
 -- Example showing box construction
-mkBox : (a : (.0, .2) Type) (x : (.3, .0) a) -> @[.3] a
+mkBox : (a : (.0, .2) Type) (x : (.3, .0) a) -> [.3] a
 mkBox = \a x -> [x]
 
 -- Box eliminator (no subject-type grade)
-letBox : (a b : (.0, .2) Type 0) (f : (.1, .0) (x : (.3, .0) a) -> b) -> (p : (.1, .0) @[.3] a) -> b
+letBox : (a b : (.0, .2) Type 0) (f : (.1, .0) (x : (.3, .0) a) -> b) -> (p : (.1, .0) [.3] a) -> b
 letBox = \a b f p -> case p of [y] -> f y
 
 -- Box eliminator (no subject-type grade)
 -- letBox' : (a : (.0, .3) Type 0)
 --           (b : (.0, .2) (x : (.3, .0) a) -> Type 0)
 --           (t2 : (.1, .0) (x : (.3, .0) a) -> b x)
---           (t1 : (.1, .1) @[.3] a)
+--           (t1 : (.1, .1) [.3] a)
 --           -> case t1 of [y] -> b y
 -- letBox' = \a b t2 t1 -> case t1 of [y] -> t2 y
 
-boxId : (a : (.0, .2) Type 0) (x : (.1, .0) @[.4] a) -> @[.4] a
+boxId : (a : (.0, .2) Type 0) (x : (.1, .0) [.4] a) -> [.4] a
 boxId = \a x -> case x of [z] -> [z]
 
 -- TODO: this box eliminator is awaiting SMT solver support, so we can distinguish type-level grades (2020-06-24)

@@ -1,4 +1,4 @@
-fst : (a : Type 0) (b : a -> Type 0) -> <w : a * @[.0] b w> -> a
+fst : (a : Type 0) (b : a -> Type 0) -> <w : a * [.0] b w> -> a
 fst = \a b p -> case p of <x, y> -> case y of [z] -> x
 
 snd : (a : Type 0) (b : a -> Type 0) (p : <x : a * b x>) -> b (fst a b p)
