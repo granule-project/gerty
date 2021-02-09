@@ -71,6 +71,7 @@ library:
    - Language.Dlam.TypeChecking.Constraints.SNatX
    - Language.Dlam.TypeChecking.Constraints.SymbolicGrades
    - Language.Dlam.TypeChecking.Predicates
+   - Language.Dlam.TypeChecking.Solver.Monad
    - Language.Dlam.Util.Lens
    - Language.Dlam.Util.Peekaboo
 
