@@ -36,7 +36,7 @@ import GHC.Generics (Generic)
 
 
 import Language.Dlam.TypeChecking.Constraints.SNatX
-import Language.Dlam.TypeChecking.Monad.Base (SolverError, solverError')
+import Language.Dlam.TypeChecking.Monad.Exception (SolverError, solverError')
 import Language.Dlam.Util.Pretty (Doc, pprint, pprintShow, quoted, (<+>))
 
 
