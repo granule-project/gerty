@@ -73,7 +73,9 @@ provePredicate predicate
                       print $ show assg
                     Left msg -> print $ show msg
                   -}
-                   NotValid $ "is" <+> pprint (show (ThmResult thmRes)) <+> "assignment" <+> pprint (show assg)
+                   NotValid $ pprint (simplifyPred predicate) <+> " is"
+                    <+> pprint (show (ThmResult thmRes))
+                    <+> (if null assg then "" else " (assignment" <+> pprint (show assg) <+> ")")
             Right (True, _) -> NotValid "returned probable model."
             Left str -> OtherSolverError (pprint str)
 
