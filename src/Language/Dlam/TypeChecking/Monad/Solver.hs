@@ -12,7 +12,6 @@ import Language.Dlam.TypeChecking.Monad.Base
 import Language.Dlam.TypeChecking.Predicates
 import Language.Dlam.Util.Pretty (hang, pprint)
 
-
 ------------------------------
 ----- Predicate building -----
 ------------------------------

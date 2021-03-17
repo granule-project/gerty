@@ -685,15 +685,14 @@ throwCMat msg e = do
   throwError $ TCErr { tcErrErr = e, tcErrEnv = env, localeMessage = Just msg }
 
 instance Pretty TCErr where
-  pprint e = ((maybe "" (\tld -> ("During checking of top-level" <+> (quoted tld <> colon))) (tcErrTL e)) $+$ "The following error occurred when" <+> text phaseMsg)
+  pprint e = nest 2 (((maybe "" (\tld -> ("During checking of top-level" <+> (quoted tld <> colon))) (tcErrTL e)) $+$ "\nThe following error occurred when" <+> text phaseMsg)
       <> (maybe "" (\msg -> " (at " <> msg <> ")") (localeMessage e))
       <> (maybe ":" (\expr -> " " <> (quoted expr <+>
-                              (maybe empty (("against a type" <+>) . quoted) (tcErrTy e))) <> ":") (tcErrExpr e)) $+$ pprint (tcErrErr e)
+                              (maybe empty (("\n against a type" <+>) . quoted) (tcErrTy e))) <> ":") (tcErrExpr e)) $+$ "\n" $+$ (pprint (tcErrErr e)) $+$ "\n")
     where phaseMsg = case errPhase e of
                        PhaseParsing -> "parsing"
                        PhaseScoping -> "scope checking"
                        PhaseTyping  -> "type-checking"
-
 
 data ProgramPhase = PhaseParsing | PhaseScoping | PhaseTyping
   deriving (Show, Eq, Ord)
