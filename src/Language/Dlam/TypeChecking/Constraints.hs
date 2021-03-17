@@ -158,6 +158,7 @@ simplifyPred = predFold
         -- | omitted. Return 'Just' if the constraint is non-trivial.
         simplifyConstraint :: Constraint -> Maybe Constraint
         simplifyConstraint (Eq (GEnc n) (GEnc k) _) | n == k = Nothing
+        simplifyConstraint (Eq n m _) | n == m = Nothing
         simplifyConstraint c = pure c
 
 
