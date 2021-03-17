@@ -44,7 +44,7 @@ data Options = Options
 
 defaultOptions :: Options
 defaultOptions = Options
-  { verbosity = verbosityInfo
+  { verbosity = verbositySilent
   , renderOpts = defaultRenderOptions
   , tycOptimise = False
   , benchmark   = False
