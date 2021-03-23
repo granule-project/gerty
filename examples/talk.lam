@@ -1,0 +1,27 @@
+id : (a : (.0, _) Type) -> (x : (.1, _) a) -> a
+id = \a -> \x -> x
+
+-- useId : (a : Type 0) -> (x : (_, .2) a) -> a
+-- useId = id
+
+-- -- notId : (a : (.1, .2) Type 0) -> (x : (.1, .0) a) -> a
+-- -- notId nat = \x -> x + 1
+-- -- notId a   = \x -> x
+
+copy : (a : (.0, .3) Type 0) -> (x : (.2, .0) a) -> <a * a>
+copy = \a -> \x -> <x, x>
+
+quad : (a : (.0, .5) Type 0) -> (x : (.4, .0) a) -> <<a * a> * <a * a>>
+quad = \a -> \x -> <copy a x, copy a x>
+
+-- -- -- \Box_0 b
+fst : (a : Type) -> (b : Type) -> (p : (.1, .0) <a * [.0] b>) -> a
+fst = \a -> \b -> \x -> case x of <u, v> ->
+                          case v of [v'] -> u
+
+idLo : (a : (Hi, .2) Type 0) -> (x : (Lo, Hi) a) -> a
+idLo = \a -> \x -> x
+
+-- -- The following is rejected as ill-typed
+-- -- leak : (a : (Hi, .2) Type 0) -> (x : (Hi, Hi) a) -> a
+-- -- leak = \a -> \x -> idLo a x
