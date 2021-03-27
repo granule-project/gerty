@@ -1,5 +1,5 @@
-name: dependent-lamb
-version: '0.0.1'
+name: gerty-main
+version: '0.1.0'
 synopsis: An implementation of (Graded Modal Dependent Type Theory)
 author: Ben Moon, Dominic Orchard
 copyright: 2020 authors
@@ -77,16 +77,16 @@ executables:
     main: Main.hs
     ghc-options: -main-is Dlam
     dependencies:
-     - dependent-lamb
+     - gerty-main
      - directory
      - clock
 
 tests:
-  dependent-lamb:
+  gerty-main:
     main: Test.hs
     source-dirs: tests
     dependencies:
-    - dependent-lamb
+    - gerty-main
     - directory
     - strict
     - tasty
