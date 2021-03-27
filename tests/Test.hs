@@ -8,14 +8,14 @@ import Test.Tasty.HUnit (testCase, assertFailure, assertBool)
 import Test.Tasty (defaultMain, TestTree, testGroup)
 import Test.Tasty.Golden (findByExtension)
 
-import Language.Dlam.Interpreter (formatErrorDefault)
-import Language.Dlam.TypeChecking.Monad
+import Language.Gerty.Interpreter (formatErrorDefault)
+import Language.Gerty.TypeChecking.Monad
   ( CM
   , TCErr, isSyntaxErr, isScopingErr, isTypingErr
   , runNewChecker
   , tcrRes)
 
-import qualified Language.Dlam.Interpreter as Interpreter
+import qualified Language.Gerty.Interpreter as Interpreter
 
 
 main :: IO ()
@@ -140,16 +140,16 @@ dlamFileExtensions = [".lam"]
 
 
 findNegativeFiles, findPositiveFiles :: FilePath -> IO [FilePath]
-findNegativeFiles dir = findDlamFilesInDir (negativeTestCasesDir <> "/" <> dir)
-findPositiveFiles dir = findDlamFilesInDir (positiveTestCasesDir <> "/" <> dir)
+findNegativeFiles dir = findGertyFilesInDir (negativeTestCasesDir <> "/" <> dir)
+findPositiveFiles dir = findGertyFilesInDir (positiveTestCasesDir <> "/" <> dir)
 
 findExampleFiles :: IO [FilePath]
-findExampleFiles = findDlamFilesInDir examplesDir
+findExampleFiles = findGertyFilesInDir examplesDir
 
 
 -- | Find DLAM files in the directory. If the directory does not
 -- | exist, then returns an empty list.
-findDlamFilesInDir :: FilePath -> IO [FilePath]
-findDlamFilesInDir dir = do
+findGertyFilesInDir :: FilePath -> IO [FilePath]
+findGertyFilesInDir dir = do
   exists <- doesDirectoryExist dir
   if exists then findByExtension dlamFileExtensions dir else pure []

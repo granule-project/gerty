@@ -34,48 +34,48 @@ library:
    - extra
    - sbv >= 8.6
   exposed-modules:
-   - Language.Dlam.Interpreter
-   - Language.Dlam.Substitution
-   - Language.Dlam.Syntax.Concrete
-   - Language.Dlam.Syntax.Parser
-   - Language.Dlam.Types
-   - Language.Dlam.TypeChecking.Monad
-   - Language.Dlam.Util.Pretty
+   - Language.Gerty.Interpreter
+   - Language.Gerty.Substitution
+   - Language.Gerty.Syntax.Concrete
+   - Language.Gerty.Syntax.Parser
+   - Language.Gerty.Types
+   - Language.Gerty.TypeChecking.Monad
+   - Language.Gerty.Util.Pretty
   other-modules:
-   - Language.Dlam.Syntax.Abstract
-   - Language.Dlam.Syntax.Common
-   - Language.Dlam.Syntax.Common.Language
-   - Language.Dlam.Syntax.Concrete.Name
-   - Language.Dlam.Syntax.Free
-   - Language.Dlam.Syntax.Internal
-   - Language.Dlam.Syntax.Lexer
-   - Language.Dlam.Syntax.Literal
-   - Language.Dlam.Syntax.Parser.Alex
-   - Language.Dlam.Syntax.Parser.Comments
-   - Language.Dlam.Syntax.Parser.Layout
-   - Language.Dlam.Syntax.Parser.LexActions
-   - Language.Dlam.Syntax.Parser.LookAhead
-   - Language.Dlam.Syntax.Parser.Monad
-   - Language.Dlam.Syntax.Parser.Tokens
-   - Language.Dlam.Syntax.Position
-   - Language.Dlam.Syntax.Translation.ConcreteToAbstract
-   - Language.Dlam.Scoping.Monad
-   - Language.Dlam.Scoping.Monad.Base
-   - Language.Dlam.Scoping.Monad.Exception
-   - Language.Dlam.Scoping.Scope
-   - Language.Dlam.TypeChecking.Monad.Base
-   - Language.Dlam.TypeChecking.Monad.Solver
-   - Language.Dlam.TypeChecking.Constraints
-   - Language.Dlam.TypeChecking.Constraints.SNatX
-   - Language.Dlam.TypeChecking.Constraints.SymbolicGrades
-   - Language.Dlam.TypeChecking.Predicates
-   - Language.Dlam.Util.Lens
-   - Language.Dlam.Util.Peekaboo
+   - Language.Gerty.Syntax.Abstract
+   - Language.Gerty.Syntax.Common
+   - Language.Gerty.Syntax.Common.Language
+   - Language.Gerty.Syntax.Concrete.Name
+   - Language.Gerty.Syntax.Free
+   - Language.Gerty.Syntax.Internal
+   - Language.Gerty.Syntax.Lexer
+   - Language.Gerty.Syntax.Literal
+   - Language.Gerty.Syntax.Parser.Alex
+   - Language.Gerty.Syntax.Parser.Comments
+   - Language.Gerty.Syntax.Parser.Layout
+   - Language.Gerty.Syntax.Parser.LexActions
+   - Language.Gerty.Syntax.Parser.LookAhead
+   - Language.Gerty.Syntax.Parser.Monad
+   - Language.Gerty.Syntax.Parser.Tokens
+   - Language.Gerty.Syntax.Position
+   - Language.Gerty.Syntax.Translation.ConcreteToAbstract
+   - Language.Gerty.Scoping.Monad
+   - Language.Gerty.Scoping.Monad.Base
+   - Language.Gerty.Scoping.Monad.Exception
+   - Language.Gerty.Scoping.Scope
+   - Language.Gerty.TypeChecking.Monad.Base
+   - Language.Gerty.TypeChecking.Monad.Solver
+   - Language.Gerty.TypeChecking.Constraints
+   - Language.Gerty.TypeChecking.Constraints.SNatX
+   - Language.Gerty.TypeChecking.Constraints.SymbolicGrades
+   - Language.Gerty.TypeChecking.Predicates
+   - Language.Gerty.Util.Lens
+   - Language.Gerty.Util.Peekaboo
 
 executables:
   gerty:
     main: Main.hs
-    ghc-options: -main-is Dlam
+    ghc-options: -main-is Gerty
     dependencies:
      - gerty-main
      - directory

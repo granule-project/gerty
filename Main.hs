@@ -1,7 +1,7 @@
-module Dlam (main) where
+module Gerty (main) where
 
-import Language.Dlam.Interpreter (formatError)
-import Language.Dlam.TypeChecking.Monad
+import Language.Gerty.Interpreter (formatError)
+import Language.Gerty.TypeChecking.Monad
   ( runNewCheckerWithOpts
   , tcrLog
   , tcrRes
@@ -14,9 +14,9 @@ import Language.Dlam.TypeChecking.Monad
   , TCOpts
   , defaultTCOpts
   )
-import qualified Language.Dlam.TypeChecking.Monad as TM
-import qualified Language.Dlam.Interpreter as Interpreter
-import Language.Dlam.Util.Pretty
+import qualified Language.Gerty.TypeChecking.Monad as TM
+import qualified Language.Gerty.Interpreter as Interpreter
+import Language.Gerty.Util.Pretty
   ( RenderOptions(..)
   , defaultRenderOptions
   , pprintShowWithOpts

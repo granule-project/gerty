@@ -1,10 +1,10 @@
 ----------------------------------------------------------------------------
 
-The files src/Language/Dlam/Syntax/{Literal,Position}.hs,
-src/Language/Dlam/Syntax/Lexer.x, src/Language/Dlam/Syntax/Parser.y,
-src/Language/Dlam/Util/Lens.hs,
-src/Language/Dlam/Syntax/Parser/{Alex,Comments,Layout,LexActions,LookAhead,Monad,Tokens}.hs,
-src/Language/Dlam/Syntax/Parser/{Layout,LexActions}.hs-boot are
+The files src/Language/Gerty/Syntax/{Literal,Position}.hs,
+src/Language/Gerty/Syntax/Lexer.x, src/Language/Gerty/Syntax/Parser.y,
+src/Language/Gerty/Util/Lens.hs,
+src/Language/Gerty/Syntax/Parser/{Alex,Comments,Layout,LexActions,LookAhead,Monad,Tokens}.hs,
+src/Language/Gerty/Syntax/Parser/{Layout,LexActions}.hs-boot are
 substantial reproductions of files from the Agda project, and as such
 use the following license:
 
