@@ -55,19 +55,17 @@ You can see gerty's command line options by running `gerty --help`
 
 You will need [Z3 installed](https://github.com/Z3Prover/z3/releases).
 
-Binary releases are currently available for MacOS only.
-
-If you need a release for a different operation system then please open an issue and
+Binary releases are currently available for MacOS only. If you need a release for a different operation system then please open an issue and
 we will try to get that to you as soon as we can.
 
 To build gerty from source, make sure you have Stack on your system.
 
 Now run
 
-   git clone https://github.com/granule-project/gerty \
-   && cd gerty \
-   && stack setup \
-   && stack install
+     git clone https://github.com/granule-project/gerty \
+     && cd gerty \
+     && stack setup \
+     && stack install
    
 This will instance the `gerty` binary for you.
 
