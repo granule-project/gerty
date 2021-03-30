@@ -51,7 +51,7 @@ You can see gerty's command line options by running `gerty --help`
 	  --use-smt                                 Turn on SMT for type checking
 	  --debug                                   Run in debugging mode (mostly for devs)
 
-## Install instructions
+## Install instructions
 
 You will need [Z3 installed](https://github.com/Z3Prover/z3/releases).
 
