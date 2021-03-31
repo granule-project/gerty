@@ -31,6 +31,8 @@ grading. Thus `(a : (.0, .2) Type 0) -> ...` is a dependent function
 type where `a` is used `0` times computationally and `2` times in the
 rest of the type.
 
+More interesting examples can be found in the [examples directory](https://github.com/granule-project/gerty/tree/main/examples) here and some in the paper.
+
 You can see gerty's command line options by running `gerty --help`
 
 	$ gerty --help
