@@ -17,10 +17,8 @@ module Language.Gerty.TypeChecking.Constraints
 
 
 import Control.Monad (liftM2)
-import Data.Function (on)
 import Data.Maybe (catMaybes)
 import Data.SBV.Trans hiding (kindOf, name, symbolic, Interval, Symbolic)
-
 
 import Language.Gerty.Syntax.Abstract
 import qualified Language.Gerty.TypeChecking.Constraints.SNatX as SNatX
@@ -131,11 +129,11 @@ simplifyPred :: Pred -> Pred
 simplifyPred = predFold
                  (Conj . simplifyTheorems)
                  (Disj . simplifyTheorems)
-                 (Impl `on` simplifyPred)
-                 Con
-                 (Neg . simplifyPred)
-                 (\n g -> Forall n g . simplifyPred)
-                 (\n g -> Exists n g . simplifyPred)
+                 Impl
+                 (\c -> maybe (Con c) Con (simplifyConstraint c))
+                 Neg
+                 Forall
+                 Exists
   where
         simplifyTheorems :: [Pred] -> [Pred]
         simplifyTheorems = catMaybes . fmap simplifyTheorem
@@ -149,11 +147,11 @@ simplifyPred = predFold
                  (\xs -> case catMaybes xs of
                            [] -> pure (Conj [])
                            xs -> pure (Disj xs))
-                 (\x y -> Impl <$> (x >>= simplifyTheorem) <*> (y >>= simplifyTheorem))
+                 (liftM2 Impl)
                  (fmap Con . simplifyConstraint)
                  (maybe (pure $ Disj []) (pure . Neg) . fmap simplifyPred)
-                 (\n g -> fmap (Forall n g . simplifyPred))
-                 (\n g -> fmap (Exists n g . simplifyPred))
+                 (\n g -> fmap (Forall n g))
+                 (\n g -> fmap (Exists n g))
         -- | Return 'None' if the constraint is trivial, and can be
         -- | omitted. Return 'Just' if the constraint is non-trivial.
         simplifyConstraint :: Constraint -> Maybe Constraint
