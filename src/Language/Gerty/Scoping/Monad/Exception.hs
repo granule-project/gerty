@@ -47,6 +47,8 @@ data SCError
 
   | NonConstructorInPattern C.QName
 
+  deriving Show
+
 
 instance Pretty SCError where
   pprint (NotImplemented e) = text e

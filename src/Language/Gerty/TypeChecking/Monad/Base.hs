@@ -325,6 +325,7 @@ withValuedVariable v t p = do
 
 -- Different 'stages' when it comes to grading
 data Stage = Subject | SubjectType | Context
+ deriving Show
 
 instance Pretty Stage where
   pprint Subject     = text "subject"
@@ -350,6 +351,8 @@ data TCEnv = TCEnv
   -- ^ Type-checking options.
   }
 
+  deriving Show
+
 
 -- | Type-checking options.
 data TCOpts = TCOpts
@@ -363,6 +366,7 @@ data TCOpts = TCOpts
   -- ^ Whether to use the SMT solver at all or just normalisation and equality
   }
 
+  deriving Show
 
 getOpts :: CM TCOpts
 getOpts = fmap tcOpts ask
@@ -542,6 +546,7 @@ data TCError
 
   | ParseError ParseError
 
+  deriving Show
 
 -- for now, this is just an alias for a type-checker error, but we can
 -- separate this out if desired (2020-06-26)
@@ -657,6 +662,7 @@ data TCErr = TCErr
   , localeMessage :: Maybe Doc
   -- ^ Additional message to localise where we are
   }
+  deriving Show
 
 
 -- | Expression being checked when failure occurred.
