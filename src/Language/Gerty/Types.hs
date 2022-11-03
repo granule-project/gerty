@@ -1463,7 +1463,7 @@ gradeTypesAreEqual e1@PrivacyLevel e2 =
 gradeTypesAreEqual e1@SecurityLevel e2 =
   notImplemented $ "Equality of grade types on" <+> quoted e1 <+> "and" <+> quoted e2
 gradeTypesAreEqual e1@GSExpr{} e2 =
-  notImplemented $ "Equality of grade types on" <+> quoted e1 <+> "and" <+> quoted e2
+  return $ e1 == e2
 gradeTypesAreEqual (Extended s1) (Extended s2) =
   gradeTypesAreEqual s1 s2
 gradeTypesAreEqual (Interval s1) (Interval s2) =
