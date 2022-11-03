@@ -664,10 +664,10 @@ checkExpr' (Lam lam) t ctxt = do
       (g3, (_, r2)) = unextend g3r
   -- s1 <= s2
   -- r1 <= r2
-  eqS <- gradeLEq s1 s2
+  eqS <- gradeLEq s2 s1
   unless eqS (gradeMismatchAt' "function" Subject (absVar lam) s1 s2)
 
-  eqR <- gradeLEq r1 r2
+  eqR <- gradeLEq r2 r1
   unless eqR (gradeMismatchAt' "function" SubjectType (absVar lam) r1 r2)
 
   g1plusG3 <- contextGradeAdd g1 g3
