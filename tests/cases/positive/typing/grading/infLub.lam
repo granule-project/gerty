@@ -2,16 +2,19 @@
 
 -- .0 <= .inf
 
-t0 : (x : (.0, .0) Nat) -> [.inf] Nat
+t0a : (x : (.inf, .0) Nat) -> Nat
+t0a = \(x : (.inf, .0) Nat) -> x
+
+t0 : (x : (.0, .0) Nat) -> [.0] Nat
 t0 = \(x : (.0, .0) Nat) -> [x]
 
 -- checking lambda
-t1 : (f : (.1, .0) (x : (.inf, .0) Type 0) -> Type 0) -> (x : (.0, .0) Type 0) -> Type 0
+t1 : (f : (.1, .0) (x : (.inf, .0) Type 0) -> Type 0) -> (x : (.inf, .0) Type 0) -> Type 0
 t1 = \(f : (.1, .0) (x : (.inf, .0) Type 0) -> Type 0) x -> f x
 
--- checking pi type
+-- -- checking pi type
 t2 : Type 1
-t2 = (f : (.0, .1) (x : (.inf, .0) Type 0) -> Type 0) (x : (.0, .0) Type 0) -> f x
+t2 = (f : (.0, .1) (x : (.0, .0) Type 0) -> Type 0) (x : (.inf, .0) Type 0) -> f x
 
 t3 : Type 1
 t3 = (x : (.0, .inf) Type 0) -> Type 0
