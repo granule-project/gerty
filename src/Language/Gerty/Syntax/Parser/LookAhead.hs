@@ -40,11 +40,11 @@ newtype LookAhead a =
     deriving (Functor, Applicative, Monad)
 
 newtype ErrorFunction =
-    ErrorFun { throwError :: forall a. String -> LookAhead a }
+    ErrorFun { throwError :: forall a . String -> LookAhead a }
 
 -- | Throw an error message according to the supplied method.
 lookAheadError :: String -> LookAhead a
-lookAheadError s = ($ s) =<< do LookAhead $ asks throwError
+lookAheadError s = ($ s) =<< do LookAhead $ asks (\e -> throwError e)
 
 {--------------------------------------------------------------------------
     Operations
