@@ -270,7 +270,7 @@ gradeLEq r1 r2 = do
         (r1, r2) -> do
           -- Go to the SMT solver
           -- NOTE THIS IS JUST EQUALITY FOR NOW
-          let c = Eq r1 r2 ty
+          let c = ApproximatedBy r1 r2 ty
           debug $ "Adding smt constraint:" <+> pprint c
           addConstraint c
           -- Say yes for now
