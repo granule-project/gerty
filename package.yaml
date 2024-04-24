@@ -32,7 +32,7 @@ library:
    - array
    - clock
    - extra
-   - sbv
+   - sbv < 10
   exposed-modules:
    - Language.Gerty.Interpreter
    - Language.Gerty.Substitution

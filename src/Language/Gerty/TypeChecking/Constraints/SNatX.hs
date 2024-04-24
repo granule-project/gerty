@@ -58,18 +58,6 @@ freeSNatX nm = do
   constrain $ representationConstraint v
   return $ SNatX v
 
-existsSNatX :: String -> Symbolic SNatX
-existsSNatX nm = do
-  v <- exists $ nm <> "_xVal"
-  constrain $ representationConstraint v
-  return $ SNatX v
-
-forallSNatX :: String -> Symbolic SNatX
-forallSNatX nm = do
-  v <- forall $ nm <> "_xVal"
-  constrain $ representationConstraint v
-  return $ SNatX v
-
 -- main :: IO ()
 -- main = print =<< sat do
 --   [x, y, z] <- mapM freeSNatX ["x", "y", "z"]
@@ -79,13 +67,6 @@ forallSNatX nm = do
 --     , y .< x    -- y ≠ ∞
 --     , z*x .== 0 -- z = 0
 --     ]
-
--- main :: IO ()
--- main = print =<< prove do
---   -- [x, y, z] <- mapM freeSNatX ["x", "y", "z"]
---   y <- existsSNatX_
---   z <- forallSNatX_
---   return $ z .<= y
 
 -- data NatX = NatX (Maybe Integer) deriving Show
 --

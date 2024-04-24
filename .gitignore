@@ -23,7 +23,11 @@ cabal.project.local~
 
 # Stack
 .stack-work/
-stack.yaml.lock
+stack*.yaml.lock
 
 # Test output
 *.output
+
+# Generated files
+gerty-main.cabal
+TAGS

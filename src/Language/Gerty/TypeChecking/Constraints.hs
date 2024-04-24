@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE RankNTypes #-}
@@ -216,7 +217,7 @@ class QuantifiableScoped a where
   universalScoped :: String -> (SBV a -> Symbolic SBool) -> Symbolic SBool
   existentialScoped :: String -> (SBV a -> Symbolic SBool) -> Symbolic SBool
 
-
+#if !MIN_VERSION_sbv(9,0,0)
 instance QuantifiableScoped Integer where
   universalScoped v = forAll [v]
   existentialScoped v = forSome [v]
@@ -224,6 +225,15 @@ instance QuantifiableScoped Integer where
 instance QuantifiableScoped Float where
   universalScoped v = forAll [v]
   existentialScoped v = forSome [v]
+#else
+instance QuantifiableScoped Integer where
+  universalScoped v = universal [v]
+  existentialScoped v = existential [v]
+
+instance QuantifiableScoped Float where
+  universalScoped v = universal [v]
+  existentialScoped v = existential [v]
+#endif
 
 -- Compile a constraint into a symbolic bool (SBV predicate)
 compile :: Ctxt SGrade -> Constraint -> Symbolic SBool
