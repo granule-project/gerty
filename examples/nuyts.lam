@@ -66,8 +66,8 @@ RI = \A -> \B
 -- RIisoExampleLeft = \A B ri a -> ri A (\(x : (.0, .0) A) -> a) a
 
 
-RIisoExampleLeft : (A B : (.0, .2) Type 2) (ri : (.1, .0) RI A B) (a : (.1, .0) A) -> B
-RIisoExampleLeft = \A B ri a -> ri A (\(x : (.1, .0) A) -> x) a
+RIisoExampleLeft : (A B : (.0, .2) Type 2) (ri : (.1, .0) RI A B) (a : (.inf, .0) A) -> B
+RIisoExampleLeft = \A B ri a -> ri A (\(x : (.inf, .0) A) -> x) a
 
 RIisoExampleRight : (A B : (.0, .2) Type 2) (f : (.1, .0) ((x : (.1, .0) A) -> B)) -> RI A B
 RIisoExampleRight = \A B f C r y -> f (r y)
@@ -99,7 +99,7 @@ i = \D C r y z -> r y
 -- j : (D : (.0, .2) Type 2) -> RI ((E : (.0, .0) Type 2) -> D) D
 -- j = \D -> \C -> \r -> \y -> r y C
 
-k : (D E F : (.0, .2) Type 2) -> (de : (.1, .0) RI D E) -> (ef : (.1, .0) RI E F) -> RI D F
+k : (D E F : (.0, .2) Type 2) -> (de : (.inf, .0) RI D E) -> (ef : (.1, .0) RI E F) -> RI D F
 k = \D E F de ef C r y -> ef C (de C r) y
 
 

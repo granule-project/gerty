@@ -270,7 +270,7 @@ gradeLEq r1 r2 = do
         (r1, r2) -> do
           -- Go to the SMT solver
           -- NOTE THIS IS JUST EQUALITY FOR NOW
-          let c = Eq r1 r2 ty
+          let c = ApproximatedBy r2 r1 ty
           debug $ "Adding smt constraint:" <+> pprint c
           addConstraint c
           -- Say yes for now
@@ -667,7 +667,7 @@ checkExpr' (Lam lam) t ctxt = do
   eqS <- gradeLEq s1 s2
   unless eqS (gradeMismatchAt' "function" Subject (absVar lam) s1 s2)
 
-  eqR <- gradeLEq r1 r2
+  eqR <- gradeEq r1 r2
   unless eqR (gradeMismatchAt' "function" SubjectType (absVar lam) r1 r2)
 
   g1plusG3 <- contextGradeAdd g1 g3
