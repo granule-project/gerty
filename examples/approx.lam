@@ -1,0 +1,10 @@
+-- .0 <= .inf
+
+-- An input that is prepared for arbitrary future use
+arb : (x : (.inf, .0) Nat) -> [.inf] Nat
+arb = \(x : (.inf, .0) Nat) -> [x]
+
+-- Copy a value into a paper, but over-approximate its
+-- computational use
+copy_approx : (a : (.0, .3) Type 0) -> (x : (.inf, .0) a) -> <a * a>
+copy_approx = \a -> \x -> <x, x>
