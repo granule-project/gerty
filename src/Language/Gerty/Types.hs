@@ -10,9 +10,11 @@ import Control.Monad (unless, zipWithM)
 import Data.Either (partitionEithers)
 import Data.List (sort)
 
+import qualified Data.Set as Set
 import Language.Gerty.Substitution (Substitutable(substitute))
 import Language.Gerty.Syntax.Abstract
 import Language.Gerty.Syntax.Common
+import Language.Gerty.Syntax.Free (Free(freeVars))
 import qualified Language.Gerty.Syntax.Concrete as C
 import Language.Gerty.Syntax.Internal
 import Language.Gerty.TypeChecking.Monad
@@ -113,7 +115,12 @@ normalise e = notImplemented $ "normalise does not yet support '" <> pprint e <>
 normaliseCaseBind :: Expr -> CaseBinding -> CM (Either Expr CaseBinding)
 normaliseCaseBind e (CasePatBound p m) = do
   case maybeGetPatternSubst p e of
-    Nothing -> normalise m >>= pure . Right . CasePatBound p
+    Nothing ->
+      -- Box eta rule: case e of [z] -> body = body, when z ∉ FV(body)
+      case p of
+        PBox (PVar z) | not (unBindName z `Set.member` freeVars m) ->
+          fmap Left (normalise m)
+        _ -> normalise m >>= pure . Right . CasePatBound p
     -- TODO: perform the subject-type substitution only in the type (2020-03-04)
     -- a.k.a . the pattern matched
     Just (ssubst, tsubst) -> fmap Left $ normalise =<< substitute tsubst =<< substitute ssubst m
