@@ -37,7 +37,7 @@ You can see gerty's command line options by running `gerty --help`
 
 	$ gerty --help
 	----------------------------------------------------------------
-	Gerty v0.1.0 - graded modal dependent type theory
+	Gerty v0.1.1 - graded modal dependent type theory
 	----------------------------------------------------------------
 
 	  --help                                    Show information on flags
