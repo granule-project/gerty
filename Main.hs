@@ -1,10 +1,11 @@
 module Gerty (main) where
 
-import Language.Gerty.Interpreter (formatError)
+import Language.Gerty.Interpreter (formatError, InterpreterResult)
 import Language.Gerty.TypeChecking.Monad
   ( runNewCheckerWithOpts
   , tcrLog
   , tcrRes
+  , TCErr
   , Verbosity
   , verbositySilent
   , verbosityDebug
@@ -20,10 +21,11 @@ import Language.Gerty.Util.Pretty
   ( RenderOptions(..)
   , defaultRenderOptions
   , pprintShowWithOpts
+  , Doc
   , green, red
   )
 
-import Control.Monad      (when)
+import Control.Monad      (unless, when)
 import Data.List          (isPrefixOf, partition, intercalate)
 import System.Directory   (doesPathExist)
 import System.Environment (getArgs)
@@ -159,61 +161,84 @@ parseArgs args = do
 main :: IO ()
 main = do
   (opts, args) <- parseArgs =<< getArgs
-  let rOpts   = renderOpts opts
-      printLn = putStrLn . pprintShowWithOpts rOpts
-  if showHelp opts
-    then outputHelp
-    else
-      if showVersion opts
-        then outputVersion
-        else
-          case args of
-            [] -> putStrLn "Please supply a filename as a command line argument OR --help to see options"
-            (fname:_) -> do
-              exists <- doesPathExist fname
-              if not exists
-                then putStrLn $ "File `" <> fname <> "` cannot be found."
-                else do
-                  input <- readFile fname
-                  exitStatus <- benchmarkTime (benchmark opts) (trials opts) (\isLast -> do
-                    res <- runNewCheckerWithOpts (extractTCOpts opts) (Interpreter.runTypeChecker fname input)
-                    when isLast $ printLog (renderOpts opts) (verbosity opts) (tcrLog res)
-                    case tcrRes res of
-                      Left err -> do
-                        printLn $ red "Ill-typed."
-                        return (Left err)
-                      Right _ -> do
-                        when isLast $ printLn $ green "Well typed."
-                        return $ Right ())
-                  case exitStatus of
-                    Left err -> printLn (formatError err) >> exitFailure
-                    Right () -> exitSuccess
+  let printLn = putStrLn . pprintShowWithOpts (renderOpts opts)
+  handleMode printLn opts args
+
+-- | Dispatch on help / version / file argument, one level of nesting.
+handleMode :: (Doc -> IO ()) -> Options -> [String] -> IO ()
+handleMode printLn opts args
+  | showHelp opts    = outputHelp
+  | showVersion opts = outputVersion
+  | otherwise        = case args of
+      []          -> putStrLn "Please supply a filename as a command line argument OR --help to see options"
+      (fname : _) -> typeCheckFile printLn opts fname
+
+-- | Check a single file: validate existence, then run the checker.
+typeCheckFile :: (Doc -> IO ()) -> Options -> FilePath -> IO ()
+typeCheckFile printLn opts fname = do
+  exists <- doesPathExist fname
+  unless exists $ do
+    putStrLn $ "File `" <> fname <> "` cannot be found."
+    exitFailure
+  input <- readFile fname
+  status <- typeCheckInput printLn opts fname input
+  handleResult printLn status
+
+-- | Type-check the input, reporting per-run status. Returns an error
+-- if any run failed to type-check, otherwise the AST.
+typeCheckInput :: (Doc -> IO ())
+               -> Options -> FilePath -> String
+               -> IO (Either TCErr InterpreterResult)
+typeCheckInput printLn opts fname input =
+  benchmarkTime (benchmark opts) (trials opts) $ \isLast -> do
+    res <- runNewCheckerWithOpts (extractTCOpts opts)
+                                   (Interpreter.runTypeChecker fname input)
+    when isLast $ printLog (renderOpts opts) (verbosity opts) (tcrLog res)
+    reportResult printLn isLast (tcrRes res)
+
+-- | Report the result of a single checker run and pass it through.
+reportResult :: (Doc -> IO ()) -> Bool -> Either TCErr InterpreterResult -> IO (Either TCErr InterpreterResult)
+reportResult printLn isLast res = case res of
+  Left _    -> do printLn (red "Ill-typed."); pure res
+  Right ast -> do
+    when isLast $ printLn (green "Well typed.")
+    pure (Right ast)
+
+-- | Map the overall check result to a process exit status.
+handleResult :: (Doc -> IO ()) -> Either TCErr InterpreterResult -> IO ()
+handleResult printLn res = case res of
+  Left err -> printLn (formatError err) >> exitFailure
+  Right _  -> exitSuccess
 
 -- Benchmarking helpers follow
 
 benchmarkTime :: Bool -> Int -> (Bool -> IO a) -> IO a
 benchmarkTime False _ m = m True
-benchmarkTime True  trials m = do
-   measurements <- mapM timingComp [0..trials]
-   let result = head (map snd measurements)
-   let runs = map fst measurements
-   let totalTime = sum runs
-   let meanTime = totalTime / fromIntegral trials
-   let error    = stdError runs
-   -- Output
-   putStrLn $ "Timing for each run   = " <> intercalate ", " (map show runs)
-   printf "Mean time of %d trials = %6.2f (%6.2f) ms\n" trials meanTime error
-   return result
-  where
-    timingComp n = do
-      start  <- Clock.getTime Clock.Monotonic
-      -- Run the computation
-      result <- m (n == 0)
-      -- Force the result (to WHNF)
-      _ <- return $ result `seq` result
-      end    <- Clock.getTime Clock.Monotonic
-      let time = fromIntegral (Clock.toNanoSecs (Clock.diffTimeSpec end start)) / (10^(6 :: Integer)::Double)
-      return (time, result)
+benchmarkTime True  trials m = runBenchmark trials m
+
+runBenchmark :: Int -> (Bool -> IO a) -> IO a
+runBenchmark trials m = do
+  measurements <- mapM (timedRun m) [0..trials]
+  let result = head (map snd measurements)
+      runs   = map fst measurements
+      totalTime = sum runs
+      meanTime = totalTime / fromIntegral trials
+      stdErr   = stdError runs
+  -- Output
+  putStrLn $ "Timing for each run   = " <> intercalate ", " (map show runs)
+  printf "Mean time of %d trials = %6.2f (%6.2f) ms\n" trials meanTime stdErr
+  pure result
+
+timedRun :: (Bool -> IO a) -> Int -> IO (Double, a)
+timedRun m n = do
+  start  <- Clock.getTime Clock.Monotonic
+  -- Run the computation
+  result <- m (n == 0)
+  -- Force the result (to WHNF)
+  _ <- pure $ result `seq` result
+  end    <- Clock.getTime Clock.Monotonic
+  let time = fromIntegral (Clock.toNanoSecs (Clock.diffTimeSpec end start)) / (10^(6 :: Integer)::Double)
+  pure (time, result)
 
 -- Sample standard deviation
 stdDeviation :: [Double] -> Double
